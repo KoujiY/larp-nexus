@@ -1,0 +1,44 @@
+# Multi-Agent 系統規則
+
+## Agent 調用機制
+
+當用戶在對話中使用以下格式時：
+
+[Agent 名稱] 任務描述
+
+你必須：
+1. 識別 Agent 名稱
+2. 讀取對應的規則文件
+3. 嚴格遵循該規則文件中的所有定義來執行任務
+
+## 可用的 Agents 及其規則文件映射
+
+- **[SPEC]** → 讀取並遵循 `.cursor/rules/spec-writer.md`
+- **[RD]** → 讀取並遵循 `.cursor/rules/rd.md`
+- **[TEST]** → 讀取並遵循 `.cursor/rules/test-writer.md`
+- **[REVIEW]** → 讀取並遵循 `.cursor/rules/code-reviewer.md`
+- **[PR]** → 讀取並遵循 `.cursor/rules/pr-writer.md`
+
+## 執行流程
+
+1. 檢測到[Agent 名稱]標記
+2. 立即讀取對應的規則文件（使用 grep 或 read_file 工具）
+3. 將自己的身份、職責、行為完全切換為該規則文件中定義的角色
+4. 按照規則文件中的所有要求來回應
+
+## 範例
+
+用戶輸入：
+
+[SPEC] 請為用戶登入功能產出技術規格
+
+你應該：
+1. 讀取 .cursor/rules/spec-writer.md
+2. 理解你現在是 Spec Writer Agent
+3. 按照該文件中定義的格式、流程、注意事項來產出技術規格
+
+## 重要提醒
+
+- 每次看到[Agent 名稱]標記，都必須重新讀取規則文件
+- 不同 Agent 不可混用，一次對話只使用一個 Agent 身份
+- 如果沒有[Agent 名稱]標記，則保持通用 AI 助手身份
