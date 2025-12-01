@@ -32,8 +32,8 @@ const MagicLinkSchema = new Schema<MagicLinkDocument>(
 );
 
 // 建立索引
-MagicLinkSchema.index({ token: 1 }, { unique: true });
-MagicLinkSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL Index
+// token 索引已在 schema 定義中設定（unique: true 會自動建立）
+MagicLinkSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL Index：自動刪除過期文件
 
 export default mongoose.models.MagicLink || mongoose.model<MagicLinkDocument>('MagicLink', MagicLinkSchema);
 

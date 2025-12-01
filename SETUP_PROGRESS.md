@@ -6,9 +6,9 @@
 - [x] 本地開發環境
 
 ## Phase 2：開發階段服務 🔄
-- [ ] Resend 設定
+- [x] Resend 設定
 - [ ] Pusher 設定
-- [ ] Session Secret
+- [x] Session Secret
 - [x] .env.local 建立
 
 ## Phase 3：部署前設定
@@ -26,8 +26,8 @@
 - [x] MONGODB_URI
 - [x] NEXT_PUBLIC_APP_URL
 - [x] SESSION_SECRET
-- [ ] RESEND_API_KEY
-- [ ] EMAIL_FROM
+- [x] RESEND_API_KEY
+- [x] EMAIL_FROM
 - [ ] PUSHER_APP_ID
 - [ ] NEXT_PUBLIC_PUSHER_KEY
 - [ ] PUSHER_SECRET

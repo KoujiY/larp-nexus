@@ -1,4 +1,22 @@
 // Character (角色) 相關類型定義
+
+/**
+ * Phase 2 簡化版角色資料（用於 API 回傳）
+ */
+export interface CharacterData {
+  id: string;
+  gameId: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  hasPinLock: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * 完整版角色資料（Phase 3/4 使用）
+ */
 export interface Character {
   _id: string;
   gameId: string;

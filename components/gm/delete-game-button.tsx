@@ -1,0 +1,103 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { deleteGame } from '@/app/actions/games';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+
+interface DeleteGameButtonProps {
+  gameId: string;
+  gameName: string;
+}
+
+export function DeleteGameButton({ gameId, gameName }: DeleteGameButtonProps) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await deleteGame(gameId);
+
+      if (result.success) {
+        setOpen(false);
+        router.push('/games');
+        router.refresh();
+      } else {
+        setError(result.message || '刪除失敗');
+      }
+    } catch (err) {
+      console.error('Error deleting game:', err);
+      setError('發生錯誤，請稍後再試');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="destructive">
+          <span className="mr-2">🗑️</span>
+          刪除
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <DialogTitle>確認刪除劇本</DialogTitle>
+          <DialogDescription>
+            此操作無法復原，請確認是否要刪除以下劇本：
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="py-4">
+          <div className="p-4 rounded-lg bg-red-50 border border-red-200 space-y-2">
+            <p className="font-semibold text-red-900">📚 {gameName}</p>
+            <p className="text-sm text-red-700">
+              ⚠️ 刪除劇本將同時刪除所有相關的角色卡資料
+            </p>
+          </div>
+
+          {error && (
+            <div className="mt-4 p-3 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={isLoading}
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={isLoading}
+          >
+            {isLoading ? '刪除中...' : '確認刪除'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

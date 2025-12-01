@@ -1,45 +1,38 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import type { Game as IGame, Chapter } from '@/types';
 
-export interface GameDocument extends Omit<IGame, '_id'>, Document {}
-
-const ChapterSchema = new Schema<Chapter>(
-  {
-    title: { type: String, required: true },
-    content: { type: String, required: true },
-    order: { type: Number, required: true },
-  },
-  { _id: false }
-);
+/**
+ * Phase 2 簡化版 Game Document
+ * Phase 3/4 將擴展為完整版本（含 publicInfo, chapters 等）
+ */
+export interface GameDocument extends Document {
+  gmUserId: mongoose.Types.ObjectId;
+  name: string;
+  description: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 const GameSchema = new Schema<GameDocument>(
   {
-    gmId: {
-      type: String,
+    gmUserId: {
+      type: Schema.Types.ObjectId,
       ref: 'GMUser',
       required: true,
     },
-    title: {
+    name: {
       type: String,
       required: true,
       maxlength: 100,
     },
     description: {
       type: String,
+      default: '',
       maxlength: 500,
     },
-    coverImage: {
-      type: String,
-    },
-    publicInfo: {
-      intro: { type: String, default: '' },
-      worldSetting: { type: String, default: '' },
-      chapters: [ChapterSchema],
-    },
-    status: {
-      type: String,
-      enum: ['draft', 'active', 'completed'],
-      default: 'draft',
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {
@@ -49,8 +42,7 @@ const GameSchema = new Schema<GameDocument>(
 );
 
 // 建立索引
-GameSchema.index({ gmId: 1 });
-GameSchema.index({ status: 1 });
+GameSchema.index({ gmUserId: 1 });
 GameSchema.index({ createdAt: -1 });
 
 export default mongoose.models.Game || mongoose.model<GameDocument>('Game', GameSchema);

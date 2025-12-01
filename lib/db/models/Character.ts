@@ -1,64 +1,37 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import type { Character as ICharacter, Task, Item, Relationship, Secret } from '@/types';
 
-export interface CharacterDocument extends Omit<ICharacter, '_id'>, Document {}
-
-const RelationshipSchema = new Schema<Relationship>(
-  {
-    targetName: { type: String, required: true },
-    description: { type: String, required: true },
-  },
-  { _id: false }
-);
-
-const SecretSchema = new Schema<Secret>(
-  {
-    title: { type: String, required: true },
-    content: { type: String, required: true },
-    revealedAt: { type: Date },
-  },
-  { _id: false }
-);
-
-const TaskSchema = new Schema<Task>(
-  {
-    id: { type: String, required: true },
-    title: { type: String, required: true },
-    description: { type: String, required: true },
-    status: {
-      type: String,
-      enum: ['pending', 'in-progress', 'completed'],
-      default: 'pending',
-    },
-    createdAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
-
-const ItemSchema = new Schema<Item>(
-  {
-    id: { type: String, required: true },
-    name: { type: String, required: true },
-    description: { type: String, required: true },
-    imageUrl: { type: String },
-    acquiredAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
+/**
+ * Phase 2 簡化版 Character Document
+ * Phase 3/4 將擴展為完整版本（含 publicInfo, secretInfo, tasks, items 等）
+ */
+export interface CharacterDocument extends Document {
+  gameId: mongoose.Types.ObjectId;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  hasPinLock: boolean;
+  pinHash?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 const CharacterSchema = new Schema<CharacterDocument>(
   {
     gameId: {
-      type: String,
+      type: Schema.Types.ObjectId,
       ref: 'Game',
       required: true,
     },
     name: {
       type: String,
       required: true,
-      maxlength: 50,
+      maxlength: 100,
     },
-    avatar: {
+    description: {
+      type: String,
+      default: '',
+    },
+    imageUrl: {
       type: String,
     },
     hasPinLock: {
@@ -67,22 +40,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
     },
     pinHash: {
       type: String,
-    },
-    publicInfo: {
-      background: { type: String, default: '' },
-      personality: { type: String, default: '' },
-      relationships: [RelationshipSchema],
-    },
-    secretInfo: {
-      isUnlocked: { type: Boolean, default: false },
-      secrets: [SecretSchema],
-      hiddenGoals: { type: String, default: '' },
-    },
-    tasks: [TaskSchema],
-    items: [ItemSchema],
-    wsChannelId: {
-      type: String,
-      required: true,
     },
   },
   {
@@ -93,7 +50,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
 
 // 建立索引
 CharacterSchema.index({ gameId: 1 });
-CharacterSchema.index({ wsChannelId: 1 });
 
 export default mongoose.models.Character || mongoose.model<CharacterDocument>('Character', CharacterSchema);
 

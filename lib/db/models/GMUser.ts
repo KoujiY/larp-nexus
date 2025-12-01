@@ -24,8 +24,7 @@ const GMUserSchema = new Schema<GMUserDocument>(
   }
 );
 
-// 建立索引
-GMUserSchema.index({ email: 1 });
+// 索引已在 schema 定義中設定（email: unique: true 會自動建立索引）
 
 export default mongoose.models.GMUser || mongoose.model<GMUserDocument>('GMUser', GMUserSchema);
 
