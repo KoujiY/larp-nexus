@@ -35,3 +35,11 @@ export function generateMagicLinkUrl(token: string): string {
   return `${baseUrl}/verify?token=${token}`;
 }
 
+/**
+ * 生成劇本公開資訊頁面 URL
+ */
+export function generateGamePublicUrl(gameId: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return `${baseUrl}/g/${gameId}`;
+}
+

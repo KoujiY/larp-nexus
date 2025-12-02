@@ -2,6 +2,7 @@ import { getGames } from '@/app/actions/games';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PageLayout } from '@/components/gm/page-layout';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CreateGameButton } from '@/components/gm/create-game-button';
@@ -14,26 +15,39 @@ export default async function GamesPage() {
       redirect('/auth/login');
     }
     return (
-      <div className="p-8">
+      <PageLayout
+        header={
+          <div>
+            <h1 className="text-3xl font-bold">劇本管理</h1>
+          </div>
+        }
+        maxWidth="lg"
+      >
         <div className="text-center text-red-600">
           {result.message || '無法載入劇本'}
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   const games = result.data || [];
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold">劇本管理</h1>
-          <p className="text-muted-foreground">管理您的 LARP 劇本</p>
+    <PageLayout
+      header={
+        <div className="flex items-center justify-between w-full">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-3xl font-bold mb-1">劇本管理</h1>
+            <p className="text-muted-foreground text-sm">管理您的 LARP 劇本</p>
+          </div>
+          <div className="shrink-0 ml-4">
+            <CreateGameButton />
+          </div>
         </div>
-        <CreateGameButton />
-      </div>
+      }
+      maxWidth="lg"
+    >
+      <div className="space-y-8">
 
       {/* Games List */}
       {games.length === 0 ? (
@@ -83,7 +97,8 @@ export default async function GamesPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </PageLayout>
   );
 }
 

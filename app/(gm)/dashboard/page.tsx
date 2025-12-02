@@ -1,5 +1,6 @@
 import { getCurrentGMUser } from '@/app/actions/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageLayout } from '@/components/gm/page-layout';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { redirect } from 'next/navigation';
@@ -12,14 +13,18 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold">歡迎回來，{gmUser.displayName}！</h1>
-        <p className="text-muted-foreground">
-          從這裡開始管理您的 LARP 劇本與角色
-        </p>
-      </div>
+    <PageLayout
+      header={
+        <div>
+          <h1 className="text-3xl font-bold mb-1">歡迎回來，{gmUser.displayName}！</h1>
+          <p className="text-muted-foreground text-sm">
+            從這裡開始管理您的 LARP 劇本與角色
+          </p>
+        </div>
+      }
+      maxWidth="lg"
+    >
+      <div className="space-y-8">
 
       {/* Quick Actions */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -118,7 +123,8 @@ export default async function DashboardPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageLayout>
   );
 }
 

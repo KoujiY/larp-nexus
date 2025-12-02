@@ -43,6 +43,7 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
         name: game.name,
         description: game.description,
         isActive: game.isActive,
+        publicInfo: game.publicInfo,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       })),
@@ -92,6 +93,7 @@ export async function getGameById(
         name: game.name,
         description: game.description,
         isActive: game.isActive,
+        publicInfo: game.publicInfo,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       },
@@ -144,6 +146,7 @@ export async function createGame(data: {
         name: game.name,
         description: game.description,
         isActive: game.isActive,
+        publicInfo: game.publicInfo,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       },
@@ -170,6 +173,7 @@ export async function createGame(data: {
 
 /**
  * 更新劇本
+ * Phase 3: 支援更新 publicInfo
  */
 export async function updateGame(
   gameId: string,
@@ -177,6 +181,15 @@ export async function updateGame(
     name?: string;
     description?: string;
     isActive?: boolean;
+    publicInfo?: {
+      intro?: string;
+      worldSetting?: string;
+      chapters?: Array<{
+        title: string;
+        content: string;
+        order: number;
+      }>;
+    };
   }
 ): Promise<ApiResponse<GameData>> {
   try {
@@ -195,9 +208,27 @@ export async function updateGame(
     }
 
     await dbConnect();
+    
+    // 準備更新資料
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    
+    // Phase 3: 處理 publicInfo 更新
+    if (data.publicInfo !== undefined) {
+      const currentGame = await Game.findOne({ _id: gameId, gmUserId });
+      const currentPublicInfo = currentGame?.publicInfo || {};
+      updateData.publicInfo = {
+        intro: data.publicInfo.intro ?? currentPublicInfo.intro ?? '',
+        worldSetting: data.publicInfo.worldSetting ?? currentPublicInfo.worldSetting ?? '',
+        chapters: data.publicInfo.chapters ?? currentPublicInfo.chapters ?? [],
+      };
+    }
+
     const game = await Game.findOneAndUpdate(
       { _id: gameId, gmUserId },
-      { $set: data },
+      { $set: updateData },
       { new: true, runValidators: true }
     ).lean();
 
@@ -220,6 +251,7 @@ export async function updateGame(
         name: game.name,
         description: game.description,
         isActive: game.isActive,
+        publicInfo: game.publicInfo,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       },

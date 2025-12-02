@@ -6,7 +6,6 @@ import { put } from '@vercel/blob';
 import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
-import { hashPin } from '@/lib/utils/hash';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 
@@ -19,6 +18,58 @@ const characterSchema = z.object({
   hasPinLock: z.boolean(),
   pin: z.string().optional(),
 });
+
+/**
+ * 取得角色的 PIN（僅限 GM）
+ */
+export async function getCharacterPin(
+  characterId: string
+): Promise<ApiResponse<{ pin: string }>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '請先登入',
+      };
+    }
+
+    await dbConnect();
+    const character = await Character.findById(characterId).lean();
+
+    if (!character) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此角色',
+      };
+    }
+
+    // 驗證 Game 擁有權
+    const game = await Game.findOne({ _id: character.gameId, gmUserId });
+    if (!game) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '無權存取此角色',
+      };
+    }
+
+    // 回傳 PIN（若未設定則回傳空字串）
+    return {
+      success: true,
+      data: { pin: character.pin || '' },
+    };
+  } catch (error) {
+    console.error('Error fetching character PIN:', error);
+    return {
+      success: false,
+      error: 'FETCH_FAILED',
+      message: '無法取得 PIN 資料',
+    };
+  }
+}
 
 /**
  * 取得特定劇本的所有角色
@@ -61,6 +112,9 @@ export async function getCharactersByGameId(
         description: char.description,
         imageUrl: char.imageUrl,
         hasPinLock: char.hasPinLock,
+        publicInfo: char.publicInfo,
+        tasks: char.tasks || [],
+        items: char.items || [],
         createdAt: char.createdAt,
         updatedAt: char.updatedAt,
       })),
@@ -121,6 +175,9 @@ export async function getCharacterById(
         description: character.description,
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
+        publicInfo: character.publicInfo,
+        tasks: character.tasks || [],
+        items: character.items || [],
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },
@@ -196,9 +253,9 @@ export async function createCharacter(data: {
       hasPinLock: validated.hasPinLock,
     };
 
-    // 如果有 PIN，進行 hash
+    // 如果有 PIN，直接儲存明文
     if (validated.hasPinLock && validated.pin) {
-      characterData.pinHash = await hashPin(validated.pin);
+      characterData.pin = validated.pin;
     }
 
     const character = await Character.create(characterData);
@@ -214,6 +271,9 @@ export async function createCharacter(data: {
         description: character.description,
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
+        publicInfo: character.publicInfo,
+        tasks: character.tasks || [],
+        items: character.items || [],
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },
@@ -240,6 +300,7 @@ export async function createCharacter(data: {
 
 /**
  * 更新角色
+ * Phase 3: 支援更新 publicInfo
  */
 export async function updateCharacter(
   characterId: string,
@@ -248,6 +309,14 @@ export async function updateCharacter(
     description?: string;
     hasPinLock?: boolean;
     pin?: string;
+    publicInfo?: {
+      background?: string;
+      personality?: string;
+      relationships?: Array<{
+        targetName: string;
+        description: string;
+      }>;
+    };
   }
 ): Promise<ApiResponse<CharacterData>> {
   try {
@@ -304,7 +373,17 @@ export async function updateCharacter(
           message: 'PIN 碼必須為 4-6 位數字',
         };
       }
-      updateData.pinHash = await hashPin(data.pin);
+      updateData.pin = data.pin;
+    }
+
+    // Phase 3: 處理 publicInfo 更新
+    if (data.publicInfo !== undefined) {
+      const currentPublicInfo = character.publicInfo || {};
+      updateData.publicInfo = {
+        background: data.publicInfo.background ?? currentPublicInfo.background ?? '',
+        personality: data.publicInfo.personality ?? currentPublicInfo.personality ?? '',
+        relationships: data.publicInfo.relationships ?? currentPublicInfo.relationships ?? [],
+      };
     }
 
     const updatedCharacter = await Character.findByIdAndUpdate(
@@ -332,6 +411,9 @@ export async function updateCharacter(
         description: updatedCharacter.description,
         imageUrl: updatedCharacter.imageUrl,
         hasPinLock: updatedCharacter.hasPinLock,
+        publicInfo: updatedCharacter.publicInfo,
+        tasks: updatedCharacter.tasks || [],
+        items: updatedCharacter.items || [],
         createdAt: updatedCharacter.createdAt,
         updatedAt: updatedCharacter.updatedAt,
       },

@@ -60,7 +60,7 @@ export function CreateGameButton() {
           建立劇本
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>建立新劇本</DialogTitle>
@@ -100,8 +100,12 @@ export function CreateGameButton() {
                   }))
                 }
                 disabled={isLoading}
-                rows={4}
+                rows={5}
+                className="resize-none max-h-[150px] overflow-y-auto"
               />
+              <p className="text-xs text-muted-foreground">
+                建議不超過 300 字
+              </p>
             </div>
 
             {error && (

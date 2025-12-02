@@ -17,15 +17,10 @@ export default function Home() {
               🔐 GM 登入
             </Button>
           </Link>
-          <Link href="/c/demo">
-            <Button
-              size="lg"
-              variant="outline"
-              className="w-full sm:w-auto bg-transparent text-white border-white hover:bg-white/10"
-            >
-              👤 玩家示範頁面
-            </Button>
-          </Link>
+        </div>
+
+        <div className="pt-8 text-purple-200 text-sm">
+          <p>💡 玩家請使用 GM 提供的 QR Code 或連結查看角色卡</p>
         </div>
 
         <div className="pt-12 text-purple-200 text-sm space-y-2">

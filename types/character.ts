@@ -1,7 +1,7 @@
 // Character (角色) 相關類型定義
 
 /**
- * Phase 2 簡化版角色資料（用於 API 回傳）
+ * Phase 3 擴展版角色資料（用於 API 回傳）
  */
 export interface CharacterData {
   id: string;
@@ -10,6 +10,9 @@ export interface CharacterData {
   description: string;
   imageUrl?: string;
   hasPinLock: boolean;
+  publicInfo?: PublicInfo;
+  tasks?: Task[];
+  items?: Item[];
   createdAt: Date;
   updatedAt: Date;
 }

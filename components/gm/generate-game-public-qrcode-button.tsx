@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { generateQRCode, generateCharacterUrl } from '@/lib/utils/qr-code';
+import { generateQRCode, generateGamePublicUrl } from '@/lib/utils/qr-code';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,25 +13,27 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Copy, Check } from 'lucide-react';
 
-interface GenerateQRCodeButtonProps {
-  characterId: string;
+interface GenerateGamePublicQRCodeButtonProps {
+  gameId: string;
 }
 
-export function GenerateQRCodeButton({ characterId }: GenerateQRCodeButtonProps) {
+export function GenerateGamePublicQRCodeButton({ gameId }: GenerateGamePublicQRCodeButtonProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLinkCopied, setIsLinkCopied] = useState(false);
 
-  const characterUrl = generateCharacterUrl(characterId);
+  const gamePublicUrl = generateGamePublicUrl(gameId);
 
   const handleGenerate = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const dataUrl = await generateQRCode(characterUrl);
+      const dataUrl = await generateQRCode(gamePublicUrl);
       setQrCodeDataUrl(dataUrl);
     } catch (err) {
       console.error('Error generating QR code:', err);
@@ -46,16 +48,27 @@ export function GenerateQRCodeButton({ characterId }: GenerateQRCodeButtonProps)
 
     const link = document.createElement('a');
     link.href = qrCodeDataUrl;
-    link.download = `character-${characterId}-qrcode.png`;
+    link.download = `game-${gameId}-public-qrcode.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(gamePublicUrl);
+      setIsLinkCopied(true);
+      setTimeout(() => setIsLinkCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
   };
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setQrCodeDataUrl(null);
       setError(null);
+      setIsLinkCopied(false);
     } else {
       // 開啟時自動生成
       handleGenerate();
@@ -66,15 +79,15 @@ export function GenerateQRCodeButton({ characterId }: GenerateQRCodeButtonProps)
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex-1">
+        <Button variant="outline" size="sm">
           📱 QR Code
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>角色 QR Code</DialogTitle>
+          <DialogTitle>公開資訊頁面 QR Code</DialogTitle>
           <DialogDescription>
-            玩家可掃描此 QR Code 查看角色卡
+            玩家可掃描此 QR Code 查看劇本的世界觀、前導故事與章節資訊
           </DialogDescription>
         </DialogHeader>
 
@@ -91,16 +104,30 @@ export function GenerateQRCodeButton({ characterId }: GenerateQRCodeButtonProps)
                 <div className="flex justify-center p-6 bg-white rounded-lg border">
                   <img
                     src={qrCodeDataUrl}
-                    alt="Character QR Code"
+                    alt="Game Public Info QR Code"
                     className="w-64 h-64"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>角色頁面連結</Label>
-                <div className="p-3 rounded-lg bg-muted text-sm break-all">
-                  {characterUrl}
+                <Label>公開資訊頁面連結</Label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 p-3 rounded-lg bg-muted text-sm break-all">
+                    {gamePublicUrl}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyLink}
+                    title="複製連結"
+                  >
+                    {isLinkCopied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
             </>

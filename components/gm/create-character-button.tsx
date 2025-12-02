@@ -27,6 +27,7 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPin, setShowPin] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -68,7 +69,7 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
           新增角色
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>新增角色</DialogTitle>
@@ -108,8 +109,12 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
                   }))
                 }
                 disabled={isLoading}
-                rows={4}
+                rows={6}
+                className="resize-none max-h-[200px] overflow-y-auto"
               />
+              <p className="text-xs text-muted-foreground">
+                可輸入多行文字，建議不超過 500 字
+              </p>
             </div>
 
             <div className="flex items-center justify-between py-2 px-3 rounded-lg border">
@@ -134,19 +139,36 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
                 <Label htmlFor="pin">
                   PIN 碼（4-6 位數字） <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  id="pin"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{4,6}"
-                  placeholder="例：1234"
-                  value={formData.pin}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, pin: e.target.value }))
-                  }
-                  disabled={isLoading}
-                  required={formData.hasPinLock}
-                />
+                <div className="relative">
+                  <Input
+                    id="pin"
+                    type={showPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    pattern="[0-9]{4,6}"
+                    placeholder="例：1234"
+                    value={formData.pin}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ 
+                        ...prev, 
+                        pin: e.target.value.replace(/\D/g, '').slice(0, 6)
+                      }))
+                    }
+                    disabled={isLoading}
+                    required={formData.hasPinLock}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPin ? '🙈' : '👁️'}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  請記住此 PIN 碼，玩家需要此碼才能查看角色卡
+                </p>
               </div>
             )}
 

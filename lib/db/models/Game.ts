@@ -1,14 +1,26 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 /**
- * Phase 2 簡化版 Game Document
- * Phase 3/4 將擴展為完整版本（含 publicInfo, chapters 等）
+ * Phase 3 擴展版 Game Document
+ * 包含 publicInfo（世界觀、前導故事、章節）
  */
 export interface GameDocument extends Document {
   gmUserId: mongoose.Types.ObjectId;
   name: string;
   description: string;
   isActive: boolean;
+  
+  // Phase 3: 公開資訊（所有玩家可見）
+  publicInfo?: {
+    intro: string; // 前導故事
+    worldSetting: string; // 世界觀
+    chapters: Array<{
+      title: string;
+      content: string;
+      order: number;
+    }>;
+  };
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +45,33 @@ const GameSchema = new Schema<GameDocument>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    // Phase 3: 公開資訊
+    publicInfo: {
+      intro: {
+        type: String,
+        default: '',
+      },
+      worldSetting: {
+        type: String,
+        default: '',
+      },
+      chapters: [
+        {
+          title: {
+            type: String,
+            required: true,
+          },
+          content: {
+            type: String,
+            default: '',
+          },
+          order: {
+            type: Number,
+            required: true,
+          },
+        },
+      ],
     },
   },
   {

@@ -23,6 +23,7 @@ interface DeleteCharacterButtonProps {
 export function DeleteCharacterButton({
   characterId,
   characterName,
+  gameId,
 }: DeleteCharacterButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -38,7 +39,8 @@ export function DeleteCharacterButton({
 
       if (result.success) {
         setOpen(false);
-        router.refresh();
+        // 刪除成功後導航回遊戲頁面
+        router.push(`/games/${gameId}`);
       } else {
         setError(result.message || '刪除失敗');
       }

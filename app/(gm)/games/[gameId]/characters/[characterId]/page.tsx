@@ -1,0 +1,256 @@
+import { getCharacterById } from '@/app/actions/characters';
+import { getGameById } from '@/app/actions/games';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageLayout } from '@/components/gm/page-layout';
+import { CharacterEditForm } from '@/components/gm/character-edit-form';
+import { UploadCharacterImageButton } from '@/components/gm/upload-character-image-button';
+import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
+import { ViewPinButton } from '@/components/gm/view-pin-button';
+import { DeleteCharacterButton } from '@/components/gm/delete-character-button';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import Image from 'next/image';
+
+interface CharacterEditPageProps {
+  params: Promise<{
+    gameId: string;
+    characterId: string;
+  }>;
+}
+
+export default async function CharacterEditPage({ params }: CharacterEditPageProps) {
+  const { gameId, characterId } = await params;
+
+  // 取得角色資料
+  const characterResult = await getCharacterById(characterId);
+  if (!characterResult.success || !characterResult.data) {
+    if (characterResult.error === 'UNAUTHORIZED') {
+      redirect('/auth/login');
+    }
+    redirect(`/games/${gameId}`);
+  }
+
+  // 取得劇本資料（用於顯示麵包屑）
+  const gameResult = await getGameById(gameId);
+  if (!gameResult.success || !gameResult.data) {
+    redirect('/games');
+  }
+
+  const character = characterResult.data;
+  const game = gameResult.data;
+
+  return (
+    <PageLayout
+      header={
+        <div className="flex items-center justify-between w-full">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-1">
+              <Link href="/games" className="hover:text-foreground transition-colors">
+                劇本列表
+              </Link>
+              <span>/</span>
+              <Link
+                href={`/games/${gameId}`}
+                className="hover:text-foreground transition-colors"
+              >
+                {game.name}
+              </Link>
+              <span>/</span>
+              <span className="text-foreground font-medium truncate">{character.name}</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <h1 className="text-3xl font-bold truncate">{character.name}</h1>
+              {character.hasPinLock && (
+                <Badge variant="secondary" className="shrink-0">🔒 PIN 保護</Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm line-clamp-1 mt-1">
+              編輯角色資訊、管理道具與技能
+            </p>
+          </div>
+          <div className="shrink-0 ml-4">
+            <Link href={`/games/${gameId}`}>
+              <Button variant="outline" size="sm">
+                ← 返回劇本
+              </Button>
+            </Link>
+          </div>
+        </div>
+      }
+      maxWidth="lg"
+    >
+      <div className="space-y-6">
+
+        {/* Character Preview Card */}
+        <Card className="bg-gradient-to-br from-purple-50 to-blue-50">
+          <CardContent className="p-6">
+            <div className="flex items-start space-x-6">
+              {/* Character Image */}
+              <div className="flex-shrink-0">
+                {character.imageUrl ? (
+                  <div className="relative h-32 w-32 rounded-lg overflow-hidden border-2 border-white shadow-lg">
+                    <Image
+                      src={character.imageUrl}
+                      alt={character.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-32 w-32 rounded-lg bg-gradient-to-br from-purple-200 to-blue-200 flex items-center justify-center border-2 border-white shadow-lg">
+                    <span className="text-5xl">👤</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Character Info & Actions */}
+              <div className="flex-1 space-y-4">
+                <div>
+                  <h3 className="text-xl font-semibold">{character.name}</h3>
+                  <p className="text-muted-foreground line-clamp-2 mt-1">
+                    {character.description || '尚無描述'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <UploadCharacterImageButton characterId={character.id} />
+                  <GenerateQRCodeButton characterId={character.id} />
+                  {character.hasPinLock && (
+                    <ViewPinButton
+                      characterId={character.id}
+                      characterName={character.name}
+                    />
+                  )}
+                  <DeleteCharacterButton
+                    characterId={character.id}
+                    characterName={character.name}
+                    gameId={gameId}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tabs for Different Sections */}
+        <Tabs defaultValue="basic" className="space-y-6">
+          <TabsList className="w-auto">
+            <TabsTrigger value="basic">📝 基本資訊</TabsTrigger>
+            <TabsTrigger value="stats" disabled>
+              📊 角色數值
+            </TabsTrigger>
+            <TabsTrigger value="items" disabled>
+              🎒 道具管理
+            </TabsTrigger>
+            <TabsTrigger value="skills" disabled>
+              ⚡ 技能管理
+            </TabsTrigger>
+            <TabsTrigger value="tasks" disabled>
+              ✅ 任務管理
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Basic Info Tab */}
+          <TabsContent value="basic" className="space-y-6">
+            <CharacterEditForm character={character} gameId={gameId} />
+          </TabsContent>
+
+          {/* Stats Tab (Coming Soon) */}
+          <TabsContent value="stats">
+            <Card>
+              <CardHeader>
+                <CardTitle>角色數值</CardTitle>
+                <CardDescription>
+                  設定角色的屬性、戰鬥數值等（Phase 4 開發中）
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="py-12">
+                <div className="text-center space-y-4">
+                  <div className="text-6xl">📊</div>
+                  <div>
+                    <h3 className="text-xl font-semibold">開發中</h3>
+                    <p className="text-muted-foreground mt-2">
+                      此功能將在 Phase 4 實作
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Items Tab (Coming Soon) */}
+          <TabsContent value="items">
+            <Card>
+              <CardHeader>
+                <CardTitle>道具管理</CardTitle>
+                <CardDescription>
+                  管理角色持有的道具卡（Phase 4 開發中）
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="py-12">
+                <div className="text-center space-y-4">
+                  <div className="text-6xl">🎒</div>
+                  <div>
+                    <h3 className="text-xl font-semibold">開發中</h3>
+                    <p className="text-muted-foreground mt-2">
+                      此功能將在 Phase 4 實作
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Skills Tab (Coming Soon) */}
+          <TabsContent value="skills">
+            <Card>
+              <CardHeader>
+                <CardTitle>技能管理</CardTitle>
+                <CardDescription>
+                  管理角色的技能與能力（Phase 4 開發中）
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="py-12">
+                <div className="text-center space-y-4">
+                  <div className="text-6xl">⚡</div>
+                  <div>
+                    <h3 className="text-xl font-semibold">開發中</h3>
+                    <p className="text-muted-foreground mt-2">
+                      此功能將在 Phase 4 實作
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tasks Tab (Coming Soon) */}
+          <TabsContent value="tasks">
+            <Card>
+              <CardHeader>
+                <CardTitle>任務管理</CardTitle>
+                <CardDescription>
+                  管理角色的任務進度（Phase 4 開發中）
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="py-12">
+                <div className="text-center space-y-4">
+                  <div className="text-6xl">✅</div>
+                  <div>
+                    <h3 className="text-xl font-semibold">開發中</h3>
+                    <p className="text-muted-foreground mt-2">
+                      此功能將在 Phase 4 實作
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </PageLayout>
+  );
+}
+

@@ -1,5 +1,6 @@
 import { getCurrentGMUser } from '@/app/actions/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageLayout } from '@/components/gm/page-layout';
 import { redirect } from 'next/navigation';
 
 export default async function ProfilePage() {
@@ -21,12 +22,16 @@ export default async function ProfilePage() {
   };
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold">個人設定</h1>
-        <p className="text-muted-foreground">管理您的 GM 帳號資訊</p>
-      </div>
+    <PageLayout
+      header={
+        <div>
+          <h1 className="text-3xl font-bold mb-1">個人設定</h1>
+          <p className="text-muted-foreground text-sm">管理您的 GM 帳號資訊</p>
+        </div>
+      }
+      maxWidth="lg"
+    >
+      <div className="space-y-8">
 
       {/* User Info */}
       <Card>
@@ -82,7 +87,8 @@ export default async function ProfilePage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageLayout>
   );
 }
 
