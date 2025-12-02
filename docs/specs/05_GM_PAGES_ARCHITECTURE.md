@@ -9,21 +9,47 @@
 
 GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
 
+### 1.0 統一佈局結構（Phase 3 更新）
+
+所有 GM 頁面採用統一的佈局結構：
+
+```
+┌─────────────────────────────────────────┐
+│  [左側 Menu]  │  [右側內容區域]        │
+│              │  ┌───────────────────┐  │
+│  Navigation  │  │ Header (固定)     │  │
+│              │  ├───────────────────┤  │
+│              │  │ Content (可滾動)   │  │
+│              │  │ (最大寬度限制)     │  │
+│              │  └───────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+**佈局特點：**
+- **左側 Menu**：固定寬度 256px (w-64)，包含 Navigation 組件
+- **右側內容區域**：flex-1，分為上下兩部分
+  - **Header 區塊**：固定在上方，有底部邊框，背景為 card
+  - **Content 區塊**：可滾動，內容有最大寬度限制並置中
+- **最大寬度設定**：預設 `max-w-6xl` (lg)，可根據頁面需求調整
+- **Tab 寬度**：Tab 列表使用 `w-auto`，內容靠左對齊，不滿版
+
 ### 1.1 路由結構
 
 ```
-/login                              # 登入頁
-/verify                             # Email 驗證頁
-/dashboard                          # 主控台（劇本總覽）
-/games/new                          # 建立劇本
-/games/[gameId]                     # 劇本詳情 Dashboard
-/games/[gameId]/characters          # 角色管理列表
-/games/[gameId]/characters/new      # 建立角色
-/games/[gameId]/characters/[charId] # 編輯角色
-/games/[gameId]/events              # 事件推送介面
-/games/[gameId]/settings            # 劇本設定
-/profile                            # GM 個人設定
+/auth/login                                      # 登入頁
+/auth/verify                                     # Email 驗證頁
+/dashboard                                       # 主控台（劇本總覽）
+/games                                           # 劇本列表
+/games/[gameId]                                  # 劇本詳情頁（含角色列表）
+/games/[gameId]/characters/[characterId]         # 角色編輯頁（Tab 佈局）
+/profile                                         # GM 個人設定
 ```
+
+**實作方式說明：**
+- **建立劇本**：透過 `/games` 頁面的 Dialog 建立
+- **編輯劇本**：在劇本詳情頁的「劇本資訊」Tab 中直接編輯（Phase 3 更新：改為 Tab 形式）
+- **建立角色**：透過 `/games/[gameId]` 頁面的 Dialog 建立
+- **編輯角色**：點擊角色卡片進入獨立編輯頁面 `/games/[gameId]/characters/[characterId]`（支援 Tab 切換：基本資訊/數值/道具/技能/任務）
 
 ---
 
@@ -91,6 +117,16 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
 ---
 
 ### 2.3 主控台 (`/dashboard`)
+
+**佈局結構（Phase 3 更新）**
+```tsx
+<PageLayout
+  header={<DashboardHeader />}
+  maxWidth="lg"
+>
+  <DashboardContent />
+</PageLayout>
+```
 
 **功能**
 - 顯示所有劇本列表
@@ -264,162 +300,462 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
 
 ---
 
-### 2.6 角色管理列表 (`/games/[gameId]/characters`)
+### 2.6 劇本詳情頁 - 角色列表 (`/games/[gameId]`)
+
+**說明**
+- 角色列表直接整合在劇本詳情頁中，不設置獨立的 `/characters` 路由
+- 採用卡片式佈局展示角色（響應式 Grid）
+- 點擊角色卡片即可進入編輯頁面
+- 建立新角色透過 Dialog 快速完成
 
 **功能**
-- 顯示所有角色
-- 快速建立新角色
-- 角色搜尋
-- 複製角色 URL / QR Code
+- Tab 切換：劇本資訊 / 角色列表（Phase 3 更新：改為 Tab 形式）
+- 在「劇本資訊」Tab 中直接編輯劇本基本資訊與公開資訊
+- 在「角色列表」Tab 中顯示所有角色（卡片式佈局）
+- 快速建立新角色（Dialog）
+- 點擊角色卡片進入編輯頁面
+- 管理角色圖片、QR Code、PIN
 
-**元件組成**
+**佈局結構（Phase 3 更新：統一佈局 + Tab 形式）**
 ```tsx
-<CharactersPage>
+<PageLayout
+  header={
+    <div className="flex items-start justify-between">
+      <div>
+        <Breadcrumb>劇本列表 / {game.name}</Breadcrumb>
+        <h1>{game.name}</h1>
+        <Badge>{game.isActive ? '啟用中' : '已停用'}</Badge>
+      </div>
+      <Actions>
+        <Button asChild><Link href={`/g/${game.id}`}>預覽公開頁面</Link></Button>
+        <DeleteGameButton />
+      </Actions>
+    </div>
+  }
+  maxWidth="lg"
+>
+  <Tabs defaultValue="info">
+    {/* Tab 列表：寬度自動，靠左對齊 */}
+    <TabsList className="w-auto">
+      <TabsTrigger value="info">📋 劇本資訊</TabsTrigger>
+      <TabsTrigger value="characters">👥 角色列表</TabsTrigger>
+    </TabsList>
+    
+    {/* 劇本資訊 Tab */}
+    <TabsContent value="info">
+      <GameEditForm game={game} />
+    </TabsContent>
+    
+    {/* 角色列表 Tab */}
+    <TabsContent value="characters">
+      <CharactersSection>
+        <SectionHeader>
+          <div>
+            <h2>角色列表</h2>
+            <p>管理此劇本的角色卡（共 {characters.length} 個角色）</p>
+          </div>
+          <CreateCharacterButton gameId={game.id} />
+        </SectionHeader>
+        
+        {characters.length === 0 ? (
+          <EmptyState>
+            <Icon>👥</Icon>
+            <h3>尚無角色</h3>
+            <p>新增角色開始設定角色卡資訊</p>
+            <CreateCharacterButton gameId={game.id} />
+          </EmptyState>
+        ) : (
+          <CharacterGrid columns={3}>
+            {characters.map(character => (
+              <CharacterCard
+                key={character.id}
+                character={character}
+                gameId={game.id}
+              />
+            ))}
+          </CharacterGrid>
+        )}
+      </CharactersSection>
+    </TabsContent>
+  </Tabs>
+</PageLayout>
+```
+
+**Tab 寬度設計（Phase 3 更新）**
+- Tab 列表使用 `w-auto`，不滿版
+- Tab 內容區域自動寬度，靠左對齊
+- 保持內容區域的最大寬度限制（由 PageLayout 控制）
+
+**GameEditForm 元件**（Phase 3 新增）
+```tsx
+<GameEditForm>
+  {/* 基本資訊 */}
+  <Card>
+    <CardHeader>
+      <CardTitle>基本資訊</CardTitle>
+      <CardDescription>設定劇本的名稱、描述與狀態</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Input label="劇本名稱" name="name" />
+      <Textarea label="劇本描述" name="description" />
+      <Switch label="劇本狀態" name="isActive" />
+    </CardContent>
+  </Card>
+  
+  {/* 公開資訊（Phase 3） */}
+  <Card>
+    <CardHeader>
+      <CardTitle>公開資訊</CardTitle>
+      <CardDescription>
+        設定劇本的世界觀、前導故事與章節（所有玩家可見）
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Textarea label="世界觀" name="publicInfo.worldSetting" />
+      <Textarea label="前導故事" name="publicInfo.intro" />
+      <ChaptersEditor chapters={game.publicInfo?.chapters} />
+    </CardContent>
+  </Card>
+</GameEditForm>
+```
+
+**CharacterCard 元件**（可點擊進入編輯）
+```tsx
+<Card className="cursor-pointer hover:shadow-lg hover:-translate-y-1">
+  {/* 點擊卡片進入編輯頁面 */}
+  <Link href={`/games/${gameId}/characters/${character.id}`}>
+    <CardImage>
+      {character.imageUrl ? (
+        <Image src={character.imageUrl} alt={character.name} />
+      ) : (
+        <PlaceholderIcon>👤</PlaceholderIcon>
+      )}
+    </CardImage>
+    
+    <CardHeader>
+      <CardTitle>{character.name}</CardTitle>
+      <p className="line-clamp-2">{character.description}</p>
+      {character.hasPinLock && <Badge>🔒 PIN</Badge>}
+    </CardHeader>
+    
+    <CardContent>
+      <p className="text-xs">建立於 {formatDate(character.createdAt)}</p>
+    </CardContent>
+  </Link>
+  
+  {/* 快捷操作按鈕（阻止點擊冒泡） */}
+  <CardFooter onClick={(e) => e.stopPropagation()}>
+    <UploadCharacterImageButton characterId={character.id} />
+    <GenerateQRCodeButton characterId={character.id} />
+    {character.hasPinLock && (
+      <ViewPinButton 
+        characterId={character.id} 
+        characterName={character.name} 
+      />
+    )}
+    <DeleteCharacterButton 
+      characterId={character.id}
+      characterName={character.name}
+      gameId={gameId}
+    />
+    <HintText>點擊卡片進入編輯 →</HintText>
+  </CardFooter>
+</Card>
+```
+
+**CreateCharacterButton 元件**（Dialog 方式）
+```tsx
+<Dialog>
+  <DialogTrigger asChild>
+    <Button>+ 新增角色</Button>
+  </DialogTrigger>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>建立新角色</DialogTitle>
+    </DialogHeader>
+    <form onSubmit={handleSubmit}>
+      <Input label="角色名稱" name="name" required />
+      <Textarea label="角色描述" name="description" />
+      <Switch label="啟用 PIN 鎖定" checked={hasPinLock} />
+      {hasPinLock && (
+        <Input 
+          label="PIN 碼（4-6 位數字）" 
+          name="pin" 
+          type="password"
+          pattern="[0-9]{4,6}"
+          required 
+        />
+      )}
+      <DialogFooter>
+        <Button type="button" variant="outline">取消</Button>
+        <Button type="submit">建立</Button>
+      </DialogFooter>
+    </form>
+  </DialogContent>
+</Dialog>
+```
+
+**Server Action**
+- `getGameById(gameId)` - 取得劇本資訊
+- `getCharactersByGameId(gameId)` - 取得角色列表
+- `createCharacter(gameId, data)` - 建立角色（透過 Dialog）
+
+---
+
+### 2.7 角色編輯頁（Tab 佈局）(`/games/[gameId]/characters/[characterId]`)
+
+**佈局結構（Phase 3 更新：統一佈局）**
+```tsx
+<PageLayout
+  header={
+    <div className="flex items-center justify-between">
+      <div>
+        <Breadcrumb>劇本列表 / {game.name} / {character.name}</Breadcrumb>
+        <h1>{character.name}</h1>
+        {character.hasPinLock && <Badge>🔒 PIN 保護</Badge>}
+      </div>
+      <Button asChild><Link href={`/games/${gameId}`}>← 返回劇本</Link></Button>
+    </div>
+  }
+  maxWidth="lg"
+>
+  <CharacterPreviewCard />
+  
+  <Tabs defaultValue="basic">
+    {/* Tab 列表：寬度自動，靠左對齊 */}
+    <TabsList className="w-auto">
+      <TabsTrigger value="basic">📝 基本資訊</TabsTrigger>
+      <TabsTrigger value="stats" disabled>📊 角色數值</TabsTrigger>
+      <TabsTrigger value="items" disabled>🎒 道具管理</TabsTrigger>
+      <TabsTrigger value="skills" disabled>⚡ 技能管理</TabsTrigger>
+      <TabsTrigger value="tasks" disabled>✅ 任務管理</TabsTrigger>
+    </TabsList>
+    
+    <TabsContent value="basic">
+      <CharacterEditForm />
+    </TabsContent>
+    {/* 其他 Tab 顯示開發中狀態 */}
+  </Tabs>
+</PageLayout>
+```
+
+**說明**
+- 獨立頁面，提供完整的角色編輯空間
+- 使用 Tab 佈局組織不同模組（基本資訊/數值/道具/技能/任務）
+- Phase 3 實作「基本資訊」Tab，其他 Tab 顯示「開發中」狀態
+- 未來可擴展更多 Tab 而不會擁擠
+- Tab 列表寬度自動，靠左對齊，不滿版
+
+**功能**
+- **Phase 3 實作**：基本資訊編輯（名稱、描述、PIN、公開資訊）
+- **Phase 4 規劃**：角色數值、道具管理、技能管理、任務管理
+
+**舊版頁面組成（已更新）**
+```tsx
+<CharacterEditPage>
+  {/* Breadcrumb + Header */}
   <Header>
-    <h1>角色管理</h1>
-    <Button href={`/games/${gameId}/characters/new`}>
-      建立角色
-    </Button>
+    <Breadcrumb>
+      <Link href="/games">劇本列表</Link>
+      <Link href={`/games/${gameId}`}>{game.name}</Link>
+      <span>{character.name}</span>
+    </Breadcrumb>
+    <Actions>
+      <Link href={`/games/${gameId}`}>
+        <Button variant="outline">← 返回劇本</Button>
+      </Link>
+    </Actions>
   </Header>
   
-  <SearchBar />
+  <PageTitle>
+    <h1>{character.name}</h1>
+    {character.hasPinLock && <Badge>🔒 PIN 保護</Badge>}
+    <p>編輯角色資訊、管理道具與技能</p>
+  </PageTitle>
   
-  <CharacterTable>
-    <TableHeader>
-      <TableColumn>頭像</TableColumn>
-      <TableColumn>名稱</TableColumn>
-      <TableColumn>PIN 鎖定</TableColumn>
-      <TableColumn>玩家 URL</TableColumn>
-      <TableColumn>操作</TableColumn>
-    </TableHeader>
-    <TableBody>
-      {characters.map(char => (
-        <TableRow key={char._id}>
-          <TableCell>
-            <Avatar src={char.avatar} />
-          </TableCell>
-          <TableCell>{char.name}</TableCell>
-          <TableCell>
-            {char.hasPinLock ? <Lock /> : <Unlock />}
-          </TableCell>
-          <TableCell>
-            <URLDisplay url={`/c/${char._id}`}>
-              <CopyButton />
-              <QRCodeButton />
-            </URLDisplay>
-          </TableCell>
-          <TableCell>
-            <DropdownMenu>
-              <MenuItem href={`/games/${gameId}/characters/${char._id}`}>
-                編輯
-              </MenuItem>
-              <MenuItem onClick={() => deleteCharacter(char._id)}>
-                刪除
-              </MenuItem>
-            </DropdownMenu>
-          </TableCell>
-        </TableRow>
-      ))}
-    </TableBody>
-  </CharacterTable>
-</CharactersPage>
+  {/* Character Preview Card */}
+  <CharacterPreviewCard>
+    <CharacterImage src={character.imageUrl} />
+    <CharacterInfo>
+      <h3>{character.name}</h3>
+      <p>{character.description}</p>
+    </CharacterInfo>
+    <QuickActions>
+      <UploadCharacterImageButton />
+      <GenerateQRCodeButton />
+      <ViewPinButton />
+      <DeleteCharacterButton />
+    </QuickActions>
+  </CharacterPreviewCard>
+  
+  {/* Tab Navigation */}
+  <Tabs defaultValue="basic">
+    <TabsList>
+      <TabsTrigger value="basic">📝 基本資訊</TabsTrigger>
+      <TabsTrigger value="stats" disabled>📊 角色數值</TabsTrigger>
+      <TabsTrigger value="items" disabled>🎒 道具管理</TabsTrigger>
+      <TabsTrigger value="skills" disabled>⚡ 技能管理</TabsTrigger>
+      <TabsTrigger value="tasks" disabled>✅ 任務管理</TabsTrigger>
+    </TabsList>
+    
+    {/* Tab Content: 基本資訊（Phase 3 實作） */}
+    <TabsContent value="basic">
+      <CharacterEditForm character={character} gameId={gameId} />
+    </TabsContent>
+    
+    {/* Tab Content: 其他模組（Phase 4 開發中） */}
+    <TabsContent value="stats">
+      <ComingSoonCard 
+        icon="📊" 
+        title="角色數值" 
+        description="設定角色的屬性、戰鬥數值等（Phase 4 開發中）" 
+      />
+    </TabsContent>
+    
+    <TabsContent value="items">
+      <ComingSoonCard 
+        icon="🎒" 
+        title="道具管理" 
+        description="管理角色持有的道具卡（Phase 4 開發中）" 
+      />
+    </TabsContent>
+    
+    <TabsContent value="skills">
+      <ComingSoonCard 
+        icon="⚡" 
+        title="技能管理" 
+        description="管理角色的技能與能力（Phase 4 開發中）" 
+      />
+    </TabsContent>
+    
+    <TabsContent value="tasks">
+      <ComingSoonCard 
+        icon="✅" 
+        title="任務管理" 
+        description="管理角色的任務進度（Phase 4 開發中）" 
+      />
+    </TabsContent>
+  </Tabs>
+</PageLayout>
+```
+
+**CharacterEditForm 元件**（基本資訊 Tab）
+```tsx
+<form onSubmit={handleSubmit}>
+  <Card>
+    <CardHeader>
+      <CardTitle>基本資訊</CardTitle>
+      <CardDescription>設定角色的名稱、描述與 PIN 鎖定選項</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Input 
+        label="角色名稱" 
+        name="name" 
+        value={formData.name}
+        onChange={handleChange}
+        required 
+      />
+      
+      <Textarea 
+        label="角色描述" 
+        name="description"
+        value={formData.description}
+        onChange={handleChange}
+        rows={8}
+      />
+      
+      <div className="border rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>PIN 解鎖保護</Label>
+            <p className="text-sm">啟用後玩家需輸入 PIN 才能查看角色卡</p>
+          </div>
+          <Switch 
+            checked={formData.hasPinLock}
+            onCheckedChange={handlePinLockToggle}
+          />
+        </div>
+      </div>
+      
+      {formData.hasPinLock && (
+        <div className="p-4 border rounded-lg">
+          <Label>
+            {character.hasPinLock ? '新 PIN 碼（留空保持不變）' : 'PIN 碼 *'}
+          </Label>
+          <Input 
+            type={showPin ? 'text' : 'password'}
+            inputMode="numeric"
+            pattern="[0-9]{4,6}"
+            placeholder="4-6 位數字"
+            value={formData.pin}
+            onChange={handlePinChange}
+            required={formData.hasPinLock && !character.hasPinLock}
+          />
+          <Button 
+            type="button" 
+            onClick={() => setShowPin(!showPin)}
+          >
+            {showPin ? '🙈' : '👁️'}
+          </Button>
+        </div>
+      )}
+    </CardContent>
+  </Card>
+  
+  <FormActions>
+    <Button type="button" variant="outline" onClick={() => router.back()}>
+      取消
+    </Button>
+    <Button type="submit" disabled={isLoading}>
+      {isLoading ? '儲存中...' : '💾 儲存變更'}
+    </Button>
+  </FormActions>
+</form>
 ```
 
 **Server Action**
-- `getCharacters(gameId)` - 取得角色列表
-- `deleteCharacter(characterId)` - 刪除角色
+- `getCharacterById(characterId)` - 取得角色資料
+- `updateCharacter(characterId, data)` - 更新角色基本資訊
+- `getCharacterPin(characterId)` - 取得角色 PIN（GM 專用）
+
+**Phase 4 擴展規劃**
+- `updateCharacterStats(characterId, stats)` - 更新角色數值
+- `addItem(characterId, item)` - 新增道具
+- `removeItem(characterId, itemId)` - 移除道具
+- `addSkill(characterId, skill)` - 新增技能
+- `removeSkill(characterId, skillId)` - 移除技能
+- `addTask(characterId, task)` - 新增任務
+- `updateTask(characterId, taskId, updates)` - 更新任務狀態
 
 ---
 
-### 2.7 建立/編輯角色 (`/games/[gameId]/characters/[charId]`)
+### 2.8 個人設定頁 (`/profile`)
+
+**佈局結構（Phase 3 更新：統一佈局）**
+```tsx
+<PageLayout
+  header={
+    <div className="space-y-2">
+      <h1 className="text-3xl font-bold">個人設定</h1>
+      <p className="text-muted-foreground">管理您的 GM 帳號資訊</p>
+    </div>
+  }
+  maxWidth="lg"
+>
+  <ProfileContent />
+</PageLayout>
+```
 
 **功能**
-- 角色基本資訊
-- 頭像上傳
-- 公開/秘密資訊編輯
-- PIN 設定
-- 任務與道具管理
-
-**元件組成**
-```tsx
-<CharacterFormPage>
-  <Header />
-  <CharacterForm>
-    <Tabs defaultValue="basic">
-      <TabsList>
-        <TabsTrigger value="basic">基本資訊</TabsTrigger>
-        <TabsTrigger value="public">公開資訊</TabsTrigger>
-        <TabsTrigger value="secret">秘密資訊</TabsTrigger>
-        <TabsTrigger value="tasks">任務</TabsTrigger>
-        <TabsTrigger value="items">道具</TabsTrigger>
-      </TabsList>
-      
-      <TabsContent value="basic">
-        <Input label="角色名稱" name="name" required />
-        <ImageUpload label="頭像" name="avatar" />
-        <Checkbox label="啟用 PIN 鎖定" name="hasPinLock" />
-        {hasPinLock && (
-          <Input
-            label="PIN 碼（4位數字）"
-            name="pin"
-            type="password"
-            maxLength={4}
-          />
-        )}
-      </TabsContent>
-      
-      <TabsContent value="public">
-        <Textarea label="角色背景" name="publicInfo.background" />
-        <Textarea label="性格特徵" name="publicInfo.personality" />
-        <RelationshipList name="publicInfo.relationships" />
-      </TabsContent>
-      
-      <TabsContent value="secret">
-        <SecretList name="secretInfo.secrets" />
-        <Textarea label="隱藏目標" name="secretInfo.hiddenGoals" />
-        <Switch label="立即解鎖秘密區" name="secretInfo.isUnlocked" />
-      </TabsContent>
-      
-      <TabsContent value="tasks">
-        <TaskList tasks={tasks} onAdd={addTask} onUpdate={updateTask} />
-      </TabsContent>
-      
-      <TabsContent value="items">
-        <ItemList items={items} onAdd={addItem} onRemove={removeItem} />
-      </TabsContent>
-    </Tabs>
-    
-    <FormActions>
-      <Button variant="outline" href={`/games/${gameId}/characters`}>
-        取消
-      </Button>
-      <Button type="submit">儲存</Button>
-    </FormActions>
-  </CharacterForm>
-  
-  {/* 角色建立成功後顯示 */}
-  {characterId && (
-    <Dialog open={showSuccessDialog}>
-      <DialogContent>
-        <h2>角色建立成功！</h2>
-        <QRCode value={`${baseUrl}/c/${characterId}`} />
-        <Input value={`${baseUrl}/c/${characterId}`} readOnly />
-        <CopyButton />
-      </DialogContent>
-    </Dialog>
-  )}
-</CharacterFormPage>
-```
+- 顯示 GM 帳號資訊（顯示名稱、Email、註冊時間、最後登入）
+- 目前僅支援查看，編輯功能將在後續版本推出
 
 **Server Action**
-- `createCharacter(gameId, data)` - 建立角色
-- `updateCharacter(characterId, data)` - 更新角色
-- `addTask(characterId, task)` - 新增任務
-- `addItem(characterId, item)` - 新增道具
+- `getCurrentGMUser()` - 取得當前 GM 使用者資訊
 
 ---
 
-### 2.8 事件推送介面 (`/games/[gameId]/events`)
+### 2.9 事件推送介面 (`/games/[gameId]/events`)
 
 **功能**
 - 廣播事件（全劇本）

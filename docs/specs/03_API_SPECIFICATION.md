@@ -244,7 +244,7 @@ interface CreateCharacterInput {
   name: string;
   avatar?: string;  // Blob URL
   hasPinLock: boolean;
-  pin?: string;  // 原始 PIN（4位數字）
+  pin?: string;  // PIN 碼（4-6 位數字，明文儲存）
   publicInfo: {
     background: string;
     personality: string;
@@ -279,11 +279,50 @@ interface CreateCharacterInput {
 
 **實作邏輯**
 1. 驗證 gameId 存在且屬於當前 GM
-2. 若 `hasPinLock=true`，hash PIN（bcrypt）
+2. 若 `hasPinLock=true`，直接儲存 PIN 明文（僅 GM 可查看）
 3. 生成 `wsChannelId`
 4. 儲存角色資料
 5. 生成玩家端 URL 與 QR Code
 6. 回傳角色資訊
+
+---
+
+#### `getCharacterPin(characterId: string)`
+
+取得角色的 PIN 碼（僅限 GM）。
+
+**參數**
+```typescript
+{
+  characterId: string;
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    pin: string;  // 角色的 PIN 碼（明文）
+  };
+  message?: string;
+}
+```
+
+**認證需求**：需 GM Session + 權限驗證
+
+**錯誤碼**
+- `UNAUTHORIZED`：未登入或無權限
+- `NOT_FOUND`：角色不存在
+- `FETCH_FAILED`：查詢失敗
+
+**實作邏輯**
+1. 驗證 GM Session
+2. 查詢角色資料
+3. 驗證角色所屬劇本的擁有權
+4. 回傳 PIN（若未設定則回傳空字串）
+
+**注意**：此 API 僅限 GM 使用，玩家端 API 不會回傳 PIN 欄位。
 
 ---
 
@@ -297,7 +336,7 @@ interface UpdateCharacterInput {
   name?: string;
   avatar?: string;
   hasPinLock?: boolean;
-  pin?: string;  // 若要更新 PIN
+  pin?: string;  // 若要更新 PIN（4-6 位數字，明文儲存）
   publicInfo?: { ... };
   secretInfo?: {
     isUnlocked?: boolean;  // GM 可手動解鎖
@@ -464,7 +503,55 @@ interface PushEventInput {
 
 ---
 
-### 3.2 角色查詢 API（玩家端）
+### 3.2 劇本公開資訊 API（玩家端）
+
+#### `GET /api/games/[id]/public`
+
+取得劇本公開資訊（世界觀、前導故事、章節），所有玩家可訪問。
+
+**Query Parameters**
+- 無
+
+**Response (200)**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "xxx",
+    "name": "迷霧莊園",
+    "description": "一場神秘的謀殺案即將展開...",
+    "publicInfo": {
+      "intro": "1920年代，一座古老的莊園...",
+      "worldSetting": "歐洲古典莊園，充滿神秘色彩",
+      "chapters": [
+        {
+          "title": "序章：邀請函",
+          "content": "你收到了一封神秘的邀請函...",
+          "order": 1
+        }
+      ]
+    }
+  }
+}
+```
+
+**Response (404)**
+```json
+{
+  "success": false,
+  "error": "NOT_FOUND",
+  "message": "劇本不存在"
+}
+```
+
+**實作邏輯**
+1. 查詢 Game 資料
+2. 回傳公開資訊（不包含 GM 相關資訊）
+3. 若 `publicInfo` 不存在，回傳空物件
+
+---
+
+### 3.3 角色查詢 API（玩家端）
 
 #### `GET /api/characters/[id]`
 
@@ -551,8 +638,8 @@ interface PushEventInput {
 
 **實作邏輯**
 1. 查詢角色資料
-2. 驗證 `hasPinLock` 與 `pinHash`
-3. 使用 bcrypt 比對 PIN
+2. 驗證 `hasPinLock` 與 `pin` 欄位
+3. 簡單字串比對（明文比對）
 4. 若成功，更新 `secretInfo.isUnlocked=true`
 5. 回傳秘密資訊
 6. 推送 WebSocket 事件 `role.secretUnlocked`

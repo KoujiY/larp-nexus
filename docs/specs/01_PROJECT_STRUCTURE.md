@@ -16,12 +16,12 @@ larp-nexus/
 │   ├── (gm)/                     # GM 端路由群組（需認證）
 │   │   ├── dashboard/            # GM 主控台
 │   │   ├── games/                # 劇本管理
-│   │   │   ├── [gameId]/         # 單一劇本詳情
-│   │   │   │   ├── characters/   # 角色管理
-│   │   │   │   ├── events/       # 事件推送
-│   │   │   │   └── settings/     # 劇本設定
+│   │   │   ├── [gameId]/         # 單一劇本詳情（含角色列表）
+│   │   │   │   └── characters/   # 角色編輯子路由
+│   │   │   │       └── [characterId]/  # 單一角色編輯頁（Tab 佈局）
 │   │   │   └── new/              # 建立新劇本
-│   │   └── profile/              # GM 個人設定
+│   │   ├── profile/              # GM 個人設定
+│   │   └── layout.tsx            # GM Layout（導航列）
 │   ├── (player)/                 # 玩家端路由群組（無需認證）
 │   │   └── c/                    # Character 角色卡
 │   │       └── [characterId]/    # 角色卡詳情頁
@@ -60,12 +60,17 @@ larp-nexus/
 │   │   ├── toast.tsx
 │   │   └── ...                   # 其他 UI 元件
 │   ├── gm/                       # GM 端專用元件
-│   │   ├── game-list.tsx         # 劇本列表
-│   │   ├── game-form.tsx         # 劇本表單
-│   │   ├── character-list.tsx    # 角色列表
-│   │   ├── character-form.tsx    # 角色表單
-│   │   ├── event-pusher.tsx      # 事件推送介面
-│   │   └── qr-generator.tsx      # QR Code 生成器
+│   │   ├── navigation.tsx        # GM 導航列
+│   │   ├── create-game-button.tsx      # 建立劇本按鈕（Dialog）
+│   │   ├── edit-game-button.tsx        # 編輯劇本按鈕（Dialog）
+│   │   ├── delete-game-button.tsx      # 刪除劇本按鈕
+│   │   ├── character-card.tsx          # 角色卡片（可點擊進入編輯）
+│   │   ├── character-edit-form.tsx     # 角色編輯表單（用於編輯頁）
+│   │   ├── create-character-button.tsx # 建立角色按鈕（Dialog）
+│   │   ├── delete-character-button.tsx # 刪除角色按鈕
+│   │   ├── upload-character-image-button.tsx  # 上傳角色圖片
+│   │   ├── generate-qrcode-button.tsx  # 生成 QR Code
+│   │   └── view-pin-button.tsx         # 檢視/編輯 PIN
 │   ├── player/                   # 玩家端專用元件
 │   │   ├── character-card.tsx    # 角色卡顯示
 │   │   ├── pin-unlock.tsx        # PIN 解鎖介面
@@ -100,7 +105,7 @@ larp-nexus/
 │   │   └── events.ts             # 事件定義
 │   ├── utils/                    # 工具函式
 │   │   ├── cn.ts                 # className 合併
-│   │   ├── hash.ts               # PIN Hash
+│   │   ├── hash.ts               # Hash 工具（保留供未來使用）
 │   │   ├── qr-code.ts            # QR Code 生成
 │   │   └── validators.ts         # 資料驗證
 │   └── constants/                # 常數定義
@@ -153,22 +158,25 @@ larp-nexus/
 
 | 路徑 | 說明 | 頁面類型 |
 |------|------|----------|
-| `/login` | GM 登入頁 | Public |
-| `/verify?token=xxx` | Email 驗證頁 | Public |
+| `/auth/login` | GM 登入頁 | Public |
+| `/auth/verify?token=xxx` | Email 驗證頁 | Public |
 | `/dashboard` | GM 主控台（劇本總覽） | Protected |
-| `/games/new` | 建立新劇本 | Protected |
-| `/games/[gameId]` | 劇本詳情 Dashboard | Protected |
-| `/games/[gameId]/characters` | 角色管理頁 | Protected |
-| `/games/[gameId]/characters/new` | 建立新角色 | Protected |
-| `/games/[gameId]/characters/[charId]` | 編輯角色 | Protected |
-| `/games/[gameId]/events` | 事件推送介面 | Protected |
-| `/games/[gameId]/settings` | 劇本設定 | Protected |
+| `/games` | 劇本列表頁 | Protected |
+| `/games/[gameId]` | 劇本詳情頁（含角色列表） | Protected |
+| `/games/[gameId]/characters/[characterId]` | 角色編輯頁（Tab 佈局：基本資訊/數值/道具/技能/任務） | Protected |
 | `/profile` | GM 個人設定 | Protected |
+
+**註**：
+- 建立新劇本：透過 `/games` 頁面的 Dialog 建立
+- 建立新角色：透過 `/games/[gameId]` 頁面的 Dialog 建立
+- 編輯劇本：透過劇本詳情頁的 Dialog 編輯
+- 編輯角色：點擊角色卡片進入獨立編輯頁面（支援 Tab 切換不同模組）
 
 ### 2.2 玩家端路由（公開）
 
 | 路徑 | 說明 | 認證需求 |
 |------|------|----------|
+| `/g/[gameId]` | 世界觀公開頁（所有玩家可訪問） | 無 |
 | `/c/[characterId]` | 角色卡檢視頁 | 無（可能需 PIN） |
 | `/c/[characterId]?unlock=true` | 顯示 PIN 解鎖介面 | 無 |
 
@@ -182,6 +190,7 @@ larp-nexus/
 | `/api/games` | GET | 取得劇本列表 | GM |
 | `/api/games` | POST | 建立劇本 | GM |
 | `/api/games/[id]` | GET/PUT/DELETE | 劇本 CRUD | GM |
+| `/api/games/[id]/public` | GET | 取得劇本公開資訊（世界觀） | 公開 |
 | `/api/characters` | POST | 建立角色 | GM |
 | `/api/characters/[id]` | GET | 取得角色資訊 | 公開 |
 | `/api/characters/[id]` | PUT/DELETE | 更新/刪除角色 | GM |
@@ -291,12 +300,51 @@ UI Components
 - [ ] 圖片上傳（整合 Vercel Blob）
 - [ ] QR Code 生成
 
-### Phase 3：玩家端功能（Week 4）
-- [ ] 角色卡顯示
-- [ ] PIN 解鎖
-- [ ] 響應式設計優化
+### Phase 3：玩家端基礎功能（Week 4）
 
-### Phase 4：即時功能（Week 5）
+#### 開發任務
+- [ ] 擴展 Character 模型：加入 `publicInfo`（背景、性格、關係）
+- [ ] 擴展 Game 模型：加入 `publicInfo`（世界觀、前導故事、章節）
+- [ ] 角色卡顯示（PublicInfo、任務、道具）
+- [ ] PIN 解鎖功能
+- [ ] Tab 切換功能（資訊、任務、道具、世界觀）
+- [ ] 世界觀資訊顯示
+- [ ] 響應式設計優化（Mobile First）
+
+**注意**：
+- SecretInfo 模組延後至 Phase 3.5
+- 數值系統延後至 Phase 4
+- 技能系統延後至 Phase 5
+- WebSocket 即時更新延後至 Phase 6
+
+### Phase 3.5：SecretInfo 模組（Week 4-5）
+
+#### 開發任務
+- [ ] 擴展 Character 模型：加入 `secretInfo`
+- [ ] GM 端：編輯 SecretInfo（秘密列表、隱藏目標）
+- [ ] GM 端：控制 SecretInfo 顯示/隱藏
+- [ ] 玩家端：顯示 SecretInfo（僅在 GM 解鎖後）
+- [ ] SecretInfo 解鎖動畫與狀態管理
+
+### Phase 4：數值系統（Week 5-6）
+
+#### 開發任務
+- [ ] 擴展 Character 模型：加入 `stats`（自訂數值欄位）
+- [ ] GM 端：定義數值欄位（名稱、初始值）
+- [ ] GM 端：編輯角色數值
+- [ ] 玩家端：顯示數值
+- [ ] API：數值增減功能
+
+### Phase 5：技能系統（Week 6-7）
+
+#### 開發任務
+- [ ] 擴展 Character 模型：加入 `skills`
+- [ ] GM 端：定義技能（名稱、描述、檢定門檻）
+- [ ] GM 端：為角色分配技能
+- [ ] 玩家端：顯示技能列表
+- [ ] API：技能檢定邏輯與效果
+
+### Phase 6：即時功能（Week 7-8）
 
 #### 前置作業（⚠️ 需外部設定）
 - [ ] Pusher 設定（WebSocket 服務）
@@ -334,7 +382,7 @@ UI Components
 
 ### 6.2 安全性考量
 
-- PIN 必須 hash 後儲存（bcrypt）
+- PIN 採用明文儲存（4-6 位數字，僅 GM 可查看，玩家端 API 不回傳）
 - Magic Link Token 需設定過期時間
 - API 需實作 Rate Limiting
 - 圖片上傳需檢查檔案類型與大小

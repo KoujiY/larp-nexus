@@ -57,23 +57,27 @@ db.gm_users.createIndex({ email: 1 }, { unique: true });
 
 劇本資料，包含公開資訊、章節等。
 
+**Phase 3 擴展**：加入 `publicInfo`（世界觀、前導故事、章節）
+
 ```typescript
 interface Game {
   _id: ObjectId;
-  gmId: ObjectId;                   // 關聯到 gm_users._id
-  title: string;                    // 劇本標題
-  description: string;              // 劇本簡介（公開）
-  coverImage?: string;              // 封面圖片 URL（Vercel Blob）
-  publicInfo: {
-    intro: string;                  // 前導故事
-    worldSetting: string;           // 世界觀
+  gmUserId: ObjectId;                // 關聯到 gm_users._id（Phase 2）
+  name: string;                      // 劇本名稱（Phase 2）
+  description: string;               // 劇本簡介（Phase 2）
+  isActive: boolean;                  // 是否啟用（Phase 2）
+  
+  // Phase 3 擴展：公開資訊
+  publicInfo?: {
+    intro: string;                    // 前導故事
+    worldSetting: string;             // 世界觀
     chapters: Array<{
       title: string;
       content: string;
       order: number;
     }>;
   };
-  status: 'draft' | 'active' | 'completed';  // 劇本狀態
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -82,20 +86,19 @@ interface Game {
 #### 索引
 
 ```javascript
-db.games.createIndex({ gmId: 1 });
-db.games.createIndex({ status: 1 });
+db.games.createIndex({ gmUserId: 1 });
 db.games.createIndex({ createdAt: -1 });
 ```
 
-#### 範例文件
+#### 範例文件（Phase 3）
 
 ```json
 {
   "_id": ObjectId("507f1f77bcf86cd799439012"),
-  "gmId": ObjectId("507f1f77bcf86cd799439011"),
-  "title": "迷霧莊園",
+  "gmUserId": ObjectId("507f1f77bcf86cd799439011"),
+  "name": "迷霧莊園",
   "description": "一場神秘的謀殺案即將展開...",
-  "coverImage": "https://xxx.vercel-storage.com/cover-xxx.jpg",
+  "isActive": true,
   "publicInfo": {
     "intro": "1920年代，一座古老的莊園...",
     "worldSetting": "歐洲古典莊園，充滿神秘色彩",
@@ -112,7 +115,6 @@ db.games.createIndex({ createdAt: -1 });
       }
     ]
   },
-  "status": "active",
   "createdAt": ISODate("2025-11-29T10:00:00Z"),
   "updatedAt": ISODate("2025-11-29T10:30:00Z")
 }
@@ -133,9 +135,9 @@ interface Character {
   
   // PIN 鎖定機制
   hasPinLock: boolean;              // 是否需要 PIN
-  pinHash?: string;                 // PIN 的 bcrypt hash（僅當 hasPinLock=true）
+  pin?: string;                     // PIN 明文（4-6 位數字，僅 GM 可查看）
   
-  // 公開資訊（無需解鎖）
+  // 公開資訊（PIN 解鎖後可見）- Phase 3
   publicInfo: {
     background: string;             // 角色背景
     personality: string;            // 性格特徵
@@ -145,9 +147,9 @@ interface Character {
     }>;
   };
   
-  // 秘密資訊（需解鎖或 GM 控制開放）
-  secretInfo: {
-    isUnlocked: boolean;            // 秘密區是否已解鎖
+  // 秘密資訊（GM 控制開放）- Phase 3.5
+  secretInfo?: {
+    isUnlocked: boolean;            // 秘密區是否已解鎖（由 GM 控制）
     secrets: Array<{
       title: string;
       content: string;
@@ -156,7 +158,7 @@ interface Character {
     hiddenGoals: string;            // 隱藏目標
   };
   
-  // 任務與物品
+  // 任務與物品 - Phase 3
   tasks: Array<{
     id: string;
     title: string;
@@ -173,8 +175,24 @@ interface Character {
     acquiredAt: Date;
   }>;
   
-  // WebSocket 頻道 ID（用於推送事件）
-  wsChannelId: string;              // 格式：character-{characterId}
+  // 數值系統 - Phase 4
+  stats?: Array<{
+    name: string;                   // 數值名稱（如：血量、魔力、力量）
+    value: number;                  // 數值
+    maxValue?: number;              // 最大值（可選）
+  }>;
+  
+  // 技能系統 - Phase 5
+  skills?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    checkThreshold?: number;        // 檢定門檻
+    effect?: string;                // 效果描述
+  }>;
+  
+  // WebSocket 頻道 ID（用於推送事件）- Phase 6
+  wsChannelId?: string;             // 格式：character-{characterId}
   
   createdAt: Date;
   updatedAt: Date;
@@ -198,7 +216,7 @@ db.characters.createIndex({ "publicInfo.name": 1 });
   "name": "瑪格麗特夫人",
   "avatar": "https://xxx.vercel-storage.com/avatar-xxx.jpg",
   "hasPinLock": true,
-  "pinHash": "$2b$10$abcdefghijklmnopqrstuvwxyz1234567890",
+  "pin": "1234",
   "publicInfo": {
     "background": "莊園的女主人，優雅高貴...",
     "personality": "表面溫柔，實則心機深沉",
@@ -317,7 +335,7 @@ gm_users (1) ──< (N) games
 ### 4.3 characters
 
 - `name`：必填，長度 1-50 字元
-- `pinHash`：當 `hasPinLock=true` 時必填
+- `pin`：當 `hasPinLock=true` 時必填，格式為 4-6 位數字（明文儲存）
 - `wsChannelId`：必填，格式 `character-{ObjectId}`
 - `secretInfo.isUnlocked`：預設 false
 
@@ -444,7 +462,9 @@ if (!character.secretInfo.isUnlocked) {
 
 ## 附註
 
-- PIN 必須使用 bcrypt hash（salt rounds = 10）
+- **PIN 儲存方式**：採用明文儲存（4-6 位數字），僅 GM 可透過 Server Action 查看
+  - **理由**：此系統為 LARP 遊戲輔助工具，PIN 主要用於防止玩家誤看其他角色卡，而非防止黑客攻擊
+  - **安全措施**：玩家端 API 不會回傳 PIN，只有 GM 端 Server Action 可取得
 - `wsChannelId` 格式統一為 `character-{ObjectId}`
 - 所有日期使用 UTC 時區
 - 圖片 URL 使用 Vercel Blob Storage

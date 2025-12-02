@@ -12,25 +12,33 @@
 ### 1.1 路由結構
 
 ```
+/g/[gameId]                   # 世界觀公開頁（所有玩家可訪問）
 /c/[characterId]               # 角色卡主頁
 /c/[characterId]?unlock=true   # 顯示 PIN 解鎖畫面
 ```
 
-**注意**：玩家端僅有單一頁面，所有功能整合於角色卡頁面中。
+**注意**：
+- 世界觀資訊獨立於角色卡，所有玩家可訪問
+- 角色卡頁面提供連結至世界觀頁面
 
 ---
 
 ## 2. 角色卡頁面設計 (`/c/[characterId]`)
 
-### 2.1 功能概覽
+### 2.1 功能概覽（Phase 3）
 
 - 顯示角色基本資訊（頭像、名稱）
-- 顯示公開資訊（背景、性格、關係）
-- 顯示秘密資訊（需解鎖）
+- 顯示公開資訊（背景、性格、關係）- **PIN 解鎖後可見**
 - 顯示任務列表
 - 顯示道具列表
-- 即時接收 GM 推送的事件
-- 顯示劇本公開資訊（世界觀、章節）
+- 提供連結至世界觀頁面（`/g/[gameId]`）
+
+**Phase 3 不包含**：
+- SecretInfo 顯示（延後至 Phase 3.5）
+- 即時事件接收（延後至 Phase 6）
+- 數值系統（延後至 Phase 4）
+- 技能系統（延後至 Phase 5）
+- 世界觀資訊直接顯示（改為獨立頁面）
 
 ### 2.2 頁面狀態
 
@@ -39,7 +47,7 @@
 | **Loading** | 初次載入 | Skeleton UI |
 | **Not Found** | characterId 不存在 | 404 錯誤頁 |
 | **Locked** | `hasPinLock=true` 且未解鎖 | PIN 解鎖介面 |
-| **Unlocked** | 無 PIN 或已解鎖 | 完整角色卡 |
+| **Unlocked** | 無 PIN 或已解鎖 | 完整角色卡（PublicInfo、任務、道具） |
 
 ---
 
@@ -61,12 +69,11 @@
           <TabsTrigger value="info">資訊</TabsTrigger>
           <TabsTrigger value="tasks">任務</TabsTrigger>
           <TabsTrigger value="items">道具</TabsTrigger>
-          <TabsTrigger value="world">世界觀</TabsTrigger>
         </TabsList>
         
         <TabsContent value="info">
           <PublicInfoSection />
-          <SecretInfoSection />
+          {/* SecretInfoSection 延後至 Phase 3.5 */}
         </TabsContent>
         
         <TabsContent value="tasks">
@@ -76,13 +83,12 @@
         <TabsContent value="items">
           <ItemList />
         </TabsContent>
-        
-        <TabsContent value="world">
-          <WorldInfoSection />
-        </TabsContent>
       </Tabs>
       
-      <EventNotifications />
+      {/* 世界觀連結 */}
+      <WorldInfoLink gameId={character.gameId} />
+      
+      {/* EventNotifications 延後至 Phase 6 */}
     </>
   )}
 </CharacterPage>
@@ -94,10 +100,14 @@
 
 ### 4.1 PIN 解鎖畫面 (PinUnlockScreen)
 
-**功能**
-- 輸入 4 位數 PIN 碼
+**功能（Phase 3）**
+- 輸入 4-6 位數 PIN 碼
 - 顯示錯誤提示
-- 防暴力破解（5 次錯誤後鎖定 5 分鐘）
+- 解鎖成功後顯示 PublicInfo、任務、道具、世界觀
+
+**注意**：
+- Phase 3 不實作防暴力破解機制（採用明碼儲存）
+- SecretInfo 解鎖功能延後至 Phase 3.5
 
 **設計**
 ```tsx
@@ -142,16 +152,13 @@
 </PinUnlockScreen>
 ```
 
-**狀態管理**
+**狀態管理（Phase 3）**
 ```typescript
 const [pin, setPin] = useState('');
 const [error, setError] = useState('');
-const [attemptCount, setAttemptCount] = useState(0);
-const [isLocked, setIsLocked] = useState(false);
-const [remainingTime, setRemainingTime] = useState(0);
 ```
 
-**解鎖邏輯**
+**解鎖邏輯（Phase 3）**
 ```typescript
 async function handleUnlock(pin: string) {
   try {
@@ -162,19 +169,12 @@ async function handleUnlock(pin: string) {
     });
     
     if (res.ok) {
-      const { secretInfo } = await res.json();
       setIsUnlocked(true);
-      setSecretInfo(secretInfo);
+      // 解鎖成功後顯示角色卡（PublicInfo、任務、道具、世界觀）
       showToast('解鎖成功', 'success');
     } else {
-      setAttemptCount(prev => prev + 1);
       setError('PIN 碼錯誤');
-      
-      if (attemptCount >= 4) {
-        setIsLocked(true);
-        setRemainingTime(300); // 5 分鐘
-        startCountdown();
-      }
+      setPin(''); // 清空輸入
     }
   } catch (error) {
     setError('解鎖失敗，請稍後再試');
@@ -232,6 +232,8 @@ async function handleUnlock(pin: string) {
 
 ### 4.4 秘密資訊區 (SecretInfoSection)
 
+**Phase 3.5 功能**（Phase 3 不包含）
+
 ```tsx
 <SecretInfoSection>
   {secretInfo.isUnlocked ? (
@@ -270,7 +272,12 @@ async function handleUnlock(pin: string) {
 </SecretInfoSection>
 ```
 
-**解鎖動畫**
+**注意**：
+- SecretInfo 獨立於 PIN 解鎖機制
+- PIN 解鎖後仍看不見 SecretInfo，需 GM 控制顯示
+- 解鎖動畫與 WebSocket 整合延後至 Phase 6
+
+**解鎖動畫（Phase 6）**
 ```tsx
 // 當收到 role.secretUnlocked 事件時觸發
 <motion.div
@@ -426,7 +433,9 @@ async function handleUnlock(pin: string) {
 
 ---
 
-### 4.8 事件通知 (EventNotifications)
+### 4.9 事件通知 (EventNotifications)
+
+**Phase 6 功能**（Phase 3 不包含）
 
 **功能**
 - 顯示 GM 推送的即時訊息
@@ -474,6 +483,8 @@ async function handleUnlock(pin: string) {
 ---
 
 ## 5. WebSocket 整合
+
+**Phase 6 功能**（Phase 3 不包含）
 
 ### 5.1 Hook 實作
 
