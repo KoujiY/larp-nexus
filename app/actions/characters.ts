@@ -9,6 +9,16 @@ import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 
+// MongoDB lean() 返回的 secret 類型
+interface MongoSecret {
+  id: string;
+  title: string;
+  content: string;
+  isRevealed: boolean;
+  revealCondition?: string;
+  revealedAt?: Date;
+}
+
 /**
  * Character 驗證 Schema
  */
@@ -105,19 +115,36 @@ export async function getCharactersByGameId(
 
     return {
       success: true,
-      data: characters.map((char) => ({
-        id: char._id.toString(),
-        gameId: char.gameId.toString(),
-        name: char.name,
-        description: char.description,
-        imageUrl: char.imageUrl,
-        hasPinLock: char.hasPinLock,
-        publicInfo: char.publicInfo,
-        tasks: char.tasks || [],
-        items: char.items || [],
-        createdAt: char.createdAt,
-        updatedAt: char.updatedAt,
-      })),
+      data: characters.map((char) => {
+        // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
+        const cleanSecretInfo = char.secretInfo?.secrets
+          ? {
+              secrets: char.secretInfo.secrets.map((secret: MongoSecret) => ({
+                id: secret.id,
+                title: secret.title,
+                content: secret.content,
+                isRevealed: secret.isRevealed,
+                revealCondition: secret.revealCondition,
+                revealedAt: secret.revealedAt,
+              })),
+            }
+          : undefined;
+
+        return {
+          id: char._id.toString(),
+          gameId: char.gameId.toString(),
+          name: char.name,
+          description: char.description,
+          imageUrl: char.imageUrl,
+          hasPinLock: char.hasPinLock,
+          publicInfo: char.publicInfo,
+          secretInfo: cleanSecretInfo,
+          tasks: char.tasks || [],
+          items: char.items || [],
+          createdAt: char.createdAt,
+          updatedAt: char.updatedAt,
+        };
+      }),
     };
   } catch (error) {
     console.error('Error fetching characters:', error);
@@ -166,6 +193,20 @@ export async function getCharacterById(
       };
     }
 
+    // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
+    const cleanSecretInfo = character.secretInfo?.secrets
+      ? {
+          secrets: character.secretInfo.secrets.map((secret: MongoSecret) => ({
+            id: secret.id,
+            title: secret.title,
+            content: secret.content,
+            isRevealed: secret.isRevealed,
+            revealCondition: secret.revealCondition,
+            revealedAt: secret.revealedAt,
+          })),
+        }
+      : undefined;
+
     return {
       success: true,
       data: {
@@ -176,6 +217,7 @@ export async function getCharacterById(
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
         publicInfo: character.publicInfo,
+        secretInfo: cleanSecretInfo,
         tasks: character.tasks || [],
         items: character.items || [],
         createdAt: character.createdAt,
@@ -272,6 +314,7 @@ export async function createCharacter(data: {
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
         publicInfo: character.publicInfo,
+        secretInfo: character.secretInfo,
         tasks: character.tasks || [],
         items: character.items || [],
         createdAt: character.createdAt,
@@ -300,7 +343,7 @@ export async function createCharacter(data: {
 
 /**
  * 更新角色
- * Phase 3: 支援更新 publicInfo
+ * Phase 3.5: 支援更新 publicInfo 和 secretInfo
  */
 export async function updateCharacter(
   characterId: string,
@@ -315,6 +358,16 @@ export async function updateCharacter(
       relationships?: Array<{
         targetName: string;
         description: string;
+      }>;
+    };
+    secretInfo?: {
+      secrets: Array<{
+        id: string;
+        title: string;
+        content: string;
+        isRevealed: boolean;
+        revealCondition?: string;
+        revealedAt?: Date;
       }>;
     };
   }
@@ -386,6 +439,38 @@ export async function updateCharacter(
       };
     }
 
+    // Phase 3.5: 處理 secretInfo 更新
+    if (data.secretInfo !== undefined) {
+      const currentSecrets: MongoSecret[] = character.secretInfo?.secrets || [];
+      
+      // 處理每個 secret 的更新
+      const updatedSecrets = data.secretInfo.secrets.map((newSecret) => {
+        const oldSecret = currentSecrets.find((s: MongoSecret) => s.id === newSecret.id);
+        
+        // 建立乾淨的 secret 物件（不包含任何額外欄位如 _id）
+        const cleanSecret = {
+          id: newSecret.id,
+          title: newSecret.title,
+          content: newSecret.content,
+          isRevealed: newSecret.isRevealed,
+          revealCondition: newSecret.revealCondition || '',
+          revealedAt: undefined as Date | undefined,
+        };
+        
+        // 如果從未揭露變為已揭露，設定揭露時間
+        if (newSecret.isRevealed && (!oldSecret || !oldSecret.isRevealed)) {
+          cleanSecret.revealedAt = new Date();
+        } else if (oldSecret?.revealedAt) {
+          // 保留原有的揭露時間
+          cleanSecret.revealedAt = oldSecret.revealedAt;
+        }
+        
+        return cleanSecret;
+      });
+      
+      updateData.secretInfo = { secrets: updatedSecrets };
+    }
+
     const updatedCharacter = await Character.findByIdAndUpdate(
       characterId,
       { $set: updateData },
@@ -412,6 +497,7 @@ export async function updateCharacter(
         imageUrl: updatedCharacter.imageUrl,
         hasPinLock: updatedCharacter.hasPinLock,
         publicInfo: updatedCharacter.publicInfo,
+        secretInfo: updatedCharacter.secretInfo,
         tasks: updatedCharacter.tasks || [],
         items: updatedCharacter.items || [],
         createdAt: updatedCharacter.createdAt,

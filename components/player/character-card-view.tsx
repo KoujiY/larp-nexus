@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CharacterData } from '@/types/character';
 import { PinUnlock } from './pin-unlock';
 import { PublicInfoSection } from './public-info-section';
+import { SecretInfoSection } from './secret-info-section';
 import { TaskList } from './task-list';
 import { ItemList } from './item-list';
 import { WorldInfoLink } from './world-info-link';
@@ -16,19 +17,41 @@ interface CharacterCardViewProps {
   character: CharacterData;
 }
 
-export function CharacterCardView({ character }: CharacterCardViewProps) {
-  // 初始化時檢查 localStorage
-  const getInitialUnlockState = () => {
-    if (!character.hasPinLock) return true;
-    if (typeof window === 'undefined') return false;
-    const unlocked = localStorage.getItem(`character-${character.id}-unlocked`);
-    return unlocked === 'true';
-  };
+// Hook 用於安全地讀取 localStorage（避免 SSR/CSR hydration 問題）
+function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
+  const storageKey = `character-${characterId}-unlocked`;
 
-  const [isUnlocked, setIsUnlocked] = useState(getInitialUnlockState);
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      window.addEventListener('storage', callback);
+      return () => window.removeEventListener('storage', callback);
+    },
+    []
+  );
+
+  const getSnapshot = useCallback(() => {
+    if (!hasPinLock) return true;
+    return localStorage.getItem(storageKey) === 'true';
+  }, [hasPinLock, storageKey]);
+
+  // Server 端的快照：有 PIN 鎖時為 false
+  const getServerSnapshot = useCallback(() => {
+    return !hasPinLock;
+  }, [hasPinLock]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+export function CharacterCardView({ character }: CharacterCardViewProps) {
+  // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
+  const isStorageUnlocked = useLocalStorageUnlock(character.id, character.hasPinLock);
+  const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
+
+  // 最終解鎖狀態：localStorage 或手動解鎖
+  const isUnlocked = isStorageUnlocked || isManuallyUnlocked;
 
   const handleUnlocked = () => {
-    setIsUnlocked(true);
+    setIsManuallyUnlocked(true);
     // 儲存解鎖狀態到 localStorage
     localStorage.setItem(`character-${character.id}-unlocked`, 'true');
   };
@@ -59,7 +82,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
       <Card className="mb-6 overflow-hidden">
         {/* 角色圖片 */}
         {character.imageUrl && (
-          <div className="relative h-64 md:h-96 w-full bg-gradient-to-br from-purple-200 to-purple-300">
+          <div className="relative h-64 md:h-96 w-full bg-linear-to-br from-purple-200 to-purple-300">
             <Image
               src={character.imageUrl}
               alt={character.name}
@@ -117,8 +140,12 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
             </TabsList>
 
             <div className="p-6">
-              <TabsContent value="info" className="mt-0">
+              <TabsContent value="info" className="mt-0 space-y-6">
                 <PublicInfoSection publicInfo={character.publicInfo} />
+                <SecretInfoSection
+                  secretInfo={character.secretInfo}
+                  characterId={character.id}
+                />
               </TabsContent>
 
               <TabsContent value="tasks" className="mt-0">

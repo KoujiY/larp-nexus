@@ -1,7 +1,7 @@
 // Character (角色) 相關類型定義
 
 /**
- * Phase 3 擴展版角色資料（用於 API 回傳）
+ * Phase 3.5 擴展版角色資料（用於 API 回傳）
  */
 export interface CharacterData {
   id: string;
@@ -11,6 +11,7 @@ export interface CharacterData {
   imageUrl?: string;
   hasPinLock: boolean;
   publicInfo?: PublicInfo;
+  secretInfo?: SecretInfo;
   tasks?: Task[];
   items?: Item[];
   createdAt: Date;
@@ -47,15 +48,19 @@ export interface Relationship {
   description: string;
 }
 
+/**
+ * Phase 3.5: 隱藏資訊
+ */
 export interface SecretInfo {
-  isUnlocked: boolean;
   secrets: Secret[];
-  hiddenGoals: string;
 }
 
 export interface Secret {
+  id: string;
   title: string;
   content: string;
+  isRevealed: boolean;
+  revealCondition?: string;
   revealedAt?: Date;
 }
 

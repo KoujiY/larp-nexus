@@ -137,6 +137,7 @@ export function UploadCharacterImageButton({
             <div className="space-y-2">
               <Label>預覽</Label>
               <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={preview}
                   alt="Preview"

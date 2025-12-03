@@ -1,9 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 /**
- * Phase 3 擴展版 Character Document
+ * Phase 3.5 擴展版 Character Document
  * 包含 publicInfo、tasks、items（Phase 3）
- * secretInfo、stats、skills 將在後續 Phase 加入
+ * 包含 secretInfo（Phase 3.5）
  */
 export interface CharacterDocument extends Document {
   gameId: mongoose.Types.ObjectId;
@@ -20,6 +20,18 @@ export interface CharacterDocument extends Document {
     relationships: Array<{
       targetName: string;
       description: string;
+    }>;
+  };
+  
+  // Phase 3.5: 隱藏資訊（GM 控制揭露）
+  secretInfo?: {
+    secrets: Array<{
+      id: string;
+      title: string;
+      content: string;
+      isRevealed: boolean;
+      revealCondition?: string;
+      revealedAt?: Date;
     }>;
   };
   
@@ -82,10 +94,45 @@ const CharacterSchema = new Schema<CharacterDocument>(
       },
       relationships: [
         {
+          _id: false, // 禁用自動生成 _id
           targetName: String,
           description: String,
         },
       ],
+    },
+    // Phase 3.5: 隱藏資訊
+    secretInfo: {
+      type: {
+        secrets: [
+          {
+            _id: false, // 禁用自動生成 _id，使用自訂 id 欄位
+            id: {
+              type: String,
+              required: true,
+            },
+            title: {
+              type: String,
+              required: true,
+            },
+            content: {
+              type: String,
+              required: true,
+            },
+            isRevealed: {
+              type: Boolean,
+              default: false,
+            },
+            revealCondition: {
+              type: String,
+              default: '',
+            },
+            revealedAt: {
+              type: Date,
+            },
+          },
+        ],
+      },
+      default: { secrets: [] },
     },
     // Phase 3: 任務
     tasks: [

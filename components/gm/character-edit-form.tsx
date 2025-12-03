@@ -10,8 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { X, Plus } from 'lucide-react';
-import type { CharacterData } from '@/types/character';
+import { X, Plus, Lock } from 'lucide-react';
+import type { CharacterData, Secret } from '@/types/character';
 
 interface CharacterEditFormProps {
   character: CharacterData;
@@ -32,6 +32,9 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
       personality: character.publicInfo?.personality || '',
       relationships: character.publicInfo?.relationships || [],
     },
+    secretInfo: {
+      secrets: (character.secretInfo?.secrets || []) as Secret[],
+    },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,6 +52,15 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
           personality: string;
           relationships: Array<{ targetName: string; description: string }>;
         };
+        secretInfo?: {
+          secrets: Array<{
+            id: string;
+            title: string;
+            content: string;
+            isRevealed: boolean;
+            revealCondition?: string;
+          }>;
+        };
       } = {
         name: formData.name,
         description: formData.description,
@@ -57,6 +69,15 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
           background: formData.publicInfo.background,
           personality: formData.publicInfo.personality,
           relationships: formData.publicInfo.relationships,
+        },
+        secretInfo: {
+          secrets: formData.secretInfo.secrets.map((secret) => ({
+            id: secret.id,
+            title: secret.title,
+            content: secret.content,
+            isRevealed: secret.isRevealed,
+            revealCondition: secret.revealCondition || '',
+          })),
         },
       };
 
@@ -347,6 +368,171 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
               可新增多個人物關係，每個關係包含對象名稱與描述
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Phase 3.5: 隱藏資訊編輯 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Lock className="mr-2 h-5 w-5" />
+            隱藏資訊
+          </CardTitle>
+          <CardDescription>
+            設定角色的隱藏資訊，每個隱藏資訊可獨立設定揭露條件與揭露狀態
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {formData.secretInfo.secrets.map((secret, index) => (
+            <Card key={secret.id} className="border-2">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <CardTitle className="text-base">隱藏資訊 #{index + 1}</CardTitle>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const newSecrets = formData.secretInfo.secrets.filter(
+                        (_, i) => i !== index
+                      );
+                      setFormData((prev) => ({
+                        ...prev,
+                        secretInfo: { secrets: newSecrets },
+                      }));
+                    }}
+                    disabled={isLoading}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>標題</Label>
+                  <Input
+                    placeholder="隱藏資訊標題"
+                    value={secret.title}
+                    onChange={(e) => {
+                      const newSecrets = [...formData.secretInfo.secrets];
+                      newSecrets[index] = { ...newSecrets[index], title: e.target.value };
+                      setFormData((prev) => ({
+                        ...prev,
+                        secretInfo: { secrets: newSecrets },
+                      }));
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>內容</Label>
+                  <Textarea
+                    placeholder="隱藏資訊內容"
+                    value={secret.content}
+                    onChange={(e) => {
+                      const newSecrets = [...formData.secretInfo.secrets];
+                      newSecrets[index] = { ...newSecrets[index], content: e.target.value };
+                      setFormData((prev) => ({
+                        ...prev,
+                        secretInfo: { secrets: newSecrets },
+                      }));
+                    }}
+                    disabled={isLoading}
+                    rows={6}
+                    className="resize-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>揭露條件</Label>
+                  <Input
+                    placeholder="例：完成任務 A 後揭露"
+                    value={secret.revealCondition || ''}
+                    onChange={(e) => {
+                      const newSecrets = [...formData.secretInfo.secrets];
+                      newSecrets[index] = { ...newSecrets[index], revealCondition: e.target.value };
+                      setFormData((prev) => ({
+                        ...prev,
+                        secretInfo: { secrets: newSecrets },
+                      }));
+                    }}
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    描述此隱藏資訊的揭露條件（僅供 GM 參考，玩家可見）
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label className="text-base font-medium">
+                      {secret.isRevealed ? '已揭露' : '未揭露'}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {secret.isRevealed
+                        ? '玩家目前可以查看此隱藏資訊'
+                        : '玩家目前無法查看此隱藏資訊'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`text-sm font-medium ${
+                        secret.isRevealed ? 'text-green-600' : 'text-gray-500'
+                      }`}
+                    >
+                      {secret.isRevealed ? '✓ 已揭露' : '✗ 未揭露'}
+                    </span>
+                    <Switch
+                      checked={secret.isRevealed}
+                      onCheckedChange={(checked) => {
+                        const newSecrets = [...formData.secretInfo.secrets];
+                        newSecrets[index] = { ...newSecrets[index], isRevealed: checked };
+                        setFormData((prev) => ({
+                          ...prev,
+                          secretInfo: { secrets: newSecrets },
+                        }));
+                      }}
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              // 生成唯一 ID
+              const newId = `secret-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+              setFormData((prev) => ({
+                ...prev,
+                secretInfo: {
+                  secrets: [
+                    ...prev.secretInfo.secrets,
+                    {
+                      id: newId,
+                      title: '',
+                      content: '',
+                      isRevealed: false,
+                      revealCondition: '',
+                    },
+                  ],
+                },
+              }));
+            }}
+            disabled={isLoading}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            新增隱藏資訊
+          </Button>
+
+          <p className="text-xs text-muted-foreground">
+            提示：只有已揭露的隱藏資訊才會顯示在玩家角色卡上
+          </p>
         </CardContent>
       </Card>
 

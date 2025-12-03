@@ -6,10 +6,21 @@ import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
 
+// MongoDB lean() 返回的 secret 類型
+interface MongoSecret {
+  id: string;
+  title: string;
+  content: string;
+  isRevealed: boolean;
+  revealCondition?: string;
+  revealedAt?: Date;
+}
+
 /**
  * 取得公開角色資料（玩家端使用）
- * Phase 3: 回傳完整資料（含 publicInfo、tasks、items）
+ * Phase 3.5: 回傳完整資料（含 publicInfo、secretInfo、tasks、items）
  * 不需要認證，但如果有 PIN 鎖會隱藏部分資訊
+ * secretInfo 只回傳已揭露的隱藏資訊（isRevealed === true）
  */
 export async function getPublicCharacter(
   characterId: string
@@ -27,6 +38,18 @@ export async function getPublicCharacter(
       };
     }
 
+    // Phase 3.5: 過濾出已揭露的隱藏資訊
+    const revealedSecrets = character.secretInfo?.secrets?.filter(
+      (secret: MongoSecret) => secret.isRevealed === true
+    ).map((secret: MongoSecret) => ({
+      id: secret.id,
+      title: secret.title,
+      content: secret.content,
+      isRevealed: secret.isRevealed,
+      revealCondition: secret.revealCondition,
+      revealedAt: secret.revealedAt,
+    })) || [];
+
     return {
       success: true,
       data: {
@@ -37,6 +60,10 @@ export async function getPublicCharacter(
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
         publicInfo: character.publicInfo,
+        // 只有已揭露的秘密才會回傳給玩家（清理 _id 確保純物件）
+        secretInfo: revealedSecrets.length > 0
+          ? { secrets: revealedSecrets }
+          : undefined,
         tasks: character.tasks || [],
         items: character.items || [],
         createdAt: character.createdAt,

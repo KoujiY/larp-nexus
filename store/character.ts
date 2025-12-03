@@ -7,10 +7,10 @@ export const characterAtom = atom<Character | null>(null);
 // 角色列表（GM 端使用）
 export const charactersAtom = atom<Character[]>([]);
 
-// 秘密是否已解鎖
-export const isSecretUnlockedAtom = atom((get) => {
+// 是否有已揭露的秘密
+export const hasRevealedSecretsAtom = atom((get) => {
   const character = get(characterAtom);
-  return character?.secretInfo.isUnlocked || false;
+  return character?.secretInfo?.secrets?.some(s => s.isRevealed) || false;
 });
 
 // 未完成的任務

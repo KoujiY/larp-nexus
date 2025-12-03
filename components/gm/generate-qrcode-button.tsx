@@ -89,6 +89,7 @@ export function GenerateQRCodeButton({ characterId }: GenerateQRCodeButtonProps)
               <div className="space-y-2">
                 <Label>QR Code</Label>
                 <div className="flex justify-center p-6 bg-white rounded-lg border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrCodeDataUrl}
                     alt="Character QR Code"
