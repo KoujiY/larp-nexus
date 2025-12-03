@@ -141,6 +141,7 @@ export async function getCharactersByGameId(
           secretInfo: cleanSecretInfo,
           tasks: char.tasks || [],
           items: char.items || [],
+          stats: char.stats || [],
           createdAt: char.createdAt,
           updatedAt: char.updatedAt,
         };
@@ -220,6 +221,7 @@ export async function getCharacterById(
         secretInfo: cleanSecretInfo,
         tasks: character.tasks || [],
         items: character.items || [],
+        stats: character.stats || [],
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },
@@ -343,7 +345,7 @@ export async function createCharacter(data: {
 
 /**
  * 更新角色
- * Phase 3.5: 支援更新 publicInfo 和 secretInfo
+ * Phase 4: 支援更新 publicInfo、secretInfo 和 stats
  */
 export async function updateCharacter(
   characterId: string,
@@ -370,6 +372,12 @@ export async function updateCharacter(
         revealedAt?: Date;
       }>;
     };
+    stats?: Array<{
+      id: string;
+      name: string;
+      value: number;
+      maxValue?: number;
+    }>;
   }
 ): Promise<ApiResponse<CharacterData>> {
   try {
@@ -471,6 +479,16 @@ export async function updateCharacter(
       updateData.secretInfo = { secrets: updatedSecrets };
     }
 
+    // Phase 4: 處理 stats 更新
+    if (data.stats !== undefined) {
+      updateData.stats = data.stats.map((stat) => ({
+        id: stat.id,
+        name: stat.name,
+        value: stat.value,
+        maxValue: stat.maxValue,
+      }));
+    }
+
     const updatedCharacter = await Character.findByIdAndUpdate(
       characterId,
       { $set: updateData },
@@ -487,6 +505,20 @@ export async function updateCharacter(
 
     revalidatePath(`/games/${character.gameId.toString()}`);
 
+    // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
+    const cleanSecretInfo = updatedCharacter.secretInfo?.secrets
+      ? {
+          secrets: updatedCharacter.secretInfo.secrets.map((secret: MongoSecret) => ({
+            id: secret.id,
+            title: secret.title,
+            content: secret.content,
+            isRevealed: secret.isRevealed,
+            revealCondition: secret.revealCondition,
+            revealedAt: secret.revealedAt,
+          })),
+        }
+      : undefined;
+
     return {
       success: true,
       data: {
@@ -497,9 +529,10 @@ export async function updateCharacter(
         imageUrl: updatedCharacter.imageUrl,
         hasPinLock: updatedCharacter.hasPinLock,
         publicInfo: updatedCharacter.publicInfo,
-        secretInfo: updatedCharacter.secretInfo,
+        secretInfo: cleanSecretInfo,
         tasks: updatedCharacter.tasks || [],
         items: updatedCharacter.items || [],
+        stats: updatedCharacter.stats || [],
         createdAt: updatedCharacter.createdAt,
         updatedAt: updatedCharacter.updatedAt,
       },
@@ -682,6 +715,177 @@ export async function deleteCharacter(
       success: false,
       error: 'DELETE_FAILED',
       message: '無法刪除角色',
+    };
+  }
+}
+
+/**
+ * Phase 4: 調整角色數值
+ * 用於快速增減單一數值（不需要重新儲存整個 stats 陣列）
+ */
+export async function adjustCharacterStat(
+  characterId: string,
+  statId: string,
+  adjustment: number
+): Promise<ApiResponse<{ newValue: number }>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '請先登入',
+      };
+    }
+
+    await dbConnect();
+
+    // 取得角色並驗證擁有權
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此角色',
+      };
+    }
+
+    const game = await Game.findOne({ _id: character.gameId, gmUserId });
+    if (!game) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '無權編輯此角色',
+      };
+    }
+
+    // 找到目標數值
+    const stats = character.stats || [];
+    const statIndex = stats.findIndex((s: { id: string }) => s.id === statId);
+    if (statIndex === -1) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此數值欄位',
+      };
+    }
+
+    // 計算新數值
+    const currentStat = stats[statIndex];
+    let newValue = currentStat.value + adjustment;
+
+    // 如果有最大值，確保不超過
+    if (currentStat.maxValue !== undefined && currentStat.maxValue !== null) {
+      newValue = Math.min(newValue, currentStat.maxValue);
+    }
+
+    // 確保不低於 0
+    newValue = Math.max(0, newValue);
+
+    // 更新數值
+    const updatePath = `stats.${statIndex}.value`;
+    await Character.findByIdAndUpdate(characterId, {
+      $set: { [updatePath]: newValue },
+    });
+
+    revalidatePath(`/games/${character.gameId.toString()}`);
+
+    return {
+      success: true,
+      data: { newValue },
+      message: `數值已調整為 ${newValue}`,
+    };
+  } catch (error) {
+    console.error('Error adjusting character stat:', error);
+    return {
+      success: false,
+      error: 'UPDATE_FAILED',
+      message: '無法調整數值',
+    };
+  }
+}
+
+/**
+ * Phase 4: 設定角色數值為特定值
+ */
+export async function setCharacterStat(
+  characterId: string,
+  statId: string,
+  newValue: number
+): Promise<ApiResponse<{ newValue: number }>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '請先登入',
+      };
+    }
+
+    await dbConnect();
+
+    // 取得角色並驗證擁有權
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此角色',
+      };
+    }
+
+    const game = await Game.findOne({ _id: character.gameId, gmUserId });
+    if (!game) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '無權編輯此角色',
+      };
+    }
+
+    // 找到目標數值
+    const stats = character.stats || [];
+    const statIndex = stats.findIndex((s: { id: string }) => s.id === statId);
+    if (statIndex === -1) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此數值欄位',
+      };
+    }
+
+    // 驗證新數值
+    const currentStat = stats[statIndex];
+    let finalValue = newValue;
+
+    // 如果有最大值，確保不超過
+    if (currentStat.maxValue !== undefined && currentStat.maxValue !== null) {
+      finalValue = Math.min(finalValue, currentStat.maxValue);
+    }
+
+    // 確保不低於 0
+    finalValue = Math.max(0, finalValue);
+
+    // 更新數值
+    const updatePath = `stats.${statIndex}.value`;
+    await Character.findByIdAndUpdate(characterId, {
+      $set: { [updatePath]: finalValue },
+    });
+
+    revalidatePath(`/games/${character.gameId.toString()}`);
+
+    return {
+      success: true,
+      data: { newValue: finalValue },
+      message: `數值已設定為 ${finalValue}`,
+    };
+  } catch (error) {
+    console.error('Error setting character stat:', error);
+    return {
+      success: false,
+      error: 'UPDATE_FAILED',
+      message: '無法設定數值',
     };
   }
 }

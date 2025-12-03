@@ -18,7 +18,7 @@ interface MongoSecret {
 
 /**
  * 取得公開角色資料（玩家端使用）
- * Phase 3.5: 回傳完整資料（含 publicInfo、secretInfo、tasks、items）
+ * Phase 4: 回傳完整資料（含 publicInfo、secretInfo、tasks、items、stats）
  * 不需要認證，但如果有 PIN 鎖會隱藏部分資訊
  * secretInfo 只回傳已揭露的隱藏資訊（isRevealed === true）
  */
@@ -66,6 +66,7 @@ export async function getPublicCharacter(
           : undefined,
         tasks: character.tasks || [],
         items: character.items || [],
+        stats: character.stats || [],
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },

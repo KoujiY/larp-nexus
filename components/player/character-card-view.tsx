@@ -8,6 +8,7 @@ import type { CharacterData } from '@/types/character';
 import { PinUnlock } from './pin-unlock';
 import { PublicInfoSection } from './public-info-section';
 import { SecretInfoSection } from './secret-info-section';
+import { StatsDisplay } from './stats-display';
 import { TaskList } from './task-list';
 import { ItemList } from './item-list';
 import { WorldInfoLink } from './world-info-link';
@@ -129,12 +130,13 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
         </CardContent>
       </Card>
 
-      {/* Tab 切換：資訊、任務、道具 */}
+      {/* Tab 切換：資訊、數值、任務、道具 */}
       <Card className="mb-6">
         <CardContent className="p-0">
           <Tabs defaultValue="info" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="info">📋 資訊</TabsTrigger>
+              <TabsTrigger value="stats">📊 數值</TabsTrigger>
               <TabsTrigger value="tasks">✅ 任務</TabsTrigger>
               <TabsTrigger value="items">🎒 道具</TabsTrigger>
             </TabsList>
@@ -146,6 +148,16 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
                   secretInfo={character.secretInfo}
                   characterId={character.id}
                 />
+              </TabsContent>
+
+              <TabsContent value="stats" className="mt-0">
+                <StatsDisplay stats={character.stats} />
+                {(!character.stats || character.stats.length === 0) && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <div className="text-4xl mb-4">📊</div>
+                    <p>尚無角色數值</p>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="tasks" className="mt-0">

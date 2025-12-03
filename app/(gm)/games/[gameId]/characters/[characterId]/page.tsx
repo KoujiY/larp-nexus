@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageLayout } from '@/components/gm/page-layout';
 import { CharacterEditForm } from '@/components/gm/character-edit-form';
+import { StatsEditForm } from '@/components/gm/stats-edit-form';
 import { UploadCharacterImageButton } from '@/components/gm/upload-character-image-button';
 import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
 import { ViewPinButton } from '@/components/gm/view-pin-button';
@@ -85,11 +86,11 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
       <div className="space-y-6">
 
         {/* Character Preview Card */}
-        <Card className="bg-gradient-to-br from-purple-50 to-blue-50">
+        <Card className="bg-linear-to-br from-purple-50 to-blue-50">
           <CardContent className="p-6">
             <div className="flex items-start space-x-6">
               {/* Character Image */}
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 {character.imageUrl ? (
                   <div className="relative h-32 w-32 rounded-lg overflow-hidden border-2 border-white shadow-lg">
                     <Image
@@ -100,7 +101,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
                     />
                   </div>
                 ) : (
-                  <div className="h-32 w-32 rounded-lg bg-gradient-to-br from-purple-200 to-blue-200 flex items-center justify-center border-2 border-white shadow-lg">
+                  <div className="h-32 w-32 rounded-lg bg-linear-to-br from-purple-200 to-blue-200 flex items-center justify-center border-2 border-white shadow-lg">
                     <span className="text-5xl">👤</span>
                   </div>
                 )}
@@ -138,9 +139,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
         <Tabs defaultValue="basic" className="space-y-6">
           <TabsList className="w-auto">
             <TabsTrigger value="basic">📝 基本資訊</TabsTrigger>
-            <TabsTrigger value="stats" disabled>
-              📊 角色數值
-            </TabsTrigger>
+            <TabsTrigger value="stats">📊 角色數值</TabsTrigger>
             <TabsTrigger value="items" disabled>
               🎒 道具管理
             </TabsTrigger>
@@ -157,27 +156,12 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
             <CharacterEditForm character={character} gameId={gameId} />
           </TabsContent>
 
-          {/* Stats Tab (Coming Soon) */}
+          {/* Stats Tab (Phase 4) */}
           <TabsContent value="stats">
-            <Card>
-              <CardHeader>
-                <CardTitle>角色數值</CardTitle>
-                <CardDescription>
-                  設定角色的屬性、戰鬥數值等（Phase 4 開發中）
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="py-12">
-                <div className="text-center space-y-4">
-                  <div className="text-6xl">📊</div>
-                  <div>
-                    <h3 className="text-xl font-semibold">開發中</h3>
-                    <p className="text-muted-foreground mt-2">
-                      此功能將在 Phase 4 實作
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatsEditForm
+              characterId={character.id}
+              initialStats={character.stats || []}
+            />
           </TabsContent>
 
           {/* Items Tab (Coming Soon) */}

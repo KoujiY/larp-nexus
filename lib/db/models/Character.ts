@@ -1,9 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 /**
- * Phase 3.5 擴展版 Character Document
+ * Phase 4 擴展版 Character Document
  * 包含 publicInfo、tasks、items（Phase 3）
  * 包含 secretInfo（Phase 3.5）
+ * 包含 stats（Phase 4）
  */
 export interface CharacterDocument extends Document {
   gameId: mongoose.Types.ObjectId;
@@ -50,6 +51,14 @@ export interface CharacterDocument extends Document {
     description: string;
     imageUrl?: string;
     acquiredAt: Date;
+  }>;
+  
+  // Phase 4: 數值系統
+  stats?: Array<{
+    id: string;
+    name: string;
+    value: number;
+    maxValue?: number;
   }>;
   
   createdAt: Date;
@@ -181,6 +190,28 @@ const CharacterSchema = new Schema<CharacterDocument>(
         acquiredAt: {
           type: Date,
           default: Date.now,
+        },
+      },
+    ],
+    // Phase 4: 數值系統
+    stats: [
+      {
+        _id: false, // 禁用自動生成 _id，使用自訂 id 欄位
+        id: {
+          type: String,
+          required: true,
+        },
+        name: {
+          type: String,
+          required: true,
+        },
+        value: {
+          type: Number,
+          required: true,
+          default: 0,
+        },
+        maxValue: {
+          type: Number,
         },
       },
     ],
