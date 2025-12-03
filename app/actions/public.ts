@@ -6,7 +6,7 @@ import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
 
-// MongoDB lean() 返回的 secret 類型
+// MongoDB lean() 返回的類型（可能包含 _id）
 interface MongoSecret {
   id: string;
   title: string;
@@ -14,6 +14,53 @@ interface MongoSecret {
   isRevealed: boolean;
   revealCondition?: string;
   revealedAt?: Date;
+  _id?: unknown;
+}
+
+interface MongoTask {
+  id: string;
+  title: string;
+  description: string;
+  isHidden: boolean;
+  isRevealed: boolean;
+  revealedAt?: Date;
+  status: 'pending' | 'in-progress' | 'completed' | 'failed';
+  completedAt?: Date;
+  gmNotes?: string;
+  revealCondition?: string;
+  createdAt: Date;
+  _id?: unknown;
+}
+
+interface MongoItem {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  type: 'consumable' | 'equipment';
+  quantity: number;
+  effect?: {
+    type: 'stat_change' | 'buff' | 'custom';
+    targetStat?: string;
+    value?: number;
+    duration?: number;
+    description?: string;
+  };
+  usageLimit?: number;
+  usageCount?: number;
+  cooldown?: number;
+  lastUsedAt?: Date;
+  isTransferable: boolean;
+  acquiredAt: Date;
+  _id?: unknown;
+}
+
+interface MongoStat {
+  id: string;
+  name: string;
+  value: number;
+  maxValue?: number;
+  _id?: unknown;
 }
 
 /**
@@ -38,7 +85,7 @@ export async function getPublicCharacter(
       };
     }
 
-    // Phase 3.5: 過濾出已揭露的隱藏資訊
+    // Phase 3.5: 過濾出已揭露的隱藏資訊（清理 _id）
     const revealedSecrets = character.secretInfo?.secrets?.filter(
       (secret: MongoSecret) => secret.isRevealed === true
     ).map((secret: MongoSecret) => ({
@@ -50,6 +97,52 @@ export async function getPublicCharacter(
       revealedAt: secret.revealedAt,
     })) || [];
 
+    // Phase 4.5: 過濾任務（一般任務 + 已揭露的隱藏任務），清理 _id 和 GM 專用欄位
+    const visibleTasks = (character.tasks || [])
+      .filter((task: MongoTask) => {
+        // 一般任務總是可見（isHidden 為 false 或 undefined）
+        if (task.isHidden !== true) return true;
+        // 隱藏任務只有在已揭露時才可見
+        return task.isRevealed === true;
+      })
+      .map((task: MongoTask) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || '',
+        isHidden: task.isHidden === true, // 確保是 boolean
+        isRevealed: task.isRevealed === true, // 確保是 boolean
+        revealedAt: task.revealedAt,
+        status: task.status || 'pending',
+        completedAt: task.completedAt,
+        // 不包含 gmNotes 和 revealCondition（GM 專用欄位）
+        createdAt: task.createdAt || new Date(),
+      }));
+
+    // Phase 4.5: 清理道具的 _id
+    const cleanItems = (character.items || []).map((item: MongoItem) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      type: item.type,
+      quantity: item.quantity,
+      effect: item.effect,
+      usageLimit: item.usageLimit,
+      usageCount: item.usageCount,
+      cooldown: item.cooldown,
+      lastUsedAt: item.lastUsedAt,
+      isTransferable: item.isTransferable,
+      acquiredAt: item.acquiredAt,
+    }));
+
+    // Phase 4: 清理數值的 _id
+    const cleanStats = (character.stats || []).map((stat: MongoStat) => ({
+      id: stat.id,
+      name: stat.name,
+      value: stat.value,
+      maxValue: stat.maxValue,
+    }));
+
     return {
       success: true,
       data: {
@@ -60,13 +153,13 @@ export async function getPublicCharacter(
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
         publicInfo: character.publicInfo,
-        // 只有已揭露的秘密才會回傳給玩家（清理 _id 確保純物件）
+        // 只有已揭露的秘密才會回傳給玩家
         secretInfo: revealedSecrets.length > 0
           ? { secrets: revealedSecrets }
           : undefined,
-        tasks: character.tasks || [],
-        items: character.items || [],
-        stats: character.stats || [],
+        tasks: visibleTasks,
+        items: cleanItems,
+        stats: cleanStats,
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },
@@ -116,6 +209,50 @@ export async function getPublicGame(
       success: false,
       error: 'FETCH_FAILED',
       message: '無法取得劇本資料',
+    };
+  }
+}
+
+/**
+ * Phase 4.5: 取得同劇本內的其他角色列表（用於道具轉移）
+ * 只回傳基本資訊（id、name、imageUrl），排除當前角色
+ */
+export interface TransferTargetCharacter {
+  id: string;
+  name: string;
+  imageUrl?: string;
+}
+
+export async function getTransferTargets(
+  gameId: string,
+  excludeCharacterId: string
+): Promise<ApiResponse<TransferTargetCharacter[]>> {
+  try {
+    await dbConnect();
+
+    // 取得同劇本內的所有角色（排除當前角色）
+    const characters = await Character.find({
+      gameId,
+      _id: { $ne: excludeCharacterId },
+    })
+      .select('_id name imageUrl')
+      .sort({ name: 1 })
+      .lean();
+
+    return {
+      success: true,
+      data: characters.map((char) => ({
+        id: char._id.toString(),
+        name: char.name,
+        imageUrl: char.imageUrl,
+      })),
+    };
+  } catch (error) {
+    console.error('Error fetching transfer targets:', error);
+    return {
+      success: false,
+      error: 'FETCH_FAILED',
+      message: '無法取得角色列表',
     };
   }
 }

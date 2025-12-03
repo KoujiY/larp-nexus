@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useSyncExternalStore, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +13,8 @@ import { StatsDisplay } from './stats-display';
 import { TaskList } from './task-list';
 import { ItemList } from './item-list';
 import { WorldInfoLink } from './world-info-link';
+import { useItem as consumeItemAction, transferItem as transferItemAction } from '@/app/actions/characters';
+import { toast } from 'sonner';
 import Image from 'next/image';
 
 interface CharacterCardViewProps {
@@ -44,6 +47,8 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
 }
 
 export function CharacterCardView({ character }: CharacterCardViewProps) {
+  const router = useRouter();
+  
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
   const isStorageUnlocked = useLocalStorageUnlock(character.id, character.hasPinLock);
   const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
@@ -56,6 +61,28 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
     // 儲存解鎖狀態到 localStorage
     localStorage.setItem(`character-${character.id}-unlocked`, 'true');
   };
+
+  // 道具使用 callback
+  const handleUseItem = useCallback(async (itemId: string) => {
+    const result = await consumeItemAction(character.id, itemId);
+    if (result.success) {
+      toast.success(result.message || '道具使用成功');
+      router.refresh(); // 重新載入頁面資料
+    } else {
+      toast.error(result.message || '道具使用失敗');
+    }
+  }, [character.id, router]);
+
+  // 道具轉移 callback
+  const handleTransferItem = useCallback(async (itemId: string, targetCharacterId: string) => {
+    const result = await transferItemAction(character.id, targetCharacterId, itemId);
+    if (result.success) {
+      toast.success(result.message || '道具轉移成功');
+      router.refresh();
+    } else {
+      toast.error(result.message || '道具轉移失敗');
+    }
+  }, [character.id, router]);
 
   // 如果需要 PIN 且未解鎖，顯示解鎖畫面
   if (character.hasPinLock && !isUnlocked) {
@@ -165,7 +192,13 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
               </TabsContent>
 
               <TabsContent value="items" className="mt-0">
-                <ItemList items={character.items} />
+                <ItemList 
+                  items={character.items} 
+                  characterId={character.id}
+                  gameId={character.gameId}
+                  onUseItem={handleUseItem}
+                  onTransferItem={handleTransferItem}
+                />
               </TabsContent>
             </div>
           </Tabs>

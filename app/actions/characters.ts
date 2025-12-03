@@ -9,7 +9,7 @@ import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 
-// MongoDB lean() 返回的 secret 類型
+// MongoDB lean() 返回的類型（可能包含 _id）
 interface MongoSecret {
   id: string;
   title: string;
@@ -17,6 +17,53 @@ interface MongoSecret {
   isRevealed: boolean;
   revealCondition?: string;
   revealedAt?: Date;
+  _id?: unknown;
+}
+
+interface MongoTask {
+  id: string;
+  title: string;
+  description: string;
+  isHidden: boolean;
+  isRevealed: boolean;
+  revealedAt?: Date;
+  status: 'pending' | 'in-progress' | 'completed' | 'failed';
+  completedAt?: Date;
+  gmNotes?: string;
+  revealCondition?: string;
+  createdAt: Date;
+  _id?: unknown;
+}
+
+interface MongoItem {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  type: 'consumable' | 'equipment';
+  quantity: number;
+  effect?: {
+    type: 'stat_change' | 'buff' | 'custom';
+    targetStat?: string;
+    value?: number;
+    duration?: number;
+    description?: string;
+  };
+  usageLimit?: number;
+  usageCount?: number;
+  cooldown?: number;
+  lastUsedAt?: Date;
+  isTransferable: boolean;
+  acquiredAt: Date;
+  _id?: unknown;
+}
+
+interface MongoStat {
+  id: string;
+  name: string;
+  value: number;
+  maxValue?: number;
+  _id?: unknown;
 }
 
 /**
@@ -130,6 +177,46 @@ export async function getCharactersByGameId(
             }
           : undefined;
 
+        // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
+        const cleanTasks = (char.tasks || []).map((task: MongoTask) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description || '',
+          isHidden: task.isHidden === true, // 確保是 boolean，預設 false
+          isRevealed: task.isRevealed === true, // 確保是 boolean，預設 false
+          revealedAt: task.revealedAt,
+          status: task.status || 'pending',
+          completedAt: task.completedAt,
+          gmNotes: task.gmNotes || '',
+          revealCondition: task.revealCondition || '',
+          createdAt: task.createdAt || new Date(),
+        }));
+
+        // 清理 items 中的 _id
+        const cleanItems = (char.items || []).map((item: MongoItem) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          imageUrl: item.imageUrl,
+          type: item.type,
+          quantity: item.quantity,
+          effect: item.effect,
+          usageLimit: item.usageLimit,
+          usageCount: item.usageCount,
+          cooldown: item.cooldown,
+          lastUsedAt: item.lastUsedAt,
+          isTransferable: item.isTransferable,
+          acquiredAt: item.acquiredAt,
+        }));
+
+        // 清理 stats 中的 _id
+        const cleanStats = (char.stats || []).map((stat: MongoStat) => ({
+          id: stat.id,
+          name: stat.name,
+          value: stat.value,
+          maxValue: stat.maxValue,
+        }));
+
         return {
           id: char._id.toString(),
           gameId: char.gameId.toString(),
@@ -139,9 +226,9 @@ export async function getCharactersByGameId(
           hasPinLock: char.hasPinLock,
           publicInfo: char.publicInfo,
           secretInfo: cleanSecretInfo,
-          tasks: char.tasks || [],
-          items: char.items || [],
-          stats: char.stats || [],
+          tasks: cleanTasks,
+          items: cleanItems,
+          stats: cleanStats,
           createdAt: char.createdAt,
           updatedAt: char.updatedAt,
         };
@@ -208,6 +295,46 @@ export async function getCharacterById(
         }
       : undefined;
 
+    // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
+    const cleanTasks = (character.tasks || []).map((task: MongoTask) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || '',
+      isHidden: task.isHidden === true, // 確保是 boolean，預設 false
+      isRevealed: task.isRevealed === true, // 確保是 boolean，預設 false
+      revealedAt: task.revealedAt,
+      status: task.status || 'pending',
+      completedAt: task.completedAt,
+      gmNotes: task.gmNotes || '',
+      revealCondition: task.revealCondition || '',
+      createdAt: task.createdAt || new Date(),
+    }));
+
+    // 清理 items 中的 _id
+    const cleanItems = (character.items || []).map((item: MongoItem) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      type: item.type,
+      quantity: item.quantity,
+      effect: item.effect,
+      usageLimit: item.usageLimit,
+      usageCount: item.usageCount,
+      cooldown: item.cooldown,
+      lastUsedAt: item.lastUsedAt,
+      isTransferable: item.isTransferable,
+      acquiredAt: item.acquiredAt,
+    }));
+
+    // 清理 stats 中的 _id
+    const cleanStats = (character.stats || []).map((stat: MongoStat) => ({
+      id: stat.id,
+      name: stat.name,
+      value: stat.value,
+      maxValue: stat.maxValue,
+    }));
+
     return {
       success: true,
       data: {
@@ -219,9 +346,9 @@ export async function getCharacterById(
         hasPinLock: character.hasPinLock,
         publicInfo: character.publicInfo,
         secretInfo: cleanSecretInfo,
-        tasks: character.tasks || [],
-        items: character.items || [],
-        stats: character.stats || [],
+        tasks: cleanTasks,
+        items: cleanItems,
+        stats: cleanStats,
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },
@@ -378,6 +505,42 @@ export async function updateCharacter(
       value: number;
       maxValue?: number;
     }>;
+    // Phase 4.5: 任務系統
+    tasks?: Array<{
+      id: string;
+      title: string;
+      description: string;
+      isHidden: boolean;
+      isRevealed: boolean;
+      revealedAt?: Date;
+      status: 'pending' | 'in-progress' | 'completed' | 'failed';
+      completedAt?: Date;
+      gmNotes?: string;
+      revealCondition?: string;
+      createdAt: Date;
+    }>;
+    // Phase 4.5: 道具系統
+    items?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      imageUrl?: string;
+      type: 'consumable' | 'equipment';
+      quantity: number;
+      effect?: {
+        type: 'stat_change' | 'buff' | 'custom';
+        targetStat?: string;
+        value?: number;
+        duration?: number;
+        description?: string;
+      };
+      usageLimit?: number;
+      usageCount?: number;
+      cooldown?: number;
+      lastUsedAt?: Date;
+      isTransferable: boolean;
+      acquiredAt: Date;
+    }>;
   }
 ): Promise<ApiResponse<CharacterData>> {
   try {
@@ -489,6 +652,65 @@ export async function updateCharacter(
       }));
     }
 
+    // Phase 4.5: 處理 tasks 更新
+    if (data.tasks !== undefined) {
+      const currentTasks = character.tasks || [];
+      
+      updateData.tasks = data.tasks.map((newTask) => {
+        const oldTask = currentTasks.find((t: { id: string }) => t.id === newTask.id);
+        
+        const cleanTask = {
+          id: newTask.id,
+          title: newTask.title,
+          description: newTask.description,
+          isHidden: newTask.isHidden,
+          isRevealed: newTask.isRevealed,
+          revealedAt: newTask.revealedAt,
+          status: newTask.status,
+          completedAt: newTask.completedAt,
+          gmNotes: newTask.gmNotes || '',
+          revealCondition: newTask.revealCondition || '',
+          createdAt: newTask.createdAt || new Date(),
+        };
+        
+        // 如果隱藏目標從未揭露變為已揭露，設定揭露時間
+        if (newTask.isHidden && newTask.isRevealed && (!oldTask || !oldTask.isRevealed)) {
+          cleanTask.revealedAt = new Date();
+        } else if (oldTask?.revealedAt) {
+          cleanTask.revealedAt = oldTask.revealedAt;
+        }
+        
+        // 如果狀態變為已完成/失敗，設定完成時間
+        if ((newTask.status === 'completed' || newTask.status === 'failed') && 
+            (!oldTask || (oldTask.status !== 'completed' && oldTask.status !== 'failed'))) {
+          cleanTask.completedAt = new Date();
+        } else if (oldTask?.completedAt) {
+          cleanTask.completedAt = oldTask.completedAt;
+        }
+        
+        return cleanTask;
+      });
+    }
+
+    // Phase 4.5: 處理 items 更新
+    if (data.items !== undefined) {
+      updateData.items = data.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        imageUrl: item.imageUrl,
+        type: item.type,
+        quantity: item.quantity,
+        effect: item.effect,
+        usageLimit: item.usageLimit,
+        usageCount: item.usageCount || 0,
+        cooldown: item.cooldown,
+        lastUsedAt: item.lastUsedAt,
+        isTransferable: item.isTransferable,
+        acquiredAt: item.acquiredAt || new Date(),
+      }));
+    }
+
     const updatedCharacter = await Character.findByIdAndUpdate(
       characterId,
       { $set: updateData },
@@ -519,6 +741,46 @@ export async function updateCharacter(
         }
       : undefined;
 
+    // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
+    const cleanTasks = (updatedCharacter.tasks || []).map((task: MongoTask) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || '',
+      isHidden: task.isHidden === true, // 確保是 boolean，預設 false
+      isRevealed: task.isRevealed === true, // 確保是 boolean，預設 false
+      revealedAt: task.revealedAt,
+      status: task.status || 'pending',
+      completedAt: task.completedAt,
+      gmNotes: task.gmNotes || '',
+      revealCondition: task.revealCondition || '',
+      createdAt: task.createdAt || new Date(),
+    }));
+
+    // 清理 items 中的 _id
+    const cleanItems = (updatedCharacter.items || []).map((item: MongoItem) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      type: item.type,
+      quantity: item.quantity,
+      effect: item.effect,
+      usageLimit: item.usageLimit,
+      usageCount: item.usageCount,
+      cooldown: item.cooldown,
+      lastUsedAt: item.lastUsedAt,
+      isTransferable: item.isTransferable,
+      acquiredAt: item.acquiredAt,
+    }));
+
+    // 清理 stats 中的 _id
+    const cleanStats = (updatedCharacter.stats || []).map((stat: MongoStat) => ({
+      id: stat.id,
+      name: stat.name,
+      value: stat.value,
+      maxValue: stat.maxValue,
+    }));
+
     return {
       success: true,
       data: {
@@ -530,9 +792,9 @@ export async function updateCharacter(
         hasPinLock: updatedCharacter.hasPinLock,
         publicInfo: updatedCharacter.publicInfo,
         secretInfo: cleanSecretInfo,
-        tasks: updatedCharacter.tasks || [],
-        items: updatedCharacter.items || [],
-        stats: updatedCharacter.stats || [],
+        tasks: cleanTasks,
+        items: cleanItems,
+        stats: cleanStats,
         createdAt: updatedCharacter.createdAt,
         updatedAt: updatedCharacter.updatedAt,
       },
@@ -886,6 +1148,283 @@ export async function setCharacterStat(
       success: false,
       error: 'UPDATE_FAILED',
       message: '無法設定數值',
+    };
+  }
+}
+
+/**
+ * Phase 4.5: 使用道具
+ * 檢查冷卻時間、使用次數限制，執行效果並更新狀態
+ */
+export async function useItem(
+  characterId: string,
+  itemId: string
+): Promise<ApiResponse<{ itemUsed: boolean; effectApplied?: string }>> {
+  try {
+    await dbConnect();
+
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此角色',
+      };
+    }
+
+    // 找到目標道具
+    const items = character.items || [];
+    const itemIndex = items.findIndex((i: { id: string }) => i.id === itemId);
+    if (itemIndex === -1) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此道具',
+      };
+    }
+
+    const item = items[itemIndex];
+    const now = new Date();
+
+    // 檢查消耗品數量
+    if (item.type === 'consumable' && item.quantity <= 0) {
+      return {
+        success: false,
+        error: 'ITEM_DEPLETED',
+        message: '道具數量不足',
+      };
+    }
+
+    // 檢查使用次數限制
+    if (item.usageLimit && item.usageLimit > 0) {
+      if ((item.usageCount || 0) >= item.usageLimit) {
+        return {
+          success: false,
+          error: 'USAGE_LIMIT_REACHED',
+          message: '已達使用次數上限',
+        };
+      }
+    }
+
+    // 檢查冷卻時間
+    if (item.cooldown && item.cooldown > 0 && item.lastUsedAt) {
+      const lastUsed = new Date(item.lastUsedAt).getTime();
+      const cooldownMs = item.cooldown * 1000;
+      if (now.getTime() - lastUsed < cooldownMs) {
+        const remainingSeconds = Math.ceil((cooldownMs - (now.getTime() - lastUsed)) / 1000);
+        return {
+          success: false,
+          error: 'ON_COOLDOWN',
+          message: `冷卻中，剩餘 ${remainingSeconds} 秒`,
+        };
+      }
+    }
+
+    // 準備更新
+    const updates: Record<string, unknown> = {};
+    let effectMessage = '';
+
+    // 更新冷卻時間
+    if (item.cooldown && item.cooldown > 0) {
+      updates[`items.${itemIndex}.lastUsedAt`] = now;
+    }
+
+    // 處理使用次數限制
+    if (item.usageLimit && item.usageLimit > 0) {
+      // 有使用次數限制：每次使用增加 usageCount
+      const newUsageCount = (item.usageCount || 0) + 1;
+      updates[`items.${itemIndex}.usageCount`] = newUsageCount;
+      // 不刪除道具，讓它保留在清單中顯示為已用盡
+    } else {
+      // 沒有使用次數限制：消耗品每次使用減少數量
+      if (item.type === 'consumable') {
+        const newQuantity = Math.max(0, item.quantity - 1);
+        updates[`items.${itemIndex}.quantity`] = newQuantity;
+        // 不刪除道具，讓它保留在清單中顯示為數量 0
+      }
+    }
+
+    // 執行效果
+    if (item.effect) {
+      if (item.effect.type === 'stat_change' && item.effect.targetStat && item.effect.value !== undefined) {
+        // 找到目標數值
+        const stats = character.stats || [];
+        const statIndex = stats.findIndex((s: { name: string }) => s.name === item.effect.targetStat);
+        if (statIndex !== -1) {
+          let newValue = stats[statIndex].value + item.effect.value;
+          const maxValue = stats[statIndex].maxValue;
+          if (maxValue !== undefined && maxValue !== null) {
+            newValue = Math.min(newValue, maxValue);
+          }
+          newValue = Math.max(0, newValue);
+          updates[`stats.${statIndex}.value`] = newValue;
+          effectMessage = `${item.effect.targetStat} ${item.effect.value > 0 ? '+' : ''}${item.effect.value}`;
+        }
+      } else if (item.effect.type === 'custom' && item.effect.description) {
+        effectMessage = item.effect.description;
+      }
+    }
+
+    // 執行更新
+    if (Object.keys(updates).length > 0) {
+      await Character.findByIdAndUpdate(characterId, { $set: updates });
+    }
+
+    revalidatePath(`/c/${characterId}`);
+
+    return {
+      success: true,
+      data: { 
+        itemUsed: true,
+        effectApplied: effectMessage || undefined,
+      },
+      message: effectMessage ? `使用成功：${effectMessage}` : '道具使用成功',
+    };
+  } catch (error) {
+    console.error('Error using item:', error);
+    return {
+      success: false,
+      error: 'USE_FAILED',
+      message: '無法使用道具',
+    };
+  }
+}
+
+/**
+ * Phase 4.5: 轉移道具給其他角色
+ */
+export async function transferItem(
+  fromCharacterId: string,
+  toCharacterId: string,
+  itemId: string,
+  quantity: number = 1
+): Promise<ApiResponse<{ transferred: boolean }>> {
+  try {
+    await dbConnect();
+
+    // 取得來源角色
+    const fromCharacter = await Character.findById(fromCharacterId);
+    if (!fromCharacter) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到來源角色',
+      };
+    }
+
+    // 取得目標角色
+    const toCharacter = await Character.findById(toCharacterId);
+    if (!toCharacter) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到目標角色',
+      };
+    }
+
+    // 確認兩個角色在同一個遊戲中
+    if (fromCharacter.gameId.toString() !== toCharacter.gameId.toString()) {
+      return {
+        success: false,
+        error: 'INVALID_TRANSFER',
+        message: '只能在同一個劇本內轉移道具',
+      };
+    }
+
+    // 找到要轉移的道具
+    const fromItems = fromCharacter.items || [];
+    const itemIndex = fromItems.findIndex((i: { id: string }) => i.id === itemId);
+    if (itemIndex === -1) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到要轉移的道具',
+      };
+    }
+
+    const item = fromItems[itemIndex];
+
+    // 檢查是否可轉移
+    if (!item.isTransferable) {
+      return {
+        success: false,
+        error: 'NOT_TRANSFERABLE',
+        message: '此道具無法轉移',
+      };
+    }
+
+    // 檢查數量
+    if (item.quantity < quantity) {
+      return {
+        success: false,
+        error: 'INSUFFICIENT_QUANTITY',
+        message: '道具數量不足',
+      };
+    }
+
+    // 建立轉移的道具副本（重置使用次數和冷卻）
+    const transferredItem = {
+      id: `item-${Date.now()}`,
+      name: item.name,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      type: item.type,
+      quantity: quantity,
+      effect: item.effect,
+      usageLimit: item.usageLimit,
+      usageCount: 0, // 重置使用次數
+      cooldown: item.cooldown,
+      lastUsedAt: undefined, // 重置冷卻
+      isTransferable: item.isTransferable,
+      acquiredAt: new Date(),
+    };
+
+    // 從來源角色扣除
+    if (item.quantity === quantity) {
+      // 完全移除
+      await Character.findByIdAndUpdate(fromCharacterId, {
+        $pull: { items: { id: itemId } },
+      });
+    } else {
+      // 減少數量
+      await Character.findByIdAndUpdate(fromCharacterId, {
+        $set: { [`items.${itemIndex}.quantity`]: item.quantity - quantity },
+      });
+    }
+
+    // 加到目標角色
+    // 檢查目標角色是否已有同名道具（可堆疊）
+    const toItems = toCharacter.items || [];
+    const existingItemIndex = toItems.findIndex(
+      (i: { name: string; type: string }) => i.name === item.name && i.type === item.type
+    );
+
+    if (existingItemIndex !== -1 && item.type === 'consumable') {
+      // 消耗品可堆疊
+      await Character.findByIdAndUpdate(toCharacterId, {
+        $inc: { [`items.${existingItemIndex}.quantity`]: quantity },
+      });
+    } else {
+      // 新增道具
+      await Character.findByIdAndUpdate(toCharacterId, {
+        $push: { items: transferredItem },
+      });
+    }
+
+    revalidatePath(`/c/${fromCharacterId}`);
+    revalidatePath(`/c/${toCharacterId}`);
+
+    return {
+      success: true,
+      data: { transferred: true },
+      message: `成功轉移 ${quantity} 個 ${item.name}`,
+    };
+  } catch (error) {
+    console.error('Error transferring item:', error);
+    return {
+      success: false,
+      error: 'TRANSFER_FAILED',
+      message: '無法轉移道具',
     };
   }
 }

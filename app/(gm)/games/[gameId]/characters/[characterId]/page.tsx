@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PageLayout } from '@/components/gm/page-layout';
 import { CharacterEditForm } from '@/components/gm/character-edit-form';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
+import { TasksEditForm } from '@/components/gm/tasks-edit-form';
+import { ItemsEditForm } from '@/components/gm/items-edit-form';
 import { UploadCharacterImageButton } from '@/components/gm/upload-character-image-button';
 import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
 import { ViewPinButton } from '@/components/gm/view-pin-button';
@@ -140,14 +142,10 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
           <TabsList className="w-auto">
             <TabsTrigger value="basic">📝 基本資訊</TabsTrigger>
             <TabsTrigger value="stats">📊 角色數值</TabsTrigger>
-            <TabsTrigger value="items" disabled>
-              🎒 道具管理
-            </TabsTrigger>
+            <TabsTrigger value="tasks">✅ 任務管理</TabsTrigger>
+            <TabsTrigger value="items">🎒 道具管理</TabsTrigger>
             <TabsTrigger value="skills" disabled>
               ⚡ 技能管理
-            </TabsTrigger>
-            <TabsTrigger value="tasks" disabled>
-              ✅ 任務管理
             </TabsTrigger>
           </TabsList>
 
@@ -164,27 +162,21 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
             />
           </TabsContent>
 
-          {/* Items Tab (Coming Soon) */}
+          {/* Tasks Tab (Phase 4.5) */}
+          <TabsContent value="tasks">
+            <TasksEditForm
+              characterId={character.id}
+              initialTasks={character.tasks || []}
+            />
+          </TabsContent>
+
+          {/* Items Tab (Phase 4.5) */}
           <TabsContent value="items">
-            <Card>
-              <CardHeader>
-                <CardTitle>道具管理</CardTitle>
-                <CardDescription>
-                  管理角色持有的道具卡（Phase 4 開發中）
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="py-12">
-                <div className="text-center space-y-4">
-                  <div className="text-6xl">🎒</div>
-                  <div>
-                    <h3 className="text-xl font-semibold">開發中</h3>
-                    <p className="text-muted-foreground mt-2">
-                      此功能將在 Phase 4 實作
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <ItemsEditForm
+              characterId={character.id}
+              initialItems={character.items || []}
+              stats={character.stats || []}
+            />
           </TabsContent>
 
           {/* Skills Tab (Coming Soon) */}
@@ -210,28 +202,6 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
             </Card>
           </TabsContent>
 
-          {/* Tasks Tab (Coming Soon) */}
-          <TabsContent value="tasks">
-            <Card>
-              <CardHeader>
-                <CardTitle>任務管理</CardTitle>
-                <CardDescription>
-                  管理角色的任務進度（Phase 4 開發中）
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="py-12">
-                <div className="text-center space-y-4">
-                  <div className="text-6xl">✅</div>
-                  <div>
-                    <h3 className="text-xl font-semibold">開發中</h3>
-                    <p className="text-muted-foreground mt-2">
-                      此功能將在 Phase 4 實作
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
     </PageLayout>
