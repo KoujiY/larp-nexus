@@ -188,7 +188,7 @@ async function handleUnlock(pin: string) {
 
 ```tsx
 <CharacterHeader>
-  <div className="relative h-48 bg-gradient-to-b from-primary/20 to-background">
+    <div className="relative h-48 bg-linear-to-b from-primary/20 to-background">
     <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
       <Avatar src={character.avatar} size="xl" className="border-4 border-background" />
     </div>
@@ -230,62 +230,151 @@ async function handleUnlock(pin: string) {
 
 ---
 
-### 4.4 秘密資訊區 (SecretInfoSection)
+### 4.4 隱藏資訊區 (SecretInfoSection)
 
 **Phase 3.5 功能**（Phase 3 不包含）
 
+**核心設計原則**：
+1. **完全隱藏原則**：未揭露的隱藏資訊完全不顯示任何內容（包括鎖定提示），玩家不會知道有隱藏資訊存在
+2. **獨立揭露**：每個隱藏資訊獨立控制揭露狀態，GM 可以選擇性地揭露特定隱藏資訊
+3. **閱讀狀態追蹤**：每個隱藏資訊會標記是否已閱讀，使用 localStorage 儲存閱讀狀態
+4. **Dialog 顯示**：點擊隱藏資訊卡片後，以 Dialog 視窗顯示完整內容，並標記為已閱讀
+
+**元件結構**
 ```tsx
-<SecretInfoSection>
-  {secretInfo.isUnlocked ? (
-    <>
-      <Section title="秘密資訊" icon={Lock} variant="secret">
-        {secretInfo.secrets.map((secret, index) => (
-          <Accordion key={index} type="single" collapsible>
-            <AccordionItem value={`secret-${index}`}>
-              <AccordionTrigger>{secret.title}</AccordionTrigger>
-              <AccordionContent>
-                <p className="whitespace-pre-wrap">{secret.content}</p>
-                {secret.revealedAt && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    揭露於：{formatDate(secret.revealedAt)}
-                  </p>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        ))}
-      </Section>
-      
-      <Section title="隱藏目標" icon={Target} variant="secret">
-        <p className="whitespace-pre-wrap">{secretInfo.hiddenGoals}</p>
-      </Section>
-    </>
-  ) : (
-    <Alert>
-      <Lock className="h-4 w-4" />
-      <AlertTitle>秘密資訊已鎖定</AlertTitle>
-      <AlertDescription>
-        此區域將在適當時機由 GM 解鎖
-      </AlertDescription>
-    </Alert>
+<SecretInfoSection secretInfo={character.secretInfo} characterId={character.id}>
+  {/* 只顯示已揭露的隱藏資訊（isRevealed === true） */}
+  {revealedSecrets.length > 0 && (
+    <Card className="border-purple-300 bg-purple-50/50">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Lock className="mr-2 h-5 w-5" />
+          隱藏資訊
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-2">
+          {revealedSecrets.map((secret) => {
+            const isRead = readSecrets.has(secret.id);
+            return (
+              <Card
+                key={secret.id}
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  isRead ? 'opacity-75' : 'border-purple-400 bg-purple-100/50'
+                }`}
+                onClick={() => handleSecretClick(secret.id)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-semibold">{secret.title}</h4>
+                    {!isRead && (
+                      <Badge variant="secondary">
+                        <Eye className="h-3 w-3 mr-1" />
+                        未讀
+                      </Badge>
+                    )}
+                  </div>
+                  {secret.revealCondition && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      揭露條件：{secret.revealCondition}
+                    </p>
+                  )}
+                  {secret.revealedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      揭露於：{formatDate(secret.revealedAt)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   )}
+  
+  {/* Dialog 顯示隱藏資訊完整內容 */}
+  <Dialog open={selectedSecret !== null}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{selectedSecretData?.title}</DialogTitle>
+        <DialogDescription>
+          {selectedSecretData?.revealCondition && (
+            <span>揭露條件：{selectedSecretData.revealCondition}</span>
+          )}
+        </DialogDescription>
+      </DialogHeader>
+      <div className="mt-4">
+        <p className="whitespace-pre-wrap">{selectedSecretData?.content}</p>
+        {selectedSecretData?.revealedAt && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            揭露於：{formatDate(selectedSecretData.revealedAt)}
+          </p>
+        )}
+      </div>
+    </DialogContent>
+  </Dialog>
 </SecretInfoSection>
 ```
 
-**注意**：
-- SecretInfo 獨立於 PIN 解鎖機制
-- PIN 解鎖後仍看不見 SecretInfo，需 GM 控制顯示
-- 解鎖動畫與 WebSocket 整合延後至 Phase 6
+**狀態管理**
+```typescript
+// 閱讀狀態追蹤（使用 localStorage）
+const [readSecrets, setReadSecrets] = useState<Set<string>>(new Set());
+const [selectedSecret, setSelectedSecret] = useState<string | null>(null);
+
+// 從 localStorage 載入已閱讀的隱藏資訊 ID
+useEffect(() => {
+  const stored = localStorage.getItem(`character-${characterId}-read-secrets`);
+  if (stored) {
+    const readIds = JSON.parse(stored) as string[];
+    setReadSecrets(new Set(readIds));
+  }
+}, [characterId]);
+
+// 點擊隱藏資訊時標記為已閱讀
+const handleSecretClick = (secretId: string) => {
+  setSelectedSecret(secretId);
+  const newReadSecrets = new Set(readSecrets);
+  newReadSecrets.add(secretId);
+  setReadSecrets(newReadSecrets);
+  localStorage.setItem(
+    `character-${characterId}-read-secrets`,
+    JSON.stringify(Array.from(newReadSecrets))
+  );
+};
+```
+
+**過濾邏輯**
+```typescript
+// 只顯示已揭露的隱藏資訊
+const revealedSecrets = secretInfo?.secrets?.filter(
+  (secret) => secret.isRevealed === true
+) || [];
+
+// 如果沒有已揭露的隱藏資訊，不顯示任何內容（包括鎖定提示）
+if (revealedSecrets.length === 0) {
+  return null;
+}
+```
+
+**注意事項**：
+- **完全隱藏原則**：未揭露的隱藏資訊不顯示任何 UI 元素，玩家完全不知道有隱藏資訊存在
+- **獨立揭露**：每個隱藏資訊的 `isRevealed` 狀態獨立控制，GM 可以選擇性地揭露
+- **閱讀狀態**：使用 `localStorage` 儲存閱讀狀態，格式為 `character-{characterId}-read-secrets`
+- **揭露條件**：`revealCondition` 僅供 GM 參考，玩家可以看到此欄位（用於說明揭露時機）
+- **揭露時間**：當 GM 將 `isRevealed` 從 `false` 變為 `true` 時，自動設定 `revealedAt` 為當前時間
+- **Dialog 顯示**：點擊隱藏資訊卡片後，以 Dialog 視窗顯示完整內容，並自動標記為已閱讀
 
 **解鎖動畫（Phase 6）**
 ```tsx
-// 當收到 role.secretUnlocked 事件時觸發
+// 當收到 role.secretRevealed 事件時觸發（單個隱藏資訊揭露）
 <motion.div
   initial={{ opacity: 0, scale: 0.8 }}
   animate={{ opacity: 1, scale: 1 }}
   transition={{ duration: 0.5 }}
 >
-  <SecretInfoSection />
+  <SecretInfoCard secret={newRevealedSecret} />
 </motion.div>
 ```
 

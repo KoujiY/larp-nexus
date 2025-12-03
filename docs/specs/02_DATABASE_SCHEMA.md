@@ -147,15 +147,16 @@ interface Character {
     }>;
   };
   
-  // 秘密資訊（GM 控制開放）- Phase 3.5
+  // 隱藏資訊（GM 控制開放）- Phase 3.5
   secretInfo?: {
-    isUnlocked: boolean;            // 秘密區是否已解鎖（由 GM 控制）
     secrets: Array<{
-      title: string;
-      content: string;
-      revealedAt?: Date;            // 揭露時間（可選）
+      id: string;                   // 唯一識別碼（用於追蹤閱讀狀態）
+      title: string;                // 隱藏資訊標題
+      content: string;              // 隱藏資訊內容
+      isRevealed: boolean;          // 是否已揭露（由 GM 控制，獨立於其他隱藏資訊）
+      revealCondition: string;     // 揭露條件描述（僅供 GM 參考，玩家不會看到）
+      revealedAt?: Date;            // 揭露時間（當 isRevealed 從 false 變為 true 時自動設定）
     }>;
-    hiddenGoals: string;            // 隱藏目標
   };
   
   // 任務與物品 - Phase 3

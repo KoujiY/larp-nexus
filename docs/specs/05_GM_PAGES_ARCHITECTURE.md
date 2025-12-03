@@ -702,6 +702,97 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
     </CardContent>
   </Card>
   
+  {/* Phase 3.5: 隱藏資訊編輯 */}
+  <Card>
+    <CardHeader>
+      <CardTitle>隱藏資訊</CardTitle>
+      <CardDescription>
+        設定角色的隱藏資訊，每個隱藏資訊可獨立設定揭露條件與揭露狀態
+      </CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      {formData.secretInfo.secrets.map((secret, index) => (
+        <Card key={secret.id} className="border-2">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between">
+              <CardTitle className="text-base">隱藏資訊 #{index + 1}</CardTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeSecret(index)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Input
+              label="標題"
+              placeholder="隱藏資訊標題"
+              value={secret.title}
+              onChange={(e) => updateSecret(index, { title: e.target.value })}
+            />
+            
+            <Textarea
+              label="內容"
+              placeholder="隱藏資訊內容"
+              value={secret.content}
+              onChange={(e) => updateSecret(index, { content: e.target.value })}
+              rows={6}
+            />
+            
+            <Input
+              label="揭露條件"
+              placeholder="例：完成任務 A 後揭露"
+              value={secret.revealCondition}
+              onChange={(e) => updateSecret(index, { revealCondition: e.target.value })}
+              helperText="描述此隱藏資訊的揭露條件（僅供 GM 參考，玩家不會看到）"
+            />
+            
+            <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
+              <div className="space-y-0.5">
+                <Label className="text-base font-medium">
+                  {secret.isRevealed ? '已揭露' : '未揭露'}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {secret.isRevealed 
+                    ? '玩家目前可以查看此隱藏資訊' 
+                    : '玩家目前無法查看此隱藏資訊'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-medium ${
+                  secret.isRevealed ? 'text-green-600' : 'text-gray-500'
+                }`}>
+                  {secret.isRevealed ? '✓ 已揭露' : '✗ 未揭露'}
+                </span>
+                <Switch
+                  checked={secret.isRevealed}
+                  onCheckedChange={(checked) => updateSecret(index, { isRevealed: checked })}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+      
+      <Button
+        type="button"
+        variant="outline"
+        onClick={addSecret}
+        className="w-full"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        新增隱藏資訊
+      </Button>
+      
+      <p className="text-xs text-muted-foreground">
+        提示：只有已揭露的隱藏資訊才會顯示在玩家角色卡上
+      </p>
+    </CardContent>
+  </Card>
+
   <FormActions>
     <Button type="button" variant="outline" onClick={() => router.back()}>
       取消
@@ -713,9 +804,51 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
 </form>
 ```
 
+**隱藏資訊編輯邏輯**
+```typescript
+// 新增隱藏資訊
+const addSecret = () => {
+  const newId = `secret-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  setFormData((prev) => ({
+    ...prev,
+    secretInfo: {
+      secrets: [
+        ...prev.secretInfo.secrets,
+        {
+          id: newId,
+          title: '',
+          content: '',
+          isRevealed: false,
+          revealCondition: '',
+        },
+      ],
+    },
+  }));
+};
+
+// 更新隱藏資訊
+const updateSecret = (index: number, updates: Partial<Secret>) => {
+  const newSecrets = [...formData.secretInfo.secrets];
+  newSecrets[index] = { ...newSecrets[index], ...updates };
+  setFormData((prev) => ({
+    ...prev,
+    secretInfo: { secrets: newSecrets },
+  }));
+};
+
+// 刪除隱藏資訊
+const removeSecret = (index: number) => {
+  const newSecrets = formData.secretInfo.secrets.filter((_, i) => i !== index);
+  setFormData((prev) => ({
+    ...prev,
+    secretInfo: { secrets: newSecrets },
+  }));
+};
+```
+
 **Server Action**
 - `getCharacterById(characterId)` - 取得角色資料
-- `updateCharacter(characterId, data)` - 更新角色基本資訊
+- `updateCharacter(characterId, data)` - 更新角色基本資訊與隱藏資訊
 - `getCharacterPin(characterId)` - 取得角色 PIN（GM 專用）
 
 **Phase 4 擴展規劃**

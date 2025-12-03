@@ -253,12 +253,15 @@ interface CreateCharacterInput {
       description: string;
     }>;
   };
-  secretInfo: {
-    secrets: Array<{
+  secretInfo?: {
+    secrets?: Array<{
+      id: string;
       title: string;
       content: string;
+      isRevealed: boolean;
+      revealCondition: string;
+      revealedAt?: Date;
     }>;
-    hiddenGoals: string;
   };
 }
 ```
@@ -337,16 +340,36 @@ interface UpdateCharacterInput {
   avatar?: string;
   hasPinLock?: boolean;
   pin?: string;  // 若要更新 PIN（4-6 位數字，明文儲存）
-  publicInfo?: { ... };
+  publicInfo?: {
+    background?: string;
+    personality?: string;
+    relationships?: Array<{
+      targetName: string;
+      description: string;
+    }>;
+  };
   secretInfo?: {
-    isUnlocked?: boolean;  // GM 可手動解鎖
-    secrets?: Array<...>;
-    hiddenGoals?: string;
+    secrets?: Array<{
+      id: string;                   // 唯一識別碼
+      title: string;
+      content: string;
+      isRevealed: boolean;          // 是否已揭露（由 GM 控制）
+      revealCondition: string;       // 揭露條件描述（僅供 GM 參考）
+      revealedAt?: Date;            // 揭露時間（當 isRevealed 從 false 變為 true 時自動設定）
+    }>;
   };
   tasks?: Array<...>;
   items?: Array<...>;
 }
 ```
+
+**實作邏輯**
+1. 驗證角色存在且屬於當前 GM
+2. 更新角色資料
+3. 處理 `secretInfo.secrets` 更新：
+   - 如果 `isRevealed` 從 `false` 變為 `true`，自動設定 `revealedAt` 為當前時間
+   - 保留現有 `revealedAt` 如果已存在
+4. 回傳更新後的角色資料
 
 **回傳**
 ```typescript
@@ -564,11 +587,11 @@ interface PushEventInput {
 ```json
 {
   "success": true,
-  "character": {
-    "_id": "xxx",
+  "data": {
+    "id": "xxx",
     "gameId": "xxx",
     "name": "瑪格麗特夫人",
-    "avatar": "https://...",
+    "imageUrl": "https://...",
     "hasPinLock": true,
     "publicInfo": {
       "background": "...",
@@ -576,15 +599,30 @@ interface PushEventInput {
       "relationships": [...]
     },
     "secretInfo": {
-      "isUnlocked": false,
-      "secrets": [],  // 若未解鎖，回傳空陣列
-      "hiddenGoals": ""
+      "secrets": [
+        {
+          "id": "secret-xxx",
+          "title": "隱藏的秘密",
+          "content": "這是隱藏的內容...",
+          "isRevealed": true,
+          "revealCondition": "完成任務 A 後揭露",
+          "revealedAt": "2025-11-29T10:00:00Z"
+        }
+      ]
     },
     "tasks": [...],
-    "items": [...]
+    "items": [...],
+    "createdAt": "2025-11-29T10:00:00Z",
+    "updatedAt": "2025-11-29T10:00:00Z"
   }
 }
 ```
+
+**重要說明**：
+- **完全隱藏原則**：API 只返回 `isRevealed === true` 的隱藏資訊
+- **未揭露的隱藏資訊**：如果沒有已揭露的隱藏資訊，`secretInfo` 欄位為 `undefined` 或不包含在回應中
+- **安全性**：玩家端無法看到未揭露的隱藏資訊，也無法知道有多少隱藏資訊存在
+- **揭露條件**：`revealCondition` 欄位會返回給玩家（用於說明揭露時機），但僅供參考
 
 **Response (404)**
 ```json

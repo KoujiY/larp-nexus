@@ -317,14 +317,26 @@ UI Components
 - 技能系統延後至 Phase 5
 - WebSocket 即時更新延後至 Phase 6
 
-### Phase 3.5：SecretInfo 模組（Week 4-5）
+### Phase 3.5：隱藏資訊模組（Week 4-5）
 
 #### 開發任務
-- [ ] 擴展 Character 模型：加入 `secretInfo`
-- [ ] GM 端：編輯 SecretInfo（秘密列表、隱藏目標）
-- [ ] GM 端：控制 SecretInfo 顯示/隱藏
-- [ ] 玩家端：顯示 SecretInfo（僅在 GM 解鎖後）
-- [ ] SecretInfo 解鎖動畫與狀態管理
+- [ ] 擴展 Character 模型：加入 `secretInfo.secrets` 陣列
+  - 每個隱藏資訊包含：`id`, `title`, `content`, `isRevealed`, `revealCondition`, `revealedAt`
+- [ ] GM 端：隱藏資訊編輯功能
+  - 卡片式設計，支援新增/編輯/刪除多個隱藏資訊
+  - 每個隱藏資訊獨立設定揭露條件與揭露狀態
+  - Toggle 開關明確顯示「已揭露」/「未揭露」狀態
+- [ ] GM 端：控制隱藏資訊揭露
+  - 獨立控制每個隱藏資訊的 `isRevealed` 狀態
+  - 當 `isRevealed` 從 `false` 變為 `true` 時，自動設定 `revealedAt`
+- [ ] 玩家端：顯示已揭露的隱藏資訊
+  - **完全隱藏原則**：未揭露的隱藏資訊完全不顯示（包括鎖定提示）
+  - 只顯示 `isRevealed === true` 的隱藏資訊
+  - 以卡片形式展示，點擊後顯示 Dialog
+- [ ] 玩家端：閱讀狀態追蹤
+  - 使用 `localStorage` 儲存已閱讀的隱藏資訊 ID
+  - 未讀的隱藏資訊顯示「未讀」標籤
+  - 點擊後自動標記為已閱讀
 
 ### Phase 4：數值系統（Week 5-6）
 
