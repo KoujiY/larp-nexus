@@ -351,41 +351,41 @@ UI Components
 
 #### 開發任務 - 任務系統
 
-- [ ] 擴展 Character 模型：更新 `tasks` 結構
+- [x] 擴展 Character 模型：更新 `tasks` 結構
   - 新增隱藏目標機制（`isHidden`, `isRevealed`, `revealedAt`）
   - 新增完成狀態（`status`, `completedAt`）
   - 新增 GM 專用欄位（`gmNotes`, `revealCondition`）
-- [ ] GM 端：任務管理 Tab
+- [x] GM 端：任務管理 Tab
   - 新增/編輯/刪除任務
   - 設定任務為隱藏目標
   - 控制隱藏目標揭露狀態
   - 更新任務完成狀態（待處理 → 進行中 → 已完成/失敗）
-- [ ] 玩家端：任務顯示
+- [x] 玩家端：任務顯示
   - 卡片式陳列（一般目標 + 已揭露的隱藏目標）
   - 點擊以 Dialog 顯示詳細內容
   - 完成/失敗狀態視覺呈現
-- [ ] Server Actions：任務 CRUD + 狀態更新
+- [x] Server Actions：任務 CRUD + 狀態更新
 
 #### 開發任務 - 道具系統
 
-- [ ] 擴展 Character 模型：更新 `items` 結構
+- [x] 擴展 Character 模型：更新 `items` 結構
   - 道具類型（`type`: 消耗品/非消耗品）
   - 數量系統（`quantity`）
   - 使用效果（`effect`）
   - 使用限制（`usageLimit`, `usageCount`）- GM 可選擇啟用
   - 冷卻系統（`cooldown`, `lastUsedAt`）- GM 可選擇啟用
   - 流通性（`isTransferable`）
-- [ ] GM 端：道具管理 Tab
+- [x] GM 端：道具管理 Tab
   - 新增/編輯/刪除道具
   - 設定道具類型與效果
   - 可選：設定使用次數限制
   - 可選：設定冷卻時間
-  - 上傳道具圖片
-- [ ] 玩家端：道具使用介面
+  - 上傳道具圖片（預留）
+- [x] 玩家端：道具使用介面
   - 道具卡片顯示（含數量、剩餘使用次數、冷卻狀態）
   - 使用道具功能（含冷卻/次數限制檢查）
   - 轉移道具功能（交易/給予）
-- [ ] Server Actions：道具 CRUD + 使用 + 轉移
+- [x] Server Actions：道具 CRUD + 使用 + 轉移
   - 使用前檢查：冷卻時間、使用次數、數量
 
 **技能整合預留**：
