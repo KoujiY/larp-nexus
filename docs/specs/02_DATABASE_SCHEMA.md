@@ -159,37 +159,104 @@ interface Character {
     }>;
   };
   
-  // 任務與物品 - Phase 3
+  // 任務系統 - Phase 4.5
   tasks: Array<{
-    id: string;
-    title: string;
-    description: string;
-    status: 'pending' | 'in-progress' | 'completed';
-    createdAt: Date;
+    id: string;                     // 唯一識別碼
+    title: string;                  // 任務標題
+    description: string;            // 任務描述（支援多行）
+    
+    // 隱藏目標機制
+    isHidden: boolean;              // 是否為隱藏目標
+    isRevealed: boolean;            // 隱藏目標是否已揭露（isHidden=true 時有效）
+    revealedAt?: Date;              // 揭露時間
+    
+    // 完成狀態
+    status: 'pending' | 'in-progress' | 'completed' | 'failed';
+    completedAt?: Date;             // 完成時間
+    
+    // GM 專用欄位（玩家端不顯示）
+    gmNotes?: string;               // GM 筆記
+    revealCondition?: string;       // 揭露條件描述（僅 GM 參考）
+    
+    createdAt: Date;                // 建立時間
   }>;
   
+  // 道具系統 - Phase 4.5
   items: Array<{
-    id: string;
-    name: string;
-    description: string;
-    imageUrl?: string;
-    acquiredAt: Date;
+    id: string;                     // 唯一識別碼
+    name: string;                   // 道具名稱
+    description: string;            // 道具描述
+    imageUrl?: string;              // 道具圖片（Vercel Blob）
+    
+    // 道具類型與數量
+    type: 'consumable' | 'equipment';  // 消耗品 / 非消耗品（裝備）
+    quantity: number;               // 數量（消耗品每次使用減 1，為 0 時移除）
+    
+    // 使用效果（可選，由技能系統擴展）
+    effect?: {
+      type: 'stat_change' | 'buff' | 'custom';
+      targetStat?: string;          // 目標數值名稱（如：HP、MP）
+      value?: number;               // 變化值（正數增加，負數減少）
+      duration?: number;            // 持續時間（秒，0 = 永久，僅 buff 類型）
+      description?: string;         // 效果描述（custom 類型用）
+    };
+    
+    // 使用限制（GM 可選擇是否啟用）
+    usageLimit?: number;            // 使用次數限制（undefined/0 = 無限制）
+    usageCount?: number;            // 已使用次數（達到 usageLimit 時無法使用）
+    cooldown?: number;              // 冷卻時間（秒，undefined/0 = 無冷卻）
+    lastUsedAt?: Date;              // 上次使用時間（計算冷卻用）
+    
+    // 流通性
+    isTransferable: boolean;        // 是否可轉移給其他玩家
+    
+    acquiredAt: Date;               // 獲得時間
   }>;
+  
+  /**
+   * 道具/技能使用條件判斷：
+   * 1. 冷卻檢查：若 cooldown > 0 且 (now - lastUsedAt) < cooldown 秒，則無法使用
+   * 2. 次數檢查：若 usageLimit > 0 且 usageCount >= usageLimit，則無法使用
+   * 3. 消耗品檢查：若 type = 'consumable' 且 quantity <= 0，則無法使用
+   */
   
   // 數值系統 - Phase 4
   stats?: Array<{
+    id: string;                     // 唯一識別碼
     name: string;                   // 數值名稱（如：血量、魔力、力量）
-    value: number;                  // 數值
+    value: number;                  // 目前數值
     maxValue?: number;              // 最大值（可選）
   }>;
   
   // 技能系統 - Phase 5
   skills?: Array<{
-    id: string;
-    name: string;
-    description: string;
-    checkThreshold?: number;        // 檢定門檻
-    effect?: string;                // 效果描述
+    id: string;                     // 唯一識別碼
+    name: string;                   // 技能名稱
+    description: string;            // 技能描述
+    iconUrl?: string;               // 技能圖示
+    
+    // 檢定系統
+    checkType: 'none' | 'stat' | 'random';  // 檢定類型
+    checkThreshold?: number;        // 檢定門檻（stat 類型使用）
+    relatedStat?: string;           // 關聯數值名稱（stat 類型使用）
+    
+    // 使用限制（GM 可選擇是否啟用）
+    usageLimit?: number;            // 使用次數限制（undefined/0 = 無限制）
+    usageCount?: number;            // 已使用次數（達到 usageLimit 時無法使用）
+    cooldown?: number;              // 冷卻時間（秒，undefined/0 = 無冷卻）
+    lastUsedAt?: Date;              // 上次使用時間（計算冷卻用）
+    
+    // 效果定義（可多個）
+    effects?: Array<{
+      type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+            'task_reveal' | 'task_complete' | 'custom';
+      targetStat?: string;          // 目標數值（stat_change 用）
+      value?: number;               // 變化值
+      targetItemId?: string;        // 目標道具 ID
+      targetTaskId?: string;        // 目標任務 ID
+      targetCharacterId?: string;   // 目標角色 ID（偷竊用）
+      description?: string;         // 效果描述（custom 用）
+    }>;
   }>;
   
   // WebSocket 頻道 ID（用於推送事件）- Phase 6
