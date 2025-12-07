@@ -3,8 +3,8 @@
 ## 專案資訊
 
 - **專案名稱**：LARP Nexus
-- **版本**：v1.0 (MVP)
-- **更新日期**：2025-11-29
+- **版本**：v1.1 (MVP)
+- **更新日期**：2025-01-XX
 - **專案類型**：LARP GM/玩家輔助系統
 
 ---
@@ -40,7 +40,7 @@
 - Mongoose Schema 實作指引
 
 #### 03. [API 規格文件](./specs/03_API_SPECIFICATION.md)
-- Server Actions 規格（認證、劇本、角色、事件）
+- Server Actions 規格（認證、劇本、角色、事件、技能）
 - API Routes 規格（玩家端、圖片上傳、WebSocket 認證）
 - 錯誤處理規範
 - 認證與授權機制
@@ -48,7 +48,7 @@
 
 #### 04. [WebSocket 事件格式](./specs/04_WEBSOCKET_EVENTS.md)
 - Pusher 配置
-- 事件類型定義（role.updated, game.broadcast, 等）
+- 事件類型定義（role.updated, game.broadcast, skill.used, skill.contest, 等）
 - 前端實作指引
 - 後端推送實作
 - 事件優先級與 QoS
@@ -321,6 +321,12 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ## 更新日誌
 
+### v1.1 (2025-01-XX)
+- Phase 5 技能系統已完成（影響自己的效果）
+- 更新開發階段規劃（Phase 6: WebSocket, Phase 6.5: 互動型技能, Phase 7: 戰鬥系統）
+- 更新 API 規格（新增 useSkill）
+- 更新 WebSocket 事件規格（新增技能相關事件）
+
 ### v1.0 (2025-11-29)
 - 初始架構規劃
 - 完成技術規格文件
@@ -335,4 +341,4 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 - 定期 Review 文件完整性
 
 **文件維護者**：SPEC AGENT
-**最後更新**：2025-11-29
+**最後更新**：2025-01-XX

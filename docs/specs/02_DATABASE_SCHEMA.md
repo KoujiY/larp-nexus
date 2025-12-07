@@ -1,7 +1,7 @@
 # 資料庫 Schema 設計
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v1.1
+## 更新日期：2025-01-XX
 ## 資料庫：MongoDB Atlas
 
 ---
@@ -228,7 +228,7 @@ interface Character {
     maxValue?: number;              // 最大值（可選）
   }>;
   
-  // 技能系統 - Phase 5
+  // 技能系統 - Phase 5 ✅ 已完成基礎功能
   skills?: Array<{
     id: string;                     // 唯一識別碼
     name: string;                   // 技能名稱
@@ -236,26 +236,40 @@ interface Character {
     iconUrl?: string;               // 技能圖示
     
     // 檢定系統
-    checkType: 'none' | 'stat' | 'random';  // 檢定類型
-    checkThreshold?: number;        // 檢定門檻（stat 類型使用）
-    relatedStat?: string;           // 關聯數值名稱（stat 類型使用）
+    checkType: 'none' | 'contest' | 'random';  // 檢定類型
+    // 對抗檢定設定（checkType === 'contest' 時使用）- Phase 6.5 實作邏輯
+    contestConfig?: {
+      relatedStat: string;          // 使用的數值名稱
+      opponentMaxItems?: number;     // 對方最多可使用道具數（預設 0）
+      opponentMaxSkills?: number;    // 對方最多可使用技能數（預設 0）
+      tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';  // 平手裁決方式
+    };
+    // 隨機檢定設定（checkType === 'random' 時使用）- ✅ 已實作
+    randomConfig?: {
+      maxValue: number;              // 隨機數值上限（預設 100）
+      threshold: number;            // 門檻值（必須 <= maxValue）
+    };
     
-    // 使用限制（GM 可選擇是否啟用）
+    // 使用限制（GM 可選擇是否啟用）- ✅ 已實作
     usageLimit?: number;            // 使用次數限制（undefined/0 = 無限制）
     usageCount?: number;            // 已使用次數（達到 usageLimit 時無法使用）
     cooldown?: number;              // 冷卻時間（秒，undefined/0 = 無冷卻）
     lastUsedAt?: Date;              // 上次使用時間（計算冷卻用）
     
-    // 效果定義（可多個）
+    // 效果定義（可多個）- ✅ 部分已實作
     effects?: Array<{
       type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
             'task_reveal' | 'task_complete' | 'custom';
       targetStat?: string;          // 目標數值（stat_change 用）
       value?: number;               // 變化值
-      targetItemId?: string;        // 目標道具 ID
-      targetTaskId?: string;        // 目標任務 ID
-      targetCharacterId?: string;   // 目標角色 ID（偷竊用）
-      description?: string;         // 效果描述（custom 用）
+      // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值（需要該數值有 maxValue）- ✅ 已實作
+      statChangeTarget?: 'value' | 'maxValue';
+      // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值 - ✅ 已實作
+      syncValue?: boolean;
+      targetItemId?: string;        // 目標道具 ID（Phase 6.5 實作）
+      targetTaskId?: string;        // 目標任務 ID - ✅ 已實作
+      targetCharacterId?: string;   // 目標角色 ID（影響他人用，Phase 6.5 實作）
+      description?: string;         // 效果描述（custom 用）- ✅ 已實作
     }>;
   }>;
   

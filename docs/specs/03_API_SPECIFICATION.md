@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v1.1
+## 更新日期：2025-01-XX
 
 ---
 
@@ -452,6 +452,67 @@ interface ItemInput {
   itemId?: string;
 }
 ```
+
+---
+
+#### `useSkill(characterId: string, skillId: string, checkResult?: number)` ✅ Phase 5
+
+使用技能（包含檢定流程、冷卻檢查、使用次數限制、效果執行）。
+
+**參數**
+```typescript
+{
+  characterId: string;      // 角色 ID
+  skillId: string;          // 技能 ID
+  checkResult?: number;    // 檢定結果（random 類型時由前端傳入）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    skillUsed: boolean;
+    checkPassed?: boolean;      // 檢定是否通過
+    checkResult?: number;        // 檢定結果
+    effectsApplied?: string[];  // 已執行的效果描述列表
+  };
+  message?: string;
+}
+```
+
+**錯誤碼**
+- `NOT_FOUND`：角色或技能不存在
+- `USAGE_LIMIT_REACHED`：已達使用次數上限
+- `ON_COOLDOWN`：技能冷卻中
+- `CHECK_RESULT_REQUIRED`：需要檢定結果（random 類型）
+- `INVALID_CHECK_RESULT`：檢定結果不在有效範圍內
+- `INVALID_CHECK`：檢定設定不完整
+- `NOT_IMPLEMENTED`：對抗檢定功能開發中（Phase 6.5 實作）
+- `USE_FAILED`：技能使用失敗
+
+**實作邏輯**
+1. 驗證角色與技能存在
+2. 檢查使用次數限制
+3. 檢查冷卻時間
+4. 執行檢定：
+   - `none`：無檢定，直接通過
+   - `random`：使用前端傳入的 `checkResult`，與 `randomConfig.threshold` 比較
+   - `contest`：返回 `NOT_IMPLEMENTED`（Phase 6.5 實作）
+5. 若檢定通過，執行技能效果：
+   - `stat_change`：修改自己的數值（目前值或最大值）
+   - `task_reveal`：揭露隱藏任務
+   - `task_complete`：完成任務
+   - `custom`：自訂效果描述
+   - `item_give`、`item_take`、`item_steal`：Phase 6.5 實作
+6. 更新技能使用時間與次數
+7. 回傳結果
+
+**注意**：
+- 對抗檢定（`contest`）目前返回 `NOT_IMPLEMENTED`，待 Phase 6.5 實作
+- 影響他人的效果（`targetCharacterId`）待 Phase 6.5 實作
+- 道具相關效果（`item_give`、`item_take`、`item_steal`）待 Phase 6.5 實作
 
 ---
 

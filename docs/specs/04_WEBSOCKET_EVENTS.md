@@ -1,7 +1,7 @@
 # WebSocket 事件格式規範
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v1.1
+## 更新日期：2025-01-XX
 ## WebSocket 服務：Pusher
 
 ---
@@ -316,6 +316,178 @@ interface InventoryUpdatedEvent extends BaseEvent {
 
 ---
 
+### 2.7 技能使用事件 (skill.used) - Phase 6
+
+當玩家使用技能時觸發。
+
+**頻道**：`private-character-{characterId}`
+
+**事件格式**
+```typescript
+interface SkillUsedEvent extends BaseEvent {
+  type: 'skill.used';
+  payload: {
+    characterId: string;
+    skillId: string;
+    skillName: string;
+    checkType: 'none' | 'contest' | 'random';
+    checkPassed: boolean;
+    checkResult?: number;          // 檢定結果（random 類型）
+    effectsApplied?: string[];     // 已執行的效果描述列表
+  };
+}
+```
+
+**範例**
+```json
+{
+  "type": "skill.used",
+  "timestamp": 1701234567890,
+  "payload": {
+    "characterId": "507f1f77bcf86cd799439013",
+    "skillId": "skill-001",
+    "skillName": "治療術",
+    "checkType": "random",
+    "checkPassed": true,
+    "checkResult": 75,
+    "effectsApplied": ["HP +10"]
+  }
+}
+```
+
+**前端處理**
+- 更新技能冷卻時間與使用次數
+- 顯示技能使用結果（Toast）
+- 若檢定失敗，顯示失敗訊息
+
+---
+
+### 2.8 技能冷卻更新事件 (skill.cooldown) - Phase 6
+
+當技能冷卻時間變化時觸發（用於即時更新冷卻倒數）。
+
+**頻道**：`private-character-{characterId}`
+
+**事件格式**
+```typescript
+interface SkillCooldownEvent extends BaseEvent {
+  type: 'skill.cooldown';
+  payload: {
+    characterId: string;
+    skillId: string;
+    remainingSeconds: number;      // 剩餘冷卻時間（秒）
+  };
+}
+```
+
+**前端處理**
+- 更新技能列表中的冷卻時間顯示
+- 當 `remainingSeconds` 為 0 時，移除冷卻狀態
+
+---
+
+### 2.9 對抗檢定事件 (skill.contest) - Phase 6.5
+
+當玩家使用對抗檢定技能時觸發（攻擊方與防守方都會收到）。
+
+**頻道**：`private-character-{attackerId}`、`private-character-{defenderId}`
+
+**事件格式**
+```typescript
+interface SkillContestEvent extends BaseEvent {
+  type: 'skill.contest';
+  payload: {
+    attackerId: string;
+    attackerName: string;
+    defenderId: string;
+    defenderName: string;
+    skillId: string;
+    skillName: string;
+    attackerValue: number;         // 攻擊方數值
+    attackerItems?: string[];      // 攻擊方使用的道具 ID
+    attackerSkills?: string[];     // 攻擊方使用的技能 ID
+    defenderValue: number;         // 防守方數值
+    defenderItems?: string[];      // 防守方使用的道具 ID
+    defenderSkills?: string[];     // 防守方使用的技能 ID
+    result: 'attacker_wins' | 'defender_wins' | 'both_fail';
+    effectsApplied?: string[];     // 已執行的效果描述列表
+  };
+}
+```
+
+**前端處理**
+- 攻擊方：顯示對抗結果
+- 防守方：顯示被攻擊通知與對抗結果
+- 顯示雙方使用的道具/技能資訊
+
+---
+
+### 2.10 跨角色影響事件 (character.affected) - Phase 6.5
+
+當角色被他人技能影響時觸發。
+
+**頻道**：`private-character-{targetCharacterId}`
+
+**事件格式**
+```typescript
+interface CharacterAffectedEvent extends BaseEvent {
+  type: 'character.affected';
+  payload: {
+    targetCharacterId: string;
+    sourceCharacterId: string;
+    sourceCharacterName: string;
+    skillId: string;
+    skillName: string;
+    effectType: 'stat_change' | 'item_give' | 'item_take' | 'item_steal';
+    changes: {
+      statName?: string;           // 數值名稱（stat_change）
+      statValueChange?: number;    // 數值變化（stat_change）
+      itemId?: string;             // 道具 ID（item 相關）
+      itemName?: string;           // 道具名稱（item 相關）
+    };
+  };
+}
+```
+
+**前端處理**
+- 顯示被影響的通知（Toast）
+- 顯示攻擊者資訊
+- 即時更新數值/道具列表
+
+---
+
+### 2.11 道具轉移事件 (item.transferred) - Phase 6.5
+
+當道具在角色間轉移時觸發（轉出方與轉入方都會收到）。
+
+**頻道**：`private-character-{fromCharacterId}`、`private-character-{toCharacterId}`
+
+**事件格式**
+```typescript
+interface ItemTransferredEvent extends BaseEvent {
+  type: 'item.transferred';
+  payload: {
+    fromCharacterId: string;
+    fromCharacterName: string;
+    toCharacterId: string;
+    toCharacterName: string;
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    transferType: 'give' | 'take' | 'steal';  // 轉移類型
+    skillId?: string;              // 若由技能觸發
+    skillName?: string;
+  };
+}
+```
+
+**前端處理**
+- 轉出方：顯示道具失去通知
+- 轉入方：顯示道具獲得通知
+- 更新道具列表
+
+---
+
 ## 3. 前端實作指引
 
 ### 3.1 Pusher Client 初始化
@@ -356,6 +528,11 @@ export function useCharacterWebSocket(characterId: string) {
       'role.message',
       'role.taskUpdated',
       'role.inventoryUpdated',
+      'skill.used',              // Phase 6
+      'skill.cooldown',         // Phase 6
+      'skill.contest',         // Phase 6.5
+      'character.affected',     // Phase 6.5
+      'item.transferred',       // Phase 6.5
     ];
     
     eventTypes.forEach(eventType => {

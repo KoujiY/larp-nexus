@@ -1,7 +1,7 @@
 # 專案結構規劃
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v1.1
+## 更新日期：2025-01-XX
 
 ---
 
@@ -393,49 +393,161 @@ UI Components
 - 道具轉移/偷竊可由技能觸發（Phase 5 擴展）
 - 任務完成可觸發獎勵（Phase 5 擴展）
 
-### Phase 5：技能系統（Week 7-8）
+### Phase 5：技能系統（Week 7-8）✅ 已完成
 
-#### 開發任務
-- [ ] 擴展 Character 模型：加入 `skills`
+#### 已實作功能
+- [x] 擴展 Character 模型：加入 `skills` 陣列
   - 技能基本資訊（`id`, `name`, `description`, `iconUrl`）
-  - 檢定系統（`checkType`, `checkThreshold`, `relatedStat`）
+  - 檢定系統（`checkType`: `none` | `contest` | `random`）
+  - 隨機檢定設定（`randomConfig`: `maxValue`, `threshold`）
+  - 對抗檢定設定（`contestConfig`: `relatedStat`, `opponentMaxItems`, `opponentMaxSkills`, `tieResolution`）- 資料結構已建立，邏輯待 Phase 6.5 實作
   - 使用限制（`usageLimit`, `usageCount`）- GM 可選擇啟用
   - 冷卻系統（`cooldown`, `lastUsedAt`）- GM 可選擇啟用
-  - 效果定義（`effects`: 可影響 stats、items、tasks）
-- [ ] GM 端：技能管理 Tab
+  - 效果定義（`effects`: 可影響 stats、tasks）
+- [x] GM 端：技能管理 Tab
   - 定義技能（名稱、描述、圖示）
-  - 設定檢定門檻與相關數值
+  - 設定檢定類型與配置
   - 可選：設定使用次數限制
   - 可選：設定冷卻時間
-  - 設定技能效果（數值變化、道具操作、任務觸發）
+  - 設定技能效果（數值變化、任務觸發、自訂效果）
   - 為角色分配技能
-- [ ] 玩家端：技能使用介面
+- [x] 玩家端：技能使用介面
   - 技能列表顯示（含剩餘使用次數、冷卻狀態）
-  - 使用技能（含冷卻/次數限制檢查 + 檢定流程）
-  - 道具偷竊功能（特殊技能）
-- [ ] Server Actions：技能 CRUD + 使用 + 檢定
+  - 使用技能（含冷卻/次數限制檢查 + 隨機檢定流程）
+  - 檢定結果顯示
+- [x] Server Actions：技能 CRUD + 使用技能
   - 使用前檢查：冷卻時間、使用次數
+  - 隨機檢定執行
+  - 效果執行（影響自己的數值、任務）
 
-**系統整合**：
-- 技能可影響 `stats`（增減數值）
-- 技能可操作 `items`（獲得、移除、偷竊轉移）
-- 技能可觸發 `tasks`（揭露隱藏目標、標記完成）
-- 技能檢定可基於 `stats` 數值
+**已實作的系統整合**：
+- [x] 技能可影響 `stats`（增減數值，支援修改目前值或最大值）
+- [x] 技能可觸發 `tasks`（揭露隱藏目標、標記完成）
+- [x] 技能檢定可基於 `stats` 數值（隨機檢定）
 
-### Phase 6：即時功能（Week 8-9）
+**未實作功能（延後至 Phase 6.5）**：
+- [ ] 對抗檢定系統（`contest` checkType 的邏輯實作）
+- [ ] 影響他人的技能效果（`item_give`、`item_take`、`item_steal`、`stat_change` with `targetCharacterId`）
+
+### Phase 6：WebSocket 即時同步（Week 8-9）
 
 #### 前置作業（⚠️ 需外部設定）
 - [ ] Pusher 設定（WebSocket 服務）
 
 #### 開發任務
-- [ ] WebSocket 整合（Pusher SDK）
-- [ ] 事件推送實作
-- [ ] 即時更新功能
-  - 數值變化即時同步
-  - 道具/任務狀態即時更新
-  - GM 操作即時通知玩家
 
-### Phase 7：優化與測試（Week 9-10）
+##### 1. WebSocket 基礎架構
+- [ ] Pusher SDK 整合
+  - [ ] 安裝 `pusher-js`（前端）
+  - [ ] 安裝 `pusher`（後端）
+- [ ] 頻道訂閱機制
+  - [ ] 角色專屬頻道（`private-character-{characterId}`）
+  - [ ] 劇本廣播頻道（`private-game-{gameId}`）
+- [ ] Pusher Auth Endpoint
+  - [ ] 實作 `/api/webhook/pusher-auth`
+  - [ ] 驗證頻道存取權限
+
+##### 2. 基礎即時事件推送
+- [ ] 角色更新事件（`role.updated`）
+- [ ] 數值變化事件（`stat.changed`）
+- [ ] 道具變化事件（`item.changed`）
+- [ ] 任務更新事件（`task.updated`）
+
+##### 3. 技能相關即時事件
+- [ ] 技能使用事件（`skill.used`）
+- [ ] 技能冷卻更新事件（`skill.cooldown`）
+
+##### 4. 前端即時更新整合
+- [ ] 玩家端：WebSocket Hook（`useWebSocket`）
+- [ ] 訂閱角色專屬頻道
+- [ ] 即時更新 UI 狀態（數值、道具、任務、技能）
+- [ ] 即時通知（Toast）顯示
+
+##### 5. GM 端事件推送功能
+- [ ] 擴展現有 `pushEvent` Server Action
+- [ ] 整合 Pusher 推送
+- [ ] GM 端：事件推送介面
+
+##### 6. 錯誤處理與重連機制
+- [ ] WebSocket 連線狀態管理
+- [ ] 自動重連機制
+- [ ] 離線狀態提示
+
+### Phase 6.5：互動型技能系統（影響他人）（Week 9-10）
+
+#### 開發任務
+
+##### 1. 對抗檢定系統（Contest Check）
+- [ ] 實作對抗檢定邏輯
+  - [ ] 擴展 `useSkill` Server Action
+  - [ ] 新增參數：`targetCharacterId`（對抗檢定時必填）
+  - [ ] 新增參數：`opponentItems`、`opponentSkills`（防守方使用的道具/技能 ID 陣列）
+  - [ ] 攻擊方：取得相關數值（`contestConfig.relatedStat`）
+  - [ ] 防守方：可選擇使用道具/技能增強防禦
+  - [ ] 計算對抗結果
+  - [ ] 處理平手情況（`tieResolution`）
+- [ ] 玩家端：對抗檢定 UI
+  - [ ] 使用對抗檢定技能時，強制選擇目標角色
+  - [ ] 顯示攻擊方數值與加成
+  - [ ] 防守方收到對抗請求通知（WebSocket）
+  - [ ] 防守方可選擇使用道具/技能
+  - [ ] 顯示對抗結果（雙方）
+- [ ] Server Action：對抗檢定流程
+  - [ ] 驗證目標角色在同一劇本內
+  - [ ] 驗證防守方使用的道具/技能是否可用
+  - [ ] 執行對抗計算
+  - [ ] 推送對抗結果事件（雙方角色頻道）
+
+##### 2. 影響他人的技能效果
+- [ ] 道具相關效果
+  - [ ] `item_give`：給予目標角色道具
+  - [ ] `item_take`：從目標角色移除道具
+  - [ ] `item_steal`：從目標角色偷竊道具（需對抗檢定）
+- [ ] 數值相關效果
+  - [ ] `stat_change` with `targetCharacterId`：修改目標角色的數值
+- [ ] GM 端：技能編輯表單擴展
+  - [ ] 效果類型選擇時，可選擇「影響他人」
+  - [ ] 選擇目標角色（或「自己」）
+  - [ ] 選擇目標道具/任務（影響他人時）
+- [ ] Server Action：擴展 `useSkill` 效果執行邏輯
+  - [ ] 處理 `targetCharacterId` 參數
+  - [ ] 實作跨角色資料修改
+  - [ ] 權限檢查（確保在同一劇本內）
+
+##### 3. 玩家端互動介面
+- [ ] 技能使用時選擇目標
+  - [ ] 對抗檢定技能：選擇目標角色
+  - [ ] 影響他人效果：選擇目標角色
+  - [ ] 顯示目標角色列表（同一劇本內）
+- [ ] 接收他人技能影響的通知
+  - [ ] 透過 WebSocket 接收 `character.affected` 事件
+  - [ ] 顯示被影響的訊息
+  - [ ] 顯示攻擊者資訊
+
+##### 4. 跨角色互動事件推送
+- [ ] 對抗檢定事件（`skill.contest`）
+- [ ] 跨角色影響事件（`character.affected`）
+- [ ] 道具轉移事件（`item.transferred`）
+
+### Phase 7：戰鬥系統（對抗檢定的延伸）（Week 10-11）
+
+#### 開發任務
+
+##### 1. 戰鬥流程擴展
+- [ ] 多輪對抗機制
+- [ ] 戰鬥狀態追蹤
+  - [ ] 擴展 Character 模型：加入 `combatStatus`（選用）
+
+##### 2. 戰鬥 UI
+- [ ] 玩家端：戰鬥介面
+- [ ] GM 端：戰鬥管理
+
+##### 3. 戰鬥相關技能效果
+- [ ] 傷害計算
+- [ ] 防禦減傷
+- [ ] 狀態效果（暈眩、中毒等）
+
+### Phase 8：優化與測試（Week 11-12）
 
 #### 前置作業（⚠️ 需外部設定，部署前）
 - [ ] Vercel 帳號與專案設定
