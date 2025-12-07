@@ -1,11 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 /**
- * Phase 4.5 擴展版 Character Document
+ * Phase 5 擴展版 Character Document
  * 包含 publicInfo（Phase 3）
  * 包含 secretInfo（Phase 3.5）
  * 包含 stats（Phase 4）
  * 包含 tasks、items 擴展（Phase 4.5）
+ * 包含 skills（Phase 5）
  */
 export interface CharacterDocument extends Document {
   gameId: mongoose.Types.ObjectId;
@@ -88,6 +89,46 @@ export interface CharacterDocument extends Document {
     name: string;
     value: number;
     maxValue?: number;
+  }>;
+  
+  // Phase 5: 技能系統
+  skills?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    iconUrl?: string;
+    // 檢定系統
+    checkType: 'none' | 'contest' | 'random';
+    // 對抗檢定設定
+    contestConfig?: {
+      relatedStat: string; // 使用的數值名稱
+      opponentMaxItems?: number; // 對方最多可使用道具數（預設 0）
+      opponentMaxSkills?: number; // 對方最多可使用技能數（預設 0）
+      tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 平手裁決方式
+    };
+    // 隨機檢定設定
+    randomConfig?: {
+      maxValue: number; // 隨機數值上限（預設 100）
+      threshold: number; // 門檻值（必須 <= maxValue）
+    };
+    // 使用限制
+    usageLimit?: number;
+    usageCount?: number;
+    cooldown?: number;
+    lastUsedAt?: Date;
+    // 效果定義（可多個）
+    effects?: Array<{
+      type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+            'task_reveal' | 'task_complete' | 'custom';
+      targetStat?: string;
+      value?: number;
+      statChangeTarget?: 'value' | 'maxValue';
+      syncValue?: boolean;
+      targetItemId?: string;
+      targetTaskId?: string;
+      targetCharacterId?: string;
+      description?: string;
+    }>;
   }>;
   
   createdAt: Date;
@@ -311,10 +352,95 @@ const CharacterSchema = new Schema<CharacterDocument>(
         },
       },
     ],
+    // Phase 5: 技能系統
+    skills: [
+      {
+        _id: false,
+        id: {
+          type: String,
+          required: true,
+        },
+        name: {
+          type: String,
+          required: true,
+        },
+        description: {
+          type: String,
+          default: '',
+        },
+        iconUrl: {
+          type: String,
+        },
+        // 檢定系統
+        checkType: {
+          type: String,
+          enum: ['none', 'contest', 'random'],
+          default: 'none',
+        },
+        // 對抗檢定設定
+        contestConfig: {
+          relatedStat: String, // 使用的數值名稱
+          opponentMaxItems: Number, // 對方最多可使用道具數（預設 0）
+          opponentMaxSkills: Number, // 對方最多可使用技能數（預設 0）
+          tieResolution: {
+            type: String,
+            enum: ['attacker_wins', 'defender_wins', 'both_fail'],
+            default: 'attacker_wins',
+          },
+        },
+        // 隨機檢定設定
+        randomConfig: {
+          maxValue: {
+            type: Number,
+            default: 100,
+          },
+          threshold: Number, // 門檻值（必須 <= maxValue）
+        },
+        // 使用限制
+        usageLimit: {
+          type: Number,
+        },
+        usageCount: {
+          type: Number,
+          default: 0,
+        },
+        cooldown: {
+          type: Number,
+        },
+        lastUsedAt: {
+          type: Date,
+        },
+        // 效果定義（可多個）
+        effects: [
+          {
+            _id: false,
+            type: {
+              type: String,
+              enum: ['stat_change', 'item_give', 'item_take', 'item_steal', 
+                     'task_reveal', 'task_complete', 'custom'],
+              required: true,
+            },
+            targetStat: String,
+            value: Number,
+            statChangeTarget: {
+              type: String,
+              enum: ['value', 'maxValue'],
+            },
+            syncValue: Boolean,
+            targetItemId: String,
+            targetTaskId: String,
+            targetCharacterId: String,
+            description: String,
+          },
+        ],
+      },
+    ],
   },
   {
     timestamps: true,
     collection: 'characters',
+    strict: true, // 嚴格模式：只保存 Schema 中定義的欄位
+    // 但對於嵌套的子文檔，我們需要確保所有欄位都被正確保存
   }
 );
 

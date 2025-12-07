@@ -9,6 +9,7 @@ import { CharacterEditForm } from '@/components/gm/character-edit-form';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
 import { TasksEditForm } from '@/components/gm/tasks-edit-form';
 import { ItemsEditForm } from '@/components/gm/items-edit-form';
+import { SkillsEditForm } from '@/components/gm/skills-edit-form';
 import { UploadCharacterImageButton } from '@/components/gm/upload-character-image-button';
 import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
 import { ViewPinButton } from '@/components/gm/view-pin-button';
@@ -144,7 +145,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
             <TabsTrigger value="stats">📊 角色數值</TabsTrigger>
             <TabsTrigger value="tasks">✅ 任務管理</TabsTrigger>
             <TabsTrigger value="items">🎒 道具管理</TabsTrigger>
-            <TabsTrigger value="skills" disabled>
+            <TabsTrigger value="skills">
               ⚡ 技能管理
             </TabsTrigger>
           </TabsList>
@@ -179,27 +180,13 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
             />
           </TabsContent>
 
-          {/* Skills Tab (Coming Soon) */}
+          {/* Skills Tab (Phase 5) */}
           <TabsContent value="skills">
-            <Card>
-              <CardHeader>
-                <CardTitle>技能管理</CardTitle>
-                <CardDescription>
-                  管理角色的技能與能力（Phase 4 開發中）
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="py-12">
-                <div className="text-center space-y-4">
-                  <div className="text-6xl">⚡</div>
-                  <div>
-                    <h3 className="text-xl font-semibold">開發中</h3>
-                    <p className="text-muted-foreground mt-2">
-                      此功能將在 Phase 4 實作
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <SkillsEditForm
+              characterId={character.id}
+              initialSkills={character.skills || []}
+              stats={character.stats || []}
+            />
           </TabsContent>
 
         </Tabs>

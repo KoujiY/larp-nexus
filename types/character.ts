@@ -15,6 +15,7 @@ export interface CharacterData {
   tasks?: Task[];
   items?: Item[];
   stats?: Stat[];
+  skills?: Skill[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -130,6 +131,65 @@ export interface Stat {
   maxValue?: number;
 }
 
+/**
+ * Phase 5: 技能效果
+ */
+export interface SkillEffect {
+  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+        'task_reveal' | 'task_complete' | 'custom';
+  targetStat?: string;
+  value?: number;
+  // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值（需要該數值有 maxValue）
+  statChangeTarget?: 'value' | 'maxValue';
+  // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值
+  syncValue?: boolean;
+  targetItemId?: string;
+  targetTaskId?: string;
+  targetCharacterId?: string;
+  description?: string;
+}
+
+/**
+ * Phase 5: 對抗檢定設定
+ */
+export interface ContestConfig {
+  relatedStat: string; // 使用的數值名稱
+  opponentMaxItems?: number; // 對方最多可使用道具數（預設 0）
+  opponentMaxSkills?: number; // 對方最多可使用技能數（預設 0）
+  tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 平手裁決方式
+}
+
+/**
+ * Phase 5: 隨機檢定設定
+ */
+export interface RandomConfig {
+  maxValue: number; // 隨機數值上限（預設 100）
+  threshold: number; // 門檻值（必須 <= maxValue）
+}
+
+/**
+ * Phase 5: 技能系統
+ */
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  iconUrl?: string;
+  // 檢定系統
+  checkType: 'none' | 'contest' | 'random';
+  // 對抗檢定設定（checkType === 'contest' 時使用）
+  contestConfig?: ContestConfig;
+  // 隨機檢定設定（checkType === 'random' 時使用）
+  randomConfig?: RandomConfig;
+  // 使用限制
+  usageLimit?: number;
+  usageCount?: number;
+  cooldown?: number;
+  lastUsedAt?: Date;
+  // 效果定義（可多個）
+  effects?: SkillEffect[];
+}
+
 export interface CreateCharacterInput {
   name: string;
   avatar?: string;
@@ -149,6 +209,7 @@ export interface UpdateCharacterInput {
   tasks?: Task[];
   items?: Item[];
   stats?: Stat[];
+  skills?: Skill[];
 }
 
 /**
@@ -175,5 +236,20 @@ export interface CreateItemInput {
   usageLimit?: number;
   cooldown?: number;
   isTransferable?: boolean;
+}
+
+/**
+ * Phase 5: 技能建立輸入
+ */
+export interface CreateSkillInput {
+  name: string;
+  description: string;
+  iconUrl?: string;
+  checkType: 'none' | 'stat' | 'random';
+  checkThreshold?: number;
+  relatedStat?: string;
+  usageLimit?: number;
+  cooldown?: number;
+  effects?: SkillEffect[];
 }
 

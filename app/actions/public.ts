@@ -63,6 +63,40 @@ interface MongoStat {
   _id?: unknown;
 }
 
+interface MongoSkill {
+  id: string;
+  name: string;
+  description: string;
+  iconUrl?: string;
+  checkType: 'none' | 'contest' | 'random';
+  contestConfig?: {
+    relatedStat: string;
+    opponentMaxItems?: number;
+    opponentMaxSkills?: number;
+    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  };
+  randomConfig?: {
+    maxValue: number;
+    threshold: number;
+  };
+  usageLimit?: number;
+  usageCount?: number;
+  cooldown?: number;
+  lastUsedAt?: Date;
+  effects?: Array<{
+    type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+          'task_reveal' | 'task_complete' | 'custom';
+    targetStat?: string;
+    value?: number;
+    targetItemId?: string;
+    targetTaskId?: string;
+    targetCharacterId?: string;
+    description?: string;
+    _id?: unknown;
+  }>;
+  _id?: unknown;
+}
+
 /**
  * 取得公開角色資料（玩家端使用）
  * Phase 4: 回傳完整資料（含 publicInfo、secretInfo、tasks、items、stats）
@@ -143,6 +177,30 @@ export async function getPublicCharacter(
       maxValue: stat.maxValue,
     }));
 
+    // Phase 5: 清理技能的 _id
+    const cleanSkills = (character.skills || []).map((skill: MongoSkill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      iconUrl: skill.iconUrl,
+      checkType: skill.checkType,
+      contestConfig: skill.contestConfig,
+      randomConfig: skill.randomConfig,
+      usageLimit: skill.usageLimit,
+      usageCount: skill.usageCount || 0,
+      cooldown: skill.cooldown,
+      lastUsedAt: skill.lastUsedAt,
+      effects: (skill.effects || []).map((effect) => ({
+        type: effect.type,
+        targetStat: effect.targetStat,
+        value: effect.value,
+        targetItemId: effect.targetItemId,
+        targetTaskId: effect.targetTaskId,
+        targetCharacterId: effect.targetCharacterId,
+        description: effect.description,
+      })),
+    }));
+
     return {
       success: true,
       data: {
@@ -160,6 +218,7 @@ export async function getPublicCharacter(
         tasks: visibleTasks,
         items: cleanItems,
         stats: cleanStats,
+        skills: cleanSkills,
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },

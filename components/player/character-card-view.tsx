@@ -12,6 +12,7 @@ import { SecretInfoSection } from './secret-info-section';
 import { StatsDisplay } from './stats-display';
 import { TaskList } from './task-list';
 import { ItemList } from './item-list';
+import { SkillList } from './skill-list';
 import { WorldInfoLink } from './world-info-link';
 import { useItem as consumeItemAction, transferItem as transferItemAction } from '@/app/actions/characters';
 import { toast } from 'sonner';
@@ -161,11 +162,12 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
       <Card className="mb-6">
         <CardContent className="p-0">
           <Tabs defaultValue="info" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="info">📋 資訊</TabsTrigger>
               <TabsTrigger value="stats">📊 數值</TabsTrigger>
               <TabsTrigger value="tasks">✅ 任務</TabsTrigger>
               <TabsTrigger value="items">🎒 道具</TabsTrigger>
+              <TabsTrigger value="skills">⚡ 技能</TabsTrigger>
             </TabsList>
 
             <div className="p-6">
@@ -198,6 +200,14 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
                   gameId={character.gameId}
                   onUseItem={handleUseItem}
                   onTransferItem={handleTransferItem}
+                />
+              </TabsContent>
+
+              <TabsContent value="skills" className="mt-0">
+                <SkillList 
+                  skills={character.skills}
+                  characterId={character.id}
+                  stats={character.stats}
                 />
               </TabsContent>
             </div>

@@ -66,6 +66,42 @@ interface MongoStat {
   _id?: unknown;
 }
 
+interface MongoSkill {
+  id: string;
+  name: string;
+  description: string;
+  iconUrl?: string;
+  checkType: 'none' | 'contest' | 'random';
+  contestConfig?: {
+    relatedStat: string;
+    opponentMaxItems?: number;
+    opponentMaxSkills?: number;
+    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  };
+  randomConfig?: {
+    maxValue: number;
+    threshold: number;
+  };
+  usageLimit?: number;
+  usageCount?: number;
+  cooldown?: number;
+  lastUsedAt?: Date;
+  effects?: Array<{
+    type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+          'task_reveal' | 'task_complete' | 'custom';
+    targetStat?: string;
+    value?: number;
+    statChangeTarget?: 'value' | 'maxValue';
+    syncValue?: boolean;
+    targetItemId?: string;
+    targetTaskId?: string;
+    targetCharacterId?: string;
+    description?: string;
+    _id?: unknown;
+  }>;
+  _id?: unknown;
+}
+
 /**
  * Character 驗證 Schema
  */
@@ -217,6 +253,32 @@ export async function getCharactersByGameId(
           maxValue: stat.maxValue,
         }));
 
+        // 清理 skills 中的 _id
+        const cleanSkills = (char.skills || []).map((skill: MongoSkill) => ({
+          id: skill.id,
+          name: skill.name,
+          description: skill.description,
+          iconUrl: skill.iconUrl,
+          checkType: skill.checkType,
+          contestConfig: skill.contestConfig,
+          randomConfig: skill.randomConfig,
+          usageLimit: skill.usageLimit,
+          usageCount: skill.usageCount || 0,
+          cooldown: skill.cooldown,
+          lastUsedAt: skill.lastUsedAt,
+          effects: (skill.effects || []).map((effect) => ({
+            type: effect.type,
+            targetStat: effect.targetStat,
+            value: effect.value,
+            statChangeTarget: effect.statChangeTarget,
+            syncValue: effect.syncValue,
+            targetItemId: effect.targetItemId,
+            targetTaskId: effect.targetTaskId,
+            targetCharacterId: effect.targetCharacterId,
+            description: effect.description,
+          })),
+        }));
+
         return {
           id: char._id.toString(),
           gameId: char.gameId.toString(),
@@ -229,6 +291,7 @@ export async function getCharactersByGameId(
           tasks: cleanTasks,
           items: cleanItems,
           stats: cleanStats,
+          skills: cleanSkills,
           createdAt: char.createdAt,
           updatedAt: char.updatedAt,
         };
@@ -335,6 +398,32 @@ export async function getCharacterById(
       maxValue: stat.maxValue,
     }));
 
+    // 清理 skills 中的 _id
+    const cleanSkills = (character.skills || []).map((skill: MongoSkill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      iconUrl: skill.iconUrl,
+      checkType: skill.checkType,
+      contestConfig: skill.contestConfig,
+      randomConfig: skill.randomConfig,
+      usageLimit: skill.usageLimit,
+      usageCount: skill.usageCount || 0,
+      cooldown: skill.cooldown,
+      lastUsedAt: skill.lastUsedAt,
+      effects: (skill.effects || []).map((effect) => ({
+        type: effect.type,
+        targetStat: effect.targetStat,
+        value: effect.value,
+        statChangeTarget: effect.statChangeTarget,
+        syncValue: effect.syncValue,
+        targetItemId: effect.targetItemId,
+        targetTaskId: effect.targetTaskId,
+        targetCharacterId: effect.targetCharacterId,
+        description: effect.description,
+      })),
+    }));
+
     return {
       success: true,
       data: {
@@ -349,6 +438,7 @@ export async function getCharacterById(
         tasks: cleanTasks,
         items: cleanItems,
         stats: cleanStats,
+        skills: cleanSkills,
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },
@@ -433,21 +523,106 @@ export async function createCharacter(data: {
 
     revalidatePath(`/games/${data.gameId}`);
 
+    // 轉換為純 JavaScript 物件，避免循環引用
+    const characterObj = character.toObject();
+
+    // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
+    const cleanSecretInfo = characterObj.secretInfo?.secrets
+      ? {
+          secrets: characterObj.secretInfo.secrets.map((secret: MongoSecret) => ({
+            id: secret.id,
+            title: secret.title,
+            content: secret.content,
+            isRevealed: secret.isRevealed,
+            revealCondition: secret.revealCondition,
+            revealedAt: secret.revealedAt,
+          })),
+        }
+      : undefined;
+
+    // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
+    const cleanTasks = (characterObj.tasks || []).map((task: MongoTask) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || '',
+      isHidden: task.isHidden === true,
+      isRevealed: task.isRevealed === true,
+      revealedAt: task.revealedAt,
+      status: task.status || 'pending',
+      completedAt: task.completedAt,
+      gmNotes: task.gmNotes || '',
+      revealCondition: task.revealCondition || '',
+      createdAt: task.createdAt || new Date(),
+    }));
+
+    // 清理 items 中的 _id
+    const cleanItems = (characterObj.items || []).map((item: MongoItem) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      type: item.type,
+      quantity: item.quantity,
+      effect: item.effect,
+      usageLimit: item.usageLimit,
+      usageCount: item.usageCount,
+      cooldown: item.cooldown,
+      lastUsedAt: item.lastUsedAt,
+      isTransferable: item.isTransferable,
+      acquiredAt: item.acquiredAt,
+    }));
+
+    // 清理 stats 中的 _id
+    const cleanStats = (characterObj.stats || []).map((stat: MongoStat) => ({
+      id: stat.id,
+      name: stat.name,
+      value: stat.value,
+      maxValue: stat.maxValue,
+    }));
+
+    // 清理 skills 中的 _id
+    const cleanSkills = (characterObj.skills || []).map((skill: MongoSkill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      iconUrl: skill.iconUrl,
+      checkType: skill.checkType,
+      contestConfig: skill.contestConfig,
+      randomConfig: skill.randomConfig,
+      usageLimit: skill.usageLimit,
+      usageCount: skill.usageCount || 0,
+      cooldown: skill.cooldown,
+      lastUsedAt: skill.lastUsedAt,
+      effects: (skill.effects || []).map((effect) => ({
+        type: effect.type,
+        targetStat: effect.targetStat,
+        value: effect.value,
+        statChangeTarget: effect.statChangeTarget,
+        syncValue: effect.syncValue,
+        targetItemId: effect.targetItemId,
+        targetTaskId: effect.targetTaskId,
+        targetCharacterId: effect.targetCharacterId,
+        description: effect.description,
+      })),
+    }));
+
     return {
       success: true,
       data: {
-        id: character._id.toString(),
-        gameId: character.gameId.toString(),
-        name: character.name,
-        description: character.description,
-        imageUrl: character.imageUrl,
-        hasPinLock: character.hasPinLock,
-        publicInfo: character.publicInfo,
-        secretInfo: character.secretInfo,
-        tasks: character.tasks || [],
-        items: character.items || [],
-        createdAt: character.createdAt,
-        updatedAt: character.updatedAt,
+        id: characterObj._id.toString(),
+        gameId: characterObj.gameId.toString(),
+        name: characterObj.name,
+        description: characterObj.description || '',
+        imageUrl: characterObj.imageUrl,
+        hasPinLock: characterObj.hasPinLock,
+        publicInfo: characterObj.publicInfo,
+        secretInfo: cleanSecretInfo,
+        tasks: cleanTasks,
+        items: cleanItems,
+        stats: cleanStats,
+        skills: cleanSkills,
+        createdAt: characterObj.createdAt,
+        updatedAt: characterObj.updatedAt,
       },
       message: '角色建立成功',
     };
@@ -540,6 +715,40 @@ export async function updateCharacter(
       lastUsedAt?: Date;
       isTransferable: boolean;
       acquiredAt: Date;
+    }>;
+    // Phase 5: 技能系統
+    skills?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      iconUrl?: string;
+      checkType: 'none' | 'contest' | 'random';
+      contestConfig?: {
+        relatedStat: string;
+        opponentMaxItems?: number;
+        opponentMaxSkills?: number;
+        tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+      };
+      randomConfig?: {
+        maxValue: number;
+        threshold: number;
+      };
+      usageLimit?: number;
+      usageCount?: number;
+      cooldown?: number;
+      lastUsedAt?: Date;
+      effects?: Array<{
+        type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+              'task_reveal' | 'task_complete' | 'custom';
+        targetStat?: string;
+        value?: number;
+        statChangeTarget?: 'value' | 'maxValue';
+        syncValue?: boolean;
+        targetItemId?: string;
+        targetTaskId?: string;
+        targetCharacterId?: string;
+        description?: string;
+      }>;
     }>;
   }
 ): Promise<ApiResponse<CharacterData>> {
@@ -711,11 +920,202 @@ export async function updateCharacter(
       }));
     }
 
-    const updatedCharacter = await Character.findByIdAndUpdate(
-      characterId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    ).lean();
+    // Phase 5: 處理 skills 更新
+    if (data.skills !== undefined) {
+      updateData.skills = data.skills.map((skill) => {
+        const skillData: Record<string, unknown> = {
+          id: skill.id,
+          name: skill.name,
+          description: skill.description || '',
+          checkType: skill.checkType,
+          usageCount: skill.usageCount || 0,
+        };
+        
+        if (skill.iconUrl !== undefined) skillData.iconUrl = skill.iconUrl;
+        if (skill.usageLimit !== undefined) skillData.usageLimit = skill.usageLimit;
+        if (skill.cooldown !== undefined) skillData.cooldown = skill.cooldown;
+        if (skill.lastUsedAt !== undefined) skillData.lastUsedAt = skill.lastUsedAt;
+        
+        skillData.effects = (skill.effects || []).map((effect) => {
+          // 建立完整的 effectData，明確包含所有欄位（即使是 undefined）
+          // 但要注意：MongoDB 會忽略 undefined，所以我們只包含有值的欄位
+          const effectData: Record<string, unknown> = {
+            type: effect.type,
+          };
+          
+          // 明確設定所有可能的欄位，確保它們被正確儲存
+          if (effect.targetStat !== undefined && effect.targetStat !== null) {
+            effectData.targetStat = String(effect.targetStat);
+          }
+          if (effect.value !== undefined && effect.value !== null) {
+            effectData.value = Number(effect.value);
+          }
+          
+          // 關鍵：statChangeTarget 和 syncValue 必須明確設定，即使值可能是 undefined
+          // 但我們只在有值時才設定，因為 MongoDB 會忽略 undefined
+          if (effect.statChangeTarget !== undefined && effect.statChangeTarget !== null) {
+            effectData.statChangeTarget = String(effect.statChangeTarget);
+          }
+          if (effect.syncValue !== undefined && effect.syncValue !== null) {
+            effectData.syncValue = Boolean(effect.syncValue);
+          }
+          
+          if (effect.targetItemId !== undefined && effect.targetItemId !== null) {
+            effectData.targetItemId = String(effect.targetItemId);
+          }
+          if (effect.targetTaskId !== undefined && effect.targetTaskId !== null) {
+            effectData.targetTaskId = String(effect.targetTaskId);
+          }
+          if (effect.targetCharacterId !== undefined && effect.targetCharacterId !== null) {
+            effectData.targetCharacterId = String(effect.targetCharacterId);
+          }
+          if (effect.description !== undefined && effect.description !== null) {
+            effectData.description = String(effect.description);
+          }
+          
+          return effectData;
+        });
+        
+        // 根據檢定類型設定對應的配置
+        if (skill.checkType === 'contest') {
+          if (skill.contestConfig) {
+            skillData.contestConfig = skill.contestConfig;
+          } else {
+            console.warn(`技能 ${skill.name} 設定為對抗檢定但沒有 contestConfig`);
+          }
+          // 清除 randomConfig（使用 $unset 或直接不設定）
+          // 注意：不要設定為 undefined，而是直接不包含在 skillData 中
+          delete skillData.randomConfig;
+        } else if (skill.checkType === 'random') {
+          // 確保 randomConfig 存在且有完整的值
+          const maxValue = skill.randomConfig?.maxValue;
+          const threshold = skill.randomConfig?.threshold;
+          
+          if (!maxValue || threshold === undefined || threshold === null) {
+            console.warn(`技能 ${skill.name} 設定為隨機檢定但 randomConfig 不完整，使用預設值`);
+            skillData.randomConfig = {
+              maxValue: maxValue && maxValue > 0 ? maxValue : 100,
+              threshold: threshold !== undefined && threshold !== null && threshold > 0 ? threshold : 50,
+            };
+          } else {
+            // 確保 threshold 不超過 maxValue
+            skillData.randomConfig = {
+              maxValue,
+              threshold: Math.min(threshold, maxValue),
+            };
+          }
+          // 清除 contestConfig（使用 $unset 或直接不設定）
+          // 注意：不要設定為 undefined，而是直接不包含在 skillData 中
+          delete skillData.contestConfig;
+        } else {
+          // checkType === 'none'，清除所有配置
+          // 注意：不要設定為 undefined，而是直接不包含在 skillData 中
+          delete skillData.randomConfig;
+          delete skillData.contestConfig;
+        }
+        
+        return skillData;
+      });
+      
+    }
+
+    // 使用 findById 取得文件，手動更新後再 save，確保所有欄位都被正確保存
+    const characterDoc = await Character.findById(characterId);
+    
+    if (!characterDoc) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此角色',
+      };
+    }
+    
+    // 手動更新所有欄位
+    Object.keys(updateData).forEach((key) => {
+      if (key === 'skills' && updateData.skills) {
+        // 對於 skills 陣列，需要逐個建立 Mongoose 子文檔
+        // 這樣 Mongoose 才能正確處理嵌套欄位
+        const skillsArray = (updateData.skills as Array<Record<string, unknown>>).map((skillData) => {
+          // 建立新的技能物件，確保所有欄位都被包含
+          const skillObj: Record<string, unknown> = {
+            id: skillData.id,
+            name: skillData.name,
+            description: skillData.description || '',
+            checkType: skillData.checkType,
+          };
+          
+          if (skillData.iconUrl !== undefined) skillObj.iconUrl = skillData.iconUrl;
+          if (skillData.usageLimit !== undefined) skillObj.usageLimit = skillData.usageLimit;
+          if (skillData.usageCount !== undefined) skillObj.usageCount = skillData.usageCount;
+          if (skillData.cooldown !== undefined) skillObj.cooldown = skillData.cooldown;
+          if (skillData.lastUsedAt !== undefined) skillObj.lastUsedAt = skillData.lastUsedAt;
+          
+          // 處理 effects，確保所有欄位都被包含
+          if (skillData.effects && Array.isArray(skillData.effects)) {
+            skillObj.effects = skillData.effects.map((effect: Record<string, unknown>) => {
+              const effectObj: Record<string, unknown> = {
+                type: effect.type,
+              };
+              
+              // 明確設定所有欄位，包括 statChangeTarget 和 syncValue
+              if (effect.targetStat !== undefined && effect.targetStat !== null) {
+                effectObj.targetStat = String(effect.targetStat);
+              }
+              if (effect.value !== undefined && effect.value !== null) {
+                effectObj.value = Number(effect.value);
+              }
+              // 關鍵：確保 statChangeTarget 和 syncValue 被正確設定
+              if (effect.statChangeTarget !== undefined && effect.statChangeTarget !== null) {
+                effectObj.statChangeTarget = String(effect.statChangeTarget);
+              }
+              if (effect.syncValue !== undefined && effect.syncValue !== null) {
+                effectObj.syncValue = Boolean(effect.syncValue);
+              }
+              if (effect.targetItemId !== undefined && effect.targetItemId !== null) {
+                effectObj.targetItemId = String(effect.targetItemId);
+              }
+              if (effect.targetTaskId !== undefined && effect.targetTaskId !== null) {
+                effectObj.targetTaskId = String(effect.targetTaskId);
+              }
+              if (effect.targetCharacterId !== undefined && effect.targetCharacterId !== null) {
+                effectObj.targetCharacterId = String(effect.targetCharacterId);
+              }
+              if (effect.description !== undefined && effect.description !== null) {
+                effectObj.description = String(effect.description);
+              }
+              
+              return effectObj;
+            });
+          }
+
+          // 處理檢定配置
+          if (skillData.checkType === 'contest' && skillData.contestConfig) {
+            skillObj.contestConfig = skillData.contestConfig;
+          } else if (skillData.checkType === 'random' && skillData.randomConfig) {
+            skillObj.randomConfig = skillData.randomConfig;
+          }
+          
+          return skillObj;
+        });
+        
+        // 先清空現有的 skills 陣列，然後完全替換
+        // 這樣可以避免 Mongoose 根據 id 匹配並合併舊資料的問題
+        characterDoc.skills = [];
+        characterDoc.markModified('skills');
+        
+        // 然後設定新的 skills 陣列
+        characterDoc.set('skills', skillsArray);
+        characterDoc.markModified('skills');
+      } else {
+        characterDoc.set(key, updateData[key]);
+      }
+    });
+    
+    // 儲存文件
+    await characterDoc.save();
+    
+    // 轉換為 lean 物件以便後續處理
+    const updatedCharacter = characterDoc.toObject();
 
     if (!updatedCharacter) {
       return {
@@ -725,7 +1125,7 @@ export async function updateCharacter(
       };
     }
 
-    revalidatePath(`/games/${character.gameId.toString()}`);
+    revalidatePath(`/games/${updatedCharacter.gameId.toString()}`);
 
     // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
     const cleanSecretInfo = updatedCharacter.secretInfo?.secrets
@@ -781,6 +1181,41 @@ export async function updateCharacter(
       maxValue: stat.maxValue,
     }));
 
+    // 清理 skills 中的 _id
+    const cleanSkills = (updatedCharacter.skills || []).map((skill: MongoSkill) => {
+      const cleanSkill = {
+        id: skill.id,
+        name: skill.name,
+        description: skill.description,
+        iconUrl: skill.iconUrl,
+        checkType: skill.checkType,
+        contestConfig: skill.contestConfig,
+        randomConfig: skill.randomConfig,
+        usageLimit: skill.usageLimit,
+        usageCount: skill.usageCount || 0,
+        cooldown: skill.cooldown,
+        lastUsedAt: skill.lastUsedAt,
+        effects: (skill.effects || []).map((effect) => {
+          const cleanEffect: Record<string, unknown> = {
+            type: effect.type,
+          };
+          if (effect.targetStat !== undefined) cleanEffect.targetStat = effect.targetStat;
+          if (effect.value !== undefined) cleanEffect.value = effect.value;
+          // 確保 statChangeTarget 和 syncValue 正確讀取
+          if (effect.statChangeTarget !== undefined) cleanEffect.statChangeTarget = effect.statChangeTarget;
+          if (effect.syncValue !== undefined) cleanEffect.syncValue = effect.syncValue;
+          if (effect.targetItemId !== undefined) cleanEffect.targetItemId = effect.targetItemId;
+          if (effect.targetTaskId !== undefined) cleanEffect.targetTaskId = effect.targetTaskId;
+          if (effect.targetCharacterId !== undefined) cleanEffect.targetCharacterId = effect.targetCharacterId;
+          if (effect.description !== undefined) cleanEffect.description = effect.description;
+          
+          return cleanEffect;
+        }),
+      };
+      
+      return cleanSkill;
+    });
+
     return {
       success: true,
       data: {
@@ -795,6 +1230,7 @@ export async function updateCharacter(
         tasks: cleanTasks,
         items: cleanItems,
         stats: cleanStats,
+        skills: cleanSkills,
         createdAt: updatedCharacter.createdAt,
         updatedAt: updatedCharacter.updatedAt,
       },
@@ -1425,6 +1861,280 @@ export async function transferItem(
       success: false,
       error: 'TRANSFER_FAILED',
       message: '無法轉移道具',
+    };
+  }
+}
+
+/**
+ * Phase 5: 使用技能
+ * 包含檢定流程、冷卻檢查、使用次數限制、效果執行
+ */
+export async function useSkill(
+  characterId: string,
+  skillId: string,
+  checkResult?: number // 檢定結果（由前端傳入，如果是 random 類型）
+): Promise<ApiResponse<{ skillUsed: boolean; checkPassed?: boolean; checkResult?: number; effectsApplied?: string[] }>> {
+  try {
+    await dbConnect();
+
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此角色',
+      };
+    }
+
+    // 找到目標技能
+    const skills = character.skills || [];
+    const skillIndex = skills.findIndex((s: { id: string }) => s.id === skillId);
+    if (skillIndex === -1) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此技能',
+      };
+    }
+
+    const skill = skills[skillIndex];
+    const now = new Date();
+
+
+    // 檢查使用次數限制
+    if (skill.usageLimit && skill.usageLimit > 0) {
+      if ((skill.usageCount || 0) >= skill.usageLimit) {
+        return {
+          success: false,
+          error: 'USAGE_LIMIT_REACHED',
+          message: '已達使用次數上限',
+        };
+      }
+    }
+
+    // 檢查冷卻時間
+    if (skill.cooldown && skill.cooldown > 0 && skill.lastUsedAt) {
+      const lastUsed = new Date(skill.lastUsedAt).getTime();
+      const cooldownMs = skill.cooldown * 1000;
+      if (now.getTime() - lastUsed < cooldownMs) {
+        const remainingSeconds = Math.ceil((cooldownMs - (now.getTime() - lastUsed)) / 1000);
+        return {
+          success: false,
+          error: 'ON_COOLDOWN',
+          message: `冷卻中，剩餘 ${remainingSeconds} 秒`,
+        };
+      }
+    }
+
+    // 執行檢定
+    let checkPassed = true;
+    let finalCheckResult: number | undefined;
+
+    if (skill.checkType === 'contest') {
+      // 對抗檢定（暫時返回錯誤，待後續實作）
+      return {
+        success: false,
+        error: 'NOT_IMPLEMENTED',
+        message: '對抗檢定功能開發中',
+      };
+    } else if (skill.checkType === 'random') {
+      // 隨機檢定（由前端傳入結果）
+      // 處理舊資料格式：如果沒有 randomConfig，嘗試使用舊的 checkThreshold
+      if (!skill.randomConfig) {
+        // 檢查是否有舊格式的資料
+        const oldThreshold = (skill as { checkThreshold?: number }).checkThreshold;
+        const oldMaxValue = 100; // 舊格式預設上限為 100
+        
+        if (oldThreshold !== undefined) {
+          // 使用舊格式的資料，但建議用戶更新
+          if (checkResult === undefined) {
+            return {
+              success: false,
+              error: 'CHECK_RESULT_REQUIRED',
+              message: '需要檢定結果',
+            };
+          }
+          console.warn('使用舊格式的隨機檢定設定，建議在 GM 端重新編輯技能');
+          finalCheckResult = checkResult;
+          // 驗證檢定結果在有效範圍內（舊格式預設上限為 100）
+          if (checkResult < 1 || checkResult > oldMaxValue) {
+            return {
+              success: false,
+              error: 'INVALID_CHECK_RESULT',
+              message: `檢定結果必須在 1-${oldMaxValue} 之間`,
+            };
+          }
+          checkPassed = checkResult >= oldThreshold;
+        } else {
+          console.error('隨機檢定設定不完整:', skill);
+          return {
+            success: false,
+            error: 'INVALID_CHECK',
+            message: '技能隨機檢定設定不完整。請在 GM 端重新編輯此技能，設定上限值和門檻值。',
+          };
+        }
+      } else if (!skill.randomConfig.maxValue || skill.randomConfig.threshold === undefined) {
+        console.error('隨機檢定設定不完整:', skill.randomConfig);
+        return {
+          success: false,
+          error: 'INVALID_CHECK',
+          message: '技能隨機檢定設定不完整。請在 GM 端重新編輯此技能，確保設定了上限值和門檻值。',
+        };
+      } else {
+        // 正常的新格式
+        if (checkResult === undefined) {
+          return {
+            success: false,
+            error: 'CHECK_RESULT_REQUIRED',
+            message: '需要檢定結果',
+          };
+        }
+
+        // 驗證檢定結果在有效範圍內
+        if (checkResult < 1 || checkResult > skill.randomConfig.maxValue) {
+          return {
+            success: false,
+            error: 'INVALID_CHECK_RESULT',
+            message: `檢定結果必須在 1-${skill.randomConfig.maxValue} 之間`,
+          };
+        }
+
+        finalCheckResult = checkResult;
+        checkPassed = checkResult >= skill.randomConfig.threshold;
+      }
+    }
+    // checkType === 'none' 時，checkPassed 保持為 true
+
+    // 準備更新
+    const updates: Record<string, unknown> = {};
+    const effectsApplied: string[] = [];
+
+    // 更新冷卻時間（如果有設定）或至少記錄使用時間
+    // 總是記錄使用時間，即使沒有冷卻時間
+    updates[`skills.${skillIndex}.lastUsedAt`] = now;
+    
+    // 更新使用次數（如果有設定）
+    if (skill.usageLimit && skill.usageLimit > 0) {
+      const newUsageCount = (skill.usageCount || 0) + 1;
+      updates[`skills.${skillIndex}.usageCount`] = newUsageCount;
+    }
+
+    // 執行技能效果（只有在檢定成功時才執行）
+    if (checkPassed && skill.effects && skill.effects.length > 0) {
+      const stats = character.stats || [];
+      const tasks = character.tasks || [];
+
+      for (const effect of skill.effects) {
+        if (effect.type === 'stat_change' && effect.targetStat && effect.value !== undefined) {
+          // 數值變化
+          const statIndex = stats.findIndex((s: { name: string }) => s.name === effect.targetStat);
+          if (statIndex !== -1) {
+            const statChangeTarget = effect.statChangeTarget || 'value';
+            const currentStat = stats[statIndex];
+            
+            if (statChangeTarget === 'maxValue') {
+              // 修改最大值
+              if (currentStat.maxValue !== undefined && currentStat.maxValue !== null) {
+                let newMaxValue = currentStat.maxValue + effect.value;
+                newMaxValue = Math.max(1, newMaxValue); // 最大值至少為 1
+                updates[`stats.${statIndex}.maxValue`] = newMaxValue;
+                
+                // 如果同步修改目前值
+                if (effect.syncValue) {
+                  let newValue = currentStat.value + effect.value;
+                  newValue = Math.min(newValue, newMaxValue); // 不超過新最大值
+                  newValue = Math.max(0, newValue);
+                  updates[`stats.${statIndex}.value`] = newValue;
+                  effectsApplied.push(`${effect.targetStat} 最大值 ${effect.value > 0 ? '+' : ''}${effect.value}，目前值同步調整`);
+                } else {
+                  // 只修改最大值，但確保目前值不超過新最大值
+                  const adjustedValue = Math.min(currentStat.value, newMaxValue);
+                  updates[`stats.${statIndex}.value`] = adjustedValue;
+                  effectsApplied.push(`${effect.targetStat} 最大值 ${effect.value > 0 ? '+' : ''}${effect.value}`);
+                }
+              } else {
+                // 該數值沒有最大值，無法修改最大值，改為修改目前值
+                let newValue = currentStat.value + effect.value;
+                newValue = Math.max(0, newValue);
+                updates[`stats.${statIndex}.value`] = newValue;
+                effectsApplied.push(`${effect.targetStat} ${effect.value > 0 ? '+' : ''}${effect.value}（該數值無最大值，改為修改目前值）`);
+              }
+            } else {
+              // 修改目前值（預設行為）
+              let newValue = currentStat.value + effect.value;
+              const maxValue = currentStat.maxValue;
+              if (maxValue !== undefined && maxValue !== null) {
+                newValue = Math.min(newValue, maxValue);
+              }
+              newValue = Math.max(0, newValue);
+              updates[`stats.${statIndex}.value`] = newValue;
+              effectsApplied.push(`${effect.targetStat} ${effect.value > 0 ? '+' : ''}${effect.value}`);
+            }
+          }
+        } else if (effect.type === 'task_reveal' && effect.targetTaskId) {
+          // 揭露任務
+          const taskIndex = tasks.findIndex((t: { id: string }) => t.id === effect.targetTaskId);
+          if (taskIndex !== -1 && tasks[taskIndex].isHidden && !tasks[taskIndex].isRevealed) {
+            updates[`tasks.${taskIndex}.isRevealed`] = true;
+            updates[`tasks.${taskIndex}.revealedAt`] = now;
+            effectsApplied.push(`任務「${tasks[taskIndex].title}」已揭露`);
+          }
+        } else if (effect.type === 'task_complete' && effect.targetTaskId) {
+          // 完成任務
+          const taskIndex = tasks.findIndex((t: { id: string }) => t.id === effect.targetTaskId);
+          if (taskIndex !== -1) {
+            updates[`tasks.${taskIndex}.status`] = 'completed';
+            updates[`tasks.${taskIndex}.completedAt`] = now;
+            effectsApplied.push(`任務「${tasks[taskIndex].title}」已完成`);
+          }
+        } else if (effect.type === 'custom' && effect.description) {
+          // 自訂效果
+          effectsApplied.push(effect.description);
+        }
+        // 注意：item_give、item_take、item_steal 需要更複雜的邏輯，暫時跳過
+        // 這些可以在 Phase 5.5 或 Phase 6 中實作
+      }
+    }
+
+    // 執行更新（updates 應該永遠不會為空，因為至少會更新 lastUsedAt）
+    const updateResult = await Character.findByIdAndUpdate(characterId, { $set: updates }, { new: true });
+    if (!updateResult) {
+      console.error('Failed to update character:', characterId);
+      return {
+        success: false,
+        error: 'UPDATE_FAILED',
+        message: '無法更新角色資料',
+      };
+    }
+
+    revalidatePath(`/c/${characterId}`);
+
+    const messageParts: string[] = [];
+    if (!checkPassed) {
+      messageParts.push('檢定失敗');
+    } else {
+      messageParts.push('技能使用成功');
+      if (effectsApplied.length > 0) {
+        messageParts.push(`效果：${effectsApplied.join('、')}`);
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        skillUsed: true,
+        checkPassed,
+        checkResult: finalCheckResult,
+        effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+      },
+      message: messageParts.join('，'),
+    };
+  } catch (error) {
+    console.error('Error using skill:', error);
+    return {
+      success: false,
+      error: 'USE_FAILED',
+      message: `無法使用技能：${error instanceof Error ? error.message : '未知錯誤'}`,
     };
   }
 }
