@@ -1,7 +1,7 @@
 # 專案結構規劃
 
-## 版本：v1.1
-## 更新日期：2025-01-XX
+## 版本：v1.2
+## 更新日期：2025-01-XX（Phase 6.5 方案 A 完成）
 
 ---
 
@@ -425,9 +425,10 @@ UI Components
 - [x] 技能可觸發 `tasks`（揭露隱藏目標、標記完成）
 - [x] 技能檢定可基於 `stats` 數值（隨機檢定）
 
-**未實作功能（延後至 Phase 6.5）**：
-- [ ] 對抗檢定系統（`contest` checkType 的邏輯實作）
-- [ ] 影響他人的技能效果（`item_give`、`item_take`、`item_steal`、`stat_change` with `targetCharacterId`）
+**未實作功能（延後至 Phase 6.5 / Phase 7）**：
+- [ ] 對抗檢定系統（`contest` checkType 的邏輯實作）- 延後至 Phase 7
+- [x] 影響他人的技能效果（`stat_change` with `targetCharacterId`）- Phase 6.5 方案 A 已完成
+- [ ] 影響他人的道具效果（`item_give`、`item_take`、`item_steal`）- 延後至 Phase 7（方案 B）
 
 ### Phase 6：WebSocket 即時同步（Week 8-9）
 
@@ -473,61 +474,104 @@ UI Components
 - [ ] 自動重連機制
 - [ ] 離線狀態提示
 
+##### 7. 玩家端通知紀錄（不顯示來源）
+- [ ] 建立「通知紀錄」UI（角色頁內面板/抽屜）
+- [ ] 事件來源：`role.updated` / `role.taskUpdated` / `role.inventoryUpdated` / `skill.used` / `item.transferred` 等
+- [ ] 條目內容：事件類型、簡述、時間戳，不顯示觸發者
+- [ ] 儲存策略：前端狀態（可選 localStorage 緩存），保留最近 N 筆
+- [ ] UX：新事件抵達時顯示徽章或輕提示；點擊開啟紀錄面板
+- [ ] 未讀提示：新事件進來時顯示紅點/未讀數，開啟面板後清除未讀
+
 ### Phase 6.5：互動型技能系統（影響他人）（Week 9-10）
 
-#### 開發任務
+> **實作範圍說明**：本階段分為方案 A（簡化版）和方案 B（完整版）
+> - **方案 A（本次實作）**：基礎跨角色效果，不包含對抗檢定與防守互動
+> - **方案 B（延後）**：完整對抗檢定系統與道具互動效果
+
+#### 開發任務（方案 A：簡化版）
+
+##### 1. 資料結構擴展
+- [x] 擴展技能/道具效果定義
+  - [x] 新增 `targetType`: `'self'` | `'other'` | `'any'`（GM 設定目標類型）
+  - [x] 新增 `requiresTarget`: `boolean`（是否需要選擇目標角色）
+  - [x] `targetCharacterId` 在執行時由玩家選擇，不在定義時設定
+
+##### 2. GM 端：技能/道具編輯表單擴展
+- [x] 技能編輯：目標設定
+  - [x] 新增「目標對象」選項：自己 / 其他玩家 / 任一名玩家
+  - [x] 根據選擇自動設定 `targetType` 和 `requiresTarget`
+  - [x] UI 提示：影響範圍說明
+- [x] 道具編輯：目標設定（同技能）
+  - [x] 新增「目標對象」選項
+  - [x] 數值變化效果可選擇目標
+
+##### 3. 玩家端：目標選擇介面
+- [x] 技能使用時選擇目標
+  - [x] 若 `requiresTarget = true`，顯示目標角色下拉選單
+  - [x] 下拉選單顯示同劇本內的所有角色（排除/包含自己依 `targetType`）
+  - [x] 必須選擇目標才能使用
+- [x] 道具使用時選擇目標（同技能）
+  - [x] 支援目標選擇的 UI
+  - [x] 確認提示包含目標角色名稱
+
+##### 4. Server Action：跨角色效果執行
+- [x] 擴展 `useSkill` Server Action
+  - [x] 新增參數：`targetCharacterId?: string`（選填，依 `requiresTarget` 決定）
+  - [x] 驗證目標角色在同一劇本內
+  - [x] 驗證目標類型符合設定（self/other/any）
+  - [x] 執行跨角色資料修改（數值變化）
+  - [x] 推送事件到目標角色頻道
+- [x] 擴展 `useItem` Server Action（同上）
+  - [x] 支援目標角色參數
+  - [x] 跨角色道具效果執行
+
+##### 5. WebSocket 事件推送
+- [x] 跨角色影響事件（`character.affected`）
+  - [x] 推送到目標角色頻道
+  - [x] 包含：施放者名稱、技能/道具名稱、效果描述
+  - [x] 目標角色收到通知與 UI 更新
+- [x] 施放者確認事件（`skill.used` / `item.used`）
+  - [x] 確認效果已作用於目標
+  - [x] 顯示成功訊息
+
+##### 6. 通知與 UI 回饋
+- [x] 目標角色通知
+  - [x] 顯示「XXX 對你使用了 YYY」
+  - [x] 顯示具體效果（如「HP +5」）
+  - [x] 記錄到通知面板
+- [x] 施放者通知
+  - [x] 顯示「已對 XXX 使用 YYY」
+  - [x] 顯示效果是否成功
+
+---
+
+#### 延後功能（方案 B：完整版，預計 Phase 7）
 
 ##### 1. 對抗檢定系統（Contest Check）
 - [ ] 實作對抗檢定邏輯
-  - [ ] 擴展 `useSkill` Server Action
-  - [ ] 新增參數：`targetCharacterId`（對抗檢定時必填）
   - [ ] 新增參數：`opponentItems`、`opponentSkills`（防守方使用的道具/技能 ID 陣列）
   - [ ] 攻擊方：取得相關數值（`contestConfig.relatedStat`）
   - [ ] 防守方：可選擇使用道具/技能增強防禦
   - [ ] 計算對抗結果
   - [ ] 處理平手情況（`tieResolution`）
 - [ ] 玩家端：對抗檢定 UI
-  - [ ] 使用對抗檢定技能時，強制選擇目標角色
-  - [ ] 顯示攻擊方數值與加成
   - [ ] 防守方收到對抗請求通知（WebSocket）
   - [ ] 防守方可選擇使用道具/技能
   - [ ] 顯示對抗結果（雙方）
 - [ ] Server Action：對抗檢定流程
-  - [ ] 驗證目標角色在同一劇本內
   - [ ] 驗證防守方使用的道具/技能是否可用
   - [ ] 執行對抗計算
   - [ ] 推送對抗結果事件（雙方角色頻道）
 
-##### 2. 影響他人的技能效果
-- [ ] 道具相關效果
-  - [ ] `item_give`：給予目標角色道具
-  - [ ] `item_take`：從目標角色移除道具
-  - [ ] `item_steal`：從目標角色偷竊道具（需對抗檢定）
-- [ ] 數值相關效果
-  - [ ] `stat_change` with `targetCharacterId`：修改目標角色的數值
-- [ ] GM 端：技能編輯表單擴展
-  - [ ] 效果類型選擇時，可選擇「影響他人」
-  - [ ] 選擇目標角色（或「自己」）
-  - [ ] 選擇目標道具/任務（影響他人時）
-- [ ] Server Action：擴展 `useSkill` 效果執行邏輯
-  - [ ] 處理 `targetCharacterId` 參數
-  - [ ] 實作跨角色資料修改
-  - [ ] 權限檢查（確保在同一劇本內）
+##### 2. 道具互動效果
+- [ ] `item_give`：給予目標角色道具
+- [ ] `item_take`：從目標角色移除道具
+- [ ] `item_steal`：從目標角色偷竊道具（需對抗檢定）
 
-##### 3. 玩家端互動介面
-- [ ] 技能使用時選擇目標
-  - [ ] 對抗檢定技能：選擇目標角色
-  - [ ] 影響他人效果：選擇目標角色
-  - [ ] 顯示目標角色列表（同一劇本內）
-- [ ] 接收他人技能影響的通知
-  - [ ] 透過 WebSocket 接收 `character.affected` 事件
-  - [ ] 顯示被影響的訊息
-  - [ ] 顯示攻擊者資訊
-
-##### 4. 跨角色互動事件推送
+##### 3. 防守互動機制
+- [ ] 防守方回應 UI
+- [ ] 道具/技能選擇介面
 - [ ] 對抗檢定事件（`skill.contest`）
-- [ ] 跨角色影響事件（`character.affected`）
-- [ ] 道具轉移事件（`item.transferred`）
 
 ### Phase 7：戰鬥系統（對抗檢定的延伸）（Week 10-11）
 
@@ -547,7 +591,37 @@ UI Components
 - [ ] 防禦減傷
 - [ ] 狀態效果（暈眩、中毒等）
 
-### Phase 8：優化與測試（Week 11-12）
+### Phase 8：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 11-12）
+
+#### 目標
+- 將設定階段（baseline）與遊戲進行中的狀態（runtime）分離，開始遊戲後所有變更落在 runtime，不影響 baseline。
+- 支援「結束/重置」時保留當前狀態的 snapshot，並清空/重建 runtime，讓 GM 可繼續調整 baseline。
+- 建立操作日誌（logs）以時間軸記錄：時間、操作者（GM/系統/角色）、動作、細節、gameId、characterId。
+
+#### 資料模型
+- baseline：沿用既有 `games` / `characters`。
+- runtime：新增 collection（例如 `game_runtime` / `character_runtime`），`refId` 指向 baseline `_id`，存當前遊戲狀態。
+- snapshot：可與 runtime 共用 collection（type/scope 區分）或獨立 `*_snapshots`，在結束/重置時存一版。
+- logs：獨立 `logs` collection，索引 `gameId + timestamp`，可選 `characterId`。
+
+#### 流程
+- 開始遊戲（GM 按鈕）：從 baseline 建/覆蓋 runtime，標記 `isActive=true`，推送 WS `game.started`（或 reload）。
+- 遊戲進行：所有變更寫入 runtime，WS 事件基於 runtime，logs 記錄每次變更。
+- 結束/重置（GM 按鈕）：存 snapshot（終局），清空/重建 runtime（回到 baseline），標記 `isActive=false`，推送 WS `game.reset`/`game.ended`。
+
+#### 前端
+- 玩家/GM 遊戲中視圖讀 runtime，若未開始可讀 baseline 或提示「未開始」。
+- GM 端新增「開始遊戲」「結束/重置」按鈕，顯示當前狀態。
+- 可選：提供日志檢視（按時間軸）與終局 snapshot 檢視。
+
+#### WS 事件
+- `game.started`：提示重新讀 runtime。
+- `game.reset` / `game.ended`：提示狀態已重置/結束。
+
+#### 索引/安全
+- runtime/snapshot/ logs 皆需 `gameId` 索引；必要時 `characterId` 索引。
+
+### Phase 9：優化與測試（Week 12-13）
 
 #### 前置作業（⚠️ 需外部設定，部署前）
 - [ ] Vercel 帳號與專案設定

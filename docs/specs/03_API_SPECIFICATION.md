@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.1
-## 更新日期：2025-01-XX
+## 版本：v1.2
+## 更新日期：2025-01-XX（Phase 6.5 方案 A）
 
 ---
 
@@ -455,16 +455,19 @@ interface ItemInput {
 
 ---
 
-#### `useSkill(characterId: string, skillId: string, checkResult?: number)` ✅ Phase 5
+#### `useSkill(characterId: string, skillId: string, checkResult?: number, targetCharacterId?: string)` ✅ Phase 5 / 🔄 Phase 6.5
 
 使用技能（包含檢定流程、冷卻檢查、使用次數限制、效果執行）。
+
+**Phase 6.5 擴展**：支援跨角色效果（方案 A）
 
 **參數**
 ```typescript
 {
-  characterId: string;      // 角色 ID
-  skillId: string;          // 技能 ID
-  checkResult?: number;    // 檢定結果（random 類型時由前端傳入）
+  characterId: string;       // 角色 ID
+  skillId: string;           // 技能 ID
+  checkResult?: number;      // 檢定結果（random 類型時由前端傳入）
+  targetCharacterId?: string; // 🆕 目標角色 ID（Phase 6.5，requiresTarget = true 時必填）
 }
 ```
 
@@ -477,6 +480,7 @@ interface ItemInput {
     checkPassed?: boolean;      // 檢定是否通過
     checkResult?: number;        // 檢定結果
     effectsApplied?: string[];  // 已執行的效果描述列表
+    targetCharacterName?: string; // 🆕 目標角色名稱（Phase 6.5）
   };
   message?: string;
 }
@@ -488,6 +492,8 @@ interface ItemInput {
 - `ON_COOLDOWN`：技能冷卻中
 - `CHECK_RESULT_REQUIRED`：需要檢定結果（random 類型）
 - `INVALID_CHECK_RESULT`：檢定結果不在有效範圍內
+- `TARGET_REQUIRED`：🆕 需要選擇目標角色（Phase 6.5）
+- `INVALID_TARGET`：🆕 目標角色不在同一劇本內或不符合目標類型設定（Phase 6.5）
 - `INVALID_CHECK`：檢定設定不完整
 - `NOT_IMPLEMENTED`：對抗檢定功能開發中（Phase 6.5 實作）
 - `USE_FAILED`：技能使用失敗

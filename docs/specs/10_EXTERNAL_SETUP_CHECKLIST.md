@@ -251,11 +251,11 @@
 
 3. **取得憑證**
    - 進入 App 後，點擊「App Keys」
-   - 記錄以下資訊：
+   - 記錄以下資訊（供伺服端 trigger 與前端 subscribe 共用）：
      ```
      app_id: 1234567
-     key: xxxxxxxxxxxxxxxxxx
-     secret: xxxxxxxxxxxxxxxxxx
+     key: xxxxxxxxxxxxxxxxxx        # 同時用於後端/前端
+     secret: xxxxxxxxxxxxxxxxxx     # 只給後端
      cluster: ap3
      ```
 
@@ -269,9 +269,14 @@
 - [ ] App ID, Key, Secret 已取得
 - [ ] 憑證已記錄至 `.env.local`：
   ```
+  # 伺服端（trigger 用）
   PUSHER_APP_ID=
-  NEXT_PUBLIC_PUSHER_KEY=
+  PUSHER_KEY=
   PUSHER_SECRET=
+  PUSHER_CLUSTER=ap3
+
+  # 前端（subscribe 用，與 PUSHER_KEY/CLUSTER 值相同）
+  NEXT_PUBLIC_PUSHER_KEY=
   NEXT_PUBLIC_PUSHER_CLUSTER=ap3
   ```
 
@@ -664,8 +669,10 @@ MONGODB_URI=mongodb+srv://...
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 SESSION_SECRET=xxx
 PUSHER_APP_ID=xxx
-NEXT_PUBLIC_PUSHER_KEY=xxx
+PUSHER_KEY=xxx
 PUSHER_SECRET=xxx
+PUSHER_CLUSTER=ap3
+NEXT_PUBLIC_PUSHER_KEY=xxx
 NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 BLOB_READ_WRITE_TOKEN=xxx
 RESEND_API_KEY=xxx

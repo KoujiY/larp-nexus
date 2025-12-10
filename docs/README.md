@@ -3,8 +3,8 @@
 ## 專案資訊
 
 - **專案名稱**：LARP Nexus
-- **版本**：v1.1 (MVP)
-- **更新日期**：2025-01-XX
+- **版本**：v1.2 (MVP)
+- **更新日期**：2025-01-XX（Phase 6.5 方案 A 完成）
 - **專案類型**：LARP GM/玩家輔助系統
 
 ---
@@ -321,13 +321,40 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ## 更新日誌
 
-### v1.1 (2025-01-XX)
+### v1.2 (2025-01-XX) - Phase 6.5 方案 A 完成
+- **Phase 6.5 互動型技能系統（方案 A）實作完成**
+  - ✅ 新增跨角色效果功能實作
+  - ✅ GM 可設定目標對象類型（自己/其他玩家/任一名玩家）
+  - ✅ 玩家使用時可選擇目標角色（下拉選單）
+  - ✅ 支援跨角色數值變化效果（目前值與最大值）
+  - ✅ 目標角色顯示通知與 UI 更新
+- **資料結構擴展**
+  - ✅ 技能/道具效果新增 `targetType` 和 `requiresTarget` 欄位
+  - ✅ MongoDB Schema 更新完成
+  - ✅ TypeScript 型別定義完成
+- **API 規格更新**
+  - ✅ `useSkill` / `useItem` 新增 `targetCharacterId` 參數
+  - ✅ 跨角色效果驗證與執行邏輯完成
+- **WebSocket 事件擴展**
+  - ✅ 更新 `character.affected` 事件格式（方案 A）
+  - ✅ 目標角色即時通知推送完成
+- **UI/UX 優化**
+  - ✅ 技能/道具 Dialog 顯示目標資訊（包含僅限自己的情況）
+  - ✅ 通知合併顯示（最大值與目前值同時變更時）
+  - ✅ Toast 訊息在 Dialog 關閉時自動清除
+- **開發階段調整**
+  - 明確區分方案 A（簡化版）和方案 B（完整版）
+  - 方案 B（對抗檢定與道具互動）延後至 Phase 7
+
+### v1.1 (2025-01-XX) - Phase 6 完成
 - Phase 5 技能系統已完成（影響自己的效果）
+- Phase 6 WebSocket 即時同步已完成
 - 更新開發階段規劃（Phase 6: WebSocket, Phase 6.5: 互動型技能, Phase 7: 戰鬥系統）
 - 更新 API 規格（新增 useSkill）
 - 更新 WebSocket 事件規格（新增技能相關事件）
+- 玩家端通知紀錄系統已實作（localStorage 持久化）
 
-### v1.0 (2025-11-29)
+### v1.0 (2025-11-29) - 初始版本
 - 初始架構規劃
 - 完成技術規格文件
 - 專案結構設計
@@ -341,4 +368,4 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 - 定期 Review 文件完整性
 
 **文件維護者**：SPEC AGENT
-**最後更新**：2025-01-XX
+**最後更新**：2025-01-XX（Phase 6.5 方案 A 完成）

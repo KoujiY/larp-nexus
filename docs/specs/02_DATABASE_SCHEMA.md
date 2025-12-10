@@ -1,7 +1,7 @@
 # 資料庫 Schema 設計
 
-## 版本：v1.1
-## 更新日期：2025-01-XX
+## 版本：v1.2
+## 更新日期：2025-01-XX（Phase 6.5 方案 A）
 ## 資料庫：MongoDB Atlas
 
 ---
@@ -194,10 +194,18 @@ interface Character {
     
     // 使用效果（可選，由技能系統擴展）
     effect?: {
-      type: 'stat_change' | 'buff' | 'custom';
+      type: 'stat_change' | 'custom';  // 已移除 'buff' 類型
+      
+      // 目標設定（Phase 6.5 方案 A）- 🔄 本次實作
+      targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
+      requiresTarget?: boolean;               // 是否需要玩家選擇目標角色
+      
       targetStat?: string;          // 目標數值名稱（如：HP、MP）
       value?: number;               // 變化值（正數增加，負數減少）
-      duration?: number;            // 持續時間（秒，0 = 永久，僅 buff 類型）
+      // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值（需要該數值有 maxValue）- ✅ 已實作
+      statChangeTarget?: 'value' | 'maxValue';
+      // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值 - ✅ 已實作
+      syncValue?: boolean;
       description?: string;         // 效果描述（custom 類型用）
     };
     
@@ -260,15 +268,19 @@ interface Character {
     effects?: Array<{
       type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
             'task_reveal' | 'task_complete' | 'custom';
+      
+      // 目標設定（Phase 6.5 方案 A）- 🔄 本次實作
+      targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
+      requiresTarget?: boolean;               // 是否需要玩家選擇目標角色
+      
       targetStat?: string;          // 目標數值（stat_change 用）
       value?: number;               // 變化值
       // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值（需要該數值有 maxValue）- ✅ 已實作
       statChangeTarget?: 'value' | 'maxValue';
       // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值 - ✅ 已實作
       syncValue?: boolean;
-      targetItemId?: string;        // 目標道具 ID（Phase 6.5 實作）
+      targetItemId?: string;        // 目標道具 ID（Phase 6.5 方案 B）
       targetTaskId?: string;        // 目標任務 ID - ✅ 已實作
-      targetCharacterId?: string;   // 目標角色 ID（影響他人用，Phase 6.5 實作）
       description?: string;         // 效果描述（custom 用）- ✅ 已實作
     }>;
   }>;

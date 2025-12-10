@@ -7,7 +7,7 @@
 
 ## Phase 2：開發階段服務 🔄
 - [x] Resend 設定
-- [ ] Pusher 設定
+- [x] Pusher 設定
 - [x] Session Secret
 - [x] .env.local 建立
 
@@ -28,10 +28,10 @@
 - [x] SESSION_SECRET
 - [x] RESEND_API_KEY
 - [x] EMAIL_FROM
-- [ ] PUSHER_APP_ID
-- [ ] NEXT_PUBLIC_PUSHER_KEY
-- [ ] PUSHER_SECRET
-- [ ] NEXT_PUBLIC_PUSHER_CLUSTER
+- [x] PUSHER_APP_ID
+- [x] NEXT_PUBLIC_PUSHER_KEY
+- [x] PUSHER_SECRET
+- [x] NEXT_PUBLIC_PUSHER_CLUSTER
 - [ ] BLOB_READ_WRITE_TOKEN
 
 ## 重要連線資訊（加密儲存）

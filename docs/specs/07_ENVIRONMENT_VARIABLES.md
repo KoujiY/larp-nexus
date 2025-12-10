@@ -72,13 +72,14 @@ SESSION_SECRET=your-super-secret-session-key-min-32-chars
 # Pusher App ID
 PUSHER_APP_ID=1234567
 
-# Pusher Key（公開金鑰，前端可見）
-NEXT_PUBLIC_PUSHER_KEY=xxxxxxxxxxxxxxxxxx
-
-# Pusher Secret（私密金鑰，僅後端使用）
+# 伺服端（trigger 用）
+PUSHER_APP_ID=1234567
+PUSHER_KEY=xxxxxxxxxxxxxxxxxx
 PUSHER_SECRET=xxxxxxxxxxxxxxxxxx
+PUSHER_CLUSTER=ap3
 
-# Pusher Cluster（區域）
+# 前端（subscribe 用，值與 PUSHER_KEY / PUSHER_CLUSTER 相同）
+NEXT_PUBLIC_PUSHER_KEY=xxxxxxxxxxxxxxxxxx
 NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 ```
 
@@ -195,8 +196,10 @@ SESSION_SECRET=
 
 # ---- Pusher (WebSocket) ----
 PUSHER_APP_ID=
-NEXT_PUBLIC_PUSHER_KEY=
+PUSHER_KEY=
 PUSHER_SECRET=
+PUSHER_CLUSTER=ap3
+NEXT_PUBLIC_PUSHER_KEY=
 NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 
 # ---- Vercel Blob ----
@@ -286,8 +289,10 @@ const requiredEnvVars = [
   'MONGODB_URI',
   'SESSION_SECRET',
   'PUSHER_APP_ID',
-  'NEXT_PUBLIC_PUSHER_KEY',
+  'PUSHER_KEY',
   'PUSHER_SECRET',
+  'PUSHER_CLUSTER',
+  'NEXT_PUBLIC_PUSHER_KEY',
   'NEXT_PUBLIC_PUSHER_CLUSTER',
   'BLOB_READ_WRITE_TOKEN',
   'RESEND_API_KEY',
@@ -325,8 +330,10 @@ const envSchema = z.object({
   MONGODB_URI: z.string().url(),
   SESSION_SECRET: z.string().min(32),
   PUSHER_APP_ID: z.string(),
-  NEXT_PUBLIC_PUSHER_KEY: z.string(),
+  PUSHER_KEY: z.string(),
   PUSHER_SECRET: z.string(),
+  PUSHER_CLUSTER: z.string(),
+  NEXT_PUBLIC_PUSHER_KEY: z.string(),
   NEXT_PUBLIC_PUSHER_CLUSTER: z.string(),
   BLOB_READ_WRITE_TOKEN: z.string(),
   RESEND_API_KEY: z.string(),

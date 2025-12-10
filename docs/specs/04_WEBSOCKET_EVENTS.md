@@ -1,7 +1,7 @@
 # WebSocket 事件格式規範
 
-## 版本：v1.1
-## 更新日期：2025-01-XX
+## 版本：v1.2
+## 更新日期：2025-01-XX（Phase 6.5 方案 A）
 ## WebSocket 服務：Pusher
 
 ---
@@ -316,7 +316,20 @@ interface InventoryUpdatedEvent extends BaseEvent {
 
 ---
 
-### 2.7 技能使用事件 (skill.used) - Phase 6
+### 2.7 通知紀錄（玩家端顯示策略）
+
+- **目的**：在玩家端記錄所有收到的事件，不顯示觸發者來源，提供簡要訊息與時間戳。
+- **涵蓋事件**：`role.updated`、`role.taskUpdated`、`role.inventoryUpdated`、`skill.used`、`skill.cooldown`、`skill.contest`、`character.affected`、`item.transferred` 等。
+- **顯示內容**：事件類型（友善文字）、摘要（如「獲得道具：X」「數值 Y 改變」）、時間。
+- **隱私要求**：不顯示觸發者/來源角色，只顯示結果。
+- **儲存策略**：前端狀態 + 可選 localStorage 緩存，僅保留最近 N 筆（避免膨脹）。
+- **提醒方式**：新事件來時顯示徽章或輕量提示；點擊後展開「通知紀錄」面板/抽屜查看細節。
+- **未讀提示**：新事件進來加總未讀數/紅點，開啟面板時清除未讀。
+- **遊戲狀態事件**：需納入 `game.started`、`game.reset`/`game.ended`（開始/重置/結束遊戲）提示，玩家收到後刷新或提示狀態變更。
+
+---
+
+### 2.8 技能使用事件 (skill.used) - Phase 6
 
 當玩家使用技能時觸發。
 
@@ -362,7 +375,7 @@ interface SkillUsedEvent extends BaseEvent {
 
 ---
 
-### 2.8 技能冷卻更新事件 (skill.cooldown) - Phase 6
+### 2.9 技能冷卻更新事件 (skill.cooldown) - Phase 6
 
 當技能冷卻時間變化時觸發（用於即時更新冷卻倒數）。
 
@@ -386,7 +399,7 @@ interface SkillCooldownEvent extends BaseEvent {
 
 ---
 
-### 2.9 對抗檢定事件 (skill.contest) - Phase 6.5
+### 2.10 對抗檢定事件 (skill.contest) - Phase 6.5
 
 當玩家使用對抗檢定技能時觸發（攻擊方與防守方都會收到）。
 
@@ -422,9 +435,9 @@ interface SkillContestEvent extends BaseEvent {
 
 ---
 
-### 2.10 跨角色影響事件 (character.affected) - Phase 6.5
+### 2.11 跨角色影響事件 (character.affected) - Phase 6.5（方案 A）
 
-當角色被他人技能影響時觸發。
+當角色被他人技能/道具影響時觸發。
 
 **頻道**：`private-character-{targetCharacterId}`
 
@@ -436,27 +449,50 @@ interface CharacterAffectedEvent extends BaseEvent {
     targetCharacterId: string;
     sourceCharacterId: string;
     sourceCharacterName: string;
-    skillId: string;
-    skillName: string;
-    effectType: 'stat_change' | 'item_give' | 'item_take' | 'item_steal';
+    sourceType: 'skill' | 'item';      // 影響來源類型
+    sourceName: string;                 // 技能/道具名稱
+    effectType: 'stat_change';          // Phase 6.5 方案 A 只支援 stat_change
     changes: {
-      statName?: string;           // 數值名稱（stat_change）
-      statValueChange?: number;    // 數值變化（stat_change）
-      itemId?: string;             // 道具 ID（item 相關）
-      itemName?: string;           // 道具名稱（item 相關）
+      stats?: Array<{                   // 數值變化陣列
+        name: string;                    // 數值名稱
+        deltaValue?: number;             // 目前值變化
+        deltaMax?: number;               // 最大值變化
+        newValue: number;                // 新的目前值
+        newMax?: number;                 // 新的最大值
+      }>;
     };
   };
 }
 ```
 
+**方案 B 擴展（延後至 Phase 7）**
+```typescript
+// 方案 B 額外支援的 effectType
+effectType: 'stat_change' | 'item_give' | 'item_take' | 'item_steal';
+
+// 方案 B 額外的 changes 欄位
+changes: {
+  stats?: [...];                        // 同方案 A
+  items?: Array<{                       // 道具變化
+    id: string;
+    name: string;
+    action: 'given' | 'taken' | 'stolen';
+    quantity: number;
+  }>;
+};
+```
+
 **前端處理**
 - 顯示被影響的通知（Toast）
-- 顯示攻擊者資訊
+  - 格式：「XXX 對你使用了 YYY」
+  - 顯示具體效果（如「HP +5」）
+- 記錄到通知面板
+- 刷新角色資料（`router.refresh()`）
 - 即時更新數值/道具列表
 
 ---
 
-### 2.11 道具轉移事件 (item.transferred) - Phase 6.5
+### 2.12 道具轉移事件 (item.transferred) - Phase 6.5
 
 當道具在角色間轉移時觸發（轉出方與轉入方都會收到）。
 
