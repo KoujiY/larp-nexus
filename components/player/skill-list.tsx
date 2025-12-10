@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -17,17 +15,21 @@ import {
 } from '@/components/ui/dialog';
 import { Zap, Clock, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
 import Image from 'next/image';
-import type { Skill } from '@/types/character';
-import { useSkill as useSkillAction } from '@/app/actions/characters';
+import type { Skill, SkillEffect } from '@/types/character';
+import { useSkill as executeSkillAction } from '@/app/actions/characters';
+import { getTransferTargets, type TransferTargetCharacter } from '@/app/actions/public';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface SkillListProps {
   skills?: Skill[];
   characterId: string;
+  gameId: string; // Phase 6.5: 需要 gameId 來獲取同劇本角色列表
+  characterName: string; // Phase 6.5: 需要角色名稱來顯示在選項中
   stats?: Array<{ name: string; value: number }>; // 用於顯示檢定相關數值
 }
 
-export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
+export function SkillList({ skills, characterId, gameId, characterName, stats = [] }: SkillListProps) {
   const router = useRouter();
   const [localSkills, setLocalSkills] = useState<Skill[]>(skills || []);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -35,6 +37,49 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
   const [checkResult, setCheckResult] = useState<number | undefined>(undefined);
   const [useResult, setUseResult] = useState<{ success: boolean; message: string } | null>(null);
   const [, setTick] = useState(0);
+  const [lastToastId, setLastToastId] = useState<string | number | undefined>(undefined);
+  
+  // Phase 6.5: 目標選擇相關狀態
+  const [targetCharacters, setTargetCharacters] = useState<TransferTargetCharacter[]>([]);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | undefined>(undefined);
+  
+  // Phase 6.5: 當選中技能變化時，檢查是否需要加載目標角色列表
+  useEffect(() => {
+    const loadTargetCharacters = async () => {
+      if (!selectedSkill) {
+        setTargetCharacters([]);
+        setSelectedTargetId(undefined);
+        return;
+      }
+      
+      // 檢查技能效果中是否有需要選擇目標的
+      const requiresTarget = selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
+      
+      if (requiresTarget) {
+        const result = await getTransferTargets(gameId, characterId);
+        if (result.success && result.data) {
+          const targets = [...result.data];
+          
+          // 根據 targetType 決定是否包含自己
+          const effectWithTarget = selectedSkill.effects?.find((e: SkillEffect) => e.requiresTarget);
+          const targetType = effectWithTarget?.targetType;
+          
+          if (targetType === 'any') {
+            // 'any' 類型：包含自己
+            targets.unshift({ id: characterId, name: `${characterName}（自己）`, imageUrl: undefined });
+          }
+          // 'other' 類型：不包含自己（getTransferTargets 已經排除了）
+          
+          setTargetCharacters(targets);
+        }
+      } else {
+        setTargetCharacters([]);
+        setSelectedTargetId(undefined);
+      }
+    };
+    
+    loadTargetCharacters();
+  }, [selectedSkill, gameId, characterId, characterName]);
 
   // 當 skills prop 更新時，同步更新本地狀態
   useEffect(() => {
@@ -42,13 +87,13 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
       setLocalSkills(skills);
       // 如果當前選中的技能有更新，也要更新
       if (selectedSkill) {
-        const updatedSkill = skills.find(s => s.id === selectedSkill.id);
+        const updatedSkill = skills.find((s) => s.id === selectedSkill.id);
         if (updatedSkill) {
           setSelectedSkill(updatedSkill);
         }
       }
     }
-  }, [skills, selectedSkill?.id]);
+  }, [skills, selectedSkill]);
 
   // 檢查是否有任何技能在冷卻中
   const hasAnyCooldown = skills?.some((skill) => {
@@ -122,12 +167,26 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
     return remaining > 0 ? remaining : null;
   };
 
+  const dismissLastToast = () => {
+    if (lastToastId !== undefined) {
+      toast.dismiss(lastToastId);
+      setLastToastId(undefined);
+    }
+  };
+
   // 使用技能
   const handleUseSkill = async () => {
     if (!selectedSkill) return;
     
     const { canUse } = canUseSkill(selectedSkill);
     if (!canUse) {
+      return;
+    }
+
+    // Phase 6.5: 檢查是否需要選擇目標角色
+    const requiresTarget = selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
+    if (requiresTarget && !selectedTargetId) {
+      toast.error('請先選擇目標角色');
       return;
     }
 
@@ -148,16 +207,7 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
 
     setIsUsing(true);
     try {
-      console.log('使用技能:', {
-        characterId,
-        skillId: selectedSkill.id,
-        checkResult: finalCheckResult,
-        checkType: selectedSkill.checkType,
-      });
-      
-      const result = await useSkillAction(characterId, selectedSkill.id, finalCheckResult);
-      
-      console.log('技能使用結果:', result);
+      const result = await executeSkillAction(characterId, selectedSkill.id, finalCheckResult, selectedTargetId);
       
       // 顯示結果訊息（不關閉 dialog）
       if (result.success) {
@@ -184,25 +234,33 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
         
         if (result.data?.checkPassed === false) {
           setUseResult({ success: false, message: '檢定失敗，技能未生效' });
-          toast.warning('檢定失敗，技能未生效');
+          setLastToastId(toast.warning('檢定失敗，技能未生效'));
         } else {
           setUseResult({ success: true, message: result.message || '技能使用成功' });
-          toast.success(result.message || '技能使用成功');
+          setLastToastId(toast.success(result.message || '技能使用成功'));
         }
         // 重新載入頁面資料（不重新整理整個頁面）
         router.refresh();
       } else {
         console.error('技能使用失敗:', result);
         setUseResult({ success: false, message: result.message || '技能使用失敗' });
-        toast.error(result.message || '技能使用失敗');
+        setLastToastId(toast.error(result.message || '技能使用失敗'));
       }
     } catch (error) {
       console.error('技能使用錯誤:', error);
       setUseResult({ success: false, message: '技能使用失敗，請稍後再試' });
-      toast.error('技能使用失敗，請稍後再試');
+      setLastToastId(toast.error('技能使用失敗，請稍後再試'));
     } finally {
       setIsUsing(false);
     }
+  };
+
+  const handleCloseDialog = () => {
+    dismissLastToast();
+    setSelectedSkill(null);
+    setCheckResult(undefined);
+    setUseResult(null);
+    setSelectedTargetId(undefined);
   };
 
   return (
@@ -233,7 +291,7 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
                     />
                   </div>
                 ) : (
-                  <div className="h-16 w-16 shrink-0 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center border">
+                  <div className="h-16 w-16 shrink-0 rounded-lg bg-linear-to-br from-yellow-400 to-orange-500 flex items-center justify-center border">
                     <Zap className="h-8 w-8 text-white" />
                   </div>
                 )}
@@ -297,7 +355,9 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
 
       {/* 技能詳情 Dialog */}
       {selectedSkill && (
-        <Dialog open={!!selectedSkill} onOpenChange={() => setSelectedSkill(null)}>
+        <Dialog open={!!selectedSkill} onOpenChange={(open) => {
+          if (!open) handleCloseDialog();
+        }}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -309,8 +369,35 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
 
             {(() => {
               const selectedCooldownRemaining = getCooldownRemaining(selectedSkill);
+              const requiresTarget = selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
+              
               return (
             <div className="space-y-4">
+              {/* Phase 6.5: 目標選擇 */}
+              {requiresTarget && targetCharacters.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">目標角色 <span className="text-destructive">*</span></h4>
+                  <Select
+                    value={selectedTargetId}
+                    onValueChange={setSelectedTargetId}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="選擇目標角色" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {targetCharacters.map((target) => (
+                        <SelectItem key={target.id} value={target.id}>
+                          {target.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    此技能需要選擇目標角色才能使用
+                  </p>
+                </div>
+              )}
+              
               {/* 檢定資訊 */}
               {selectedSkill.checkType !== 'none' && (
                 <div className="space-y-2">
@@ -411,29 +498,86 @@ export function SkillList({ skills, characterId, stats = [] }: SkillListProps) {
                 <div className="space-y-2">
                   <h4 className="font-semibold text-sm">技能效果</h4>
                   <div className="space-y-2">
-                    {selectedSkill.effects.map((effect, index) => (
-                      <div key={index} className="p-3 bg-muted rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <Sparkles className="h-4 w-4 mt-0.5 text-yellow-500 shrink-0" />
-                          <div className="flex-1 text-sm">
-                            {effect.type === 'stat_change' && (
-                              <p>
-                                {effect.targetStat} {effect.value && effect.value > 0 ? '+' : ''}{effect.value}
-                              </p>
-                            )}
-                            {effect.type === 'task_reveal' && (
-                              <p>揭露任務：{effect.targetTaskId}</p>
-                            )}
-                            {effect.type === 'task_complete' && (
-                              <p>完成任務：{effect.targetTaskId}</p>
-                            )}
-                            {effect.type === 'custom' && effect.description && (
-                              <p>{effect.description}</p>
-                            )}
+                    {selectedSkill.effects.map((effect, index) => {
+                      const targetType = effect.targetType;
+                      const requiresTarget = effect.requiresTarget;
+                      return (
+                        <div key={index} className="p-3 bg-muted rounded-lg space-y-2">
+                          <div className="flex items-start gap-2">
+                            <Sparkles className="h-4 w-4 mt-0.5 text-yellow-500 shrink-0" />
+                            <div className="flex-1 text-sm">
+                              {effect.type === 'stat_change' && (() => {
+                                const target = effect.statChangeTarget ?? 'value';
+                                const syncValue = effect.syncValue;
+                                const value = effect.value ?? 0;
+                                const targetStat = effect.targetStat ?? '數值';
+                                
+                                if (target === 'maxValue') {
+                                  return (
+                                    <p>
+                                      {targetStat} 最大值 {value > 0 ? '+' : ''}{value}
+                                      {syncValue && '，目前值同步調整'}
+                                    </p>
+                                  );
+                                }
+                                return (
+                                  <p>
+                                    {targetStat} {value > 0 ? '+' : ''}{value}
+                                  </p>
+                                );
+                              })()}
+                              {effect.type === 'task_reveal' && (
+                                <p>揭露任務：{effect.targetTaskId}</p>
+                              )}
+                              {effect.type === 'task_complete' && (
+                                <p>完成任務：{effect.targetTaskId}</p>
+                              )}
+                              {effect.type === 'custom' && effect.description && (
+                                <p>{effect.description}</p>
+                              )}
+                            </div>
                           </div>
+
+                          {targetType && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">目標：</span>
+                              <span>
+                                {targetType === 'self'
+                                  ? '自己'
+                                  : targetType === 'other'
+                                  ? '其他玩家'
+                                  : targetType === 'any'
+                                  ? '任一名玩家'
+                                  : '未指定'}
+                              </span>
+                            </div>
+                          )}
+
+                          {requiresTarget && targetCharacters.length > 0 && (
+                            <div className="space-y-1">
+                              <Select
+                                value={selectedTargetId}
+                                onValueChange={setSelectedTargetId}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="選擇目標角色" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {targetCharacters.map((target) => (
+                                    <SelectItem key={target.id} value={target.id}>
+                                      {target.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                此技能需要選擇目標角色才能使用
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -3,6 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Globe, BookOpen, List } from 'lucide-react';
 import { notFound } from 'next/navigation';
+import { useGameWebSocket } from '@/hooks/use-websocket';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 interface WorldInfoPageProps {
   params: Promise<{ gameId: string }>;
@@ -19,9 +22,27 @@ export default async function WorldInfoPage({ params }: WorldInfoPageProps) {
 
   const game = result.data;
 
+  // Client-side subscription for game broadcasts
+  // Note: This component is currently server-rendered; to keep minimal changes,
+  // inject a tiny client hook via a nested client component.
+  const GameWS = () => {
+    const [, setTick] = useState(0);
+    useGameWebSocket(gameId, (event) => {
+      if (event.type === 'game.broadcast') {
+        const { title, message } = event.payload as { title?: string; message?: string };
+        toast.info(title || '系統廣播', { description: message });
+      } else if (event.type === 'game.started' || event.type === 'game.reset' || event.type === 'game.ended') {
+        toast.info('遊戲狀態變更', { description: '請刷新以取得最新狀態' });
+        setTick((t) => t + 1);
+      }
+    });
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
       <div className="container max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
+        <GameWS />
         {/* 頁首 */}
         <div className="mb-8 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">

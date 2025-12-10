@@ -90,10 +90,23 @@ export interface Task {
 /**
  * Phase 4.5: 道具效果
  */
+/**
+ * Phase 4.5: 道具效果
+ * Phase 6.5: 擴展跨角色效果（方案 A）
+ */
 export interface ItemEffect {
-  type: 'stat_change' | 'buff' | 'custom';
+  type: 'stat_change' | 'custom';
+  
+  // Phase 6.5 方案 A: 目標設定
+  targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
+  requiresTarget?: boolean;                // 是否需要玩家選擇目標角色
+  
   targetStat?: string;
   value?: number;
+  // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值
+  statChangeTarget?: 'value' | 'maxValue';
+  // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值
+  syncValue?: boolean;
   duration?: number;
   description?: string;
 }
@@ -133,10 +146,16 @@ export interface Stat {
 
 /**
  * Phase 5: 技能效果
+ * Phase 6.5: 擴展跨角色效果（方案 A）
  */
 export interface SkillEffect {
   type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
         'task_reveal' | 'task_complete' | 'custom';
+  
+  // Phase 6.5 方案 A: 目標設定
+  targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
+  requiresTarget?: boolean;                // 是否需要玩家選擇目標角色
+  
   targetStat?: string;
   value?: number;
   // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值（需要該數值有 maxValue）
@@ -145,7 +164,6 @@ export interface SkillEffect {
   syncValue?: boolean;
   targetItemId?: string;
   targetTaskId?: string;
-  targetCharacterId?: string;
   description?: string;
 }
 

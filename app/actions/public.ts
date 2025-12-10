@@ -3,7 +3,7 @@
 import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import type { ApiResponse } from '@/types/api';
-import type { CharacterData } from '@/types/character';
+import type { CharacterData, SkillEffect } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
 
 // MongoDB lean() 返回的類型（可能包含 _id）
@@ -190,15 +190,24 @@ export async function getPublicCharacter(
       usageCount: skill.usageCount || 0,
       cooldown: skill.cooldown,
       lastUsedAt: skill.lastUsedAt,
-      effects: (skill.effects || []).map((effect) => ({
-        type: effect.type,
-        targetStat: effect.targetStat,
-        value: effect.value,
+      effects: (skill.effects || []).map((effect: SkillEffect) => {
+        const normalizedTargetType = effect.targetType ?? 'self';
+        const normalizedRequiresTarget =
+          effect.requiresTarget ?? (normalizedTargetType !== 'self');
+
+        return {
+          type: effect.type,
+          targetType: normalizedTargetType,
+          requiresTarget: normalizedRequiresTarget,
+          targetStat: effect.targetStat,
+          value: effect.value,
+          statChangeTarget: effect.statChangeTarget,
+        syncValue: effect.syncValue,
         targetItemId: effect.targetItemId,
         targetTaskId: effect.targetTaskId,
-        targetCharacterId: effect.targetCharacterId,
         description: effect.description,
-      })),
+        };
+      }),
     }));
 
     return {

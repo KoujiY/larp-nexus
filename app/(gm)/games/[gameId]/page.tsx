@@ -12,6 +12,7 @@ import { CreateCharacterButton } from '@/components/gm/create-character-button';
 import { CharacterCard } from '@/components/gm/character-card';
 import { GameEditForm } from '@/components/gm/game-edit-form';
 import { GenerateGamePublicQRCodeButton } from '@/components/gm/generate-game-public-qrcode-button';
+import { GameBroadcastPanel } from '@/components/gm/game-broadcast-panel';
 
 interface GamePageProps {
   params: Promise<{ gameId: string }>;
@@ -90,6 +91,10 @@ export default async function GamePage({ params }: GamePageProps) {
           {/* 劇本資訊 Tab */}
           <TabsContent value="info" className="space-y-6">
             <GameEditForm game={game} />
+            <GameBroadcastPanel
+              gameId={game.id}
+              characters={characters.map((c) => ({ id: c.id, name: c.name }))}
+            />
           </TabsContent>
 
           {/* 角色列表 Tab */}

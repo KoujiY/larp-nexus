@@ -3,7 +3,7 @@ import { getGameById } from '@/app/actions/games';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { PageLayout } from '@/components/gm/page-layout';
 import { CharacterEditForm } from '@/components/gm/character-edit-form';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';

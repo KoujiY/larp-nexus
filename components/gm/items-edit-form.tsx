@@ -42,6 +42,9 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  const selectedStat = stats.find((stat) => stat.name === editingItem?.effect?.targetStat);
+  const selectedStatHasMax = selectedStat?.maxValue !== undefined && selectedStat?.maxValue !== null;
+
   // 新增道具
   const handleAddItem = () => {
     const newItem: Item = {
@@ -50,6 +53,7 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
       description: '',
       type: 'consumable',
       quantity: 1,
+      usageLimit: 1, // 消耗品預設1次
       isTransferable: true,
       acquiredAt: new Date(),
     };
@@ -59,7 +63,17 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
 
   // 編輯道具
   const handleEditItem = (item: Item) => {
-    setEditingItem({ ...item });
+    // 修復舊資料：如果是 stat_change 但沒有 statChangeTarget，自動補上
+    const fixedItem = { ...item };
+    if (fixedItem.effect?.type === 'stat_change') {
+      if (!fixedItem.effect.statChangeTarget) {
+        fixedItem.effect = {
+          ...fixedItem.effect,
+          statChangeTarget: 'value',
+        };
+      }
+    }
+    setEditingItem(fixedItem);
     setIsDialogOpen(true);
   };
 
@@ -248,14 +262,19 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>道具類型</Label>
                     <Select
                       value={editingItem.type}
-                      onValueChange={(value: 'consumable' | 'equipment') => 
-                        setEditingItem({ ...editingItem, type: value })
-                      }
+                      onValueChange={(value: 'consumable' | 'equipment') => {
+                        // 切換類型時，消耗品預設使用次數1，非消耗品預設0
+                        setEditingItem({ 
+                          ...editingItem, 
+                          type: value,
+                          usageLimit: value === 'consumable' ? 1 : 0,
+                        });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -304,12 +323,26 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                         onValueChange={(value) => {
                           if (value === 'none') {
                             setEditingItem({ ...editingItem, effect: undefined });
+                          } else if (value === 'stat_change') {
+                            // stat_change 必須設定預設的 statChangeTarget
+                            setEditingItem({
+                              ...editingItem,
+                              effect: {
+                                type: 'stat_change',
+                                targetStat: editingItem.effect?.targetStat,
+                                value: editingItem.effect?.value,
+                                statChangeTarget: editingItem.effect?.statChangeTarget || 'value',
+                                syncValue: editingItem.effect?.syncValue,
+                                description: editingItem.effect?.description,
+                              },
+                            });
                           } else {
+                            // custom 類型
                             setEditingItem({
                               ...editingItem,
                               effect: {
                                 type: value as ItemEffect['type'],
-                                ...editingItem.effect,
+                                description: editingItem.effect?.description,
                               },
                             });
                           }
@@ -321,67 +354,67 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                         <SelectContent>
                           <SelectItem value="none">無效果</SelectItem>
                           <SelectItem value="stat_change">數值變化</SelectItem>
-                          <SelectItem value="buff">增益效果</SelectItem>
                           <SelectItem value="custom">自訂效果</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {editingItem.effect?.type === 'stat_change' && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label>目標數值</Label>
-                          <Select
-                            value={editingItem.effect.targetStat || ''}
-                            onValueChange={(value) => setEditingItem({
-                              ...editingItem,
-                              effect: { ...editingItem.effect!, targetStat: value },
-                            })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="選擇數值" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {stats.map((stat) => (
-                                <SelectItem key={stat.id} value={stat.name}>
-                                  {stat.name}
-                                </SelectItem>
-                              ))}
-                              {stats.length === 0 && (
-                                <SelectItem value="" disabled>
-                                  尚無定義數值
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>變化值</Label>
-                          <Input
-                            type="number"
-                            value={editingItem.effect.value || 0}
-                            onChange={(e) => setEditingItem({
-                              ...editingItem,
-                              effect: { ...editingItem.effect!, value: parseInt(e.target.value) || 0 },
-                            })}
-                            placeholder="正數增加，負數減少"
-                          />
-                        </div>
-                      </div>
-                    )}
+                    {editingItem.effect?.type === 'stat_change' && (() => {
+                      const targetType: 'self' | 'other' | 'any' = editingItem.effect?.targetType || 'self';
+                      
+                      return (
+                        <div className="space-y-3">
+                          {/* Phase 6.5: 目標對象選擇 */}
+                          <div className="space-y-2">
+                            <Label>目標對象</Label>
+                            <Select
+                              value={targetType}
+                              onValueChange={(value: 'self' | 'other' | 'any') => {
+                                setEditingItem({
+                                  ...editingItem,
+                                  effect: {
+                                    ...editingItem.effect!,
+                                    targetType: value,
+                                    requiresTarget: value !== 'self', // 自己不需要選擇，其他都需要
+                                  },
+                                });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="self">自己</SelectItem>
+                                <SelectItem value="other">其他玩家</SelectItem>
+                                <SelectItem value="any">任一名玩家（包含自己）</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-sm text-muted-foreground">
+                              {targetType === 'self' && '只能影響自己'}
+                              {targetType === 'other' && '使用時需選擇其他角色'}
+                              {targetType === 'any' && '使用時可選擇任意角色（包含自己）'}
+                            </p>
+                          </div>
 
-                    {editingItem.effect?.type === 'buff' && (
-                      <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-2">
                             <Label>目標數值</Label>
-                            <Select
-                              value={editingItem.effect.targetStat || ''}
-                              onValueChange={(value) => setEditingItem({
+                          <Select
+                            value={editingItem.effect.targetStat || ''}
+                            onValueChange={(value) => {
+                              const stat = stats.find((s) => s.name === value);
+                              const hasMax = stat?.maxValue !== undefined && stat?.maxValue !== null;
+                              setEditingItem({
                                 ...editingItem,
-                                effect: { ...editingItem.effect!, targetStat: value },
-                              })}
-                            >
+                                effect: {
+                                  ...editingItem.effect!,
+                                  targetStat: value,
+                                  statChangeTarget: hasMax ? (editingItem.effect?.statChangeTarget || 'value') : 'value',
+                                  syncValue: hasMax ? editingItem.effect?.syncValue : undefined,
+                                },
+                              });
+                            }}
+                          >
                               <SelectTrigger>
                                 <SelectValue placeholder="選擇數值" />
                               </SelectTrigger>
@@ -391,6 +424,11 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                                     {stat.name}
                                   </SelectItem>
                                 ))}
+                                {stats.length === 0 && (
+                                  <SelectItem value="" disabled>
+                                    尚無定義數值
+                                  </SelectItem>
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -403,24 +441,57 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                                 ...editingItem,
                                 effect: { ...editingItem.effect!, value: parseInt(e.target.value) || 0 },
                               })}
+                              placeholder="正數增加，負數減少"
                             />
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label>持續時間（秒）</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={editingItem.effect.duration || 0}
-                            onChange={(e) => setEditingItem({
-                              ...editingItem,
-                              effect: { ...editingItem.effect!, duration: parseInt(e.target.value) || 0 },
-                            })}
-                            placeholder="0 = 永久"
-                          />
-                        </div>
+
+                        {selectedStatHasMax && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>作用目標</Label>
+                              <Select
+                                value={editingItem.effect.statChangeTarget || 'value'}
+                                onValueChange={(value: 'value' | 'maxValue') =>
+                                  setEditingItem({
+                                    ...editingItem,
+                                    effect: { ...editingItem.effect!, statChangeTarget: value },
+                                  })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="value">目前值</SelectItem>
+                                  <SelectItem value="maxValue">最大值</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {editingItem.effect.statChangeTarget === 'maxValue' && (
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  <span>同步目前值</span>
+                                  <Switch
+                                    checked={Boolean(editingItem.effect.syncValue)}
+                                    onCheckedChange={(checked) =>
+                                      setEditingItem({
+                                        ...editingItem,
+                                        effect: { ...editingItem.effect!, syncValue: checked },
+                                      })
+                                    }
+                                  />
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  勾選時，最大值變動會連帶調整目前值（不超過新上限）
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    );
+                    })()}
 
                     {editingItem.effect?.type === 'custom' && (
                       <div className="space-y-2">
@@ -453,13 +524,18 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                         id="usage-limit"
                         type="number"
                         min={0}
-                        value={editingItem.usageLimit || ''}
+                        value={editingItem.usageLimit ?? (editingItem.type === 'consumable' ? 1 : 0)}
                         onChange={(e) => setEditingItem({
                           ...editingItem,
-                          usageLimit: e.target.value ? parseInt(e.target.value) : undefined,
+                          usageLimit: Math.max(0, parseInt(e.target.value) || 0),
                         })}
-                        placeholder="0 或空白 = 無限制"
+                        placeholder={editingItem.type === 'consumable' ? '消耗品至少 1 次' : '0 = 無限制'}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {editingItem.type === 'consumable' 
+                          ? '消耗品建議至少 1 次' 
+                          : '非消耗品可設為 0（無限使用）'}
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="cooldown">冷卻時間（秒）</Label>

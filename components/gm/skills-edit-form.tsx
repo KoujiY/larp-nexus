@@ -161,27 +161,6 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
   const handleSaveAll = async () => {
     setIsLoading(true);
     try {
-      // 調試：檢查技能資料
-      console.log('準備儲存的技能資料:', JSON.stringify(skills, null, 2));
-      skills.forEach((skill, index) => {
-        if (skill.checkType === 'random') {
-          console.log(`技能 ${index} (${skill.name}) randomConfig:`, skill.randomConfig);
-        }
-        if (skill.effects) {
-          skill.effects.forEach((effect, effIndex) => {
-            if (effect.type === 'stat_change') {
-              console.log(`技能 ${index} (${skill.name}) 效果 ${effIndex}:`, {
-                targetStat: effect.targetStat,
-                value: effect.value,
-                statChangeTarget: effect.statChangeTarget,
-                syncValue: effect.syncValue,
-                fullEffect: effect,
-              });
-            }
-          });
-        }
-      });
-      
       const result = await updateCharacter(characterId, { skills });
       if (result.success) {
         toast.success('技能儲存成功');
@@ -667,9 +646,40 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                                 : null;
                               const hasMaxValue = targetStatData?.maxValue !== undefined && targetStatData.maxValue !== null;
                               const statChangeTarget = effect.statChangeTarget || 'value';
+                              const targetType: 'self' | 'other' | 'any' = effect.targetType || 'self';
                               
                               return (
                                 <>
+                                  {/* Phase 6.5: 目標對象選擇 */}
+                                  <div className="space-y-2">
+                                    <Label>目標對象</Label>
+                                    <Select
+                                      value={targetType}
+                                      onValueChange={(value: 'self' | 'other' | 'any') => {
+                                        const updatedEffect = { 
+                                          ...effect, 
+                                          targetType: value,
+                                          requiresTarget: value !== 'self', // 自己不需要選擇，其他都需要
+                                        };
+                                        handleEditEffect(index, updatedEffect);
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="self">自己</SelectItem>
+                                        <SelectItem value="other">其他玩家</SelectItem>
+                                        <SelectItem value="any">任一名玩家（包含自己）</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-sm text-muted-foreground">
+                                      {targetType === 'self' && '只能影響自己'}
+                                      {targetType === 'other' && '使用時需選擇其他角色'}
+                                      {targetType === 'any' && '使用時可選擇任意角色（包含自己）'}
+                                    </p>
+                                  </div>
+
                                   <div className="space-y-2">
                                     <Label>目標數值</Label>
                                     <Select

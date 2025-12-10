@@ -4,10 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { put } from '@vercel/blob';
 import { Character, Game } from '@/lib/db/models';
+import type { CharacterDocument } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
+import { emitSkillUsed, emitRoleUpdated, emitItemTransferred, emitInventoryUpdated, emitCharacterAffected } from '@/lib/websocket/events';
 
 // MongoDB lean() 返回的類型（可能包含 _id）
 interface MongoSecret {
@@ -46,6 +48,8 @@ interface MongoItem {
     type: 'stat_change' | 'buff' | 'custom';
     targetStat?: string;
     value?: number;
+    statChangeTarget?: 'value' | 'maxValue';
+    syncValue?: boolean;
     duration?: number;
     description?: string;
   };
@@ -89,6 +93,8 @@ interface MongoSkill {
   effects?: Array<{
     type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
           'task_reveal' | 'task_complete' | 'custom';
+    targetType?: 'self' | 'other' | 'any';
+    requiresTarget?: boolean;
     targetStat?: string;
     value?: number;
     statChangeTarget?: 'value' | 'maxValue';
@@ -100,6 +106,42 @@ interface MongoSkill {
     _id?: unknown;
   }>;
   _id?: unknown;
+}
+
+/**
+ * 清理技能數據的輔助函數（移除 MongoDB _id）
+ */
+function cleanSkillData(skills: MongoSkill[] | undefined) {
+  return (skills || [])
+    .filter((skill): skill is MongoSkill => Boolean(skill && skill.id))
+    .map((skill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      iconUrl: skill.iconUrl,
+      checkType: skill.checkType,
+      contestConfig: skill.contestConfig,
+      randomConfig: skill.randomConfig,
+      usageLimit: skill.usageLimit,
+      usageCount: skill.usageCount || 0,
+      cooldown: skill.cooldown,
+      lastUsedAt: skill.lastUsedAt,
+      effects: (skill.effects || [])
+        .filter((effect): effect is NonNullable<typeof effect> => Boolean(effect && effect.type))
+        .map((effect) => ({
+          type: effect.type,
+          targetType: effect.targetType,
+          requiresTarget: effect.requiresTarget,
+          targetStat: effect.targetStat,
+          value: effect.value,
+          statChangeTarget: effect.statChangeTarget,
+          syncValue: effect.syncValue,
+          targetItemId: effect.targetItemId,
+          targetTaskId: effect.targetTaskId,
+          targetCharacterId: effect.targetCharacterId,
+          description: effect.description,
+        })),
+    }));
 }
 
 /**
@@ -254,30 +296,7 @@ export async function getCharactersByGameId(
         }));
 
         // 清理 skills 中的 _id
-        const cleanSkills = (char.skills || []).map((skill: MongoSkill) => ({
-          id: skill.id,
-          name: skill.name,
-          description: skill.description,
-          iconUrl: skill.iconUrl,
-          checkType: skill.checkType,
-          contestConfig: skill.contestConfig,
-          randomConfig: skill.randomConfig,
-          usageLimit: skill.usageLimit,
-          usageCount: skill.usageCount || 0,
-          cooldown: skill.cooldown,
-          lastUsedAt: skill.lastUsedAt,
-          effects: (skill.effects || []).map((effect) => ({
-            type: effect.type,
-            targetStat: effect.targetStat,
-            value: effect.value,
-            statChangeTarget: effect.statChangeTarget,
-            syncValue: effect.syncValue,
-            targetItemId: effect.targetItemId,
-            targetTaskId: effect.targetTaskId,
-            targetCharacterId: effect.targetCharacterId,
-            description: effect.description,
-          })),
-        }));
+        const cleanSkills = cleanSkillData(char.skills);
 
         return {
           id: char._id.toString(),
@@ -399,30 +418,7 @@ export async function getCharacterById(
     }));
 
     // 清理 skills 中的 _id
-    const cleanSkills = (character.skills || []).map((skill: MongoSkill) => ({
-      id: skill.id,
-      name: skill.name,
-      description: skill.description,
-      iconUrl: skill.iconUrl,
-      checkType: skill.checkType,
-      contestConfig: skill.contestConfig,
-      randomConfig: skill.randomConfig,
-      usageLimit: skill.usageLimit,
-      usageCount: skill.usageCount || 0,
-      cooldown: skill.cooldown,
-      lastUsedAt: skill.lastUsedAt,
-      effects: (skill.effects || []).map((effect) => ({
-        type: effect.type,
-        targetStat: effect.targetStat,
-        value: effect.value,
-        statChangeTarget: effect.statChangeTarget,
-        syncValue: effect.syncValue,
-        targetItemId: effect.targetItemId,
-        targetTaskId: effect.targetTaskId,
-        targetCharacterId: effect.targetCharacterId,
-        description: effect.description,
-      })),
-    }));
+    const cleanSkills = cleanSkillData(character.skills);
 
     return {
       success: true,
@@ -581,30 +577,7 @@ export async function createCharacter(data: {
     }));
 
     // 清理 skills 中的 _id
-    const cleanSkills = (characterObj.skills || []).map((skill: MongoSkill) => ({
-      id: skill.id,
-      name: skill.name,
-      description: skill.description,
-      iconUrl: skill.iconUrl,
-      checkType: skill.checkType,
-      contestConfig: skill.contestConfig,
-      randomConfig: skill.randomConfig,
-      usageLimit: skill.usageLimit,
-      usageCount: skill.usageCount || 0,
-      cooldown: skill.cooldown,
-      lastUsedAt: skill.lastUsedAt,
-      effects: (skill.effects || []).map((effect) => ({
-        type: effect.type,
-        targetStat: effect.targetStat,
-        value: effect.value,
-        statChangeTarget: effect.statChangeTarget,
-        syncValue: effect.syncValue,
-        targetItemId: effect.targetItemId,
-        targetTaskId: effect.targetTaskId,
-        targetCharacterId: effect.targetCharacterId,
-        description: effect.description,
-      })),
-    }));
+    const cleanSkills = cleanSkillData(characterObj.skills);
 
     return {
       success: true,
@@ -902,7 +875,18 @@ export async function updateCharacter(
     }
 
     // Phase 4.5: 處理 items 更新
+    const inventoryDiffs: Array<{
+      action: 'added' | 'updated' | 'deleted';
+      item: {
+        id: string;
+        name: string;
+        description: string;
+        imageUrl?: string;
+        acquiredAt?: string;
+      };
+    }> = [];
     if (data.items !== undefined) {
+      const currentItems: MongoItem[] = character.items || [];
       updateData.items = data.items.map((item) => ({
         id: item.id,
         name: item.name,
@@ -918,11 +902,72 @@ export async function updateCharacter(
         isTransferable: item.isTransferable,
         acquiredAt: item.acquiredAt || new Date(),
       }));
+
+      const newItems = updateData.items as Array<{
+        id: string;
+        name: string;
+        description: string;
+        imageUrl?: string;
+        type: string;
+        quantity: number;
+        acquiredAt?: string | Date;
+      }>;
+
+      // 比對新增/更新
+      newItems.forEach((newItem) => {
+        const oldItem = currentItems.find((i) => i.id === newItem.id);
+        if (!oldItem) {
+          inventoryDiffs.push({
+            action: 'added',
+            item: {
+              id: newItem.id,
+              name: newItem.name,
+              description: newItem.description || '',
+              imageUrl: newItem.imageUrl,
+              acquiredAt: newItem.acquiredAt ? new Date(newItem.acquiredAt).toISOString() : undefined,
+            },
+          });
+        } else if (
+          oldItem.name !== newItem.name ||
+          oldItem.description !== newItem.description ||
+          oldItem.imageUrl !== newItem.imageUrl ||
+          oldItem.quantity !== newItem.quantity
+        ) {
+          inventoryDiffs.push({
+            action: 'updated',
+            item: {
+              id: newItem.id,
+              name: newItem.name,
+              description: newItem.description || '',
+              imageUrl: newItem.imageUrl,
+              acquiredAt: newItem.acquiredAt ? new Date(newItem.acquiredAt).toISOString() : undefined,
+            },
+          });
+        }
+      });
+
+      // 刪除
+      currentItems.forEach((oldItem) => {
+        const exist = data.items!.some((i) => i.id === oldItem.id);
+        if (!exist) {
+          inventoryDiffs.push({
+            action: 'deleted',
+            item: {
+              id: oldItem.id,
+              name: oldItem.name,
+              description: oldItem.description || '',
+              imageUrl: oldItem.imageUrl,
+              acquiredAt: oldItem.acquiredAt ? new Date(oldItem.acquiredAt).toISOString() : undefined,
+            },
+          });
+        }
+      });
     }
 
     // Phase 5: 處理 skills 更新
     if (data.skills !== undefined) {
-      updateData.skills = data.skills.map((skill) => {
+      const normalizedSkills = (data.skills || []).filter((s) => s && s.id);
+      updateData.skills = normalizedSkills.map((skill) => {
         const skillData: Record<string, unknown> = {
           id: skill.id,
           name: skill.name,
@@ -936,12 +981,24 @@ export async function updateCharacter(
         if (skill.cooldown !== undefined) skillData.cooldown = skill.cooldown;
         if (skill.lastUsedAt !== undefined) skillData.lastUsedAt = skill.lastUsedAt;
         
-        skillData.effects = (skill.effects || []).map((effect) => {
+        skillData.effects = (skill.effects || [])
+          .filter((effect) => effect && effect.type)
+          .map((effect) => {
           // 建立完整的 effectData，明確包含所有欄位（即使是 undefined）
           // 但要注意：MongoDB 會忽略 undefined，所以我們只包含有值的欄位
           const effectData: Record<string, unknown> = {
             type: effect.type,
           };
+
+          // Phase 6.5: 目標設定
+          const effectAny = effect as Record<string, unknown>;
+          const normalizedTargetType = (effectAny.targetType as 'self' | 'other' | 'any' | undefined) ?? 'self';
+          effectData.targetType = normalizedTargetType;
+          const normalizedRequiresTarget =
+            effectAny.requiresTarget !== undefined && effectAny.requiresTarget !== null
+              ? Boolean(effectAny.requiresTarget)
+              : normalizedTargetType !== 'self';
+          effectData.requiresTarget = normalizedRequiresTarget;
           
           // 明確設定所有可能的欄位，確保它們被正確儲存
           if (effect.targetStat !== undefined && effect.targetStat !== null) {
@@ -1035,7 +1092,9 @@ export async function updateCharacter(
       if (key === 'skills' && updateData.skills) {
         // 對於 skills 陣列，需要逐個建立 Mongoose 子文檔
         // 這樣 Mongoose 才能正確處理嵌套欄位
-        const skillsArray = (updateData.skills as Array<Record<string, unknown>>).map((skillData) => {
+        const skillsArray = (updateData.skills as Array<Record<string, unknown>>)
+          .filter((skillData) => skillData && skillData.id)
+          .map((skillData) => {
           // 建立新的技能物件，確保所有欄位都被包含
           const skillObj: Record<string, unknown> = {
             id: skillData.id,
@@ -1052,40 +1111,50 @@ export async function updateCharacter(
           
           // 處理 effects，確保所有欄位都被包含
           if (skillData.effects && Array.isArray(skillData.effects)) {
-            skillObj.effects = skillData.effects.map((effect: Record<string, unknown>) => {
-              const effectObj: Record<string, unknown> = {
-                type: effect.type,
-              };
-              
-              // 明確設定所有欄位，包括 statChangeTarget 和 syncValue
-              if (effect.targetStat !== undefined && effect.targetStat !== null) {
-                effectObj.targetStat = String(effect.targetStat);
-              }
-              if (effect.value !== undefined && effect.value !== null) {
-                effectObj.value = Number(effect.value);
-              }
-              // 關鍵：確保 statChangeTarget 和 syncValue 被正確設定
-              if (effect.statChangeTarget !== undefined && effect.statChangeTarget !== null) {
-                effectObj.statChangeTarget = String(effect.statChangeTarget);
-              }
-              if (effect.syncValue !== undefined && effect.syncValue !== null) {
-                effectObj.syncValue = Boolean(effect.syncValue);
-              }
-              if (effect.targetItemId !== undefined && effect.targetItemId !== null) {
-                effectObj.targetItemId = String(effect.targetItemId);
-              }
-              if (effect.targetTaskId !== undefined && effect.targetTaskId !== null) {
-                effectObj.targetTaskId = String(effect.targetTaskId);
-              }
-              if (effect.targetCharacterId !== undefined && effect.targetCharacterId !== null) {
-                effectObj.targetCharacterId = String(effect.targetCharacterId);
-              }
-              if (effect.description !== undefined && effect.description !== null) {
-                effectObj.description = String(effect.description);
-              }
-              
-              return effectObj;
-            });
+            skillObj.effects = skillData.effects
+              .filter((effect: Record<string, unknown>) => effect && effect.type)
+              .map((effect: Record<string, unknown>) => {
+                const effectObj: Record<string, unknown> = {
+                  type: effect.type,
+                };
+                
+                // Phase 6.5: 目標設定
+                if (effect.targetType !== undefined && effect.targetType !== null) {
+                  effectObj.targetType = String(effect.targetType);
+                }
+                if (effect.requiresTarget !== undefined && effect.requiresTarget !== null) {
+                  effectObj.requiresTarget = Boolean(effect.requiresTarget);
+                }
+                
+                // 明確設定所有欄位，包括 statChangeTarget 和 syncValue
+                if (effect.targetStat !== undefined && effect.targetStat !== null) {
+                  effectObj.targetStat = String(effect.targetStat);
+                }
+                if (effect.value !== undefined && effect.value !== null) {
+                  effectObj.value = Number(effect.value);
+                }
+                // 關鍵：確保 statChangeTarget 和 syncValue 被正確設定
+                if (effect.statChangeTarget !== undefined && effect.statChangeTarget !== null) {
+                  effectObj.statChangeTarget = String(effect.statChangeTarget);
+                }
+                if (effect.syncValue !== undefined && effect.syncValue !== null) {
+                  effectObj.syncValue = Boolean(effect.syncValue);
+                }
+                if (effect.targetItemId !== undefined && effect.targetItemId !== null) {
+                  effectObj.targetItemId = String(effect.targetItemId);
+                }
+                if (effect.targetTaskId !== undefined && effect.targetTaskId !== null) {
+                  effectObj.targetTaskId = String(effect.targetTaskId);
+                }
+                if (effect.targetCharacterId !== undefined && effect.targetCharacterId !== null) {
+                  effectObj.targetCharacterId = String(effect.targetCharacterId);
+                }
+                if (effect.description !== undefined && effect.description !== null) {
+                  effectObj.description = String(effect.description);
+                }
+                
+                return effectObj;
+              });
           }
 
           // 處理檢定配置
@@ -1126,7 +1195,7 @@ export async function updateCharacter(
     }
 
     revalidatePath(`/games/${updatedCharacter.gameId.toString()}`);
-
+    
     // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
     const cleanSecretInfo = updatedCharacter.secretInfo?.secrets
       ? {
@@ -1182,39 +1251,81 @@ export async function updateCharacter(
     }));
 
     // 清理 skills 中的 _id
-    const cleanSkills = (updatedCharacter.skills || []).map((skill: MongoSkill) => {
-      const cleanSkill = {
-        id: skill.id,
-        name: skill.name,
-        description: skill.description,
-        iconUrl: skill.iconUrl,
-        checkType: skill.checkType,
-        contestConfig: skill.contestConfig,
-        randomConfig: skill.randomConfig,
-        usageLimit: skill.usageLimit,
-        usageCount: skill.usageCount || 0,
-        cooldown: skill.cooldown,
-        lastUsedAt: skill.lastUsedAt,
-        effects: (skill.effects || []).map((effect) => {
-          const cleanEffect: Record<string, unknown> = {
-            type: effect.type,
+    const cleanSkills = cleanSkillData(updatedCharacter.skills);
+
+    // WebSocket 事件：角色更新（只推送有變動的數值）
+    const changedStats = cleanStats
+      .map((stat: MongoStat) => {
+        const before = (character.stats || []).find((s: { id: string }) => s.id === stat.id);
+        const newValue = stat.value ?? before?.value;
+        const newMax = stat.maxValue ?? before?.maxValue;
+
+        const valueChanged = before ? newValue !== before.value : true;
+        const hasBeforeMax = before?.maxValue !== undefined && before?.maxValue !== null;
+        const hasNewMax = newMax !== undefined && newMax !== null;
+        const maxChanged = hasBeforeMax && hasNewMax ? newMax !== before!.maxValue : (!hasBeforeMax && hasNewMax);
+
+        if (valueChanged || maxChanged) {
+          return {
+            ...stat,
+            value: newValue,
+            maxValue: hasNewMax ? newMax : undefined,
+            deltaValue: valueChanged && before && newValue !== undefined ? newValue - before.value : undefined,
+            deltaMax: maxChanged && hasBeforeMax && hasNewMax ? (newMax as number) - (before!.maxValue as number) : undefined,
           };
-          if (effect.targetStat !== undefined) cleanEffect.targetStat = effect.targetStat;
-          if (effect.value !== undefined) cleanEffect.value = effect.value;
-          // 確保 statChangeTarget 和 syncValue 正確讀取
-          if (effect.statChangeTarget !== undefined) cleanEffect.statChangeTarget = effect.statChangeTarget;
-          if (effect.syncValue !== undefined) cleanEffect.syncValue = effect.syncValue;
-          if (effect.targetItemId !== undefined) cleanEffect.targetItemId = effect.targetItemId;
-          if (effect.targetTaskId !== undefined) cleanEffect.targetTaskId = effect.targetTaskId;
-          if (effect.targetCharacterId !== undefined) cleanEffect.targetCharacterId = effect.targetCharacterId;
-          if (effect.description !== undefined) cleanEffect.description = effect.description;
-          
-          return cleanEffect;
-        }),
-      };
-      
-      return cleanSkill;
-    });
+        }
+        return null;
+      })
+      .filter(
+        (
+          s:
+            | MongoStat
+            | (MongoStat & { deltaValue?: number; deltaMax?: number })
+            | null
+        ): s is MongoStat & { deltaValue?: number; deltaMax?: number } => Boolean(s)
+      );
+
+    const basicChanged =
+      (data.name !== undefined && data.name !== character.name) ||
+      (data.description !== undefined && data.description !== character.description) ||
+      (data.hasPinLock !== undefined && data.hasPinLock !== character.hasPinLock) ||
+      (data.publicInfo !== undefined &&
+        JSON.stringify(data.publicInfo) !== JSON.stringify(character.publicInfo || {})) ||
+      (data.secretInfo !== undefined &&
+        JSON.stringify(data.secretInfo) !== JSON.stringify(character.secretInfo || {}));
+
+    const statsChanged = changedStats.length > 0;
+    const skillsOrTasksChanged = 
+      (data.skills !== undefined &&
+        JSON.stringify(data.skills) !== JSON.stringify(character.skills || [])) ||
+      (data.tasks !== undefined &&
+        JSON.stringify(data.tasks) !== JSON.stringify(character.tasks || []));
+
+    // WebSocket：角色更新（不包含單純的道具變動）
+    if (basicChanged || statsChanged || skillsOrTasksChanged) {
+      emitRoleUpdated(characterId, {
+        characterId,
+        updates: {
+          name: updatedCharacter.name,
+          avatar: updatedCharacter.imageUrl,
+          publicInfo: updatedCharacter.publicInfo,
+          items: cleanItems,
+          stats: statsChanged ? changedStats : undefined,
+          skills: cleanSkills,
+        },
+      }).catch((error) => console.error('Failed to emit role.updated', error));
+    }
+
+    // WebSocket：道具事件
+    if (inventoryDiffs.length > 0) {
+      inventoryDiffs.forEach((diff) => {
+        emitInventoryUpdated(characterId, {
+          characterId,
+          item: diff.item,
+          action: diff.action,
+        }).catch((error) => console.error('Failed to emit role.inventoryUpdated', error));
+      });
+    }
 
     return {
       success: true,
@@ -1556,6 +1667,7 @@ export async function setCharacterStat(
     // 驗證新數值
     const currentStat = stats[statIndex];
     let finalValue = newValue;
+    const beforeValue = currentStat.value;
 
     // 如果有最大值，確保不超過
     if (currentStat.maxValue !== undefined && currentStat.maxValue !== null) {
@@ -1572,6 +1684,21 @@ export async function setCharacterStat(
     });
 
     revalidatePath(`/games/${character.gameId.toString()}`);
+
+    emitRoleUpdated(characterId, {
+      characterId,
+      updates: {
+        stats: [
+          {
+            id: statId,
+            name: currentStat.name,
+            value: finalValue,
+            maxValue: currentStat.maxValue,
+            delta: finalValue - beforeValue,
+          },
+        ],
+      },
+    }).catch((error) => console.error('Failed to emit role.updated (stat)', error));
 
     return {
       success: true,
@@ -1594,8 +1721,9 @@ export async function setCharacterStat(
  */
 export async function useItem(
   characterId: string,
-  itemId: string
-): Promise<ApiResponse<{ itemUsed: boolean; effectApplied?: string }>> {
+  itemId: string,
+  targetCharacterId?: string
+): Promise<ApiResponse<{ itemUsed: boolean; effectApplied?: string; targetCharacterName?: string }>> {
   try {
     await dbConnect();
 
@@ -1621,6 +1749,20 @@ export async function useItem(
 
     const item = items[itemIndex];
     const now = new Date();
+
+    // Phase 6.5: 判斷是否影響他人並驗證目標
+    const isAffectingOthers = targetCharacterId && targetCharacterId !== characterId;
+    let targetCharacter: CharacterDocument | null = null;
+    if (isAffectingOthers) {
+      targetCharacter = await Character.findById(targetCharacterId);
+      if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+        return {
+          success: false,
+          error: 'INVALID_TARGET',
+          message: '目標角色不存在或不在同一劇本內',
+        };
+      }
+    }
 
     // 檢查消耗品數量
     if (item.type === 'consumable' && item.quantity <= 0) {
@@ -1657,62 +1799,170 @@ export async function useItem(
     }
 
     // 準備更新
-    const updates: Record<string, unknown> = {};
+    const usageUpdates: Record<string, unknown> = {};
+    const targetStatUpdates: Record<string, unknown> = {};
     let effectMessage = '';
 
     // 更新冷卻時間
     if (item.cooldown && item.cooldown > 0) {
-      updates[`items.${itemIndex}.lastUsedAt`] = now;
+      usageUpdates[`items.${itemIndex}.lastUsedAt`] = now;
     }
 
     // 處理使用次數限制
     if (item.usageLimit && item.usageLimit > 0) {
       // 有使用次數限制：每次使用增加 usageCount
       const newUsageCount = (item.usageCount || 0) + 1;
-      updates[`items.${itemIndex}.usageCount`] = newUsageCount;
+      usageUpdates[`items.${itemIndex}.usageCount`] = newUsageCount;
       // 不刪除道具，讓它保留在清單中顯示為已用盡
     } else {
       // 沒有使用次數限制：消耗品每次使用減少數量
       if (item.type === 'consumable') {
         const newQuantity = Math.max(0, item.quantity - 1);
-        updates[`items.${itemIndex}.quantity`] = newQuantity;
+        usageUpdates[`items.${itemIndex}.quantity`] = newQuantity;
         // 不刪除道具，讓它保留在清單中顯示為數量 0
       }
     }
 
     // 執行效果
+    let statUpdatePayload: Array<{ id: string; name: string; value: number; maxValue?: number; deltaValue?: number; deltaMax?: number }> | undefined;
+    const crossCharacterChanges: Array<{ name: string; deltaValue?: number; deltaMax?: number; newValue: number; newMax?: number }> = [];
     if (item.effect) {
-      if (item.effect.type === 'stat_change' && item.effect.targetStat && item.effect.value !== undefined) {
-        // 找到目標數值
-        const stats = character.stats || [];
+      if (
+        item.effect.type === 'stat_change' &&
+        item.effect.targetStat &&
+        typeof item.effect.value === 'number'
+      ) {
+        const effectTarget = targetCharacter || character;
+        const stats = effectTarget.stats || [];
         const statIndex = stats.findIndex((s: { name: string }) => s.name === item.effect.targetStat);
+        
         if (statIndex !== -1) {
-          let newValue = stats[statIndex].value + item.effect.value;
-          const maxValue = stats[statIndex].maxValue;
-          if (maxValue !== undefined && maxValue !== null) {
-            newValue = Math.min(newValue, maxValue);
+          // 使用 type assertion 處理可能缺少的欄位（向下兼容舊資料）
+          interface ItemEffectExtended {
+            type: string;
+            targetStat?: string;
+            value?: number;
+            statChangeTarget?: 'value' | 'maxValue';
+            syncValue?: boolean;
+            description?: string;
           }
-          newValue = Math.max(0, newValue);
-          updates[`stats.${statIndex}.value`] = newValue;
-          effectMessage = `${item.effect.targetStat} ${item.effect.value > 0 ? '+' : ''}${item.effect.value}`;
+          const effectWithTarget = item.effect as ItemEffectExtended;
+          const target = effectWithTarget.statChangeTarget || 'value';
+          const delta = item.effect.value;
+          const beforeValue = stats[statIndex].value;
+          const beforeMax = stats[statIndex].maxValue ?? null;
+          const syncValue = effectWithTarget.syncValue;
+
+          // 若目標無 maxValue，但要求改 maxValue，退回改 value
+          const effectiveTarget =
+            target === 'maxValue' && beforeMax === null ? 'value' : target;
+
+          let newValue = beforeValue;
+          let newMax = beforeMax;
+          let deltaValue = 0;
+          let deltaMax = 0;
+
+          if (effectiveTarget === 'maxValue') {
+            // 修改最大值（參考技能實作）
+            if (beforeMax !== null) {
+              newMax = Math.max(1, beforeMax + delta);
+              deltaMax = newMax - beforeMax;
+              targetStatUpdates[`stats.${statIndex}.maxValue`] = newMax;
+
+              if (syncValue) {
+                // 同步修改目前值
+                newValue = Math.max(0, beforeValue + delta);
+                newValue = Math.min(newValue, newMax);
+                deltaValue = newValue - beforeValue;
+                targetStatUpdates[`stats.${statIndex}.value`] = newValue;
+                effectMessage = `${item.effect.targetStat} 最大值 ${delta > 0 ? '+' : ''}${delta}，目前值同步調整`;
+              } else {
+                // 只修改最大值，確保目前值不超過新最大值
+                newValue = Math.min(beforeValue, newMax);
+                deltaValue = newValue - beforeValue;
+                targetStatUpdates[`stats.${statIndex}.value`] = newValue;
+                effectMessage = `${item.effect.targetStat} 最大值 ${delta > 0 ? '+' : ''}${delta}`;
+              }
+            }
+          } else {
+            // 修改目前值
+            newValue = Math.max(0, beforeValue + delta);
+            if (beforeMax !== null) newValue = Math.min(newValue, beforeMax);
+            deltaValue = newValue - beforeValue;
+            targetStatUpdates[`stats.${statIndex}.value`] = newValue;
+            effectMessage = `${item.effect.targetStat} ${delta > 0 ? '+' : ''}${delta}`;
+          }
+
+          statUpdatePayload = [
+            {
+              id: stats[statIndex].id,
+              name: stats[statIndex].name,
+              value: newValue,
+              maxValue: newMax ?? undefined,
+              deltaValue: deltaValue !== 0 ? deltaValue : undefined,
+              deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+            },
+          ];
+          if (isAffectingOthers) {
+            crossCharacterChanges.push({
+              name: stats[statIndex].name,
+              deltaValue: deltaValue !== 0 ? deltaValue : undefined,
+              deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+              newValue,
+              newMax: newMax ?? undefined,
+            });
+          }
         }
       } else if (item.effect.type === 'custom' && item.effect.description) {
         effectMessage = item.effect.description;
       }
     }
 
-    // 執行更新
-    if (Object.keys(updates).length > 0) {
-      await Character.findByIdAndUpdate(characterId, { $set: updates });
+    // 執行更新：施放者（使用記錄 + 若非跨角色則包含自身的數值變更）
+    const selfUpdates: Record<string, unknown> = { ...usageUpdates };
+    if (!isAffectingOthers) {
+      Object.assign(selfUpdates, targetStatUpdates);
+    }
+    if (Object.keys(selfUpdates).length > 0) {
+      await Character.findByIdAndUpdate(characterId, { $set: selfUpdates });
+    }
+    revalidatePath(`/c/${characterId}`);
+
+    // 若跨角色，寫入目標角色的數值變更
+    if (isAffectingOthers && Object.keys(targetStatUpdates).length > 0) {
+      await Character.findByIdAndUpdate(targetCharacterId, { $set: targetStatUpdates });
+      revalidatePath(`/c/${targetCharacterId}`);
     }
 
-    revalidatePath(`/c/${characterId}`);
+    // WebSocket：數值更新（若有）
+    if (statUpdatePayload) {
+      const targetId = isAffectingOthers ? targetCharacterId! : characterId;
+      emitRoleUpdated(targetId, {
+        characterId: targetId,
+        updates: {
+          stats: statUpdatePayload,
+        },
+      }).catch((error) => console.error('Failed to emit role.updated (item stat)', error));
+
+      if (isAffectingOthers && crossCharacterChanges.length > 0) {
+        emitCharacterAffected(targetId, {
+          targetCharacterId: targetId,
+          sourceCharacterId: characterId,
+          sourceCharacterName: character.name,
+          sourceType: 'item',
+          sourceName: item.name,
+          effectType: 'stat_change',
+          changes: { stats: crossCharacterChanges },
+        }).catch((error) => console.error('Failed to emit character.affected (item)', error));
+      }
+    }
 
     return {
       success: true,
       data: { 
         itemUsed: true,
         effectApplied: effectMessage || undefined,
+        targetCharacterName: isAffectingOthers ? targetCharacter?.name : undefined,
       },
       message: effectMessage ? `使用成功：${effectMessage}` : '道具使用成功',
     };
@@ -1800,7 +2050,7 @@ export async function transferItem(
 
     // 建立轉移的道具副本（重置使用次數和冷卻）
     const transferredItem = {
-      id: `item-${Date.now()}`,
+      id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: item.name,
       description: item.description,
       imageUrl: item.imageUrl,
@@ -1828,27 +2078,25 @@ export async function transferItem(
       });
     }
 
-    // 加到目標角色
-    // 檢查目標角色是否已有同名道具（可堆疊）
-    const toItems = toCharacter.items || [];
-    const existingItemIndex = toItems.findIndex(
-      (i: { name: string; type: string }) => i.name === item.name && i.type === item.type
-    );
-
-    if (existingItemIndex !== -1 && item.type === 'consumable') {
-      // 消耗品可堆疊
-      await Character.findByIdAndUpdate(toCharacterId, {
-        $inc: { [`items.${existingItemIndex}.quantity`]: quantity },
-      });
-    } else {
-      // 新增道具
-      await Character.findByIdAndUpdate(toCharacterId, {
-        $push: { items: transferredItem },
-      });
-    }
+    // 加到目標角色：保持獨立個體，不再堆疊
+    await Character.findByIdAndUpdate(toCharacterId, {
+      $push: { items: transferredItem },
+    });
 
     revalidatePath(`/c/${fromCharacterId}`);
     revalidatePath(`/c/${toCharacterId}`);
+
+    // WebSocket：道具轉移事件
+    emitItemTransferred(fromCharacterId, toCharacterId, {
+      fromCharacterId,
+      fromCharacterName: fromCharacter.name,
+      toCharacterId,
+      toCharacterName: toCharacter.name,
+      itemId: item.id,
+      itemName: item.name,
+      quantity,
+      transferType: 'give',
+    }).catch((error) => console.error('Failed to emit item.transferred', error));
 
     return {
       success: true,
@@ -1872,8 +2120,9 @@ export async function transferItem(
 export async function useSkill(
   characterId: string,
   skillId: string,
-  checkResult?: number // 檢定結果（由前端傳入，如果是 random 類型）
-): Promise<ApiResponse<{ skillUsed: boolean; checkPassed?: boolean; checkResult?: number; effectsApplied?: string[] }>> {
+  checkResult?: number, // 檢定結果（由前端傳入，如果是 random 類型）
+  targetCharacterId?: string // Phase 6.5: 目標角色 ID（跨角色效果用）
+): Promise<ApiResponse<{ skillUsed: boolean; checkPassed?: boolean; checkResult?: number; effectsApplied?: string[]; targetCharacterName?: string }>> {
   try {
     await dbConnect();
 
@@ -1900,6 +2149,49 @@ export async function useSkill(
     const skill = skills[skillIndex];
     const now = new Date();
 
+    // Phase 6.5: 驗證目標角色（如果需要）
+    let targetCharacter = null;
+    const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget);
+    
+    if (requiresTarget) {
+      if (!targetCharacterId) {
+        return {
+          success: false,
+          error: 'TARGET_REQUIRED',
+          message: '此技能需要選擇目標角色',
+        };
+      }
+      
+      // 獲取目標角色（驗證在同一劇本內）
+      targetCharacter = await Character.findById(targetCharacterId);
+      if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+        return {
+          success: false,
+          error: 'INVALID_TARGET',
+          message: '目標角色不存在或不在同一劇本內',
+        };
+      }
+      
+      // 驗證目標類型匹配
+      const effectWithTarget = skill.effects?.find((e: Record<string, unknown>) => e.requiresTarget);
+      const targetType = effectWithTarget?.targetType as string | undefined;
+      
+      if (targetType === 'self' && targetCharacterId !== characterId) {
+        return {
+          success: false,
+          error: 'INVALID_TARGET',
+          message: '此技能只能對自己使用',
+        };
+      }
+      
+      if (targetType === 'other' && targetCharacterId === characterId) {
+        return {
+          success: false,
+          error: 'INVALID_TARGET',
+          message: '此技能不能對自己使用',
+        };
+      }
+    }
 
     // 檢查使用次數限制
     if (skill.usageLimit && skill.usageLimit > 0) {
@@ -2005,24 +2297,33 @@ export async function useSkill(
     }
     // checkType === 'none' 時，checkPassed 保持為 true
 
-    // 準備更新
-    const updates: Record<string, unknown> = {};
+    // Phase 6.5: 判斷是否影響他人
+    const isAffectingOthers = targetCharacterId && targetCharacterId !== characterId;
+    
+    // 分離更新：技能使用記錄 vs. 數值變更
+    const usageUpdates: Record<string, unknown> = {};
+    const targetStatUpdates: Record<string, unknown> = {};
     const effectsApplied: string[] = [];
 
-    // 更新冷卻時間（如果有設定）或至少記錄使用時間
-    // 總是記錄使用時間，即使沒有冷卻時間
-    updates[`skills.${skillIndex}.lastUsedAt`] = now;
-    
-    // 更新使用次數（如果有設定）
+    // 技能使用記錄（作用在施放者）
+    usageUpdates[`skills.${skillIndex}.lastUsedAt`] = now;
     if (skill.usageLimit && skill.usageLimit > 0) {
       const newUsageCount = (skill.usageCount || 0) + 1;
-      updates[`skills.${skillIndex}.usageCount`] = newUsageCount;
+      usageUpdates[`skills.${skillIndex}.usageCount`] = newUsageCount;
     }
 
     // 執行技能效果（只有在檢定成功時才執行）
     if (checkPassed && skill.effects && skill.effects.length > 0) {
-      const stats = character.stats || [];
-      const tasks = character.tasks || [];
+      // Phase 6.5: 決定效果作用對象
+      const effectTarget = targetCharacter || character;
+      const effectTargetId = targetCharacterId || characterId;
+      
+      const stats = effectTarget.stats || [];
+      const tasks = effectTarget.tasks || []; // tasks 仍作用於目標
+      const statUpdates: Array<{ id: string; name: string; value: number; maxValue?: number; delta?: number; deltaValue?: number; deltaMax?: number }> = [];
+
+      // Phase 6.5: 用於記錄跨角色影響的變化
+      const crossCharacterChanges: Array<{ name: string; deltaValue?: number; deltaMax?: number; newValue: number; newMax?: number }> = [];
 
       for (const effect of skill.effects) {
         if (effect.type === 'stat_change' && effect.targetStat && effect.value !== undefined) {
@@ -2031,73 +2332,141 @@ export async function useSkill(
           if (statIndex !== -1) {
             const statChangeTarget = effect.statChangeTarget || 'value';
             const currentStat = stats[statIndex];
+            const beforeValue = currentStat.value;
+            const beforeMax = currentStat.maxValue;
+            
+            let newValue = beforeValue;
+            let newMaxValue = beforeMax;
+            let deltaValue = 0;
+            let deltaMax = 0;
             
             if (statChangeTarget === 'maxValue') {
               // 修改最大值
               if (currentStat.maxValue !== undefined && currentStat.maxValue !== null) {
-                let newMaxValue = currentStat.maxValue + effect.value;
+                newMaxValue = currentStat.maxValue + effect.value;
                 newMaxValue = Math.max(1, newMaxValue); // 最大值至少為 1
-                updates[`stats.${statIndex}.maxValue`] = newMaxValue;
+                deltaMax = newMaxValue - currentStat.maxValue;
+                targetStatUpdates[`stats.${statIndex}.maxValue`] = newMaxValue;
                 
                 // 如果同步修改目前值
                 if (effect.syncValue) {
-                  let newValue = currentStat.value + effect.value;
+                  newValue = currentStat.value + effect.value;
                   newValue = Math.min(newValue, newMaxValue); // 不超過新最大值
                   newValue = Math.max(0, newValue);
-                  updates[`stats.${statIndex}.value`] = newValue;
+                  deltaValue = newValue - beforeValue;
+                  targetStatUpdates[`stats.${statIndex}.value`] = newValue;
                   effectsApplied.push(`${effect.targetStat} 最大值 ${effect.value > 0 ? '+' : ''}${effect.value}，目前值同步調整`);
                 } else {
                   // 只修改最大值，但確保目前值不超過新最大值
-                  const adjustedValue = Math.min(currentStat.value, newMaxValue);
-                  updates[`stats.${statIndex}.value`] = adjustedValue;
+                  newValue = Math.min(currentStat.value, newMaxValue);
+                  deltaValue = newValue - beforeValue;
+                  targetStatUpdates[`stats.${statIndex}.value`] = newValue;
                   effectsApplied.push(`${effect.targetStat} 最大值 ${effect.value > 0 ? '+' : ''}${effect.value}`);
                 }
               } else {
-                // 該數值沒有最大值，無法修改最大值，改為修改目前值
-                let newValue = currentStat.value + effect.value;
+                // 該數值沒有最大值，改為修改目前值
+                newValue = currentStat.value + effect.value;
                 newValue = Math.max(0, newValue);
-                updates[`stats.${statIndex}.value`] = newValue;
+                deltaValue = newValue - beforeValue;
+                targetStatUpdates[`stats.${statIndex}.value`] = newValue;
                 effectsApplied.push(`${effect.targetStat} ${effect.value > 0 ? '+' : ''}${effect.value}（該數值無最大值，改為修改目前值）`);
               }
             } else {
               // 修改目前值（預設行為）
-              let newValue = currentStat.value + effect.value;
+              newValue = currentStat.value + effect.value;
               const maxValue = currentStat.maxValue;
               if (maxValue !== undefined && maxValue !== null) {
                 newValue = Math.min(newValue, maxValue);
               }
               newValue = Math.max(0, newValue);
-              updates[`stats.${statIndex}.value`] = newValue;
+              deltaValue = newValue - beforeValue;
+              targetStatUpdates[`stats.${statIndex}.value`] = newValue;
               effectsApplied.push(`${effect.targetStat} ${effect.value > 0 ? '+' : ''}${effect.value}`);
+            }
+            
+            statUpdates.push({
+              id: currentStat.id,
+              name: currentStat.name,
+              value: newValue,
+              maxValue: newMaxValue ?? undefined,
+              delta: deltaValue,
+              deltaValue: deltaValue !== 0 ? deltaValue : undefined,
+              deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+            });
+            
+            // Phase 6.5: 記錄跨角色影響
+            if (isAffectingOthers) {
+              crossCharacterChanges.push({
+                name: currentStat.name,
+                deltaValue: deltaValue !== 0 ? deltaValue : undefined,
+                deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+                newValue,
+                newMax: newMaxValue ?? undefined,
+              });
             }
           }
         } else if (effect.type === 'task_reveal' && effect.targetTaskId) {
           // 揭露任務
           const taskIndex = tasks.findIndex((t: { id: string }) => t.id === effect.targetTaskId);
           if (taskIndex !== -1 && tasks[taskIndex].isHidden && !tasks[taskIndex].isRevealed) {
-            updates[`tasks.${taskIndex}.isRevealed`] = true;
-            updates[`tasks.${taskIndex}.revealedAt`] = now;
+            targetStatUpdates[`tasks.${taskIndex}.isRevealed`] = true;
+            targetStatUpdates[`tasks.${taskIndex}.revealedAt`] = now;
             effectsApplied.push(`任務「${tasks[taskIndex].title}」已揭露`);
           }
         } else if (effect.type === 'task_complete' && effect.targetTaskId) {
           // 完成任務
           const taskIndex = tasks.findIndex((t: { id: string }) => t.id === effect.targetTaskId);
           if (taskIndex !== -1) {
-            updates[`tasks.${taskIndex}.status`] = 'completed';
-            updates[`tasks.${taskIndex}.completedAt`] = now;
+            targetStatUpdates[`tasks.${taskIndex}.status`] = 'completed';
+            targetStatUpdates[`tasks.${taskIndex}.completedAt`] = now;
             effectsApplied.push(`任務「${tasks[taskIndex].title}」已完成`);
           }
         } else if (effect.type === 'custom' && effect.description) {
           // 自訂效果
           effectsApplied.push(effect.description);
         }
-        // 注意：item_give、item_take、item_steal 需要更複雜的邏輯，暫時跳過
-        // 這些可以在 Phase 5.5 或 Phase 6 中實作
+      }
+      
+      // Phase 6.5: 如果影響他人，更新目標角色並發送事件
+      const hasTargetStatUpdates = Object.keys(targetStatUpdates).some((k) => k.startsWith('stats.'));
+      if (isAffectingOthers && hasTargetStatUpdates) {
+        await Character.findByIdAndUpdate(effectTargetId, { $set: targetStatUpdates }, { new: true });
+        revalidatePath(`/c/${effectTargetId}`);
+        
+        // 發送 character.affected 事件到目標角色
+        if (crossCharacterChanges.length > 0) {
+          await emitCharacterAffected(effectTargetId, {
+            targetCharacterId: effectTargetId,
+            sourceCharacterId: characterId,
+            sourceCharacterName: character.name,
+            sourceType: 'skill',
+            sourceName: skill.name,
+            effectType: 'stat_change',
+            changes: {
+              stats: crossCharacterChanges,
+            },
+          });
+        }
+        
+        // 發送 role.updated 到目標角色（觸發即時更新）
+        if (statUpdates.length > 0) {
+          await emitRoleUpdated(effectTargetId, {
+            characterId: effectTargetId,
+            updates: {
+              stats: statUpdates,
+            },
+          });
+        }
       }
     }
 
-    // 執行更新（updates 應該永遠不會為空，因為至少會更新 lastUsedAt）
-    const updateResult = await Character.findByIdAndUpdate(characterId, { $set: updates }, { new: true });
+    // 執行更新：施放者（技能使用記錄 + 若非跨角色則包含自身的數值更新）
+    const selfUpdates: Record<string, unknown> = { ...usageUpdates };
+    if (!isAffectingOthers) {
+      Object.assign(selfUpdates, targetStatUpdates);
+    }
+
+    const updateResult = await Character.findByIdAndUpdate(characterId, { $set: selfUpdates }, { new: true });
     if (!updateResult) {
       console.error('Failed to update character:', characterId);
       return {
@@ -2109,11 +2478,62 @@ export async function useSkill(
 
     revalidatePath(`/c/${characterId}`);
 
+    // WebSocket：若有數值變更，推送 role.updated stats
+    if (checkPassed && skill.effects && skill.effects.length > 0) {
+      const stats = character.stats || [];
+      const statUpdates: Array<{ id: string; name: string; value: number; maxValue?: number; deltaValue?: number; deltaMax?: number }> = [];
+      for (const effect of skill.effects) {
+        if (effect.type === 'stat_change' && effect.targetStat && effect.value !== undefined) {
+          const statIndex = stats.findIndex((s: { name: string }) => s.name === effect.targetStat);
+          if (statIndex !== -1) {
+            const currentStat = stats[statIndex];
+            const maxValue = currentStat.maxValue;
+            const updatedValue = (!isAffectingOthers ? targetStatUpdates[`stats.${statIndex}.value`] : undefined) as number | undefined;
+            const updatedMax = (!isAffectingOthers ? targetStatUpdates[`stats.${statIndex}.maxValue`] : undefined) as number | undefined;
+            if (updatedValue !== undefined || updatedMax !== undefined) {
+              statUpdates.push({
+                id: currentStat.id,
+                name: currentStat.name,
+                value: updatedValue ?? currentStat.value,
+                maxValue: updatedMax ?? maxValue,
+                deltaValue: updatedValue !== undefined ? updatedValue - currentStat.value : undefined,
+                deltaMax: updatedMax !== undefined && maxValue !== undefined ? updatedMax - maxValue : undefined,
+              });
+            }
+          }
+        }
+      }
+      if (statUpdates.length > 0) {
+        emitRoleUpdated(characterId, {
+          characterId,
+          updates: {
+            stats: statUpdates,
+          },
+        }).catch((error) => console.error('Failed to emit role.updated (skill stat)', error));
+      }
+    }
+
+    // WebSocket 事件：技能使用（非阻斷，若未配置 Pusher 則安全跳過）
+    emitSkillUsed(characterId, {
+      characterId,
+      skillId: skill.id,
+      skillName: skill.name,
+      checkType: skill.checkType,
+      checkPassed,
+      checkResult: finalCheckResult,
+      effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+    }).catch((error) => {
+      console.error('Failed to emit skill.used event', error);
+    });
+
     const messageParts: string[] = [];
     if (!checkPassed) {
       messageParts.push('檢定失敗');
     } else {
       messageParts.push('技能使用成功');
+      if (isAffectingOthers && targetCharacter) {
+        messageParts.push(`對象：${targetCharacter.name}`);
+      }
       if (effectsApplied.length > 0) {
         messageParts.push(`效果：${effectsApplied.join('、')}`);
       }
@@ -2126,6 +2546,7 @@ export async function useSkill(
         checkPassed,
         checkResult: finalCheckResult,
         effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+        targetCharacterName: targetCharacter?.name,
       },
       message: messageParts.join('，'),
     };

@@ -298,10 +298,21 @@ const CharacterSchema = new Schema<CharacterDocument>(
         effect: {
           type: {
             type: String,
-            enum: ['stat_change', 'buff', 'custom'],
+            enum: ['stat_change', 'custom'],
           },
+          // Phase 6.5 方案 A: 目標設定
+          targetType: {
+            type: String,
+            enum: ['self', 'other', 'any'],
+          },
+          requiresTarget: Boolean,
           targetStat: String,
           value: Number,
+          statChangeTarget: {
+            type: String,
+            enum: ['value', 'maxValue'],
+          },
+          syncValue: Boolean,
           duration: Number,
           description: String,
         },
@@ -420,6 +431,12 @@ const CharacterSchema = new Schema<CharacterDocument>(
                      'task_reveal', 'task_complete', 'custom'],
               required: true,
             },
+            // Phase 6.5 方案 A: 目標設定
+            targetType: {
+              type: String,
+              enum: ['self', 'other', 'any'],
+            },
+            requiresTarget: Boolean,
             targetStat: String,
             value: Number,
             statChangeTarget: {
@@ -429,7 +446,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
             syncValue: Boolean,
             targetItemId: String,
             targetTaskId: String,
-            targetCharacterId: String,
             description: String,
           },
         ],

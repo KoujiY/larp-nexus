@@ -27,13 +27,14 @@ import { getTransferTargets, type TransferTargetCharacter } from '@/app/actions/
 
 interface ItemListProps {
   items?: Item[];
-  characterId?: string;
-  gameId?: string;
-  onUseItem?: (itemId: string) => Promise<void>;
+  characterId: string;
+  gameId: string;
+  characterName: string;
+  onUseItem?: (itemId: string, targetCharacterId?: string) => Promise<void>;
   onTransferItem?: (itemId: string, targetCharacterId: string) => Promise<void>;
 }
 
-export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem }: ItemListProps) {
+export function ItemList({ items, characterId, gameId, characterName, onUseItem, onTransferItem }: ItemListProps) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [isUsing, setIsUsing] = useState(false);
   // 用於實時更新冷卻倒數的時間戳
@@ -45,6 +46,10 @@ export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem
   const [selectedTargetId, setSelectedTargetId] = useState<string>('');
   const [isLoadingTargets, setIsLoadingTargets] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
+  
+  // Phase 6.5: 使用道具時的目標選擇狀態
+  const [useTargets, setUseTargets] = useState<TransferTargetCharacter[]>([]);
+  const [selectedUseTargetId, setSelectedUseTargetId] = useState<string | undefined>(undefined);
 
   // 檢查是否有任何道具在冷卻中
   const hasAnyCooldown = items?.some((item) => {
@@ -64,24 +69,6 @@ export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem
 
     return () => clearInterval(interval);
   }, [hasAnyCooldown]);
-
-  if (!items || items.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <div className="space-y-4">
-            <Package className="mx-auto h-12 w-12 text-muted-foreground" />
-            <div>
-              <h3 className="text-lg font-semibold">背包是空的</h3>
-              <p className="text-sm text-muted-foreground mt-2">
-                你還沒有獲得任何道具
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   // 檢查道具是否可使用
   const canUseItem = (item: Item): { canUse: boolean; reason?: string } => {
@@ -123,6 +110,76 @@ export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem
     return remaining > 0 ? remaining : null;
   };
 
+  // Phase 6.5: 當選中道具變化時，若需要選擇目標則載入可選角色
+  useEffect(() => {
+    const loadUseTargets = async () => {
+      if (!selectedItem || !selectedItem.effect?.requiresTarget) {
+        setUseTargets([]);
+        setSelectedUseTargetId(undefined);
+        return;
+      }
+
+      if (!gameId || !characterId) {
+        setUseTargets([]);
+        setSelectedUseTargetId(undefined);
+        return;
+      }
+
+      const result = await getTransferTargets(gameId, characterId);
+      const effectTargetType = selectedItem.effect?.targetType;
+      const shouldIncludeSelf = effectTargetType === 'any';
+
+      if (result.success && result.data) {
+        const targets = [...result.data];
+
+        if (shouldIncludeSelf) {
+          const alreadyHasSelf = targets.some((t) => t.id === characterId);
+          if (!alreadyHasSelf) {
+            targets.unshift({
+              id: characterId,
+              name: `${characterName}（自己）`,
+              imageUrl: undefined,
+            });
+          }
+        }
+
+        setUseTargets(targets);
+        setSelectedUseTargetId(undefined);
+      } else {
+        // 即便查詢失敗，若允許自己為目標，至少提供自己選項
+        if (shouldIncludeSelf) {
+          setUseTargets([
+            { id: characterId, name: `${characterName}（自己）`, imageUrl: undefined },
+          ]);
+        } else {
+          setUseTargets([]);
+        }
+        setSelectedUseTargetId(undefined);
+      }
+    };
+
+    loadUseTargets();
+  }, [selectedItem, gameId, characterId, characterName]);
+
+  const isEmpty = !items || items.length === 0;
+  if (isEmpty) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <div className="space-y-4">
+            <Package className="mx-auto h-12 w-12 text-muted-foreground" />
+            <div>
+              <h3 className="text-lg font-semibold">背包是空的</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                你還沒有獲得任何道具
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // 使用道具
   const handleUseItem = async () => {
     if (!selectedItem || !onUseItem) return;
@@ -132,10 +189,15 @@ export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem
       return;
     }
 
+    if (selectedItem.effect?.requiresTarget && !selectedUseTargetId) {
+      return;
+    }
+
     setIsUsing(true);
     try {
-      await onUseItem(selectedItem.id);
+      await onUseItem(selectedItem.id, selectedUseTargetId);
       setSelectedItem(null);
+      setSelectedUseTargetId(undefined);
     } finally {
       setIsUsing(false);
     }
@@ -227,7 +289,10 @@ export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem
       </div>
 
       {/* 道具詳情 Dialog */}
-      <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
+      <Dialog open={!!selectedItem} onOpenChange={() => {
+        setSelectedItem(null);
+        setSelectedUseTargetId(undefined);
+      }}>
         <DialogContent>
           {selectedItem && (
             <>
@@ -302,25 +367,81 @@ export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem
 
                     {/* 使用效果 */}
                     {selectedItem.effect && (
-                      <div className="p-3 bg-purple-50 rounded-lg">
+                      <div className="p-3 bg-purple-50 rounded-lg space-y-2">
                         <div className="text-sm font-medium text-purple-800 mb-1 flex items-center gap-1">
                           <Sparkles className="h-4 w-4" />
                           使用效果
                         </div>
-                        <div className="text-purple-700">
-                          {selectedItem.effect.type === 'stat_change' && (
-                            <span>
-                              {selectedItem.effect.targetStat} {selectedItem.effect.value! > 0 ? '+' : ''}{selectedItem.effect.value}
-                            </span>
-                          )}
-                          {selectedItem.effect.type === 'buff' && (
-                            <span>
-                              {selectedItem.effect.targetStat} {selectedItem.effect.value! > 0 ? '+' : ''}{selectedItem.effect.value}
-                              {selectedItem.effect.duration ? ` (${selectedItem.effect.duration}秒)` : ' (永久)'}
-                            </span>
-                          )}
+                        <div className="text-purple-700 space-y-2">
+                          {selectedItem.effect.type === 'stat_change' && (() => {
+                            const target = selectedItem.effect.statChangeTarget ?? 'value';
+                            const syncValue = selectedItem.effect.syncValue;
+                            const value = selectedItem.effect.value ?? 0;
+                            const targetStat = selectedItem.effect.targetStat ?? '數值';
+                            
+                            if (target === 'maxValue') {
+                              return (
+                                <span>
+                                  {targetStat} 最大值 {value > 0 ? '+' : ''}{value}
+                                  {syncValue && '，目前值同步調整'}
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span>
+                                  {targetStat} {value > 0 ? '+' : ''}{value}
+                                </span>
+                              );
+                            }
+                          })()}
                           {selectedItem.effect.type === 'custom' && (
                             <span>{selectedItem.effect.description}</span>
+                          )}
+
+                          {selectedItem.effect.requiresTarget && (
+                            <div className="space-y-2 pt-1">
+                              <div className="flex items-center gap-2 text-sm font-medium text-purple-800">
+                                <User className="h-4 w-4" />
+                                目標角色 <span className="text-destructive">*</span>
+                              </div>
+                              {useTargets.length === 0 ? (
+                                <p className="text-sm text-purple-700">沒有可選擇的目標</p>
+                              ) : (
+                                <Select
+                                  value={selectedUseTargetId}
+                                  onValueChange={setSelectedUseTargetId}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="選擇目標角色" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {useTargets.map((target) => (
+                                      <SelectItem key={target.id} value={target.id}>
+                                        {target.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          )}
+
+                          {!selectedItem.effect.requiresTarget && selectedItem.effect.targetType && (
+                            <div className="space-y-1 pt-1 text-sm">
+                              <div className="flex items-center gap-2 font-medium text-purple-800">
+                                <User className="h-4 w-4" />
+                                目標角色
+                              </div>
+                              <p>
+                                {selectedItem.effect.targetType === 'self'
+                                  ? '自己'
+                                  : selectedItem.effect.targetType === 'other'
+                                  ? '其他玩家'
+                                  : selectedItem.effect.targetType === 'any'
+                                  ? '任一名玩家'
+                                  : '未指定'}
+                              </p>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -342,7 +463,12 @@ export function ItemList({ items, characterId, gameId, onUseItem, onTransferItem
                   return (
                     <Button
                       onClick={handleUseItem}
-                      disabled={!canUse || isUsing || !onUseItem}
+                      disabled={
+                        !canUse ||
+                        isUsing ||
+                        !onUseItem ||
+                        (selectedItem.effect?.requiresTarget && !selectedUseTargetId)
+                      }
                       className="w-full sm:w-auto"
                     >
                       {isUsing ? '使用中...' : canUse ? '使用道具' : reason}
