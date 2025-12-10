@@ -15,7 +15,7 @@ import { TaskList } from './task-list';
 import { ItemList } from './item-list';
 import { SkillList } from './skill-list';
 import { WorldInfoLink } from './world-info-link';
-import { useItem as consumeItemAction, transferItem as transferItemAction } from '@/app/actions/characters';
+import { useItem as consumeItemAction, transferItem as transferItemAction } from '@/app/actions/item-use';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import { useCharacterWebSocket, useGameWebSocket } from '@/hooks/use-websocket';
@@ -115,7 +115,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
 
   // 道具轉移 callback
   const handleTransferItem = useCallback(async (itemId: string, targetCharacterId: string) => {
-    const result = await transferItemAction(character.id, targetCharacterId, itemId);
+    const result = await transferItemAction(character.id, itemId, targetCharacterId, 1);
     if (result.success) {
       toast.success(result.message || '道具轉移成功');
       router.refresh();

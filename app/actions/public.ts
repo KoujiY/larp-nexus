@@ -3,99 +3,9 @@
 import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import type { ApiResponse } from '@/types/api';
-import type { CharacterData, SkillEffect } from '@/types/character';
+import type { CharacterData } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
-
-// MongoDB lean() 返回的類型（可能包含 _id）
-interface MongoSecret {
-  id: string;
-  title: string;
-  content: string;
-  isRevealed: boolean;
-  revealCondition?: string;
-  revealedAt?: Date;
-  _id?: unknown;
-}
-
-interface MongoTask {
-  id: string;
-  title: string;
-  description: string;
-  isHidden: boolean;
-  isRevealed: boolean;
-  revealedAt?: Date;
-  status: 'pending' | 'in-progress' | 'completed' | 'failed';
-  completedAt?: Date;
-  gmNotes?: string;
-  revealCondition?: string;
-  createdAt: Date;
-  _id?: unknown;
-}
-
-interface MongoItem {
-  id: string;
-  name: string;
-  description: string;
-  imageUrl?: string;
-  type: 'consumable' | 'equipment';
-  quantity: number;
-  effect?: {
-    type: 'stat_change' | 'buff' | 'custom';
-    targetStat?: string;
-    value?: number;
-    duration?: number;
-    description?: string;
-  };
-  usageLimit?: number;
-  usageCount?: number;
-  cooldown?: number;
-  lastUsedAt?: Date;
-  isTransferable: boolean;
-  acquiredAt: Date;
-  _id?: unknown;
-}
-
-interface MongoStat {
-  id: string;
-  name: string;
-  value: number;
-  maxValue?: number;
-  _id?: unknown;
-}
-
-interface MongoSkill {
-  id: string;
-  name: string;
-  description: string;
-  iconUrl?: string;
-  checkType: 'none' | 'contest' | 'random';
-  contestConfig?: {
-    relatedStat: string;
-    opponentMaxItems?: number;
-    opponentMaxSkills?: number;
-    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
-  };
-  randomConfig?: {
-    maxValue: number;
-    threshold: number;
-  };
-  usageLimit?: number;
-  usageCount?: number;
-  cooldown?: number;
-  lastUsedAt?: Date;
-  effects?: Array<{
-    type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
-          'task_reveal' | 'task_complete' | 'custom';
-    targetStat?: string;
-    value?: number;
-    targetItemId?: string;
-    targetTaskId?: string;
-    targetCharacterId?: string;
-    description?: string;
-    _id?: unknown;
-  }>;
-  _id?: unknown;
-}
+import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
 
 /**
  * 取得公開角色資料（玩家端使用）
@@ -120,95 +30,30 @@ export async function getPublicCharacter(
     }
 
     // Phase 3.5: 過濾出已揭露的隱藏資訊（清理 _id）
-    const revealedSecrets = character.secretInfo?.secrets?.filter(
-      (secret: MongoSecret) => secret.isRevealed === true
-    ).map((secret: MongoSecret) => ({
-      id: secret.id,
-      title: secret.title,
-      content: secret.content,
-      isRevealed: secret.isRevealed,
-      revealCondition: secret.revealCondition,
-      revealedAt: secret.revealedAt,
-    })) || [];
+    const allSecrets = cleanSecretData(character.secretInfo?.secrets);
+    const revealedSecrets = allSecrets.filter((secret) => secret.isRevealed === true);
 
     // Phase 4.5: 過濾任務（一般任務 + 已揭露的隱藏任務），清理 _id 和 GM 專用欄位
-    const visibleTasks = (character.tasks || [])
-      .filter((task: MongoTask) => {
+    const visibleTasks = cleanTaskData(character.tasks)
+      .filter((task) => {
         // 一般任務總是可見（isHidden 為 false 或 undefined）
         if (task.isHidden !== true) return true;
         // 隱藏任務只有在已揭露時才可見
         return task.isRevealed === true;
       })
-      .map((task: MongoTask) => ({
-        id: task.id,
-        title: task.title,
-        description: task.description || '',
-        isHidden: task.isHidden === true, // 確保是 boolean
-        isRevealed: task.isRevealed === true, // 確保是 boolean
-        revealedAt: task.revealedAt,
-        status: task.status || 'pending',
-        completedAt: task.completedAt,
+      .map((task) => ({
+        ...task,
         // 不包含 gmNotes 和 revealCondition（GM 專用欄位）
-        createdAt: task.createdAt || new Date(),
       }));
 
     // Phase 4.5: 清理道具的 _id
-    const cleanItems = (character.items || []).map((item: MongoItem) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      imageUrl: item.imageUrl,
-      type: item.type,
-      quantity: item.quantity,
-      effect: item.effect,
-      usageLimit: item.usageLimit,
-      usageCount: item.usageCount,
-      cooldown: item.cooldown,
-      lastUsedAt: item.lastUsedAt,
-      isTransferable: item.isTransferable,
-      acquiredAt: item.acquiredAt,
-    }));
+    const cleanItems = cleanItemData(character.items);
 
     // Phase 4: 清理數值的 _id
-    const cleanStats = (character.stats || []).map((stat: MongoStat) => ({
-      id: stat.id,
-      name: stat.name,
-      value: stat.value,
-      maxValue: stat.maxValue,
-    }));
+    const cleanStats = cleanStatData(character.stats);
 
     // Phase 5: 清理技能的 _id
-    const cleanSkills = (character.skills || []).map((skill: MongoSkill) => ({
-      id: skill.id,
-      name: skill.name,
-      description: skill.description,
-      iconUrl: skill.iconUrl,
-      checkType: skill.checkType,
-      contestConfig: skill.contestConfig,
-      randomConfig: skill.randomConfig,
-      usageLimit: skill.usageLimit,
-      usageCount: skill.usageCount || 0,
-      cooldown: skill.cooldown,
-      lastUsedAt: skill.lastUsedAt,
-      effects: (skill.effects || []).map((effect: SkillEffect) => {
-        const normalizedTargetType = effect.targetType ?? 'self';
-        const normalizedRequiresTarget =
-          effect.requiresTarget ?? (normalizedTargetType !== 'self');
-
-        return {
-          type: effect.type,
-          targetType: normalizedTargetType,
-          requiresTarget: normalizedRequiresTarget,
-          targetStat: effect.targetStat,
-          value: effect.value,
-          statChangeTarget: effect.statChangeTarget,
-        syncValue: effect.syncValue,
-        targetItemId: effect.targetItemId,
-        targetTaskId: effect.targetTaskId,
-        description: effect.description,
-        };
-      }),
-    }));
+    const cleanSkills = cleanSkillData(character.skills);
 
     return {
       success: true,

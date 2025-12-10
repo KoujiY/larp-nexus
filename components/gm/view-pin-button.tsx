@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getCharacterPin, updateCharacter } from '@/app/actions/characters';
+import { getCharacterPin } from '@/app/actions/characters';
+import { updateCharacter } from '@/app/actions/character-update';
 import { toast } from 'sonner';
 
 interface ViewPinButtonProps {

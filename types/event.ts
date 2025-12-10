@@ -156,3 +156,17 @@ export interface ItemTransferredEvent extends BaseEvent<{
   type: 'item.transferred';
 }
 
+// WebSocket 事件聯合類型
+export type WebSocketEvent =
+  | RoleUpdatedEvent
+  | GameBroadcastEvent
+  | SecretUnlockedEvent
+  | RoleMessageEvent
+  | TaskUpdatedEvent
+  | InventoryUpdatedEvent
+  | SkillUsedEvent
+  | SkillCooldownEvent
+  | SkillContestEvent
+  | CharacterAffectedEvent
+  | ItemTransferredEvent;
+

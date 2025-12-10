@@ -1,27 +1,19 @@
 import type {
   BaseEvent,
+  WebSocketEvent,
   SkillUsedEvent,
+  RoleUpdatedEvent,
   SkillCooldownEvent,
   SkillContestEvent,
   CharacterAffectedEvent,
   ItemTransferredEvent,
-  RoleUpdatedEvent,
   GameBroadcastEvent,
   TaskUpdatedEvent,
   InventoryUpdatedEvent,
 } from '@/types/event';
 import { getPusherServer, isPusherEnabled } from './pusher-server';
 
-type EventName =
-  | RoleUpdatedEvent['type']
-  | GameBroadcastEvent['type']
-  | TaskUpdatedEvent['type']
-  | InventoryUpdatedEvent['type']
-  | SkillUsedEvent['type']
-  | SkillCooldownEvent['type']
-  | SkillContestEvent['type']
-  | CharacterAffectedEvent['type']
-  | ItemTransferredEvent['type'];
+type EventName = WebSocketEvent['type'];
 
 async function trigger(channel: string, eventName: EventName, payload: BaseEvent['payload']) {
   const pusher = getPusherServer();

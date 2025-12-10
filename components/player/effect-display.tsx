@@ -1,0 +1,121 @@
+import { Sparkles } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { SkillEffect, ItemEffect } from '@/types/character';
+import type { TransferTargetCharacter } from '@/app/actions/public';
+
+interface EffectDisplayProps {
+  effect: SkillEffect | ItemEffect;
+  targetOptions?: TransferTargetCharacter[];
+  selectedTargetId?: string;
+  onTargetChange?: (targetId: string) => void;
+  className?: string;
+}
+
+export function EffectDisplay({
+  effect,
+  targetOptions = [],
+  selectedTargetId,
+  onTargetChange,
+  className = "p-3 bg-muted rounded-lg space-y-2"
+}: EffectDisplayProps) {
+  const renderEffectDescription = () => {
+    if (effect.type === 'stat_change') {
+      const target = effect.statChangeTarget ?? 'value';
+      const syncValue = effect.syncValue;
+      const value = effect.value ?? 0;
+      const targetStat = effect.targetStat ?? '數值';
+
+      if (target === 'maxValue') {
+        return (
+          <p>
+            {targetStat} 最大值 {value > 0 ? '+' : ''}{value}
+            {syncValue && '，目前值同步調整'}
+          </p>
+        );
+      }
+      return (
+        <p>
+          {targetStat} {value > 0 ? '+' : ''}{value}
+        </p>
+      );
+    }
+
+    if (effect.type === 'task_reveal') {
+      return <p>揭露任務：{effect.targetTaskId}</p>;
+    }
+
+    if (effect.type === 'task_complete') {
+      return <p>完成任務：{effect.targetTaskId}</p>;
+    }
+
+    if (effect.type === 'custom' && effect.description) {
+      return <p>{effect.description}</p>;
+    }
+
+    return <p>未知效果</p>;
+  };
+
+  const renderTargetInfo = () => {
+    const targetType = effect.targetType;
+    const requiresTarget = effect.requiresTarget;
+
+    if (!targetType) return null;
+
+    return (
+      <div className="space-y-2">
+        {/* 目標類型顯示 */}
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">目標：</span>
+          <span>
+            {targetType === 'self'
+              ? '自己'
+              : targetType === 'other'
+              ? '其他玩家'
+              : targetType === 'any'
+              ? '任一名玩家'
+              : '未指定'}
+          </span>
+        </div>
+
+        {/* 目標選擇 */}
+        {requiresTarget && targetOptions.length > 0 && (
+          <div className="space-y-1">
+            <Select
+              value={selectedTargetId}
+              onValueChange={onTargetChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="選擇目標角色 *" />
+              </SelectTrigger>
+              <SelectContent>
+                {targetOptions.map((target) => (
+                  <SelectItem key={target.id} value={target.id}>
+                    {target.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 沒有可選目標的提示 */}
+        {requiresTarget && targetOptions.length === 0 && (
+          <p className="text-xs text-muted-foreground">沒有可選擇的目標</p>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className={className}>
+      <div className="flex items-start gap-2">
+        <Sparkles className="h-4 w-4 mt-0.5 text-yellow-500 shrink-0" />
+        <div className="flex-1 text-sm">
+          {renderEffectDescription()}
+        </div>
+      </div>
+
+      {renderTargetInfo()}
+    </div>
+  );
+}
