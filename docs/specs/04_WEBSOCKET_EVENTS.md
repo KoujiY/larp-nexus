@@ -1,7 +1,7 @@
 # WebSocket 事件格式規範
 
-## 版本：v1.2
-## 更新日期：2025-01-XX（Phase 6.5 方案 A）
+## 版本：v1.4
+## 更新日期：2025-01-XX（Phase 8 時效性效果）
 ## WebSocket 服務：Pusher
 
 ---
@@ -399,9 +399,9 @@ interface SkillCooldownEvent extends BaseEvent {
 
 ---
 
-### 2.10 對抗檢定事件 (skill.contest) - Phase 7 ✅ 已完成
+### 2.10 對抗檢定事件 (skill.contest) - Phase 7 / Phase 7.6 ✅ 已完成
 
-當玩家使用對抗檢定技能時觸發（攻擊方與防守方都會收到）。
+當玩家使用對抗檢定技能或道具時觸發（攻擊方與防守方都會收到）。
 
 **頻道**：`private-character-{attackerId}`、`private-character-{defenderId}`
 
@@ -419,18 +419,21 @@ interface SkillContestEvent extends BaseEvent {
     itemId?: string;               // Phase 7: 道具檢定時使用
     itemName?: string;             // Phase 7: 道具檢定時使用
     sourceType?: 'skill' | 'item'; // Phase 7: 來源類型
+    checkType: 'contest' | 'random_contest'; // Phase 7.6: 檢定類型
+    relatedStat?: string;          // Phase 7.6: 數值判定名稱（contest 類型時使用）
     attackerValue: number;         // 攻擊方數值（0 表示請求事件，非 0 表示結果事件）
     attackerItems?: string[];      // 攻擊方使用的道具 ID
     attackerSkills?: string[];     // 攻擊方使用的技能 ID
     defenderValue: number;         // 防守方數值（請求事件時為 0）
     defenderItems?: string[];      // 防守方使用的道具 ID
     defenderSkills?: string[];     // 防守方使用的技能 ID
-    result: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 結果事件時才有
-    effectsApplied?: string[];     // 已執行的效果描述列表（結果事件時）
+    result?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 結果事件時才有
+    effectsApplied?: string[];     // 已執行的效果描述列表（結果事件時，僅成功方）
     opponentMaxItems?: number;     // Phase 7: 防守方可使用的道具數量限制
     opponentMaxSkills?: number;    // Phase 7: 防守方可使用的技能數量限制
     targetItemId?: string;         // Phase 7: 目標道具 ID（用於 item_take 和 item_steal）
     needsTargetItemSelection?: boolean; // Phase 7: 是否需要攻擊方選擇目標道具
+    randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值（random_contest 類型時）
   };
 }
 ```
@@ -439,9 +442,17 @@ interface SkillContestEvent extends BaseEvent {
 - **請求事件**：`attackerValue === 0`，防守方收到，需要回應
 - **結果事件**：`attackerValue !== 0`，雙方都收到，顯示對抗結果
 
+**Phase 7.6 擴展說明**：
+- **檢定類型**：`checkType` 欄位標示檢定類型（`contest` 或 `random_contest`）
+- **數值匹配**：防守方只能使用相同 `checkType` 和 `relatedStat` 的技能/道具回應
+- **隨機對抗檢定**：`checkType === 'random_contest'` 時，使用 `randomContestMaxValue` 作為上限值
+- **效果結算**：僅成功方（攻擊方或防守方）的效果會被執行
+
 **前端處理**
 - **請求事件（防守方）**：
   - 顯示對抗請求通知
+  - **Phase 7.6**：根據 `checkType` 和 `relatedStat` 過濾可用的技能/道具
+  - **Phase 7.6**：僅顯示具有 "戰鬥"（`combat`）標籤的技能/道具
   - 打開回應 Dialog，可選擇道具/技能
   - 狀態持久化（重新整理後恢復）
 - **結果事件（攻擊方）**：
@@ -451,11 +462,12 @@ interface SkillContestEvent extends BaseEvent {
   - 跨分頁處理（自動切換到對應分頁）
 - **結果事件（防守方）**：
   - 顯示對抗結果
+  - **Phase 7.6**：若防守方獲勝，顯示防守方效果執行結果
   - 若受到影響，顯示 `character.affected` 事件
 
 ---
 
-### 2.11 跨角色影響事件 (character.affected) - Phase 6.5（方案 A）
+### 2.11 跨角色影響事件 (character.affected) - Phase 6.5（方案 A）/ Phase 7.6
 
 當角色被他人技能/道具影響時觸發。
 
@@ -468,10 +480,11 @@ interface CharacterAffectedEvent extends BaseEvent {
   payload: {
     targetCharacterId: string;
     sourceCharacterId: string;
-    sourceCharacterName: string;
+    sourceCharacterName: string;       // Phase 7.6: 若來源具有 "隱匿"（stealth）標籤，此欄位可能為空或隱藏
     sourceType: 'skill' | 'item';      // 影響來源類型
-    sourceName: string;                 // 技能/道具名稱
-    effectType: 'stat_change';          // Phase 6.5 方案 A 只支援 stat_change
+    sourceName: string;                 // Phase 7.6: 技能/道具名稱（不顯示在防守方訊息中）
+    sourceHasStealthTag?: boolean;      // Phase 7.6: 來源是否具有 "隱匿" 標籤
+    effectType: 'stat_change' | 'item_take' | 'item_steal'; // Phase 7.6: 支援多種效果類型
     changes: {
       stats?: Array<{                   // 數值變化陣列
         name: string;                    // 數值名稱
@@ -480,32 +493,30 @@ interface CharacterAffectedEvent extends BaseEvent {
         newValue: number;                // 新的目前值
         newMax?: number;                 // 新的最大值
       }>;
+      items?: Array<{                   // Phase 7: 道具變化
+        id: string;
+        name: string;
+        action: 'taken' | 'stolen';     // Phase 7: 支援 taken 和 stolen
+        quantity: number;
+      }>;
     };
   };
 }
 ```
 
-**Phase 7 擴展** ✅ 已完成
-```typescript
-// Phase 7 額外支援的 effectType
-effectType: 'stat_change' | 'item_take' | 'item_steal'; // item_give 未實作
-
-// Phase 7 額外的 changes 欄位
-changes: {
-  stats?: [...];                        // 同方案 A
-  items?: Array<{                       // 道具變化
-    id: string;
-    name: string;
-    action: 'taken' | 'stolen';        // Phase 7: 支援 taken 和 stolen
-    quantity: number;
-  }>;
-};
-```
+**Phase 7.6 隱匿標籤影響**：
+- **隱匿標籤**：若來源技能/道具具有 "隱匿"（`stealth`）標籤，`sourceCharacterName` 不會顯示在防守方的通知訊息中
+- **訊息格式**：
+  - 無隱匿標籤：「XXX 對你使用了 YYY，效果：HP +5」
+  - 有隱匿標籤：「你受到了 YYY 的影響，效果：HP +5」（不顯示攻擊方姓名）
+- **技能/道具名稱**：無論是否有隱匿標籤，`sourceName` 都不會顯示在防守方訊息中（依需求文件要求）
 
 **前端處理**
 - 顯示被影響的通知（Toast）
-  - 格式：「XXX 對你使用了 YYY」
-  - 顯示具體效果（如「HP +5」）
+  - **Phase 7.6**：根據 `sourceHasStealthTag` 決定是否顯示攻擊方姓名
+  - 格式（無隱匿標籤）：「XXX 對你造成了影響」
+  - 格式（有隱匿標籤）：「你受到了影響」（不顯示攻擊方姓名）
+  - 顯示具體效果（如「HP +5」或「道具被偷取：神秘信件」）
 - 記錄到通知面板
 - 刷新角色資料（`router.refresh()`）
 - 即時更新數值/道具列表
@@ -541,6 +552,70 @@ interface ItemTransferredEvent extends BaseEvent {
 - 轉出方：顯示道具失去通知
 - 轉入方：顯示道具獲得通知
 - 更新道具列表
+
+---
+
+### 2.13 時效性效果過期事件 (effect.expired) - Phase 8
+
+當時效性效果過期並恢復數值時觸發。
+
+**頻道**：`private-character-{targetCharacterId}`
+
+**事件格式**
+```typescript
+interface EffectExpiredEvent extends BaseEvent {
+  type: 'effect.expired';
+  payload: {
+    targetCharacterId: string;
+    effectId: string;                // 過期效果的 ID
+    sourceType: 'skill' | 'item';    // 來源類型
+    sourceId: string;                 // 技能/道具 ID
+    sourceCharacterId: string;       // 施放者角色 ID
+    sourceCharacterName: string;      // 施放者角色名稱（用於顯示）
+    sourceName: string;               // 技能/道具名稱（用於顯示）
+    effectType: 'stat_change';       // 效果類型（Phase 1 僅支援 stat_change）
+    targetStat: string;              // 目標數值名稱
+    restoredValue: number;            // 恢復後的數值
+    restoredMax?: number;             // 恢復後的最大值（若有）
+    statChangeTarget: 'value' | 'maxValue'; // 變化目標
+    duration: number;                // 持續時間（秒）
+  };
+}
+```
+
+**範例**
+```json
+{
+  "type": "effect.expired",
+  "timestamp": 1701234567890,
+  "payload": {
+    "targetCharacterId": "507f1f77bcf86cd799439013",
+    "effectId": "eff-xxx-123",
+    "sourceType": "skill",
+    "sourceId": "skill-001",
+    "sourceCharacterId": "507f1f77bcf86cd799439014",
+    "sourceCharacterName": "玩家A",
+    "sourceName": "力量強化",
+    "effectType": "stat_change",
+    "targetStat": "力量",
+    "restoredValue": 10,
+    "statChangeTarget": "value",
+    "duration": 60
+  }
+}
+```
+
+**前端處理**
+- **玩家端**：
+  - 顯示效果過期通知（Toast）
+  - 格式：「[技能/道具名稱] 的效果已結束，[數值名稱] 已恢復」
+  - 更新角色數值顯示
+  - 記錄到通知面板
+  - 刷新角色資料（`router.refresh()`）
+- **GM 端**：
+  - 更新角色數值顯示
+  - 從時效性效果卡片中移除該效果
+  - 顯示通知（可選）
 
 ---
 
@@ -589,6 +664,7 @@ export function useCharacterWebSocket(characterId: string) {
       'skill.contest',         // Phase 6.5
       'character.affected',     // Phase 6.5
       'item.transferred',       // Phase 6.5
+      'effect.expired',         // Phase 8
     ];
     
     eventTypes.forEach(eventType => {

@@ -1,7 +1,7 @@
 # 專案結構規劃
 
-## 版本：v1.2
-## 更新日期：2025-01-XX（Phase 6.5 方案 A 完成）
+## 版本：v1.3
+## 更新日期：2025-01-XX（Phase 8 時效性效果）
 
 ---
 
@@ -347,6 +347,13 @@ UI Components
 - [x] 玩家端：顯示數值
 - [x] API：數值增減功能
 
+**Phase 8 擴展：時效性效果卡片**
+- [ ] GM 端：在角色數值 Tab 中新增「時效性效果」卡片
+  - 顯示所有計時中的效果列表
+  - 每個效果顯示：來源（技能/道具名稱、施放者）、目標數值、變化量、剩餘時間
+  - 效果過期後自動從卡片移除
+  - 支援多效果堆疊顯示
+
 ### Phase 4.5：任務與道具管理（Week 6）
 
 #### 開發任務 - 任務系統
@@ -580,25 +587,153 @@ UI Components
 - [x] 道具/技能選擇介面
 - [x] 對抗檢定事件（`skill.contest`）
 
-### Phase 7.5：戰鬥系統（對抗檢定的延伸）（Week 10-11）- 規劃中
+### Phase 7.6：標籤系統與檢定模式擴展（Week 10-11）
+
+#### 目標
+- 新增技能與道具的標籤系統（"戰鬥"、"隱匿"）
+- 調整對抗檢定邏輯：防守方成功時結算防守方效果
+- 實作數值判定系統匹配機制
+- 新增隨機對抗檢定模式
 
 #### 開發任務
 
-##### 1. 戰鬥流程擴展
-- [ ] 多輪對抗機制
-- [ ] 戰鬥狀態追蹤
-  - [ ] 擴展 Character 模型：加入 `combatStatus`（選用）
+##### 1. 標籤系統實作
+- [ ] 資料模型擴展
+  - [ ] 擴展 `Skill` 和 `Item` 介面：新增 `tags?: string[]` 欄位
+  - [ ] 更新 MongoDB Schema：在技能和道具中新增 `tags` 陣列欄位
+  - [ ] 支援的標籤：`"combat"`（戰鬥）、`"stealth"`（隱匿）
+- [ ] GM 端標籤編輯 UI
+  - [ ] `skills-edit-form.tsx`：新增標籤選擇介面（複選框）
+  - [ ] `items-edit-form.tsx`：新增標籤選擇介面（複選框）
+  - [ ] 顯示標籤說明（"戰鬥"：可用於對抗檢定回應；"隱匿"：攻擊方姓名不出現在防守方訊息中）
+- [ ] 標籤驗證邏輯
+  - [ ] 攻擊方：只有標註 "戰鬥" 標籤的技能/道具才能發起對抗檢定
+  - [ ] 防守方：只有標註 "戰鬥" 標籤的技能/道具才能在回應中使用
+  - [ ] 更新 `lib/contest/contest-validator.ts`：驗證標籤
 
-##### 2. 戰鬥 UI
-- [ ] 玩家端：戰鬥介面
-- [ ] GM 端：戰鬥管理
+##### 2. 防守方效果結算調整
+- [ ] 修改對抗檢定結算邏輯
+  - [ ] 更新 `lib/contest/contest-effect-executor.ts`：防守方成功時只結算防守方的效果
+  - [ ] 更新 `app/actions/contest-respond.ts`：調整效果執行順序
+  - [ ] 攻擊方成功：結算攻擊方效果（現有邏輯）
+  - [ ] 防守方成功：結算防守方效果（新增邏輯）
+- [ ] 更新對抗檢定流程說明文件
 
-##### 3. 戰鬥相關技能效果
-- [ ] 傷害計算
-- [ ] 防禦減傷
-- [ ] 狀態效果（暈眩、中毒等）
+##### 3. 數值判定系統匹配
+- [ ] 驗證規則實作
+  - [ ] 攻擊方和防守方必須使用相同的 `relatedStat`（數值名稱）
+  - [ ] 攻擊方和防守方必須使用相同的檢定類型（`contest` vs `random_contest`）
+- [ ] 防守方回應面板過濾邏輯
+  - [ ] 更新 `components/player/contest-response-dialog.tsx`：只顯示符合條件的技能/道具
+  - [ ] 過濾條件：
+    - 必須有 "戰鬥" 標籤
+    - `relatedStat` 必須與攻擊方相同
+    - 檢定類型必須與攻擊方相同（`contest` 對 `contest`，`random_contest` 對 `random_contest`）
+- [ ] 更新驗證邏輯
+  - [ ] `lib/contest/contest-validator.ts`：驗證防守方選擇的技能/道具是否符合匹配規則
 
-### Phase 8：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 11-12）
+##### 4. 隱匿標籤實作
+- [ ] 修改通知訊息邏輯
+  - [ ] 更新 `lib/utils/event-mappers.ts`：`mapCharacterAffected` 函數根據 "隱匿" 標籤決定是否顯示攻擊方姓名
+  - [ ] 更新 `hooks/use-character-websocket-handler.ts`：`character.affected` 事件處理根據 "隱匿" 標籤決定 toast 訊息內容
+- [ ] 更新事件推送格式
+  - [ ] 更新 `lib/contest/contest-effect-executor.ts`：推送事件時根據 "隱匿" 標籤決定是否包含攻擊方資訊
+  - [ ] 更新 `types/event.ts`：`CharacterAffectedEvent` 類型說明
+- [ ] 規則說明
+  - [ ] 帶有 "隱匿" 標籤：攻擊方姓名不出現在防守方訊息中（現有行為）
+  - [ ] 不帶 "隱匿" 標籤：攻擊方姓名會出現在防守方訊息中（新增行為）
+  - [ ] 技能/道具名稱始終不出現在防守方訊息中（保持現有行為）
+
+##### 5. 隨機對抗檢定實作
+- [ ] 資料模型擴展
+  - [ ] 擴展 `checkType`：新增 `'random_contest'` 選項
+  - [ ] 在 `Game` 模型中新增 `randomContestMaxValue?: number`（劇本共通的隨機對抗檢定上限值）
+  - [ ] 更新 `types/character.ts`：`checkType` 類型擴展
+  - [ ] 更新 MongoDB Schema
+- [ ] 業務邏輯實作
+  - [ ] `lib/skill/check-handler.ts`：新增 `random_contest` 處理邏輯
+  - [ ] `lib/item/check-handler.ts`：新增 `random_contest` 處理邏輯
+  - [ ] `lib/contest/contest-calculator.ts`：新增隨機對抗檢定的計算邏輯
+    - [ ] 攻擊方和防守方都骰 1 到 `game.randomContestMaxValue` 的隨機數
+    - [ ] 比拚雙方的大小決定勝負
+    - [ ] 平手處理：使用 `tieResolution` 機制
+  - [ ] `lib/contest/contest-validator.ts`：驗證防守方使用的檢定類型必須與攻擊方一致
+- [ ] UI 實作
+  - [ ] `components/gm/skills-edit-form.tsx`：新增 "隨機對抗檢定" 選項
+  - [ ] `components/gm/items-edit-form.tsx`：新增 "隨機對抗檢定" 選項
+  - [ ] `components/gm/game-edit-form.tsx`：新增 `randomContestMaxValue` 設定欄位
+  - [ ] `components/player/contest-response-dialog.tsx`：過濾只顯示相同檢定類型的技能/道具
+  - [ ] `components/player/skill-list.tsx`：隨機對抗檢定時的前端骰子 UI（顯示骰子結果）
+  - [ ] `components/player/item-list.tsx`：隨機對抗檢定時的前端骰子 UI（顯示骰子結果）
+- [ ] 文件更新
+  - [ ] 更新 API 規格：新增 `random_contest` 檢定類型說明
+  - [ ] 更新 WebSocket 事件規格：更新 `skill.contest` 事件格式
+
+#### 注意事項
+- 標籤系統設計為 `tags: string[]`，支援多標籤，未來可擴展其他標籤
+- 攻擊方也需要 "戰鬥" 標籤才能發起對抗檢定
+- 隨機對抗檢定的上限值設定為劇本共通變數，避免攻擊方和防守方上限不一致的問題
+- 防守方成功時只結算防守方的效果，不結算攻擊方的效果
+
+### Phase 8：時效性效果系統（Week 11-12）
+
+#### 開發任務
+
+##### 1. 資料庫 Schema 擴展
+- [ ] 擴展 Character 模型：新增 `temporaryEffects` 陣列
+  - 效果唯一識別碼（`id`）
+  - 來源資訊（`sourceType`, `sourceId`, `sourceCharacterId`, `sourceCharacterName`, `sourceName`）
+  - 效果類型（`effectType`: `stat_change`）
+  - 目標數值與變化量（`targetStat`, `deltaValue`, `deltaMax`, `statChangeTarget`）
+  - 時間資訊（`appliedAt`, `expiresAt`, `duration`, `isExpired`）
+- [ ] 擴展技能/道具效果定義：新增 `duration` 欄位（秒，undefined/0 = 永久效果）
+
+##### 2. 後端實作
+- [ ] 效果應用邏輯：執行 `stat_change` 效果時，若 `duration > 0`，建立時效性效果記錄
+- [ ] 定時檢查機制：實作 API Route `/api/effects/check-expired`（建議使用 Vercel Cron Jobs，每分鐘執行）
+- [ ] 自動恢復邏輯：過期效果自動恢復數值，標記為已過期
+- [ ] Server Action：`checkExpiredEffects(characterId?)` - 檢查並處理過期效果
+- [ ] Server Action：`getTemporaryEffects(characterId)` - 取得角色的所有時效性效果（GM 端用）
+
+##### 3. WebSocket 事件
+- [ ] 新增 `effect.expired` 事件：效果過期時推送到目標角色頻道
+- [ ] 事件包含：效果資訊、恢復後的數值、來源資訊
+
+##### 4. GM 端 UI
+- [ ] 時效性效果卡片元件：`components/gm/temporary-effects-card.tsx`
+  - 位置：角色編輯頁的「數值」Tab 中，位於數值列表下方
+  - 顯示所有計時中的效果（`isExpired === false`）
+  - 每個效果卡片顯示：
+    - 來源資訊（技能/道具名稱、施放者名稱）
+    - 目標數值與變化量（如「力量 +5」）
+    - 剩餘時間倒數（即時更新）
+  - 效果過期後自動從列表移除（透過 WebSocket 事件或定時刷新）
+- [ ] 整合到角色編輯頁：在 `stats-edit-form.tsx` 中新增時效性效果卡片區塊
+
+##### 5. 玩家端 UI
+- [ ] 接收 `effect.expired` 事件，顯示效果過期通知
+- [ ] 更新數值顯示（自動刷新）
+
+##### 6. 效果堆疊處理
+- [ ] 允許同一數值被多個時效性效果影響
+- [ ] 每個效果獨立追蹤，結束時只恢復該效果的變化
+- [ ] 數值計算：基礎值 + 所有生效效果的變化量總和
+
+##### 7. 定時任務設定
+- [ ] 設定 Vercel Cron Job（`vercel.json` 或 Vercel Dashboard）
+  - 路徑：`/api/cron/check-expired-effects`
+  - 頻率：每分鐘執行一次
+  - 或使用 Next.js API Route + 外部 Cron 服務（如 cron-job.org）
+
+#### 技術細節
+- **計時機制**：後端計時（伺服器端），前端顯示倒數
+- **效果類型**：Phase 1 僅支援 `stat_change`，其他效果類型後續擴展
+- **效果堆疊**：允許堆疊，每個效果獨立追蹤
+- **檢查頻率**：建議每分鐘檢查一次過期效果
+
+---
+
+### Phase 9：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 12-13）
 
 #### 目標
 - 將設定階段（baseline）與遊戲進行中的狀態（runtime）分離，開始遊戲後所有變更落在 runtime，不影響 baseline。
@@ -628,7 +763,7 @@ UI Components
 #### 索引/安全
 - runtime/snapshot/ logs 皆需 `gameId` 索引；必要時 `characterId` 索引。
 
-### Phase 9：優化與測試（Week 12-13）
+### Phase 10：優化與測試（Week 13-14）
 
 #### 前置作業（⚠️ 需外部設定，部署前）
 - [ ] Vercel 帳號與專案設定

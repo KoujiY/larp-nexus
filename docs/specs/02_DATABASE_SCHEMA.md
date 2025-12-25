@@ -1,7 +1,7 @@
 # 資料庫 Schema 設計
 
-## 版本：v1.2
-## 更新日期：2025-01-XX（Phase 6.5 方案 A）
+## 版本：v1.3
+## 更新日期：2025-01-XX（Phase 8 時效性效果）
 ## 資料庫：MongoDB Atlas
 
 ---
@@ -77,6 +77,9 @@ interface Game {
       order: number;
     }>;
   };
+  
+  // Phase 7.6：隨機對抗檢定設定
+  randomContestMaxValue?: number;     // 隨機對抗檢定的上限值（劇本共通，預設 100）
   
   createdAt: Date;
   updatedAt: Date;
@@ -209,7 +212,13 @@ interface Character {
       description?: string;         // 效果描述（custom 類型用）
       // Phase 7: 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇，不儲存在資料庫）
       targetItemId?: string;
+      // Phase 8: 時效性效果設定
+      duration?: number;            // 持續時間（秒，undefined/0 = 永久效果）
     };
+    
+    // Phase 7.6：標籤系統
+    tags?: string[];                 // 標籤陣列，支援多標籤
+                                      // 支援的標籤：'combat'（戰鬥）、'stealth'（隱匿）
     
     // 使用限制（GM 可選擇是否啟用）
     usageLimit?: number;            // 使用次數限制（undefined/0 = 無限制）
@@ -219,6 +228,24 @@ interface Character {
     
     // 流通性
     isTransferable: boolean;        // 是否可轉移給其他玩家
+    
+    // Phase 7.6：標籤系統
+    tags?: string[];                // 標籤陣列，支援多標籤
+                                      // 支援的標籤：'combat'（戰鬥）、'stealth'（隱匿）
+    
+    // Phase 7.6：檢定系統擴展
+    checkType?: 'none' | 'contest' | 'random' | 'random_contest';  // 檢定類型（新增 random_contest）
+    contestConfig?: {                // 對抗檢定設定（checkType === 'contest' 時使用）
+      relatedStat: string;          // 使用的數值名稱
+      opponentMaxItems?: number;     // 對方最多可使用道具數
+      opponentMaxSkills?: number;    // 對方最多可使用技能數
+      tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+    };
+    randomConfig?: {                 // 隨機檢定設定（checkType === 'random' 時使用）
+      maxValue: number;              // 隨機數值上限
+      threshold: number;            // 門檻值
+    };
+    // 注意：random_contest 使用劇本共通的 randomContestMaxValue，不需要額外設定
     
     acquiredAt: Date;               // 獲得時間
   }>;
@@ -246,7 +273,7 @@ interface Character {
     iconUrl?: string;               // 技能圖示
     
     // 檢定系統
-    checkType: 'none' | 'contest' | 'random';  // 檢定類型
+    checkType: 'none' | 'contest' | 'random' | 'random_contest';  // 檢定類型（Phase 7.6: 新增 random_contest）
     // 對抗檢定設定（checkType === 'contest' 時使用）- Phase 6.5 實作邏輯
     contestConfig?: {
       relatedStat: string;          // 使用的數值名稱
@@ -259,6 +286,11 @@ interface Character {
       maxValue: number;              // 隨機數值上限（預設 100）
       threshold: number;            // 門檻值（必須 <= maxValue）
     };
+    // Phase 7.6：隨機對抗檢定使用劇本共通的 randomContestMaxValue，不需要額外設定
+    
+    // Phase 7.6：標籤系統
+    tags?: string[];                 // 標籤陣列，支援多標籤
+                                      // 支援的標籤：'combat'（戰鬥）、'stealth'（隱匿）
     
     // 使用限制（GM 可選擇是否啟用）- ✅ 已實作
     usageLimit?: number;            // 使用次數限制（undefined/0 = 無限制）
@@ -284,7 +316,28 @@ interface Character {
       targetItemId?: string;        // Phase 7: 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇，不儲存在資料庫）
       targetTaskId?: string;        // 目標任務 ID - ✅ 已實作
       description?: string;         // 效果描述（custom 用）- ✅ 已實作
+      // Phase 8: 時效性效果設定
+      duration?: number;            // 持續時間（秒，undefined/0 = 永久效果）
     }>;
+  }>;
+  
+  // Phase 8: 時效性效果追蹤
+  temporaryEffects?: Array<{
+    id: string;                    // 效果唯一識別碼（UUID）
+    sourceType: 'skill' | 'item';  // 來源類型
+    sourceId: string;              // 技能/道具 ID
+    sourceCharacterId: string;      // 施放者角色 ID
+    sourceCharacterName: string;    // 施放者角色名稱（用於顯示）
+    sourceName: string;             // 技能/道具名稱（用於顯示）
+    effectType: 'stat_change';     // 效果類型（Phase 1 僅支援 stat_change）
+    targetStat: string;            // 目標數值名稱
+    deltaValue?: number;           // 數值變化量（正數增加，負數減少）
+    deltaMax?: number;             // 最大值變化量
+    statChangeTarget: 'value' | 'maxValue'; // 變化目標
+    appliedAt: Date;               // 效果應用時間
+    expiresAt: Date;              // 效果過期時間
+    duration: number;             // 持續時間（秒）
+    isExpired: boolean;            // 是否已過期（用於標記，實際檢查用 expiresAt）
   }>;
   
   // WebSocket 頻道 ID（用於推送事件）- Phase 6

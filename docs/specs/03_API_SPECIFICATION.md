@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.3
-## 更新日期：2025-01-XX（Phase 7 對抗檢定系統完成）
+## 版本：v1.5
+## 更新日期：2025-01-XX（Phase 8 時效性效果）
 
 ---
 
@@ -455,12 +455,14 @@ interface ItemInput {
 
 ---
 
-#### `useSkill(characterId: string, skillId: string, checkResult?: number, targetCharacterId?: string, targetItemId?: string)` ✅ Phase 5 / ✅ Phase 6.5 / ✅ Phase 7
+#### `useSkill(characterId: string, skillId: string, checkResult?: number, targetCharacterId?: string, targetItemId?: string)` ✅ Phase 5 / ✅ Phase 6.5 / ✅ Phase 7 / ✅ Phase 7.6 / ✅ Phase 8
 
 使用技能（包含檢定流程、冷卻檢查、使用次數限制、效果執行）。
 
 **Phase 6.5 擴展**：支援跨角色效果（方案 A）
 **Phase 7 擴展**：支援道具移除和偷竊效果
+**Phase 7.6 擴展**：標籤系統、隨機對抗檢定
+**Phase 8 擴展**：時效性效果
 
 **參數**
 ```typescript
@@ -508,13 +510,15 @@ interface ItemInput {
 
 **實作邏輯**
 1. 驗證角色與技能存在
-2. 檢查使用次數限制
-3. 檢查冷卻時間
-4. 執行檢定：
+2. **Phase 7.6**：驗證技能是否具有 "戰鬥"（`combat`）標籤（對抗檢定時）
+3. 檢查使用次數限制
+4. 檢查冷卻時間
+5. 執行檢定：
    - `none`：無檢定，直接通過
    - `random`：使用前端傳入的 `checkResult`，與 `randomConfig.threshold` 比較
    - `contest`：Phase 7: 對抗檢定流程 - ✅ 已實作
-5. 若檢定通過，執行技能效果：
+   - `random_contest`：Phase 7.6: 隨機對抗檢定流程 - ✅ 已實作
+6. 若檢定通過，執行技能效果：
    - `stat_change`：修改目標角色的數值（目前值或最大值）- ✅ 已實作
    - `task_reveal`：揭露隱藏任務 - ✅ 已實作
    - `task_complete`：完成任務 - ✅ 已實作
@@ -522,8 +526,8 @@ interface ItemInput {
    - `item_take`：Phase 7: 從目標角色移除道具 - ✅ 已實作
    - `item_steal`：Phase 7: 從目標角色偷竊道具（轉移到施放者身上）- ✅ 已實作
    - `item_give`：給予目標角色道具（未實作）
-6. 更新技能使用時間與次數
-7. 回傳結果
+7. 更新技能使用時間與次數
+8. 回傳結果
 
 **Phase 7 實作細節**：
 - `item_take` 和 `item_steal` 效果需要：
@@ -533,9 +537,210 @@ interface ItemInput {
 - 檢定成功後才會執行效果
 - `item_steal` 會將道具轉移到施放者身上，`item_take` 只移除道具
 
+**Phase 7.6 標籤系統實作細節**：
+- **標籤要求**：對抗檢定（`contest` 或 `random_contest`）時，攻擊方使用的技能/道具必須具有 "戰鬥"（`combat`）標籤
+- **標籤格式**：`tags` 為字串陣列，支援多標籤（如：`['combat', 'stealth']`）
+- **支援標籤**：
+  - `combat`：戰鬥標籤，用於對抗檢定
+  - `stealth`：隱匿標籤，影響通知訊息顯示（見 WebSocket 事件規格）
+
+**Phase 7.6 隨機對抗檢定實作細節**：
+- **檢定類型**：`checkType === 'random_contest'`
+- **上限值來源**：使用劇本共通的 `Game.randomContestMaxValue`（預設 100）
+- **檢定流程**：
+  1. 攻擊方和防守方各自骰一個 1 到 `randomContestMaxValue` 的隨機數
+  2. 比較雙方數值，較大者獲勝
+  3. 若平手，根據 `contestConfig.tieResolution` 決定結果
+- **數值匹配規則**：防守方只能使用相同檢定類型（`random_contest`）的技能/道具回應
+
+**Phase 8 時效性效果實作細節**：
+- **效果設定**：若技能效果的 `duration` 欄位 > 0，則為時效性效果
+- **效果應用**：
+  1. 執行 `stat_change` 效果時，若 `duration > 0`，建立時效性效果記錄
+  2. 記錄儲存在目標角色的 `temporaryEffects` 陣列中
+  3. 記錄包含：效果 ID、來源資訊、變化量、應用時間、過期時間
+- **效果堆疊**：允許同一數值被多個時效性效果影響，每個效果獨立追蹤
+- **自動恢復**：由後端定時檢查過期效果（建議每分鐘），自動恢復數值並推送通知
+
 ---
 
-### 2.4 事件推送 (app/actions/events.ts)
+#### `useItem(characterId: string, itemId: string, targetCharacterId?: string, checkResult?: number, targetItemId?: string)` ✅ Phase 7 / ✅ Phase 7.6 / ✅ Phase 8
+
+使用道具（包含檢定流程、冷卻檢查、使用次數限制、效果執行）。
+
+**Phase 7 擴展**：支援對抗檢定、道具移除和偷竊效果
+**Phase 7.6 擴展**：標籤系統、隨機對抗檢定
+**Phase 8 擴展**：時效性效果
+
+**參數**
+```typescript
+{
+  characterId: string;       // 角色 ID
+  itemId: string;           // 道具 ID
+  targetCharacterId?: string; // 目標角色 ID（requiresTarget = true 時必填）
+  checkResult?: number;      // 檢定結果（random 類型時由前端傳入）
+  targetItemId?: string;     // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    itemUsed: boolean;
+    checkPassed?: boolean;      // 檢定是否通過
+    checkResult?: number;       // 檢定結果
+    effectApplied?: string;     // 已執行的效果描述
+    targetCharacterName?: string; // 目標角色名稱
+    // Phase 7: 對抗檢定相關欄位
+    contestId?: string;         // 對抗請求 ID（對抗檢定時）
+    attackerValue?: number;     // 攻擊方數值（對抗檢定時）
+    defenderValue?: number;     // 防守方數值（對抗檢定時）
+    preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 初步結果（對抗檢定時）
+  };
+  message?: string;
+}
+```
+
+**錯誤碼**
+- `NOT_FOUND`：角色或道具不存在
+- `USAGE_LIMIT_REACHED`：已達使用次數上限
+- `ON_COOLDOWN`：道具冷卻中
+- `QUANTITY_INSUFFICIENT`：道具數量不足（消耗品）
+- `CHECK_RESULT_REQUIRED`：需要檢定結果（random 類型）
+- `INVALID_CHECK_RESULT`：檢定結果不在有效範圍內
+- `TARGET_REQUIRED`：需要選擇目標角色
+- `TARGET_ITEM_REQUIRED`：Phase 7: 需要選擇目標道具（item_take 和 item_steal 效果）
+- `TARGET_ITEM_NOT_FOUND`：Phase 7: 目標角色沒有此道具
+- `INVALID_TARGET`：目標角色不在同一劇本內或不符合目標類型設定
+- `INVALID_CHECK`：檢定設定不完整
+- `USE_FAILED`：道具使用失敗
+
+**實作邏輯**
+1. 驗證角色與道具存在
+2. **Phase 7.6**：驗證道具是否具有 "戰鬥"（`combat`）標籤（對抗檢定時）
+3. 檢查使用次數限制
+4. 檢查冷卻時間
+5. 檢查道具數量（消耗品需 quantity > 0）
+6. 執行檢定：
+   - `none`：無檢定，直接通過
+   - `random`：使用前端傳入的 `checkResult`，與 `randomConfig.threshold` 比較
+   - `contest`：Phase 7: 對抗檢定流程
+   - `random_contest`：Phase 7.6: 隨機對抗檢定流程
+7. 若檢定通過，執行道具效果（同技能效果）
+8. 更新道具使用時間與次數
+9. 若為消耗品且數量為 0，移除道具
+10. 回傳結果
+
+**Phase 7.6 標籤系統實作細節**：
+- **標籤要求**：對抗檢定（`contest` 或 `random_contest`）時，攻擊方使用的道具必須具有 "戰鬥"（`combat`）標籤
+- **標籤格式**：`tags` 為字串陣列，支援多標籤
+- **支援標籤**：同技能系統（`combat`、`stealth`）
+
+**Phase 7.6 隨機對抗檢定實作細節**：
+- 同技能系統的隨機對抗檢定流程
+
+**Phase 8 時效性效果實作細節**：
+- 同技能系統的時效性效果流程
+
+---
+
+### 2.4 時效性效果相關 (app/actions/temporary-effects.ts) - Phase 8
+
+#### `checkExpiredEffects(characterId?: string)` ✅ Phase 8
+
+檢查並處理過期的時效性效果。
+
+**參數**
+```typescript
+{
+  characterId?: string;  // 可選，指定角色 ID；若未提供，檢查所有角色的過期效果
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    processedCount: number;  // 處理的過期效果數量
+    restoredStats: Array<{   // 恢復的數值列表
+      characterId: string;
+      characterName: string;
+      statName: string;
+      restoredValue: number;
+      restoredMax?: number;
+    }>;
+  };
+  message?: string;
+}
+```
+
+**實作邏輯**
+1. 查詢所有角色的 `temporaryEffects` 陣列
+2. 找出 `expiresAt <= now` 且 `isExpired === false` 的效果
+3. 對每個過期效果：
+   - 恢復目標角色的數值（減去 `deltaValue` 或 `deltaMax`）
+   - 標記效果為已過期（`isExpired = true`）
+   - 推送 `effect.expired` WebSocket 事件到目標角色頻道
+   - 推送通知到 GM 端（若角色有對應的劇本）
+4. 回傳處理結果
+
+**注意**：此 API 應由定時任務（Cron Job）定期呼叫，建議每分鐘執行一次。
+
+---
+
+#### `getTemporaryEffects(characterId: string)` ✅ Phase 8
+
+取得角色的所有時效性效果（用於 GM 端顯示）。
+
+**參數**
+```typescript
+{
+  characterId: string;  // 角色 ID
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    effects: Array<{
+      id: string;
+      sourceType: 'skill' | 'item';
+      sourceId: string;
+      sourceCharacterId: string;
+      sourceCharacterName: string;
+      sourceName: string;
+      effectType: 'stat_change';
+      targetStat: string;
+      deltaValue?: number;
+      deltaMax?: number;
+      statChangeTarget: 'value' | 'maxValue';
+      appliedAt: Date;
+      expiresAt: Date;
+      duration: number;
+      remainingSeconds: number;  // 剩餘時間（秒）
+    }>;
+  };
+  message?: string;
+}
+```
+
+**認證需求**：需 GM Session + 權限驗證
+
+**實作邏輯**
+1. 驗證角色存在且屬於當前 GM
+2. 查詢角色的 `temporaryEffects` 陣列
+3. 過濾 `isExpired === false` 的效果
+4. 計算每個效果的剩餘時間
+5. 回傳效果列表
+
+---
+
+### 2.5 事件推送 (app/actions/events.ts)
 
 #### `pushEvent(eventData: PushEventInput)`
 
@@ -794,7 +999,7 @@ interface PushEventInput {
 
 ### 2.5 對抗檢定相關 (app/actions/contest-*.ts) - Phase 7
 
-#### `respondToContest(contestId: string, defenderId: string, defenderItems?: string[], defenderSkills?: string[], targetItemId?: string)` ✅ Phase 7
+#### `respondToContest(contestId: string, defenderId: string, defenderItems?: string[], defenderSkills?: string[], targetItemId?: string)` ✅ Phase 7 / ✅ Phase 7.6
 
 防守方回應對抗檢定請求。
 
@@ -815,7 +1020,7 @@ interface PushEventInput {
   success: boolean;
   data?: {
     contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail';
-    effectsApplied?: string[];  // 已執行的效果描述列表
+    effectsApplied?: string[];  // 已執行的效果描述列表（僅成功方）
   };
   message?: string;
 }
@@ -827,16 +1032,27 @@ interface PushEventInput {
 - `INVALID_TARGET`：角色不在同一劇本內
 - `ITEM_NOT_AVAILABLE`：道具不可用（冷卻中、使用次數達上限、數量不足）
 - `SKILL_NOT_AVAILABLE`：技能不可用（冷卻中、使用次數達上限）
+- `INVALID_CHECK_TYPE`：Phase 7.6: 防守方使用的技能/道具檢定類型與攻擊方不匹配
+- `INVALID_RELATED_STAT`：Phase 7.6: 防守方使用的技能/道具數值判定與攻擊方不匹配
+- `MISSING_COMBAT_TAG`：Phase 7.6: 防守方使用的技能/道具缺少 "戰鬥" 標籤
 
 **實作邏輯**
 1. 解析對抗請求 ID，取得攻擊方和來源（技能/道具）ID
 2. 驗證角色存在且在同一劇本內
-3. 驗證防守方使用的道具/技能是否可用
-4. 計算攻擊方和防守方的數值（包含使用的道具/技能加成）
-5. 計算對抗結果（攻擊方獲勝/防守方獲勝/雙方平手）
-6. 執行效果（若攻擊方獲勝）
-7. 推送對抗結果事件到雙方角色頻道
-8. 清除對抗檢定追蹤狀態
+3. **Phase 7.6**：驗證防守方使用的道具/技能：
+   - 必須具有 "戰鬥"（`combat`）標籤
+   - 檢定類型（`checkType`）必須與攻擊方相同（`contest` 或 `random_contest`）
+   - 若為 `contest` 類型，`relatedStat` 必須與攻擊方相同
+4. 驗證防守方使用的道具/技能是否可用（冷卻、次數限制等）
+5. 計算攻擊方和防守方的數值（包含使用的道具/技能加成）
+   - **Phase 7.6**：若為 `random_contest`，雙方各自骰 1 到 `Game.randomContestMaxValue` 的隨機數
+6. 計算對抗結果（攻擊方獲勝/防守方獲勝/雙方平手）
+7. **Phase 7.6**：執行效果（僅成功方）：
+   - 若攻擊方獲勝：執行攻擊方技能/道具效果
+   - 若防守方獲勝：執行防守方技能/道具效果
+   - 若雙方平手：不執行任何效果
+8. 推送對抗結果事件到雙方角色頻道
+9. 清除對抗檢定追蹤狀態
 
 ---
 

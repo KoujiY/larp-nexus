@@ -321,6 +321,16 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ## 更新日誌
 
+### v1.4 (2025-01-XX) - Phase 7.6 需求規劃
+- **需求變更**
+  - ✅ 移除 Phase 7.5 戰鬥系統（變化過大，難以收斂）
+  - ✅ 新增 Phase 7.6：標籤系統與檢定模式擴展
+- **Phase 7.6 規劃**
+  - 📋 標籤系統（"戰鬥"、"隱匿"）
+  - 📋 防守方效果結算調整
+  - 📋 數值判定系統匹配機制
+  - 📋 隨機對抗檢定模式
+
 ### v1.3 (2025-01-XX) - Phase 7 對抗檢定系統完成
 - **Phase 7 對抗檢定系統實作完成**
   - ✅ 技能/道具對抗檢定類型設定
@@ -394,4 +404,4 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 - 定期 Review 文件完整性
 
 **文件維護者**：SPEC AGENT
-**最後更新**：2025-01-XX（Phase 7 對抗檢定系統完成）
+**最後更新**：2025-01-XX（Phase 7.6 需求規劃完成）
