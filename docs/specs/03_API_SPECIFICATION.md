@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.2
-## 更新日期：2025-01-XX（Phase 6.5 方案 A）
+## 版本：v1.3
+## 更新日期：2025-01-XX（Phase 7 對抗檢定系統完成）
 
 ---
 
@@ -455,11 +455,12 @@ interface ItemInput {
 
 ---
 
-#### `useSkill(characterId: string, skillId: string, checkResult?: number, targetCharacterId?: string)` ✅ Phase 5 / 🔄 Phase 6.5
+#### `useSkill(characterId: string, skillId: string, checkResult?: number, targetCharacterId?: string, targetItemId?: string)` ✅ Phase 5 / ✅ Phase 6.5 / ✅ Phase 7
 
 使用技能（包含檢定流程、冷卻檢查、使用次數限制、效果執行）。
 
 **Phase 6.5 擴展**：支援跨角色效果（方案 A）
+**Phase 7 擴展**：支援道具移除和偷竊效果
 
 **參數**
 ```typescript
@@ -467,7 +468,8 @@ interface ItemInput {
   characterId: string;       // 角色 ID
   skillId: string;           // 技能 ID
   checkResult?: number;      // 檢定結果（random 類型時由前端傳入）
-  targetCharacterId?: string; // 🆕 目標角色 ID（Phase 6.5，requiresTarget = true 時必填）
+  targetCharacterId?: string; // 目標角色 ID（Phase 6.5，requiresTarget = true 時必填）
+  targetItemId?: string;      // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
 }
 ```
 
@@ -481,6 +483,11 @@ interface ItemInput {
     checkResult?: number;        // 檢定結果
     effectsApplied?: string[];  // 已執行的效果描述列表
     targetCharacterName?: string; // 🆕 目標角色名稱（Phase 6.5）
+    // Phase 7: 對抗檢定相關欄位
+    contestId?: string;         // 對抗請求 ID（對抗檢定時）
+    attackerValue?: number;     // 攻擊方數值（對抗檢定時）
+    defenderValue?: number;     // 防守方數值（對抗檢定時）
+    preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 初步結果（對抗檢定時）
   };
   message?: string;
 }
@@ -492,10 +499,11 @@ interface ItemInput {
 - `ON_COOLDOWN`：技能冷卻中
 - `CHECK_RESULT_REQUIRED`：需要檢定結果（random 類型）
 - `INVALID_CHECK_RESULT`：檢定結果不在有效範圍內
-- `TARGET_REQUIRED`：🆕 需要選擇目標角色（Phase 6.5）
-- `INVALID_TARGET`：🆕 目標角色不在同一劇本內或不符合目標類型設定（Phase 6.5）
+- `TARGET_REQUIRED`：需要選擇目標角色（Phase 6.5）
+- `TARGET_ITEM_REQUIRED`：Phase 7: 需要選擇目標道具（item_take 和 item_steal 效果）
+- `TARGET_ITEM_NOT_FOUND`：Phase 7: 目標角色沒有此道具
+- `INVALID_TARGET`：目標角色不在同一劇本內或不符合目標類型設定（Phase 6.5）
 - `INVALID_CHECK`：檢定設定不完整
-- `NOT_IMPLEMENTED`：對抗檢定功能開發中（Phase 6.5 實作）
 - `USE_FAILED`：技能使用失敗
 
 **實作邏輯**
@@ -505,20 +513,25 @@ interface ItemInput {
 4. 執行檢定：
    - `none`：無檢定，直接通過
    - `random`：使用前端傳入的 `checkResult`，與 `randomConfig.threshold` 比較
-   - `contest`：返回 `NOT_IMPLEMENTED`（Phase 6.5 實作）
+   - `contest`：Phase 7: 對抗檢定流程 - ✅ 已實作
 5. 若檢定通過，執行技能效果：
-   - `stat_change`：修改自己的數值（目前值或最大值）
-   - `task_reveal`：揭露隱藏任務
-   - `task_complete`：完成任務
-   - `custom`：自訂效果描述
-   - `item_give`、`item_take`、`item_steal`：Phase 6.5 實作
+   - `stat_change`：修改目標角色的數值（目前值或最大值）- ✅ 已實作
+   - `task_reveal`：揭露隱藏任務 - ✅ 已實作
+   - `task_complete`：完成任務 - ✅ 已實作
+   - `custom`：自訂效果描述 - ✅ 已實作
+   - `item_take`：Phase 7: 從目標角色移除道具 - ✅ 已實作
+   - `item_steal`：Phase 7: 從目標角色偷竊道具（轉移到施放者身上）- ✅ 已實作
+   - `item_give`：給予目標角色道具（未實作）
 6. 更新技能使用時間與次數
 7. 回傳結果
 
-**注意**：
-- 對抗檢定（`contest`）目前返回 `NOT_IMPLEMENTED`，待 Phase 6.5 實作
-- 影響他人的效果（`targetCharacterId`）待 Phase 6.5 實作
-- 道具相關效果（`item_give`、`item_take`、`item_steal`）待 Phase 6.5 實作
+**Phase 7 實作細節**：
+- `item_take` 和 `item_steal` 效果需要：
+  1. 選擇目標角色（`targetCharacterId` 必填）
+  2. 確認目標角色（前端 UI 流程）
+  3. 選擇目標道具（`targetItemId` 必填）
+- 檢定成功後才會執行效果
+- `item_steal` 會將道具轉移到施放者身上，`item_take` 只移除道具
 
 ---
 
@@ -748,6 +761,190 @@ interface PushEventInput {
 4. 若成功，更新 `secretInfo.isUnlocked=true`
 5. 回傳秘密資訊
 6. 推送 WebSocket 事件 `role.secretUnlocked`
+
+---
+
+#### `GET /api/characters/[id]/items` (Phase 7: 取得目標角色的道具清單)
+
+取得目標角色的道具清單（用於 `item_take` 和 `item_steal` 效果）。
+
+**Query Parameters**
+- 無（透過 Server Action `getTargetCharacterItems` 呼叫）
+
+**實作邏輯**
+- 透過 `app/actions/public.ts` 中的 `getTargetCharacterItems` Server Action 實作
+- 只回傳道具的基本資訊（id、name、quantity、type），不包含詳細效果
+
+**Response (200)**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "item-001",
+      "name": "神秘信件",
+      "quantity": 1,
+      "type": "equipment"
+    }
+  ]
+}
+```
+
+---
+
+### 2.5 對抗檢定相關 (app/actions/contest-*.ts) - Phase 7
+
+#### `respondToContest(contestId: string, defenderId: string, defenderItems?: string[], defenderSkills?: string[], targetItemId?: string)` ✅ Phase 7
+
+防守方回應對抗檢定請求。
+
+**參數**
+```typescript
+{
+  contestId: string;           // 對抗請求 ID（格式：attackerId::skillId/itemId::timestamp）
+  defenderId: string;          // 防守方角色 ID
+  defenderItems?: string[];     // 防守方使用的道具 ID 陣列（選填）
+  defenderSkills?: string[];   // 防守方使用的技能 ID 陣列（選填）
+  targetItemId?: string;       // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail';
+    effectsApplied?: string[];  // 已執行的效果描述列表
+  };
+  message?: string;
+}
+```
+
+**錯誤碼**
+- `INVALID_CONTEST_ID`：無效的對抗請求 ID
+- `NOT_FOUND`：找不到角色
+- `INVALID_TARGET`：角色不在同一劇本內
+- `ITEM_NOT_AVAILABLE`：道具不可用（冷卻中、使用次數達上限、數量不足）
+- `SKILL_NOT_AVAILABLE`：技能不可用（冷卻中、使用次數達上限）
+
+**實作邏輯**
+1. 解析對抗請求 ID，取得攻擊方和來源（技能/道具）ID
+2. 驗證角色存在且在同一劇本內
+3. 驗證防守方使用的道具/技能是否可用
+4. 計算攻擊方和防守方的數值（包含使用的道具/技能加成）
+5. 計算對抗結果（攻擊方獲勝/防守方獲勝/雙方平手）
+6. 執行效果（若攻擊方獲勝）
+7. 推送對抗結果事件到雙方角色頻道
+8. 清除對抗檢定追蹤狀態
+
+---
+
+#### `queryContestStatus(contestId: string, characterId: string)` ✅ Phase 7
+
+查詢對抗檢定狀態（用於攻擊方重新整理後檢查對抗檢定是否已完成）。
+
+**參數**
+```typescript
+{
+  contestId: string;      // 對抗請求 ID
+  characterId: string;    // 角色 ID（攻擊方）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    isActive: boolean;    // 對抗檢定是否仍在進行中
+    contestInfo?: {       // 對抗檢定資訊（若仍在進行中）
+      attackerId: string;
+      defenderId: string;
+      sourceType: 'skill' | 'item';
+      sourceId: string;
+      timestamp: number;
+    };
+  };
+  message?: string;
+}
+```
+
+**實作邏輯**
+1. 從對抗檢定追蹤系統查詢狀態
+2. 若對抗檢定不存在，返回 `isActive: false`
+3. 若對抗檢定仍在進行中，返回詳細資訊
+
+---
+
+#### `selectTargetItemForContest(contestId: string, attackerId: string, targetItemId: string, defenderId?: string)` ✅ Phase 7
+
+選擇目標道具（用於對抗檢定獲勝後需要選擇目標道具的情況）。
+
+**參數**
+```typescript
+{
+  contestId: string;      // 對抗請求 ID
+  attackerId: string;     // 攻擊方角色 ID
+  targetItemId: string;   // 目標道具 ID
+  defenderId?: string;    // 防守方角色 ID（可選，用於防禦性檢查）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    success: boolean;
+    effectApplied?: string;  // 已執行的效果描述
+  };
+  message?: string;
+}
+```
+
+**錯誤碼**
+- `INVALID_CONTEST_ID`：無效的對抗請求 ID
+- `NOT_FOUND`：找不到角色或對抗檢定
+- `TARGET_ITEM_NOT_FOUND`：目標角色沒有此道具
+- `CONTEST_NOT_WON`：對抗檢定未獲勝或已完成
+
+**實作邏輯**
+1. 驗證對抗檢定存在且攻擊方已獲勝
+2. 驗證目標道具存在於防守方身上
+3. 執行效果（`item_take` 或 `item_steal`）
+4. 推送相關事件
+5. 清除對抗檢定追蹤狀態
+
+---
+
+#### `cancelContestItemSelection(contestId: string, characterId: string)` ✅ Phase 7
+
+取消對抗檢定（當目標角色沒有道具可選擇時）。
+
+**參數**
+```typescript
+{
+  contestId: string;      // 對抗請求 ID
+  characterId: string;    // 攻擊方角色 ID
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    cancelled: boolean;
+  };
+  message?: string;
+}
+```
+
+**實作邏輯**
+1. 驗證對抗檢定存在且角色為攻擊方
+2. 發送通知給攻擊方（目標角色沒有道具）
+3. 清除對抗檢定追蹤狀態
 
 ---
 

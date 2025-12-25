@@ -545,35 +545,42 @@ UI Components
 
 ---
 
-#### 延後功能（方案 B：完整版，預計 Phase 7）
+#### ✅ Phase 7：對抗檢定系統（已完成）
 
 ##### 1. 對抗檢定系統（Contest Check）
-- [ ] 實作對抗檢定邏輯
-  - [ ] 新增參數：`opponentItems`、`opponentSkills`（防守方使用的道具/技能 ID 陣列）
-  - [ ] 攻擊方：取得相關數值（`contestConfig.relatedStat`）
-  - [ ] 防守方：可選擇使用道具/技能增強防禦
-  - [ ] 計算對抗結果
-  - [ ] 處理平手情況（`tieResolution`）
-- [ ] 玩家端：對抗檢定 UI
-  - [ ] 防守方收到對抗請求通知（WebSocket）
-  - [ ] 防守方可選擇使用道具/技能
-  - [ ] 顯示對抗結果（雙方）
-- [ ] Server Action：對抗檢定流程
-  - [ ] 驗證防守方使用的道具/技能是否可用
-  - [ ] 執行對抗計算
-  - [ ] 推送對抗結果事件（雙方角色頻道）
+- [x] 實作對抗檢定邏輯
+  - [x] 新增參數：`opponentItems`、`opponentSkills`（防守方使用的道具/技能 ID 陣列）
+  - [x] 攻擊方：取得相關數值（`contestConfig.relatedStat`）
+  - [x] 防守方：可選擇使用道具/技能增強防禦
+  - [x] 計算對抗結果
+  - [x] 處理平手情況（`tieResolution`）
+- [x] 玩家端：對抗檢定 UI
+  - [x] 防守方收到對抗請求通知（WebSocket）
+  - [x] 防守方可選擇使用道具/技能
+  - [x] 顯示對抗結果（雙方）
+  - [x] 攻擊方等待 Dialog
+  - [x] 狀態持久化（重新整理後恢復）
+  - [x] 跨分頁回應處理
+- [x] Server Action：對抗檢定流程
+  - [x] 驗證防守方使用的道具/技能是否可用
+  - [x] 執行對抗計算
+  - [x] 推送對抗結果事件（雙方角色頻道）
+  - [x] `respondToContest` - 防守方回應對抗檢定
+  - [x] `queryContestStatus` - 查詢對抗檢定狀態
+  - [x] `selectTargetItemForContest` - 選擇目標道具
+  - [x] `cancelContestItemSelection` - 取消對抗檢定
 
 ##### 2. 道具互動效果
-- [ ] `item_give`：給予目標角色道具
-- [ ] `item_take`：從目標角色移除道具
-- [ ] `item_steal`：從目標角色偷竊道具（需對抗檢定）
+- [ ] `item_give`：給予目標角色道具（未實作）
+- [x] `item_take`：從目標角色移除道具 ✅ 已實作
+- [x] `item_steal`：從目標角色偷竊道具（需對抗檢定）✅ 已實作
 
 ##### 3. 防守互動機制
-- [ ] 防守方回應 UI
-- [ ] 道具/技能選擇介面
-- [ ] 對抗檢定事件（`skill.contest`）
+- [x] 防守方回應 UI
+- [x] 道具/技能選擇介面
+- [x] 對抗檢定事件（`skill.contest`）
 
-### Phase 7：戰鬥系統（對抗檢定的延伸）（Week 10-11）
+### Phase 7.5：戰鬥系統（對抗檢定的延伸）（Week 10-11）- 規劃中
 
 #### 開發任務
 

@@ -194,9 +194,9 @@ interface Character {
     
     // 使用效果（可選，由技能系統擴展）
     effect?: {
-      type: 'stat_change' | 'custom';  // 已移除 'buff' 類型
+      type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';  // Phase 7: 添加 item_take 和 item_steal
       
-      // 目標設定（Phase 6.5 方案 A）- 🔄 本次實作
+      // 目標設定（Phase 6.5 方案 A）- ✅ 已實作
       targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
       requiresTarget?: boolean;               // 是否需要玩家選擇目標角色
       
@@ -207,6 +207,8 @@ interface Character {
       // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值 - ✅ 已實作
       syncValue?: boolean;
       description?: string;         // 效果描述（custom 類型用）
+      // Phase 7: 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇，不儲存在資料庫）
+      targetItemId?: string;
     };
     
     // 使用限制（GM 可選擇是否啟用）
@@ -269,7 +271,7 @@ interface Character {
       type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
             'task_reveal' | 'task_complete' | 'custom';
       
-      // 目標設定（Phase 6.5 方案 A）- 🔄 本次實作
+      // 目標設定（Phase 6.5 方案 A）- ✅ 已實作
       targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
       requiresTarget?: boolean;               // 是否需要玩家選擇目標角色
       
@@ -279,7 +281,7 @@ interface Character {
       statChangeTarget?: 'value' | 'maxValue';
       // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值 - ✅ 已實作
       syncValue?: boolean;
-      targetItemId?: string;        // 目標道具 ID（Phase 6.5 方案 B）
+      targetItemId?: string;        // Phase 7: 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇，不儲存在資料庫）
       targetTaskId?: string;        // 目標任務 ID - ✅ 已實作
       description?: string;         // 效果描述（custom 用）- ✅ 已實作
     }>;

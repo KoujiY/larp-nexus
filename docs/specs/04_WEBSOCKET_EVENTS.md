@@ -399,7 +399,7 @@ interface SkillCooldownEvent extends BaseEvent {
 
 ---
 
-### 2.10 對抗檢定事件 (skill.contest) - Phase 6.5
+### 2.10 對抗檢定事件 (skill.contest) - Phase 7 ✅ 已完成
 
 當玩家使用對抗檢定技能時觸發（攻擊方與防守方都會收到）。
 
@@ -414,24 +414,44 @@ interface SkillContestEvent extends BaseEvent {
     attackerName: string;
     defenderId: string;
     defenderName: string;
-    skillId: string;
-    skillName: string;
-    attackerValue: number;         // 攻擊方數值
+    skillId?: string;              // Phase 7: 改為可選，支援道具檢定
+    skillName?: string;            // Phase 7: 改為可選，支援道具檢定
+    itemId?: string;               // Phase 7: 道具檢定時使用
+    itemName?: string;             // Phase 7: 道具檢定時使用
+    sourceType?: 'skill' | 'item'; // Phase 7: 來源類型
+    attackerValue: number;         // 攻擊方數值（0 表示請求事件，非 0 表示結果事件）
     attackerItems?: string[];      // 攻擊方使用的道具 ID
     attackerSkills?: string[];     // 攻擊方使用的技能 ID
-    defenderValue: number;         // 防守方數值
+    defenderValue: number;         // 防守方數值（請求事件時為 0）
     defenderItems?: string[];      // 防守方使用的道具 ID
     defenderSkills?: string[];     // 防守方使用的技能 ID
-    result: 'attacker_wins' | 'defender_wins' | 'both_fail';
-    effectsApplied?: string[];     // 已執行的效果描述列表
+    result: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 結果事件時才有
+    effectsApplied?: string[];     // 已執行的效果描述列表（結果事件時）
+    opponentMaxItems?: number;     // Phase 7: 防守方可使用的道具數量限制
+    opponentMaxSkills?: number;    // Phase 7: 防守方可使用的技能數量限制
+    targetItemId?: string;         // Phase 7: 目標道具 ID（用於 item_take 和 item_steal）
+    needsTargetItemSelection?: boolean; // Phase 7: 是否需要攻擊方選擇目標道具
   };
 }
 ```
 
+**事件類型**
+- **請求事件**：`attackerValue === 0`，防守方收到，需要回應
+- **結果事件**：`attackerValue !== 0`，雙方都收到，顯示對抗結果
+
 **前端處理**
-- 攻擊方：顯示對抗結果
-- 防守方：顯示被攻擊通知與對抗結果
-- 顯示雙方使用的道具/技能資訊
+- **請求事件（防守方）**：
+  - 顯示對抗請求通知
+  - 打開回應 Dialog，可選擇道具/技能
+  - 狀態持久化（重新整理後恢復）
+- **結果事件（攻擊方）**：
+  - 顯示對抗結果
+  - 若獲勝且需要選擇目標道具，顯示目標道具選擇 Dialog
+  - 狀態持久化（重新整理後恢復）
+  - 跨分頁處理（自動切換到對應分頁）
+- **結果事件（防守方）**：
+  - 顯示對抗結果
+  - 若受到影響，顯示 `character.affected` 事件
 
 ---
 
@@ -465,18 +485,18 @@ interface CharacterAffectedEvent extends BaseEvent {
 }
 ```
 
-**方案 B 擴展（延後至 Phase 7）**
+**Phase 7 擴展** ✅ 已完成
 ```typescript
-// 方案 B 額外支援的 effectType
-effectType: 'stat_change' | 'item_give' | 'item_take' | 'item_steal';
+// Phase 7 額外支援的 effectType
+effectType: 'stat_change' | 'item_take' | 'item_steal'; // item_give 未實作
 
-// 方案 B 額外的 changes 欄位
+// Phase 7 額外的 changes 欄位
 changes: {
   stats?: [...];                        // 同方案 A
   items?: Array<{                       // 道具變化
     id: string;
     name: string;
-    action: 'given' | 'taken' | 'stolen';
+    action: 'taken' | 'stolen';        // Phase 7: 支援 taken 和 stolen
     quantity: number;
   }>;
 };
