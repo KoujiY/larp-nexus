@@ -9,6 +9,7 @@ interface EffectDisplayProps {
   selectedTargetId?: string;
   onTargetChange?: (targetId: string) => void;
   className?: string;
+  disabled?: boolean; // 是否禁用目標選擇
 }
 
 export function EffectDisplay({
@@ -16,7 +17,8 @@ export function EffectDisplay({
   targetOptions = [],
   selectedTargetId,
   onTargetChange,
-  className = "p-3 bg-muted rounded-lg space-y-2"
+  className = "p-3 bg-muted rounded-lg space-y-2",
+  disabled = false
 }: EffectDisplayProps) {
   const renderEffectDescription = () => {
     if (effect.type === 'stat_change') {
@@ -46,6 +48,14 @@ export function EffectDisplay({
 
     if (effect.type === 'task_complete') {
       return <p>完成任務：{effect.targetTaskId}</p>;
+    }
+
+    if (effect.type === 'item_steal') {
+      return <p>偷竊目標角色的道具</p>;
+    }
+
+    if (effect.type === 'item_take') {
+      return <p>移除目標角色的道具</p>;
     }
 
     if (effect.type === 'custom' && effect.description) {
@@ -83,8 +93,9 @@ export function EffectDisplay({
             <Select
               value={selectedTargetId}
               onValueChange={onTargetChange}
+              disabled={disabled}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" disabled={disabled}>
                 <SelectValue placeholder="選擇目標角色 *" />
               </SelectTrigger>
               <SelectContent>

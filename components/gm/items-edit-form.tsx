@@ -28,6 +28,10 @@ import {
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, Package, Pencil, Zap, Clock } from 'lucide-react';
 import type { Item, ItemEffect, Stat } from '@/types/character';
+import type { BaseEvent, RoleUpdatedEvent, InventoryUpdatedEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
+import { useCharacterWebSocket } from '@/hooks/use-websocket';
+import { EffectEditor } from './effect-editor';
+import { EditFormCard } from './edit-form-card';
 
 interface ItemsEditFormProps {
   characterId: string;
@@ -42,8 +46,82 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const selectedStat = stats.find((stat) => stat.name === editingItem?.effect?.targetStat);
-  const selectedStatHasMax = selectedStat?.maxValue !== undefined && selectedStat?.maxValue !== null;
+  // Phase 9: 訂閱 WebSocket 事件，同步更新道具列表
+  useCharacterWebSocket(characterId, (event: BaseEvent) => {
+    console.log('[ItemsEditForm] 收到 WebSocket 事件', { 
+      type: event.type, 
+      characterId,
+      timestamp: event.timestamp,
+    });
+
+    if (event.type === 'role.updated') {
+      const payload = (event as RoleUpdatedEvent).payload;
+      console.log('[ItemsEditForm] role.updated 事件內容', {
+        characterId: payload.characterId,
+        hasItems: !!payload.updates.items,
+        itemsCount: payload.updates.items?.length,
+      });
+
+      if (payload.updates.items) {
+        // 更新道具列表
+        console.log('[ItemsEditForm] 更新道具列表', {
+          oldCount: items.length,
+          newCount: payload.updates.items.length,
+          items: payload.updates.items,
+        });
+        setItems(payload.updates.items as unknown as Item[]);
+        toast.info('道具列表已更新', { description: '玩家端的變更已同步' });
+      }
+    } else if (event.type === 'role.inventoryUpdated') {
+      const payload = (event as InventoryUpdatedEvent).payload;
+      console.log('[ItemsEditForm] role.inventoryUpdated 事件內容', {
+        characterId: payload.characterId,
+        itemName: payload.item.name,
+        action: payload.action,
+      });
+      // 重新載入頁面以獲取最新資料
+      router.refresh();
+      toast.info('道具已更新', { description: `道具「${payload.item.name}」${payload.action === 'added' ? '已新增' : payload.action === 'updated' ? '已更新' : '已移除'}` });
+    } else if (event.type === 'item.transferred') {
+      const payload = (event as ItemTransferredEvent).payload;
+      console.log('[ItemsEditForm] item.transferred 事件內容', {
+        fromCharacterId: payload.fromCharacterId,
+        toCharacterId: payload.toCharacterId,
+        itemName: payload.itemName,
+        quantity: payload.quantity,
+        transferType: payload.transferType,
+      });
+      
+      // 如果這個角色是轉移的來源或目標，需要重新載入道具列表
+      if (payload.fromCharacterId === characterId || payload.toCharacterId === characterId) {
+        console.log('[ItemsEditForm] 角色參與了道具轉移，重新載入道具列表');
+        router.refresh();
+        toast.info('道具已轉移', { 
+          description: payload.fromCharacterId === characterId 
+            ? `已將 ${payload.quantity} 個「${payload.itemName}」轉移給 ${payload.toCharacterName}`
+            : `從 ${payload.fromCharacterName} 收到 ${payload.quantity} 個「${payload.itemName}」`
+        });
+      }
+    } else if (event.type === 'skill.contest') {
+      const payload = (event as SkillContestEvent).payload;
+      console.log('[ItemsEditForm] skill.contest 事件內容', {
+        attackerId: payload.attackerId,
+        defenderId: payload.defenderId,
+        result: payload.result,
+        effectsApplied: payload.effectsApplied,
+      });
+      
+      // 如果這個角色參與了對抗檢定，且檢定已完成（有結果），重新載入道具列表
+      // 因為對抗檢定可能會導致道具轉移
+      if ((payload.attackerId === characterId || payload.defenderId === characterId) && payload.result) {
+        console.log('[ItemsEditForm] 角色參與了對抗檢定，檢定已完成，重新載入道具列表');
+        // 延遲一下再刷新，確保後端的道具轉移操作已完成
+        setTimeout(() => {
+          router.refresh();
+        }, 500);
+      }
+    }
+  });
 
   // 新增道具
   const handleAddItem = () => {
@@ -63,16 +141,30 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
 
   // 編輯道具
   const handleEditItem = (item: Item) => {
-    // 修復舊資料：如果是 stat_change 但沒有 statChangeTarget，自動補上
+    // 向後兼容：將舊的 effect 轉換為 effects 陣列
     const fixedItem = { ...item };
-    if (fixedItem.effect?.type === 'stat_change') {
-      if (!fixedItem.effect.statChangeTarget) {
-        fixedItem.effect = {
-          ...fixedItem.effect,
+    
+    // 如果沒有 effects 但有 effect，轉換為 effects
+    if (!fixedItem.effects && fixedItem.effect) {
+      fixedItem.effects = [fixedItem.effect];
+    }
+    
+    // 如果 effects 為空陣列或 undefined，初始化為空陣列
+    if (!fixedItem.effects) {
+      fixedItem.effects = [];
+    }
+    
+    // 修復舊資料：如果是 stat_change 但沒有 statChangeTarget，自動補上
+    fixedItem.effects = fixedItem.effects.map((effect) => {
+      if (effect.type === 'stat_change' && !effect.statChangeTarget) {
+        return {
+          ...effect,
           statChangeTarget: 'value',
         };
       }
-    }
+      return effect;
+    });
+    
     setEditingItem(fixedItem);
     setIsDialogOpen(true);
   };
@@ -86,15 +178,87 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
       return;
     }
 
-    const existingIndex = items.findIndex((i) => i.id === editingItem.id);
+    // Phase 8: 驗證檢定設定
+    if (editingItem.checkType === 'contest') {
+      if (!editingItem.contestConfig?.relatedStat) {
+        toast.error('請選擇對抗檢定使用的數值');
+        return;
+      }
+    }
+    if (editingItem.checkType === 'random') {
+      if (!editingItem.randomConfig) {
+        toast.error('請設定隨機檢定配置');
+        return;
+      }
+      if (editingItem.randomConfig.threshold === undefined || editingItem.randomConfig.threshold === null) {
+        toast.error('請設定隨機檢定門檻值');
+        return;
+      }
+      if (editingItem.randomConfig.maxValue === undefined || editingItem.randomConfig.maxValue === null) {
+        toast.error('請設定隨機檢定上限值');
+        return;
+      }
+      if (editingItem.randomConfig.threshold > editingItem.randomConfig.maxValue) {
+        toast.error('門檻值不得超過上限值');
+        return;
+      }
+    }
+
+    // Phase 8: 確保檢定配置正確設定
+    // 向後兼容：確保 effects 存在
+    const finalItem = { ...editingItem };
+    
+    // 如果沒有 effects 但有 effect，轉換為 effects
+    if (!finalItem.effects && finalItem.effect) {
+      finalItem.effects = [finalItem.effect];
+    }
+    
+    // 確保 effects 是陣列
+    if (!finalItem.effects) {
+      finalItem.effects = [];
+    }
+    
+    // 清理 effect 欄位（已棄用）
+    delete finalItem.effect;
+    
+    if (finalItem.checkType === 'random') {
+      const maxValue = finalItem.randomConfig?.maxValue;
+      const threshold = finalItem.randomConfig?.threshold;
+      
+      finalItem.randomConfig = {
+        maxValue: (maxValue && maxValue > 0) ? maxValue : 100,
+        threshold: (threshold !== undefined && threshold !== null && threshold > 0) ? threshold : 50,
+      };
+      
+      if (finalItem.randomConfig.threshold > finalItem.randomConfig.maxValue) {
+        finalItem.randomConfig.threshold = finalItem.randomConfig.maxValue;
+      }
+      
+      finalItem.contestConfig = undefined;
+    } else if (finalItem.checkType === 'contest') {
+      if (!finalItem.contestConfig) {
+        finalItem.contestConfig = {
+          relatedStat: '',
+          opponentMaxItems: 0,
+          opponentMaxSkills: 0,
+          tieResolution: 'attacker_wins',
+        };
+      }
+      finalItem.randomConfig = undefined;
+    } else {
+      finalItem.randomConfig = undefined;
+      finalItem.contestConfig = undefined;
+    }
+
+    const existingIndex = items.findIndex((i) => i.id === finalItem.id);
     if (existingIndex >= 0) {
       // 編輯現有道具（數量改變時不分割，僅更新）
       const updatedItems = [...items];
-      updatedItems[existingIndex] = editingItem;
+      updatedItems[existingIndex] = finalItem;
       setItems(updatedItems);
     } else {
       // 新增道具：如果數量 > 1，產生多張獨立的道具卡
-      const quantity = editingItem.quantity || 1;
+      const quantity = finalItem.quantity || 1;
       if (quantity > 1) {
         const newItems: Item[] = [];
         for (let i = 0; i < quantity; i++) {
@@ -106,9 +270,9 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
           });
         }
         setItems([...items, ...newItems]);
-        toast.success(`已新增 ${quantity} 張「${editingItem.name}」道具卡`);
+        toast.success(`已新增 ${quantity} 張「${finalItem.name}」道具卡`);
       } else {
-        setItems([...items, { ...editingItem, quantity: 1 }]);
+        setItems([...items, { ...finalItem, quantity: 1 }]);
       }
     }
     
@@ -121,14 +285,6 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
     setItems(items.filter((i) => i.id !== itemId));
   };
 
-  // 快速調整數量
-  const handleQuantityChange = (itemId: string, delta: number) => {
-    setItems(items.map((item) => {
-      if (item.id !== itemId) return item;
-      const newQuantity = Math.max(0, item.quantity + delta);
-      return { ...item, quantity: newQuantity };
-    }));
-  };
 
   // 儲存所有變更
   const handleSave = async () => {
@@ -188,7 +344,6 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                   item={item}
                   onEdit={() => handleEditItem(item)}
                   onRemove={() => handleRemoveItem(item.id)}
-                  onQuantityChange={(delta) => handleQuantityChange(item.id, delta)}
                 />
               ))}
             </div>
@@ -213,7 +368,6 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                   item={item}
                   onEdit={() => handleEditItem(item)}
                   onRemove={() => handleRemoveItem(item.id)}
-                  onQuantityChange={(delta) => handleQuantityChange(item.id, delta)}
                 />
               ))}
             </div>
@@ -228,7 +382,7 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
 
         {/* 編輯 Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[95vw] lg:max-w-[1400px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingItem && items.find((i) => i.id === editingItem.id) ? '編輯道具' : '新增道具'}
@@ -239,336 +393,380 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
             </DialogHeader>
 
             {editingItem && (
-              <div className="space-y-4">
-                {/* 基本資訊 */}
-                <div className="space-y-2">
-                  <Label htmlFor="item-name">道具名稱 *</Label>
-                  <Input
-                    id="item-name"
-                    value={editingItem.name}
-                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                    placeholder="例：治療藥水"
-                  />
-                </div>
+              <div className="space-y-6">
+                {/* 上排：基本資訊卡片 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* 基本資訊 */}
+                  <EditFormCard title="基本資訊" description="設定道具的基本屬性">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="item-name">道具名稱 *</Label>
+                        <Input
+                          id="item-name"
+                          value={editingItem.name}
+                          onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                          placeholder="例：治療藥水"
+                        />
+                      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="item-description">道具描述</Label>
-                  <Textarea
-                    id="item-description"
-                    value={editingItem.description}
-                    onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
-                    placeholder="描述道具的外觀與用途..."
-                    rows={2}
-                  />
-                </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="item-description">道具描述</Label>
+                        <Textarea
+                          id="item-description"
+                          value={editingItem.description}
+                          onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
+                          placeholder="描述道具的外觀與用途..."
+                          rows={3}
+                        />
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>道具類型</Label>
-                    <Select
-                      value={editingItem.type}
-                      onValueChange={(value: 'consumable' | 'equipment') => {
-                        // 切換類型時，消耗品預設使用次數1，非消耗品預設0
-                        setEditingItem({ 
-                          ...editingItem, 
-                          type: value,
-                          usageLimit: value === 'consumable' ? 1 : 0,
-                        });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="consumable">消耗品</SelectItem>
-                        <SelectItem value="equipment">裝備/道具</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="item-quantity">
-                      {items.find((i) => i.id === editingItem.id) ? '數量' : '新增張數'}
-                    </Label>
-                    <Input
-                      id="item-quantity"
-                      type="number"
-                      min={1}
-                      value={editingItem.quantity}
-                      onChange={(e) => setEditingItem({ 
-                        ...editingItem, 
-                        quantity: Math.max(1, parseInt(e.target.value) || 1)
-                      })}
-                    />
-                    {!items.find((i) => i.id === editingItem.id) && editingItem.quantity > 1 && (
-                      <p className="text-xs text-muted-foreground">
-                        將產生 {editingItem.quantity} 張獨立的道具卡，每張都有獨立的使用次數
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* 使用效果 */}
-                <div className="border-t pt-4">
-                  <Label className="text-base font-medium">使用效果（可選）</Label>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    設定道具使用時的效果
-                  </p>
-                  
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label>效果類型</Label>
-                      <Select
-                        value={editingItem.effect?.type || 'none'}
-                        onValueChange={(value) => {
-                          if (value === 'none') {
-                            setEditingItem({ ...editingItem, effect: undefined });
-                          } else if (value === 'stat_change') {
-                            // stat_change 必須設定預設的 statChangeTarget
-                            setEditingItem({
-                              ...editingItem,
-                              effect: {
-                                type: 'stat_change',
-                                targetStat: editingItem.effect?.targetStat,
-                                value: editingItem.effect?.value,
-                                statChangeTarget: editingItem.effect?.statChangeTarget || 'value',
-                                syncValue: editingItem.effect?.syncValue,
-                                description: editingItem.effect?.description,
-                              },
-                            });
-                          } else {
-                            // custom 類型
-                            setEditingItem({
-                              ...editingItem,
-                              effect: {
-                                type: value as ItemEffect['type'],
-                                description: editingItem.effect?.description,
-                              },
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="選擇效果類型" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">無效果</SelectItem>
-                          <SelectItem value="stat_change">數值變化</SelectItem>
-                          <SelectItem value="custom">自訂效果</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {editingItem.effect?.type === 'stat_change' && (() => {
-                      const targetType: 'self' | 'other' | 'any' = editingItem.effect?.targetType || 'self';
-                      
-                      return (
-                        <div className="space-y-3">
-                          {/* Phase 6.5: 目標對象選擇 */}
-                          <div className="space-y-2">
-                            <Label>目標對象</Label>
-                            <Select
-                              value={targetType}
-                              onValueChange={(value: 'self' | 'other' | 'any') => {
-                                setEditingItem({
-                                  ...editingItem,
-                                  effect: {
-                                    ...editingItem.effect!,
-                                    targetType: value,
-                                    requiresTarget: value !== 'self', // 自己不需要選擇，其他都需要
-                                  },
-                                });
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="self">自己</SelectItem>
-                                <SelectItem value="other">其他玩家</SelectItem>
-                                <SelectItem value="any">任一名玩家（包含自己）</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <p className="text-sm text-muted-foreground">
-                              {targetType === 'self' && '只能影響自己'}
-                              {targetType === 'other' && '使用時需選擇其他角色'}
-                              {targetType === 'any' && '使用時可選擇任意角色（包含自己）'}
-                            </p>
-                          </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-2">
-                            <Label>目標數值</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>道具類型</Label>
                           <Select
-                            value={editingItem.effect.targetStat || ''}
-                            onValueChange={(value) => {
-                              const stat = stats.find((s) => s.name === value);
-                              const hasMax = stat?.maxValue !== undefined && stat?.maxValue !== null;
-                              setEditingItem({
-                                ...editingItem,
-                                effect: {
-                                  ...editingItem.effect!,
-                                  targetStat: value,
-                                  statChangeTarget: hasMax ? (editingItem.effect?.statChangeTarget || 'value') : 'value',
-                                  syncValue: hasMax ? editingItem.effect?.syncValue : undefined,
-                                },
+                            value={editingItem.type}
+                            onValueChange={(value: 'consumable' | 'equipment') => {
+                              setEditingItem({ 
+                                ...editingItem, 
+                                type: value,
+                                usageLimit: value === 'consumable' ? 1 : 0,
                               });
                             }}
                           >
-                              <SelectTrigger>
-                                <SelectValue placeholder="選擇數值" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {stats.map((stat) => (
-                                  <SelectItem key={stat.id} value={stat.name}>
-                                    {stat.name}
-                                  </SelectItem>
-                                ))}
-                                {stats.length === 0 && (
-                                  <SelectItem value="" disabled>
-                                    尚無定義數值
-                                  </SelectItem>
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>變化值</Label>
-                            <Input
-                              type="number"
-                              value={editingItem.effect.value || 0}
-                              onChange={(e) => setEditingItem({
-                                ...editingItem,
-                                effect: { ...editingItem.effect!, value: parseInt(e.target.value) || 0 },
-                              })}
-                              placeholder="正數增加，負數減少"
-                            />
-                          </div>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="consumable">消耗品</SelectItem>
+                              <SelectItem value="equipment">裝備/道具</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
 
-                        {selectedStatHasMax && (
-                          <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="item-quantity">
+                            {items.find((i) => i.id === editingItem.id) ? '數量' : '新增張數'}
+                          </Label>
+                          <Input
+                            id="item-quantity"
+                            type="number"
+                            min={1}
+                            value={editingItem.quantity}
+                            onChange={(e) => setEditingItem({ 
+                              ...editingItem, 
+                              quantity: Math.max(1, parseInt(e.target.value) || 1)
+                            })}
+                          />
+                          {!items.find((i) => i.id === editingItem.id) && editingItem.quantity > 1 && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              將產生 {editingItem.quantity} 張獨立的道具卡
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div className="space-y-0.5">
+                          <Label>可轉移</Label>
+                          <p className="text-xs text-muted-foreground">
+                            允許玩家轉移給其他角色
+                          </p>
+                        </div>
+                        <Switch
+                          checked={editingItem.isTransferable}
+                          onCheckedChange={(checked) => setEditingItem({ 
+                            ...editingItem, 
+                            isTransferable: checked,
+                          })}
+                        />
+                      </div>
+                    </div>
+                  </EditFormCard>
+
+                  {/* 檢定系統 */}
+                  <EditFormCard title="檢定系統" description="設定道具使用時的檢定方式">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="check-type">檢定類型</Label>
+                        <Select
+                          value={editingItem.checkType || 'none'}
+                          onValueChange={(value: 'none' | 'contest' | 'random') => {
+                            const newItem = { ...editingItem, checkType: value };
+                            if (value === 'contest') {
+                              newItem.contestConfig = {
+                                relatedStat: '',
+                                opponentMaxItems: 0,
+                                opponentMaxSkills: 0,
+                                tieResolution: 'attacker_wins',
+                              };
+                              newItem.randomConfig = undefined;
+                            } else if (value === 'random') {
+                              newItem.randomConfig = {
+                                maxValue: 100,
+                                threshold: 50,
+                              };
+                              newItem.contestConfig = undefined;
+                            } else {
+                              newItem.contestConfig = undefined;
+                              newItem.randomConfig = undefined;
+                            }
+                            setEditingItem(newItem);
+                          }}
+                        >
+                          <SelectTrigger id="check-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">無檢定</SelectItem>
+                            <SelectItem value="contest">對抗檢定</SelectItem>
+                            <SelectItem value="random">隨機檢定</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* 對抗檢定設定 */}
+                      {editingItem.checkType === 'contest' && (
+                        <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                          <Label className="text-sm font-medium">對抗檢定設定</Label>
+                          <div className="space-y-3">
                             <div className="space-y-2">
-                              <Label>作用目標</Label>
+                              <Label>使用的數值 *</Label>
                               <Select
-                                value={editingItem.effect.statChangeTarget || 'value'}
-                                onValueChange={(value: 'value' | 'maxValue') =>
-                                  setEditingItem({
+                                value={editingItem.contestConfig?.relatedStat || ''}
+                                onValueChange={(value) => setEditingItem({
+                                  ...editingItem,
+                                  contestConfig: {
+                                    ...editingItem.contestConfig!,
+                                    relatedStat: value,
+                                  },
+                                })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="選擇數值" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {stats.map((stat) => (
+                                    <SelectItem key={stat.id} value={stat.name}>
+                                      {stat.name}
+                                    </SelectItem>
+                                  ))}
+                                  {stats.length === 0 && (
+                                    <SelectItem value="" disabled>
+                                      尚無定義數值
+                                    </SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>對方最多可使用道具數</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={editingItem.contestConfig?.opponentMaxItems || 0}
+                                  onChange={(e) => setEditingItem({
                                     ...editingItem,
-                                    effect: { ...editingItem.effect!, statChangeTarget: value },
-                                  })
-                                }
+                                    contestConfig: {
+                                      ...editingItem.contestConfig!,
+                                      opponentMaxItems: Math.max(0, parseInt(e.target.value) || 0),
+                                    },
+                                  })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>對方最多可使用技能數</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={editingItem.contestConfig?.opponentMaxSkills || 0}
+                                  onChange={(e) => setEditingItem({
+                                    ...editingItem,
+                                    contestConfig: {
+                                      ...editingItem.contestConfig!,
+                                      opponentMaxSkills: Math.max(0, parseInt(e.target.value) || 0),
+                                    },
+                                  })}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>平手裁決方式</Label>
+                              <Select
+                                value={editingItem.contestConfig?.tieResolution || 'attacker_wins'}
+                                onValueChange={(value: 'attacker_wins' | 'defender_wins' | 'both_fail') => setEditingItem({
+                                  ...editingItem,
+                                  contestConfig: {
+                                    ...editingItem.contestConfig!,
+                                    tieResolution: value,
+                                  },
+                                })}
                               >
                                 <SelectTrigger>
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="value">目前值</SelectItem>
-                                  <SelectItem value="maxValue">最大值</SelectItem>
+                                  <SelectItem value="attacker_wins">攻擊方獲勝</SelectItem>
+                                  <SelectItem value="defender_wins">防守方獲勝</SelectItem>
+                                  <SelectItem value="both_fail">雙方失敗</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-                            {editingItem.effect.statChangeTarget === 'maxValue' && (
-                              <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                  <span>同步目前值</span>
-                                  <Switch
-                                    checked={Boolean(editingItem.effect.syncValue)}
-                                    onCheckedChange={(checked) =>
-                                      setEditingItem({
-                                        ...editingItem,
-                                        effect: { ...editingItem.effect!, syncValue: checked },
-                                      })
-                                    }
-                                  />
-                                </Label>
-                                <p className="text-xs text-muted-foreground">
-                                  勾選時，最大值變動會連帶調整目前值（不超過新上限）
-                                </p>
-                              </div>
-                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                    })()}
+                        </div>
+                      )}
 
-                    {editingItem.effect?.type === 'custom' && (
+                      {/* 隨機檢定設定 */}
+                      {editingItem.checkType === 'random' && (
+                        <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                          <Label className="text-sm font-medium">隨機檢定設定</Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>上限值 *</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={editingItem.randomConfig?.maxValue || 100}
+                                onChange={(e) => {
+                                  const maxValue = Math.max(1, parseInt(e.target.value) || 100);
+                                  const threshold = editingItem.randomConfig?.threshold || 50;
+                                  setEditingItem({
+                                    ...editingItem,
+                                    randomConfig: {
+                                      maxValue,
+                                      threshold: Math.min(threshold, maxValue),
+                                    },
+                                  });
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>門檻值 *</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={editingItem.randomConfig?.maxValue || 100}
+                                value={editingItem.randomConfig?.threshold || 50}
+                                onChange={(e) => {
+                                  const threshold = Math.max(1, parseInt(e.target.value) || 50);
+                                  const maxValue = editingItem.randomConfig?.maxValue || 100;
+                                  setEditingItem({
+                                    ...editingItem,
+                                    randomConfig: {
+                                      maxValue,
+                                      threshold: Math.min(threshold, maxValue),
+                                    },
+                                  });
+                                }}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                檢定結果 ≥ 門檻值時通過
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </EditFormCard>
+
+                  {/* 使用限制 */}
+                  <EditFormCard title="使用限制" description="設定使用次數與冷卻時間">
+                    <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label>效果描述</Label>
-                        <Textarea
-                          value={editingItem.effect.description || ''}
+                        <Label htmlFor="usage-limit">使用次數限制</Label>
+                        <Input
+                          id="usage-limit"
+                          type="number"
+                          min={0}
+                          value={editingItem.usageLimit ?? (editingItem.type === 'consumable' ? 1 : 0)}
                           onChange={(e) => setEditingItem({
                             ...editingItem,
-                            effect: { ...editingItem.effect!, description: e.target.value },
+                            usageLimit: Math.max(0, parseInt(e.target.value) || 0),
                           })}
-                          placeholder="描述道具的自訂效果..."
-                          rows={2}
+                          placeholder={editingItem.type === 'consumable' ? '消耗品至少 1 次' : '0 = 無限制'}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {editingItem.type === 'consumable' 
+                            ? '消耗品建議至少 1 次' 
+                            : '非消耗品可設為 0（無限使用）'}
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cooldown">冷卻時間（秒）</Label>
+                        <Input
+                          id="cooldown"
+                          type="number"
+                          min={0}
+                          value={editingItem.cooldown || ''}
+                          onChange={(e) => setEditingItem({
+                            ...editingItem,
+                            cooldown: e.target.value ? parseInt(e.target.value) : undefined,
+                          })}
+                          placeholder="0 或空白 = 無冷卻"
                         />
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  </EditFormCard>
                 </div>
 
-                {/* 使用限制 */}
-                <div className="border-t pt-4">
-                  <Label className="text-base font-medium">使用限制（可選）</Label>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    設定使用次數與冷卻時間
-                  </p>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="usage-limit">使用次數限制</Label>
-                      <Input
-                        id="usage-limit"
-                        type="number"
-                        min={0}
-                        value={editingItem.usageLimit ?? (editingItem.type === 'consumable' ? 1 : 0)}
-                        onChange={(e) => setEditingItem({
+                {/* 下排：效果列表 */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <h3 className="text-base font-semibold">使用效果</h3>
+                      <p className="text-sm text-muted-foreground">設定道具使用時的效果，可添加多個效果</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const newEffect: ItemEffect = {
+                          type: 'stat_change',
+                          targetType: 'self',
+                          requiresTarget: false,
+                          statChangeTarget: 'value',
+                        };
+                        setEditingItem({
                           ...editingItem,
-                          usageLimit: Math.max(0, parseInt(e.target.value) || 0),
-                        })}
-                        placeholder={editingItem.type === 'consumable' ? '消耗品至少 1 次' : '0 = 無限制'}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {editingItem.type === 'consumable' 
-                          ? '消耗品建議至少 1 次' 
-                          : '非消耗品可設為 0（無限使用）'}
+                          effects: [...(editingItem.effects || []), newEffect],
+                        });
+                      }}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      新增效果
+                    </Button>
+                  </div>
+                  
+                  {editingItem.effects && editingItem.effects.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {editingItem.effects.map((effect, index) => (
+                        <EffectEditor
+                          key={index}
+                          effect={effect}
+                          index={index}
+                          stats={stats}
+                          onChange={(updatedEffect) => {
+                            const newEffects = [...(editingItem.effects || [])];
+                            // 確保 updatedEffect 是 ItemEffect 類型（因為 availableTypes 只包含 ItemEffect 類型）
+                            newEffects[index] = updatedEffect as ItemEffect;
+                            setEditingItem({ ...editingItem, effects: newEffects });
+                          }}
+                          onDelete={() => {
+                            const newEffects = (editingItem.effects || []).filter((_, i) => i !== index);
+                            setEditingItem({ ...editingItem, effects: newEffects });
+                          }}
+                          availableTypes={['stat_change', 'custom', 'item_take', 'item_steal']}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        尚無效果，點擊「新增效果」開始新增
                       </p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cooldown">冷卻時間（秒）</Label>
-                      <Input
-                        id="cooldown"
-                        type="number"
-                        min={0}
-                        value={editingItem.cooldown || ''}
-                        onChange={(e) => setEditingItem({
-                          ...editingItem,
-                          cooldown: e.target.value ? parseInt(e.target.value) : undefined,
-                        })}
-                        placeholder="0 或空白 = 無冷卻"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 流通性 */}
-                <div className="flex items-center justify-between border-t pt-4">
-                  <div className="space-y-0.5">
-                    <Label>可轉移</Label>
-                    <p className="text-sm text-muted-foreground">
-                      允許玩家將此道具轉移給其他角色
-                    </p>
-                  </div>
-                  <Switch
-                    checked={editingItem.isTransferable}
-                    onCheckedChange={(checked) => setEditingItem({ 
-                      ...editingItem, 
-                      isTransferable: checked,
-                    })}
-                  />
+                  )}
                 </div>
               </div>
             )}
@@ -578,7 +776,7 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                 取消
               </Button>
               <Button onClick={handleSaveItem}>
-                確認
+                儲存
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -604,19 +802,23 @@ interface ItemCardProps {
   item: Item;
   onEdit: () => void;
   onRemove: () => void;
-  onQuantityChange: (delta: number) => void;
 }
 
-function ItemCard({ item, onEdit, onRemove, onQuantityChange }: ItemCardProps) {
+function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
   return (
     <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg group">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="font-medium truncate">{item.name || '未命名道具'}</span>
-          {item.effect && (
+          {(item.effects && item.effects.length > 0) || item.effect && (
             <Badge variant="secondary" className="text-xs">
               <Zap className="h-3 w-3 mr-1" />
-              有效果
+              {(item.effects?.length || 0) > 0 ? `${item.effects?.length || 0} 個效果` : '有效果'}
+            </Badge>
+          )}
+          {item.checkType && item.checkType !== 'none' && (
+            <Badge variant="outline" className="text-xs">
+              {item.checkType === 'contest' ? '對抗檢定' : '隨機檢定'}
             </Badge>
           )}
           {item.cooldown && item.cooldown > 0 && (
@@ -629,27 +831,6 @@ function ItemCard({ item, onEdit, onRemove, onQuantityChange }: ItemCardProps) {
         {item.description && (
           <p className="text-sm text-muted-foreground line-clamp-1">{item.description}</p>
         )}
-      </div>
-
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onQuantityChange(-1)}
-          disabled={item.quantity <= 1}
-        >
-          -
-        </Button>
-        <span className="w-8 text-center font-mono">{item.quantity}</span>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onQuantityChange(1)}
-        >
-          +
-        </Button>
       </div>
 
       <Button variant="ghost" size="icon" onClick={onEdit}>

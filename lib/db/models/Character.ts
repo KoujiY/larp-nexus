@@ -65,13 +65,44 @@ export interface CharacterDocument extends Document {
     // 道具類型與數量
     type: 'consumable' | 'equipment';
     quantity: number;
-    // 使用效果
-    effect?: {
-      type: 'stat_change' | 'buff' | 'custom';
+    // 使用效果（重構：改為陣列，支援多個效果）
+    effects?: Array<{
+      type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
+      targetType?: 'self' | 'other' | 'any';
+      requiresTarget?: boolean;
       targetStat?: string;
       value?: number;
+      statChangeTarget?: 'value' | 'maxValue';
+      syncValue?: boolean;
+      targetItemId?: string;
       duration?: number;
       description?: string;
+    }>;
+    // 向後兼容：保留單一 effect 欄位（已棄用）
+    /** @deprecated 使用 effects 陣列代替 */
+    effect?: {
+      type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
+      targetType?: 'self' | 'other' | 'any';
+      requiresTarget?: boolean;
+      targetStat?: string;
+      value?: number;
+      statChangeTarget?: 'value' | 'maxValue';
+      syncValue?: boolean;
+      targetItemId?: string;
+      duration?: number;
+      description?: string;
+    };
+    // Phase 8: 檢定系統
+    checkType?: 'none' | 'contest' | 'random';
+    contestConfig?: {
+      relatedStat: string;
+      opponentMaxItems?: number;
+      opponentMaxSkills?: number;
+      tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+    };
+    randomConfig?: {
+      maxValue: number;
+      threshold: number;
     };
     // 使用限制
     usageLimit?: number;
@@ -294,13 +325,39 @@ const CharacterSchema = new Schema<CharacterDocument>(
           type: Number,
           default: 1,
         },
-        // 使用效果
+        // 使用效果（重構：支援多個效果）
+        effects: [
+          {
+            _id: false,
+            type: {
+              type: String,
+              enum: ['stat_change', 'custom', 'item_take', 'item_steal'], // Phase 7: 添加 item_take 和 item_steal
+              required: true,
+            },
+            // Phase 6.5 方案 A: 目標設定
+            targetType: {
+              type: String,
+              enum: ['self', 'other', 'any'],
+            },
+            requiresTarget: Boolean,
+            targetStat: String,
+            value: Number,
+            statChangeTarget: {
+              type: String,
+              enum: ['value', 'maxValue'],
+            },
+            syncValue: Boolean,
+            targetItemId: String, // Phase 7: 目標道具 ID
+            duration: Number,
+            description: String,
+          },
+        ],
+        // 向後兼容：保留單一 effect 欄位（已棄用）
         effect: {
           type: {
             type: String,
-            enum: ['stat_change', 'custom'],
+            enum: ['stat_change', 'custom', 'item_take', 'item_steal'],
           },
-          // Phase 6.5 方案 A: 目標設定
           targetType: {
             type: String,
             enum: ['self', 'other', 'any'],
@@ -313,8 +370,34 @@ const CharacterSchema = new Schema<CharacterDocument>(
             enum: ['value', 'maxValue'],
           },
           syncValue: Boolean,
+          targetItemId: String, // Phase 7: 目標道具 ID
           duration: Number,
           description: String,
+        },
+        // Phase 8: 檢定系統
+        checkType: {
+          type: String,
+          enum: ['none', 'contest', 'random'],
+          default: 'none',
+        },
+        // 對抗檢定設定
+        contestConfig: {
+          relatedStat: String, // 使用的數值名稱
+          opponentMaxItems: Number, // 對方最多可使用道具數（預設 0）
+          opponentMaxSkills: Number, // 對方最多可使用技能數（預設 0）
+          tieResolution: {
+            type: String,
+            enum: ['attacker_wins', 'defender_wins', 'both_fail'],
+            default: 'attacker_wins',
+          },
+        },
+        // 隨機檢定設定
+        randomConfig: {
+          maxValue: {
+            type: Number,
+            default: 100,
+          },
+          threshold: Number, // 門檻值（必須 <= maxValue）
         },
         // 使用限制
         usageLimit: {

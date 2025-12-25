@@ -24,6 +24,7 @@ const GAME_EVENT_TYPES = ['game.broadcast', 'game.started', 'game.reset', 'game.
 export function useCharacterWebSocket(characterId: string, onEvent?: EventHandler) {
   const handlerRef = useRef<EventHandler | undefined>(onEvent);
 
+  // 更新處理器引用（不觸發重新訂閱）
   useEffect(() => {
     handlerRef.current = onEvent;
   }, [onEvent]);
@@ -35,9 +36,32 @@ export function useCharacterWebSocket(characterId: string, onEvent?: EventHandle
 
     const channelName = `private-character-${characterId}`;
     const channel = pusher.subscribe(channelName);
+    
+    // 監聽訂閱錯誤事件
+    channel.bind('pusher:subscription_error', (error: unknown) => {
+      console.error('[useCharacterWebSocket] 頻道訂閱失敗', { 
+        characterId, 
+        channelName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
+    // 創建一個穩定的處理器函數，它會調用當前的 handlerRef.current
+    // 這樣每個組件都有自己的處理器，不會互相覆蓋
+    // 重要：使用閉包捕獲 handlerRef，這樣 handler 改變時不需要重新綁定
     const handle = (data: BaseEvent) => {
-      handlerRef.current?.(data);
+      const currentHandler = handlerRef.current;
+      if (currentHandler) {
+        try {
+          currentHandler(data);
+        } catch (error) {
+          console.error('[useCharacterWebSocket] 處理器執行出錯', { 
+            eventType: data.type, 
+            characterId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     };
 
     CHARACTER_EVENT_TYPES.forEach((eventType) => {
@@ -48,8 +72,8 @@ export function useCharacterWebSocket(characterId: string, onEvent?: EventHandle
       CHARACTER_EVENT_TYPES.forEach((eventType) => {
         channel.unbind(eventType, handle);
       });
-      pusher.unsubscribe(channelName);
-      // 不在此處斷線，交給 Pusher 內部連線管理
+      // 注意：不要調用 pusher.unsubscribe，因為其他組件可能還在訂閱同一個頻道
+      // 只有在所有組件都取消訂閱時，Pusher 才會自動取消訂閱
     };
   }, [characterId]);
 }
@@ -57,6 +81,7 @@ export function useCharacterWebSocket(characterId: string, onEvent?: EventHandle
 export function useGameWebSocket(gameId: string, onEvent?: EventHandler) {
   const handlerRef = useRef<EventHandler | undefined>(onEvent);
 
+  // 更新處理器引用（不觸發重新訂閱）
   useEffect(() => {
     handlerRef.current = onEvent;
   }, [onEvent]);
@@ -69,8 +94,22 @@ export function useGameWebSocket(gameId: string, onEvent?: EventHandler) {
     const channelName = `private-game-${gameId}`;
     const channel = pusher.subscribe(channelName);
 
+    // 創建一個穩定的處理器函數，它會調用當前的 handlerRef.current
+    // 這樣每個組件都有自己的處理器，不會互相覆蓋
+    // 重要：使用閉包捕獲 handlerRef，這樣 handler 改變時不需要重新綁定
     const handle = (data: BaseEvent) => {
-      handlerRef.current?.(data);
+      const currentHandler = handlerRef.current;
+      if (currentHandler) {
+        try {
+          currentHandler(data);
+        } catch (error) {
+          console.error('[useGameWebSocket] 處理器執行出錯', { 
+            eventType: data.type, 
+            gameId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     };
 
     GAME_EVENT_TYPES.forEach((eventType) => {
@@ -81,7 +120,8 @@ export function useGameWebSocket(gameId: string, onEvent?: EventHandler) {
       GAME_EVENT_TYPES.forEach((eventType) => {
         channel.unbind(eventType, handle);
       });
-      pusher.unsubscribe(channelName);
+      // 注意：不要調用 pusher.unsubscribe，因為其他組件可能還在訂閱同一個頻道
+      // 只有在所有組件都取消訂閱時，Pusher 才會自動取消訂閱
     };
   }, [gameId]);
 }

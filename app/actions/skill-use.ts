@@ -2,7 +2,9 @@
 
 import dbConnect from '@/lib/db/mongodb';
 import { Character } from '@/lib/db/models';
-import { emitSkillUsed, emitRoleUpdated, emitCharacterAffected } from '@/lib/websocket/events';
+import { emitSkillUsed, emitRoleUpdated, emitCharacterAffected, emitSkillContest } from '@/lib/websocket/events';
+import { addActiveContest, isCharacterInContest } from '@/lib/contest-tracker';
+import { cleanItemData } from '@/lib/character-cleanup';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -12,8 +14,20 @@ export async function useSkill(
   characterId: string,
   skillId: string,
   checkResult?: number, // 檢定結果（由前端傳入，如果是 random 類型）
-  targetCharacterId?: string // Phase 6.5: 目標角色 ID（跨角色效果用）
-): Promise<ApiResponse<{ skillUsed: boolean; checkPassed?: boolean; checkResult?: number; effectsApplied?: string[]; targetCharacterName?: string }>> {
+  targetCharacterId?: string, // Phase 6.5: 目標角色 ID（跨角色效果用）
+  targetItemId?: string // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+): Promise<ApiResponse<{ 
+  skillUsed: boolean; 
+  checkPassed?: boolean; 
+  checkResult?: number; 
+  effectsApplied?: string[]; 
+  targetCharacterName?: string;
+  // Phase 7: 對抗檢定相關欄位
+  contestId?: string;
+  attackerValue?: number;
+  defenderValue?: number;
+  preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+}>> {
   try {
     await dbConnect();
 
@@ -40,6 +54,16 @@ export async function useSkill(
     const skill = skills[skillIndex];
     const now = new Date();
 
+    // Phase 8: 檢查使用者本身是否正在進行對抗檢定（無論技能是否需要檢定）
+    const userContestStatus = isCharacterInContest(characterId);
+    if (userContestStatus.inContest) {
+      return {
+        success: false,
+        error: 'USER_IN_CONTEST',
+        message: '檢定進行中，暫時無法使用技能',
+      };
+    }
+
     // Phase 6.5: 驗證目標角色（如果需要）
     let targetCharacter = null;
     const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget);
@@ -63,6 +87,16 @@ export async function useSkill(
         };
       }
 
+      // Phase 8: 檢查目標角色是否正在進行對抗檢定
+      const targetContestStatus = isCharacterInContest(targetCharacterId);
+      if (targetContestStatus.inContest) {
+        return {
+          success: false,
+          error: 'TARGET_IN_CONTEST',
+          message: '目標角色正在進行對抗檢定，暫時無法對其使用技能',
+        };
+      }
+
       // 驗證目標類型匹配
       const effectWithTarget = skill.effects?.find((e: Record<string, unknown>) => e.requiresTarget);
       const targetType = effectWithTarget?.targetType as string | undefined;
@@ -81,6 +115,19 @@ export async function useSkill(
           error: 'INVALID_TARGET',
           message: '此技能不能對自己使用',
         };
+      }
+    } else if (targetCharacterId) {
+      // Phase 8: 即使技能不需要目標，如果選擇了目標角色，也要檢查目標是否在對抗中
+      targetCharacter = await Character.findById(targetCharacterId);
+      if (targetCharacter && targetCharacter.gameId.toString() === character.gameId.toString()) {
+        const targetContestStatus = isCharacterInContest(targetCharacterId);
+        if (targetContestStatus.inContest) {
+          return {
+            success: false,
+            error: 'TARGET_IN_CONTEST',
+            message: '目標角色正在進行對抗檢定，暫時無法對其使用技能',
+          };
+        }
       }
     }
 
@@ -114,11 +161,142 @@ export async function useSkill(
     let finalCheckResult: number | undefined;
 
     if (skill.checkType === 'contest') {
-      // 對抗檢定（暫時返回錯誤，待後續實作）
+      // Phase 7: 對抗檢定
+      if (!skill.contestConfig) {
+        return {
+          success: false,
+          error: 'INVALID_CONFIG',
+          message: '對抗檢定設定不完整',
+        };
+      }
+
+      // 對抗檢定必須有目標角色
+      if (!targetCharacterId) {
+        return {
+          success: false,
+          error: 'TARGET_REQUIRED',
+          message: '對抗檢定需要選擇目標角色',
+        };
+      }
+
+      if (!targetCharacter) {
+        return {
+          success: false,
+          error: 'TARGET_NOT_FOUND',
+          message: '找不到目標角色',
+        };
+      }
+
+      const contestConfig = skill.contestConfig;
+      const relatedStatName = contestConfig.relatedStat;
+
+      // 取得攻擊方的相關數值
+      const attackerStats = character.stats || [];
+      const attackerStat = attackerStats.find((s: { name: string }) => s.name === relatedStatName);
+      if (!attackerStat) {
+        return {
+          success: false,
+          error: 'INVALID_STAT',
+          message: `你沒有 ${relatedStatName} 數值`,
+        };
+      }
+
+      const attackerValue = attackerStat.value;
+
+      // 取得防守方的相關數值（基礎值）
+      const defenderStats = targetCharacter.stats || [];
+      const defenderStat = defenderStats.find((s: { name: string }) => s.name === relatedStatName);
+      if (!defenderStat) {
+        return {
+          success: false,
+          error: 'INVALID_TARGET_STAT',
+          message: `目標角色沒有 ${relatedStatName} 數值`,
+        };
+      }
+
+      const defenderBaseValue = defenderStat.value;
+
+      // 創建對抗請求 ID（格式：attackerId::skillId::timestamp）
+      const contestId = `${characterId}::${skillId}::${now.getTime()}`;
+
+      // Phase 7: 對抗檢定流程
+      // 1. 攻擊方使用技能 → 創建對抗請求 → 通知防守方
+      // 2. 防守方可以選擇使用道具/技能來回應（通過 respondToContest API）
+      // 3. 如果防守方不回應，使用基礎數值計算結果
+      // 
+      // 為了簡化流程，我們先使用防守方的基礎數值計算初步結果
+      // 防守方可以通過 respondToContest API 來重新計算（使用道具/技能）
+      // 效果將在防守方回應後執行（或使用基礎數值時立即執行）
+
+      // 計算初步對抗結果（使用防守方基礎數值）
+      let preliminaryResult: 'attacker_wins' | 'defender_wins' | 'both_fail';
+      if (attackerValue > defenderBaseValue) {
+        preliminaryResult = 'attacker_wins';
+      } else if (defenderBaseValue > attackerValue) {
+        preliminaryResult = 'defender_wins';
+      } else {
+        // 平手
+        preliminaryResult = contestConfig.tieResolution || 'attacker_wins';
+        if (preliminaryResult === 'both_fail') {
+          preliminaryResult = 'both_fail';
+        }
+      }
+
+      // Phase 8: 添加到對抗檢定追蹤系統
+      addActiveContest(contestId, characterId, targetCharacterId, 'skill', skill.id);
+
+      // 推送對抗檢定請求事件給防守方
+      // 防守方可以選擇使用道具/技能來增強防禦
+      // 注意：防守方不應該知道攻擊方的數值，所以發送 0 作為佔位符
+      emitSkillContest(characterId, targetCharacterId, {
+        attackerId: characterId,
+        attackerName: character.name,
+        defenderId: targetCharacterId,
+        defenderName: targetCharacter.name,
+        skillId: skill.id,
+        skillName: skill.name,
+        attackerValue: 0, // 防守方不應該知道攻擊方數值，使用 0 作為佔位符
+        defenderValue: defenderBaseValue,
+        result: preliminaryResult,
+        effectsApplied: undefined, // 效果將在防守方回應後執行
+        opponentMaxItems: contestConfig.opponentMaxItems, // 防守方最多可使用道具數
+        opponentMaxSkills: contestConfig.opponentMaxSkills, // 防守方最多可使用技能數
+        targetItemId: targetItemId, // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+      }).catch((error) => console.error('Failed to emit skill.contest (request)', error));
+
+      // 更新技能使用記錄（但不執行效果，效果將在防守方回應後執行）
+      await Character.findByIdAndUpdate(characterId, {
+        $set: {
+          [`skills.${skillIndex}.lastUsedAt`]: now,
+          [`skills.${skillIndex}.usageCount`]: (skill.usageCount || 0) + 1,
+        },
+      });
+
+      // 推送技能使用事件（通知攻擊方對抗請求已發送）
+      emitSkillUsed(characterId, {
+        characterId,
+        skillId: skill.id,
+        skillName: skill.name,
+        checkType: 'contest',
+        checkPassed: false, // 暫時設為 false，等待防守方回應
+        checkResult: undefined,
+        effectsApplied: undefined,
+      }).catch((error) => {
+        console.error('Failed to emit skill.used event', error);
+      });
+
+      // 返回對抗請求 ID，讓前端可以顯示等待防守方回應的狀態
       return {
-        success: false,
-        error: 'NOT_IMPLEMENTED',
-        message: '對抗檢定功能開發中',
+        success: true,
+        data: {
+          skillUsed: true,
+          checkPassed: false, // 等待防守方回應
+          contestId, // 返回對抗請求 ID，防守方需要使用此 ID 來回應
+          attackerValue,
+          defenderValue: defenderBaseValue,
+          preliminaryResult,
+        },
+        message: `對抗檢定請求已發送給 ${targetCharacter.name}，等待回應...`,
       };
     } else if (skill.checkType === 'random') {
       // 隨機檢定（由前端傳入結果）
@@ -137,7 +315,6 @@ export async function useSkill(
               message: '需要檢定結果',
             };
           }
-          console.warn('使用舊格式的隨機檢定設定，建議在 GM 端重新編輯技能');
           finalCheckResult = checkResult;
           // 驗證檢定結果在有效範圍內（舊格式預設上限為 100）
           if (checkResult < 1 || checkResult > oldMaxValue) {
@@ -306,13 +483,206 @@ export async function useSkill(
           }
         } else if (effect.type === 'item_give' && effect.targetItemId) {
           // 給予道具（未實作）
-          console.warn('item_give effect not implemented yet');
-        } else if (effect.type === 'item_take' && effect.targetItemId) {
-          // 拿取道具（未實作）
-          console.warn('item_take effect not implemented yet');
-        } else if (effect.type === 'item_steal' && effect.targetItemId) {
-          // 偷取道具（未實作）
-          console.warn('item_steal effect not implemented yet');
+        } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
+          // Phase 7: 移除道具或偷竊道具
+          // Phase 8: 對抗檢定時，這個效果會在判定結束後才執行，這裡跳過
+          if (skill.checkType === 'contest') {
+            continue;
+          }
+          
+          if (!targetCharacterId) {
+            return {
+              success: false,
+              error: 'TARGET_REQUIRED',
+              message: '此效果需要選擇目標角色',
+            };
+          }
+
+          if (!targetItemId) {
+            return {
+              success: false,
+              error: 'TARGET_ITEM_REQUIRED',
+              message: '請選擇目標道具',
+            };
+          }
+
+          // 驗證目標角色
+          if (!targetCharacter) {
+            targetCharacter = await Character.findById(targetCharacterId);
+            if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+              return {
+                success: false,
+                error: 'INVALID_TARGET',
+                message: '目標角色不存在或不在同一劇本內',
+              };
+            }
+          }
+
+          // 找到目標道具
+          const targetItems = targetCharacter.items || [];
+          const targetItemIndex = targetItems.findIndex((i: { id: string }) => i.id === targetItemId);
+          
+          if (targetItemIndex === -1) {
+            return {
+              success: false,
+              error: 'TARGET_ITEM_NOT_FOUND',
+              message: '目標角色沒有此道具',
+            };
+          }
+
+          const targetItem = targetItems[targetItemIndex];
+          const targetItemName = targetItem.name;
+          const targetItemQuantity = targetItem.quantity || 1;
+          const newQuantity = targetItemQuantity - 1;
+
+          // 準備更新：先移除舊的道具
+          await Character.findByIdAndUpdate(targetCharacterId, {
+            $pull: { items: { id: targetItemId } },
+          });
+
+          // 如果數量 > 0，添加更新後的道具
+          if (newQuantity > 0) {
+            const updatedItem = {
+              ...(targetItem.toObject ? targetItem.toObject() : targetItem),
+              quantity: newQuantity,
+            };
+            // 移除可能的 Mongoose 特定欄位
+            delete (updatedItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
+            delete (updatedItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
+            await Character.findByIdAndUpdate(targetCharacterId, {
+              $push: { items: updatedItem },
+            });
+          }
+
+          if (effect.type === 'item_steal') {
+            // 偷竊：將道具轉移到施放者身上
+            // 重新載入角色資料以確保資料是最新的
+            const updatedCharacter = await Character.findById(characterId);
+            if (!updatedCharacter) {
+              return {
+                success: false,
+                error: 'NOT_FOUND',
+                message: '找不到角色',
+              };
+            }
+            
+            const sourceItems = updatedCharacter.items || [];
+            const sourceItemIndex = sourceItems.findIndex((i: { id: string }) => i.id === targetItemId);
+
+            if (sourceItemIndex !== -1) {
+              // 施放者已有此道具，增加數量
+              // 使用 $pull 和 $push 確保正確更新
+              const currentItem = sourceItems[sourceItemIndex];
+              const currentQuantity = currentItem.quantity || 1;
+              
+              await Character.findByIdAndUpdate(characterId, {
+                $pull: { items: { id: targetItemId } },
+              });
+              
+              const updatedSourceItem = {
+                ...currentItem,
+                quantity: currentQuantity + 1,
+              };
+              delete (updatedSourceItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
+              delete (updatedSourceItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
+              
+              await Character.findByIdAndUpdate(characterId, {
+                $push: { items: updatedSourceItem },
+              });
+            } else {
+              // 施放者沒有此道具，新增道具
+              const stolenItem = {
+                id: targetItem.id,
+                name: targetItem.name,
+                description: targetItem.description || '',
+                imageUrl: targetItem.imageUrl,
+                type: targetItem.type,
+                quantity: 1,
+                isTransferable: targetItem.isTransferable !== undefined ? targetItem.isTransferable : true,
+                acquiredAt: new Date(),
+                usageCount: 0,
+              };
+              
+              await Character.findByIdAndUpdate(characterId, {
+                $push: { items: stolenItem },
+              });
+            }
+
+            // 發送 WebSocket 事件
+            // 偷竊方（characterId）：不發送任何通知，因為會顯示「技能使用結果」
+            // 被偷竊方（targetCharacterId）：只發送 inventoryUpdated 通知（道具失去）
+            // 注意：不發送 item.transferred 給偷竊方，因為偷竊方應該只看到「技能使用結果」
+            // inventoryUpdated 會在下面統一發送給被偷竊方
+
+            effectsApplied.push(`偷竊了 ${targetItemName}`);
+          } else {
+            // 移除：只移除目標道具，不轉移
+            effectsApplied.push(`移除了 ${targetItemName}`);
+          }
+
+          // 發送 WebSocket 事件給目標角色
+          const { emitInventoryUpdated, emitCharacterAffected } = await import('@/lib/websocket/events');
+          emitInventoryUpdated(targetCharacterId, {
+            characterId: targetCharacterId,
+            item: {
+              id: targetItem.id,
+              name: targetItem.name,
+              description: targetItem.description || '',
+              imageUrl: targetItem.imageUrl,
+              acquiredAt: targetItem.acquiredAt?.toISOString(),
+            },
+            action: targetItemQuantity <= 1 ? 'deleted' : 'updated',
+          }).catch((error) => console.error('Failed to emit inventory.updated (take/steal target)', error));
+
+          // 發送跨角色影響事件
+          emitCharacterAffected(targetCharacterId, {
+            targetCharacterId,
+            sourceCharacterId: characterId,
+            sourceCharacterName: character.name,
+            sourceType: 'skill',
+            sourceName: skill.name,
+            effectType: effect.type === 'item_steal' ? 'item_steal' : 'item_take',
+            changes: {
+              items: [{
+                id: targetItem.id,
+                name: targetItem.name,
+                action: effect.type === 'item_steal' ? 'stolen' : 'removed',
+              }],
+            },
+          }).catch((error) => console.error('Failed to emit character.affected (item_take/steal)', error));
+
+          // Phase 9: 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
+          // 重新載入兩個角色的最新資料
+          const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
+            Character.findById(characterId).lean(),
+            Character.findById(targetCharacterId).lean(),
+          ]);
+
+          if (updatedSourceCharacter && updatedTargetCharacter) {
+            const sourceCleanItems = cleanItemData(updatedSourceCharacter.items);
+            const targetCleanItems = cleanItemData(updatedTargetCharacter.items);
+
+
+            // 發送 role.updated 給兩個角色，包含最新的道具列表
+            await emitRoleUpdated(characterId, {
+              characterId,
+              updates: {
+                items: sourceCleanItems as unknown as Array<Record<string, unknown>>,
+              },
+            }).catch((error) => {
+              console.error('[skill-use] Failed to emit role.updated (source character items)', error);
+            });
+
+            await emitRoleUpdated(targetCharacterId, {
+              characterId: targetCharacterId,
+              updates: {
+                items: targetCleanItems as unknown as Array<Record<string, unknown>>,
+              },
+            }).catch((error) => {
+              console.error('[skill-use] Failed to emit role.updated (target character items)', error);
+            });
+          } else {
+          }
         }
       }
 
@@ -345,11 +715,13 @@ export async function useSkill(
               },
             }).catch((error) => console.error('Failed to emit character.affected (skill)', error));
 
-            // 發送 role.updated 給目標角色
+            // 注意：跨角色影響時，不發送 role.updated 的 stats 更新
+            // 因為 character.affected 已經包含了所有必要信息
+            // 只發送 role.updated 用於觸發頁面刷新，但不包含 stats（避免重複通知）
             emitRoleUpdated(targetCharacterId, {
               characterId: targetCharacterId,
               updates: {
-                stats: statUpdates,
+                // 不包含 stats，避免與 character.affected 重複
               },
             }).catch((error) => console.error('Failed to emit role.updated (skill target)', error));
           }

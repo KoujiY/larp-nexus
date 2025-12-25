@@ -31,16 +31,44 @@ interface MongoItem {
   imageUrl?: string;
   type: 'consumable' | 'equipment';
   quantity: number;
-  effect?: {
-    type: 'stat_change' | 'custom';
+  // 使用效果（重構：改為陣列，支援多個效果）
+  effects?: Array<{
+    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
     targetType?: 'self' | 'other' | 'any';
     requiresTarget?: boolean;
     targetStat?: string;
     value?: number;
     statChangeTarget?: 'value' | 'maxValue';
     syncValue?: boolean;
+    targetItemId?: string;
     duration?: number;
     description?: string;
+  }>;
+  // 向後兼容：保留 effect 欄位（單一效果），但優先使用 effects
+  /** @deprecated 使用 effects 陣列代替 */
+  effect?: {
+    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
+    targetType?: 'self' | 'other' | 'any';
+    requiresTarget?: boolean;
+    targetStat?: string;
+    value?: number;
+    statChangeTarget?: 'value' | 'maxValue';
+    syncValue?: boolean;
+    targetItemId?: string;
+    duration?: number;
+    description?: string;
+  };
+  // Phase 8: 檢定系統
+  checkType?: 'none' | 'contest' | 'random';
+  contestConfig?: {
+    relatedStat: string;
+    opponentMaxItems?: number;
+    opponentMaxSkills?: number;
+    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  };
+  randomConfig?: {
+    maxValue: number;
+    threshold: number;
   };
   usageLimit?: number;
   usageCount?: number;
@@ -142,16 +170,41 @@ export function cleanItemData(items: MongoItem[] | undefined): Array<{
   imageUrl?: string;
   type: 'consumable' | 'equipment';
   quantity: number;
-  effect?: {
-    type: 'stat_change' | 'custom';
+  effects?: Array<{
+    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
     targetType?: 'self' | 'other' | 'any';
     requiresTarget?: boolean;
     targetStat?: string;
     value?: number;
     statChangeTarget?: 'value' | 'maxValue';
     syncValue?: boolean;
+    targetItemId?: string;
     duration?: number;
     description?: string;
+  }>;
+  effect?: {
+    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
+    targetType?: 'self' | 'other' | 'any';
+    requiresTarget?: boolean;
+    targetStat?: string;
+    value?: number;
+    statChangeTarget?: 'value' | 'maxValue';
+    syncValue?: boolean;
+    targetItemId?: string;
+    duration?: number;
+    description?: string;
+  };
+  // Phase 8: 檢定系統
+  checkType?: 'none' | 'contest' | 'random';
+  contestConfig?: {
+    relatedStat: string;
+    opponentMaxItems?: number;
+    opponentMaxSkills?: number;
+    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  };
+  randomConfig?: {
+    maxValue: number;
+    threshold: number;
   };
   usageLimit?: number;
   usageCount?: number;
@@ -162,31 +215,94 @@ export function cleanItemData(items: MongoItem[] | undefined): Array<{
 }> {
   return (items || [])
     .filter((item): item is MongoItem => Boolean(item && item.id))
-    .map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      imageUrl: item.imageUrl,
-      type: item.type,
-      quantity: item.quantity,
-      effect: item.effect ? {
-        type: item.effect.type,
-        targetType: item.effect.targetType,
-        requiresTarget: item.effect.requiresTarget,
-        targetStat: item.effect.targetStat,
-        value: item.effect.value,
-        statChangeTarget: item.effect.statChangeTarget,
-        syncValue: item.effect.syncValue,
-        duration: item.effect.duration,
-        description: item.effect.description,
-      } : undefined,
-      usageLimit: item.usageLimit,
-      usageCount: item.usageCount || 0,
-      cooldown: item.cooldown,
-      lastUsedAt: item.lastUsedAt,
-      isTransferable: item.isTransferable,
-      acquiredAt: item.acquiredAt,
-    }));
+    .map((item) => {
+      const processEffect = (effect: {
+        type: string;
+        targetType?: 'self' | 'other' | 'any';
+        requiresTarget?: boolean;
+        targetStat?: string;
+        value?: number;
+        statChangeTarget?: 'value' | 'maxValue';
+        syncValue?: boolean;
+        targetItemId?: string;
+        duration?: number;
+        description?: string;
+      } | null | undefined) => {
+        if (!effect || !effect.type) return undefined;
+        return {
+          type: effect.type as 'stat_change' | 'custom' | 'item_take' | 'item_steal',
+          targetType: effect.targetType,
+          requiresTarget: effect.requiresTarget,
+          targetStat: effect.targetStat,
+          value: effect.value,
+          statChangeTarget: effect.statChangeTarget,
+          syncValue: effect.syncValue,
+          targetItemId: effect.targetItemId,
+          duration: effect.duration,
+          description: effect.description,
+        };
+      };
+
+      // 優先處理 effects 陣列
+      let effects: Array<{
+        type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
+        targetType?: 'self' | 'other' | 'any';
+        requiresTarget?: boolean;
+        targetStat?: string;
+        value?: number;
+        statChangeTarget?: 'value' | 'maxValue';
+        syncValue?: boolean;
+        targetItemId?: string;
+        duration?: number;
+        description?: string;
+      }> | undefined;
+      
+      if (item.effects && Array.isArray(item.effects)) {
+        // 處理 effects 陣列
+        if (item.effects.length > 0) {
+          const processedEffects = item.effects.map(processEffect).filter((e): e is NonNullable<typeof e> => e !== undefined);
+          // 只有在處理後仍有有效效果時才設置 effects
+          if (processedEffects.length > 0) {
+            effects = processedEffects;
+          } else {
+            // 所有效果都被過濾掉（例如無效的效果），返回空陣列
+            // 這樣可以保留「原本有 effects 但被過濾掉」的資訊
+            effects = [];
+          }
+        } else {
+          // 原始陣列為空，返回空陣列（保留資料庫中的空陣列狀態）
+          effects = [];
+        }
+      }
+
+      // 向後兼容：如果沒有 effects 但有 effect，轉換為 effects
+      const singleEffect = processEffect(item.effect);
+      const finalEffects = effects !== undefined 
+        ? effects 
+        : (singleEffect ? [singleEffect] : undefined);
+
+      return {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        imageUrl: item.imageUrl,
+        type: item.type,
+        quantity: item.quantity,
+        effects: finalEffects,
+        // 向後兼容：如果只有單一效果，也保留 effect 欄位
+        effect: finalEffects && finalEffects.length === 1 ? finalEffects[0] : undefined,
+        // Phase 8: 檢定系統
+        checkType: item.checkType,
+        contestConfig: item.contestConfig,
+        randomConfig: item.randomConfig,
+        usageLimit: item.usageLimit,
+        usageCount: item.usageCount || 0,
+        cooldown: item.cooldown,
+        lastUsedAt: item.lastUsedAt,
+        isTransferable: item.isTransferable,
+        acquiredAt: item.acquiredAt,
+      };
+    });
 }
 
 /**

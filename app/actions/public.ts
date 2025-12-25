@@ -170,3 +170,52 @@ export async function getTransferTargets(
   }
 }
 
+/**
+ * Phase 7: 取得目標角色的道具清單（用於 item_take 和 item_steal 效果）
+ * 只回傳基本資訊（id、name、quantity），用於選擇目標道具
+ */
+export interface TargetItemInfo {
+  id: string;
+  name: string;
+  quantity: number;
+}
+
+export async function getTargetCharacterItems(
+  targetCharacterId: string
+): Promise<ApiResponse<TargetItemInfo[]>> {
+  try {
+    await dbConnect();
+
+    const character = await Character.findById(targetCharacterId)
+      .select('items')
+      .lean();
+
+    if (!character) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到目標角色',
+      };
+    }
+
+    const items = character.items || [];
+    const cleanItems = cleanItemData(items);
+
+    return {
+      success: true,
+      data: cleanItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+      })),
+    };
+  } catch (error) {
+    console.error('Error fetching target character items:', error);
+    return {
+      success: false,
+      error: 'FETCH_FAILED',
+      message: '無法取得目標角色的道具清單',
+    };
+  }
+}
+

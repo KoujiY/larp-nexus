@@ -93,9 +93,10 @@ export interface Task {
 /**
  * Phase 4.5: 道具效果
  * Phase 6.5: 擴展跨角色效果（方案 A）
+ * 重構：與 SkillEffect 統一結構，支援多個效果
  */
 export interface ItemEffect {
-  type: 'stat_change' | 'custom';
+  type: 'stat_change' | 'custom' | 'item_take' | 'item_steal'; // Phase 7: 添加 item_take 和 item_steal
   
   // Phase 6.5 方案 A: 目標設定
   targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
@@ -109,10 +110,13 @@ export interface ItemEffect {
   syncValue?: boolean;
   duration?: number;
   description?: string;
+  targetItemId?: string; // Phase 7: 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇）
 }
 
 /**
  * Phase 4.5: 道具系統（擴展版）
+ * Phase 8: 添加檢定系統
+ * 重構：支援多個效果（與技能一致）
  */
 export interface Item {
   id: string;
@@ -122,8 +126,17 @@ export interface Item {
   // 道具類型與數量
   type: 'consumable' | 'equipment';
   quantity: number;
-  // 使用效果
+  // 使用效果（重構：改為陣列，支援多個效果）
+  effects?: ItemEffect[];
+  // 向後兼容：保留 effect 欄位（單一效果），但優先使用 effects
+  /** @deprecated 使用 effects 陣列代替 */
   effect?: ItemEffect;
+  // 檢定系統（Phase 8）
+  checkType?: 'none' | 'contest' | 'random';
+  // 對抗檢定設定（checkType === 'contest' 時使用）
+  contestConfig?: ContestConfig;
+  // 隨機檢定設定（checkType === 'random' 時使用）
+  randomConfig?: RandomConfig;
   // 使用限制
   usageLimit?: number;
   usageCount?: number;
@@ -243,6 +256,7 @@ export interface CreateTaskInput {
 
 /**
  * Phase 4.5: 道具建立輸入
+ * Phase 8: 添加檢定系統
  */
 export interface CreateItemInput {
   name: string;
@@ -250,7 +264,12 @@ export interface CreateItemInput {
   imageUrl?: string;
   type: 'consumable' | 'equipment';
   quantity?: number;
+  effects?: ItemEffect[];
+  /** @deprecated 使用 effects 陣列代替 */
   effect?: ItemEffect;
+  checkType?: 'none' | 'contest' | 'random';
+  contestConfig?: ContestConfig;
+  randomConfig?: RandomConfig;
   usageLimit?: number;
   cooldown?: number;
   isTransferable?: boolean;
