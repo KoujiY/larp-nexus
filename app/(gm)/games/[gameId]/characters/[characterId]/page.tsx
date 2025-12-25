@@ -14,6 +14,7 @@ import { UploadCharacterImageButton } from '@/components/gm/upload-character-ima
 import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
 import { ViewPinButton } from '@/components/gm/view-pin-button';
 import { DeleteCharacterButton } from '@/components/gm/delete-character-button';
+import { CharacterWebSocketListener } from '@/components/gm/character-websocket-listener';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
@@ -86,6 +87,9 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
       }
       maxWidth="lg"
     >
+      {/* WebSocket 事件監聽器：統一處理角色更新事件，確保無論在哪個分頁都能收到更新 */}
+      <CharacterWebSocketListener characterId={character.id} />
+      
       <div className="space-y-6">
 
         {/* Character Preview Card */}

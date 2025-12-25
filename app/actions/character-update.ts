@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import dbConnect from "@/lib/db/mongodb";
-import { Character, Game } from "@/lib/db/models";
+import { Character } from "@/lib/db/models";
 import { getCurrentGMUserId } from "@/lib/auth/session";
 import type { ApiResponse } from "@/types/api";
 import type { CharacterData } from "@/types/character";
@@ -15,72 +14,27 @@ import {
   cleanTaskData,
   cleanSecretData,
 } from "@/lib/character-cleanup";
+import {
+  validateCharacterData,
+  validateCharacterAccess,
+  validateStats,
+  validateSkills,
+  validateItems,
+  validateTasks,
+} from "@/lib/character/character-validator";
+import {
+  updateCharacterStats,
+  updateCharacterSkills,
+  updateCharacterItems,
+  updateCharacterTasks,
+  updateCharacterSecrets,
+  updateCharacterPublicInfo,
+} from "@/lib/character/field-updaters";
 
+// Phase 3.3: MongoDB 類型定義已移至 field-updaters.ts
 // MongoDB lean() 返回的類型（可能包含 _id）
-interface MongoSecret {
-  id: string;
-  title: string;
-  content: string;
-  isRevealed: boolean;
-  revealCondition?: string;
-  revealedAt?: Date;
-  _id?: unknown;
-}
-
-interface MongoItem {
-  id: string;
-  name: string;
-  description: string;
-  imageUrl?: string;
-  type: "consumable" | "equipment";
-  quantity: number;
-  // 使用效果（重構：改為陣列，支援多個效果）
-  effects?: Array<{
-    type: "stat_change" | "custom" | "item_take" | "item_steal";
-    targetType?: "self" | "other" | "any";
-    requiresTarget?: boolean;
-    targetStat?: string;
-    value?: number;
-    statChangeTarget?: "value" | "maxValue";
-    syncValue?: boolean;
-    targetItemId?: string;
-    duration?: number;
-    description?: string;
-  }>;
-  // 向後兼容：保留 effect 欄位（單一效果），但優先使用 effects
-  /** @deprecated 使用 effects 陣列代替 */
-  effect?: {
-    type: "stat_change" | "custom" | "item_take" | "item_steal"; // Phase 7: 添加 item_take 和 item_steal
-    targetType?: "self" | "other" | "any"; // Phase 6.5: 目標設定
-    requiresTarget?: boolean; // Phase 6.5: 是否需要選擇目標
-    targetStat?: string;
-    value?: number;
-    statChangeTarget?: "value" | "maxValue";
-    syncValue?: boolean;
-    targetItemId?: string; // Phase 7: 目標道具 ID
-    duration?: number;
-    description?: string;
-  };
-  // Phase 8: 檢定系統
-  checkType?: "none" | "contest" | "random";
-  contestConfig?: {
-    relatedStat: string;
-    opponentMaxItems?: number;
-    opponentMaxSkills?: number;
-    tieResolution?: "attacker_wins" | "defender_wins" | "both_fail";
-  };
-  randomConfig?: {
-    maxValue: number;
-    threshold: number;
-  };
-  usageLimit?: number;
-  usageCount?: number;
-  cooldown?: number;
-  lastUsedAt?: Date;
-  isTransferable: boolean;
-  acquiredAt: Date;
-  _id?: unknown;
-}
+// 注意：MongoItem 類型定義在 field-updaters.ts 中，這裡只保留必要的類型引用
+type MongoItem = NonNullable<import('@/lib/db/models').CharacterDocument['items']>[number] & { _id?: unknown };
 
 interface MongoStat {
   id: string;
@@ -90,18 +44,7 @@ interface MongoStat {
   _id?: unknown;
 }
 
-/**
- * Character 驗證 Schema
- */
-const characterSchema = z.object({
-  name: z
-    .string()
-    .min(1, "角色名稱不可為空")
-    .max(100, "角色名稱不可超過 100 字元"),
-  description: z.string().optional(),
-  hasPinLock: z.boolean(),
-  pin: z.string().optional(),
-});
+// Phase 3.3: 驗證邏輯已移至 lib/character/character-validator.ts
 
 /**
  * 更新角色
@@ -262,30 +205,35 @@ export async function updateCharacter(
 
     await dbConnect();
 
-    // 驗證角色存在
-    const character = await Character.findById(characterId);
-    if (!character) {
+    // Phase 3.3: 使用驗證模組驗證角色訪問權限
+    const accessValidation = await validateCharacterAccess(characterId, gmUserId);
+    if (!accessValidation.success || !accessValidation.character) {
       return {
         success: false,
-        error: "NOT_FOUND",
-        message: "找不到此角色",
+        error: accessValidation.error || 'VALIDATION_FAILED',
+        message: accessValidation.message || '驗證失敗',
       };
     }
+    const character = accessValidation.character;
 
-    // 驗證 Game 擁有權
-    const game = await Game.findOne({ _id: character.gameId, gmUserId });
-    if (!game) {
+    // Phase 3.3: 使用驗證模組驗證角色基本資料
+    const characterDataValidation = validateCharacterData({
+      name: data.name,
+      description: data.description,
+      hasPinLock: data.hasPinLock,
+      pin: data.pin,
+    });
+    if (!characterDataValidation.success) {
       return {
         success: false,
-        error: "UNAUTHORIZED",
-        message: "無權編輯此角色",
+        error: characterDataValidation.error || 'VALIDATION_ERROR',
+        message: characterDataValidation.message || '驗證失敗',
       };
     }
 
     // 更新資料
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) {
-      characterSchema.shape.name.parse(data.name);
       updateData.name = data.name;
     }
     if (data.description !== undefined) {
@@ -294,129 +242,52 @@ export async function updateCharacter(
     if (data.hasPinLock !== undefined) {
       updateData.hasPinLock = data.hasPinLock;
     }
-
-    // 處理 PIN 更新
-    if (data.pin) {
-      if (!/^\d{4,6}$/.test(data.pin)) {
-        return {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "PIN 碼必須為 4-6 位數字",
-        };
-      }
+    if (data.pin !== undefined) {
       updateData.pin = data.pin;
     }
 
-    // Phase 3: 處理 publicInfo 更新
+    // Phase 3.3: 使用欄位更新模組處理 publicInfo 更新
     if (data.publicInfo !== undefined) {
-      const currentPublicInfo = character.publicInfo || {};
-      updateData.publicInfo = {
-        background:
-          data.publicInfo.background ?? currentPublicInfo.background ?? "",
-        personality:
-          data.publicInfo.personality ?? currentPublicInfo.personality ?? "",
-        relationships:
-          data.publicInfo.relationships ??
-          currentPublicInfo.relationships ??
-          [],
-      };
+      const currentPublicInfo = character.publicInfo;
+      updateData.publicInfo = updateCharacterPublicInfo(data.publicInfo, currentPublicInfo);
     }
 
-    // Phase 3.5: 處理 secretInfo 更新
+    // Phase 3.3: 使用欄位更新模組處理 secretInfo 更新
     if (data.secretInfo !== undefined) {
-      const currentSecrets: MongoSecret[] = character.secretInfo?.secrets || [];
-
-      // 處理每個 secret 的更新
-      const updatedSecrets = data.secretInfo.secrets.map((newSecret) => {
-        const oldSecret = currentSecrets.find(
-          (s: MongoSecret) => s.id === newSecret.id
-        );
-
-        // 建立乾淨的 secret 物件（不包含任何額外欄位如 _id）
-        const cleanSecret = {
-          id: newSecret.id,
-          title: newSecret.title,
-          content: newSecret.content,
-          isRevealed: newSecret.isRevealed,
-          revealCondition: newSecret.revealCondition || "",
-          revealedAt: undefined as Date | undefined,
-        };
-
-        // 如果從未揭露變為已揭露，設定揭露時間
-        if (newSecret.isRevealed && (!oldSecret || !oldSecret.isRevealed)) {
-          cleanSecret.revealedAt = new Date();
-        } else if (oldSecret?.revealedAt) {
-          // 保留原有的揭露時間
-          cleanSecret.revealedAt = oldSecret.revealedAt;
-        }
-
-        return cleanSecret;
-      });
-
-      updateData.secretInfo = { secrets: updatedSecrets };
+      const currentSecrets = character.secretInfo?.secrets || [];
+      const secretsResult = updateCharacterSecrets(data.secretInfo.secrets, currentSecrets);
+      updateData.secretInfo = { secrets: secretsResult };
     }
 
-    // Phase 4: 處理 stats 更新
+    // Phase 3.3: 使用驗證和更新模組處理 stats 更新
     if (data.stats !== undefined) {
-      updateData.stats = data.stats.map((stat) => ({
-        id: stat.id,
-        name: stat.name,
-        value: stat.value,
-        maxValue: stat.maxValue,
-      }));
-    }
-
-    // Phase 4.5: 處理 tasks 更新
-    if (data.tasks !== undefined) {
-      const currentTasks = character.tasks || [];
-
-      updateData.tasks = data.tasks.map((newTask) => {
-        const oldTask = currentTasks.find(
-          (t: { id: string }) => t.id === newTask.id
-        );
-
-        const cleanTask = {
-          id: newTask.id,
-          title: newTask.title,
-          description: newTask.description,
-          isHidden: newTask.isHidden,
-          isRevealed: newTask.isRevealed,
-          revealedAt: newTask.revealedAt,
-          status: newTask.status,
-          completedAt: newTask.completedAt,
-          gmNotes: newTask.gmNotes || "",
-          revealCondition: newTask.revealCondition || "",
-          createdAt: newTask.createdAt || new Date(),
+      const statsValidation = validateStats(data.stats);
+      if (!statsValidation.success) {
+        return {
+          success: false,
+          error: statsValidation.error || 'VALIDATION_ERROR',
+          message: statsValidation.message || 'Stats 驗證失敗',
         };
-
-        // 如果隱藏目標從未揭露變為已揭露，設定揭露時間
-        if (
-          newTask.isHidden &&
-          newTask.isRevealed &&
-          (!oldTask || !oldTask.isRevealed)
-        ) {
-          cleanTask.revealedAt = new Date();
-        } else if (oldTask?.revealedAt) {
-          cleanTask.revealedAt = oldTask.revealedAt;
-        }
-
-        // 如果狀態變為已完成/失敗，設定完成時間
-        if (
-          (newTask.status === "completed" || newTask.status === "failed") &&
-          (!oldTask ||
-            (oldTask.status !== "completed" && oldTask.status !== "failed"))
-        ) {
-          cleanTask.completedAt = new Date();
-        } else if (oldTask?.completedAt) {
-          cleanTask.completedAt = oldTask.completedAt;
-        }
-
-        return cleanTask;
-      });
+      }
+      updateData.stats = updateCharacterStats(data.stats);
     }
 
-    // Phase 4.5: 處理 items 更新
-    const inventoryDiffs: Array<{
+    // Phase 3.3: 使用驗證和更新模組處理 tasks 更新
+    if (data.tasks !== undefined) {
+      const tasksValidation = validateTasks(data.tasks);
+      if (!tasksValidation.success) {
+        return {
+          success: false,
+          error: tasksValidation.error || 'VALIDATION_ERROR',
+          message: tasksValidation.message || 'Tasks 驗證失敗',
+        };
+      }
+      const currentTasks = character.tasks || [];
+      updateData.tasks = updateCharacterTasks(data.tasks, currentTasks);
+    }
+
+    // Phase 3.3: 使用驗證和更新模組處理 items 更新
+    let inventoryDiffs: Array<{
       action: "added" | "updated" | "deleted";
       item: {
         id: string;
@@ -427,413 +298,31 @@ export async function updateCharacter(
       };
     }> = [];
     if (data.items !== undefined) {
-      const currentItems: MongoItem[] = character.items || [];
-      updateData.items = data.items.map((item) => {
-        const itemData: Record<string, unknown> = {
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          type: item.type,
-          quantity: item.quantity,
-          usageCount: item.usageCount || 0,
-          isTransferable: item.isTransferable,
-          acquiredAt: item.acquiredAt || new Date(),
+      const itemsValidation = validateItems(data.items);
+      if (!itemsValidation.success) {
+        return {
+          success: false,
+          error: itemsValidation.error || 'VALIDATION_ERROR',
+          message: itemsValidation.message || 'Items 驗證失敗',
         };
-
-        if (item.imageUrl !== undefined) itemData.imageUrl = item.imageUrl;
-        
-        // Phase 6.5 / Phase 7: 處理道具效果（優先處理 effects 陣列，向後兼容 effect）
-        // 使用與技能相同的處理邏輯，確保一致性
-        // 關鍵修復：必須明確處理所有情況
-        // 注意：前端傳來的 item.effects 可能是陣列（有值或空陣列）或 undefined
-        if (item.effects !== undefined && item.effects !== null) {
-          // 明確設置了 effects（可能是陣列或空陣列）
-          if (Array.isArray(item.effects)) {
-            if (item.effects.length > 0) {
-              // 有效果，處理並保存
-              const processedEffects = item.effects
-                .filter((effect) => effect && effect.type)
-                .map((effect) => {
-                  // 建立完整的 effectData，明確包含所有欄位
-                  const effectData: Record<string, unknown> = {
-                    type: effect.type,
-                  };
-
-                  // Phase 6.5 / Phase 7: 目標設定
-                  const effectAny = effect as Record<string, unknown>;
-                  // Phase 7: item_take 和 item_steal 效果預設為 "other"，其他效果預設為 "self"
-                  const defaultTargetType = 
-                    (effect.type === 'item_take' || effect.type === 'item_steal') 
-                      ? "other" 
-                      : "self";
-                  const normalizedTargetType =
-                    (effectAny.targetType as "self" | "other" | "any" | undefined) ??
-                    defaultTargetType;
-                  effectData.targetType = normalizedTargetType;
-                  const normalizedRequiresTarget =
-                    effectAny.requiresTarget !== undefined &&
-                    effectAny.requiresTarget !== null
-                      ? Boolean(effectAny.requiresTarget)
-                      : normalizedTargetType !== "self";
-                  effectData.requiresTarget = normalizedRequiresTarget;
-
-                  // 明確設定所有可能的欄位，確保它們被正確儲存
-                  if (effect.targetStat !== undefined && effect.targetStat !== null) {
-                    effectData.targetStat = String(effect.targetStat);
-                  }
-                  if (effect.value !== undefined && effect.value !== null) {
-                    effectData.value = Number(effect.value);
-                  }
-                  if (effect.statChangeTarget !== undefined && effect.statChangeTarget !== null) {
-                    effectData.statChangeTarget = String(effect.statChangeTarget);
-                  }
-                  if (effect.syncValue !== undefined && effect.syncValue !== null) {
-                    effectData.syncValue = Boolean(effect.syncValue);
-                  }
-                  if (effect.targetItemId !== undefined && effect.targetItemId !== null) {
-                    effectData.targetItemId = String(effect.targetItemId);
-                  }
-                  if (effect.duration !== undefined && effect.duration !== null) {
-                    effectData.duration = Number(effect.duration);
-                  }
-                  if (effect.description !== undefined && effect.description !== null) {
-                    effectData.description = String(effect.description);
-                  }
-
-                  return effectData;
-                });
-              
-              // 只有在處理後仍有有效效果時才設置 effects
-              if (processedEffects.length > 0) {
-                itemData.effects = processedEffects;
-              } else {
-                // 所有效果都被過濾掉，設置為空陣列（明確清空效果）
-                itemData.effects = [];
-              }
-            } else {
-              // 空陣列：明確清空效果
-              itemData.effects = [];
-            }
-          }
-          // 如果 item.effects 不是陣列，忽略它（可能是舊資料格式）
-        } else {
-          // item.effects 是 undefined 或 null，從資料庫中讀取原始值並保留
-          const originalItem = currentItems.find((i) => i.id === item.id);
-          if (originalItem && originalItem.effects !== undefined) {
-            // 保留資料庫中的原始 effects（可能是陣列或空陣列）
-            itemData.effects = originalItem.effects;
-          }
-          // 如果原始資料中也沒有 effects，不設置 itemData.effects（保持 undefined）
-        }
-        
-        // 向後兼容：如果沒有 effects 但有 effect，轉換為 effects
-        if ((!item.effects || item.effects.length === 0) && item.effect !== undefined) {
-          const effectAny = item.effect as Record<string, unknown>;
-          const defaultTargetType = 
-            (item.effect.type === 'item_take' || item.effect.type === 'item_steal') 
-              ? "other" 
-              : "self";
-          const normalizedTargetType =
-            (effectAny.targetType as "self" | "other" | "any" | undefined) ??
-            defaultTargetType;
-          const normalizedRequiresTarget =
-            effectAny.requiresTarget !== undefined &&
-            effectAny.requiresTarget !== null
-              ? Boolean(effectAny.requiresTarget)
-              : normalizedTargetType !== "self";
-          
-          const effectData: Record<string, unknown> = {
-            type: item.effect.type,
-            targetType: normalizedTargetType,
-            requiresTarget: normalizedRequiresTarget,
-          };
-          
-          if (item.effect.targetStat !== undefined && item.effect.targetStat !== null) {
-            effectData.targetStat = String(item.effect.targetStat);
-          }
-          if (item.effect.value !== undefined && item.effect.value !== null) {
-            effectData.value = Number(item.effect.value);
-          }
-          if (item.effect.statChangeTarget !== undefined && item.effect.statChangeTarget !== null) {
-            effectData.statChangeTarget = String(item.effect.statChangeTarget);
-          }
-          if (item.effect.syncValue !== undefined && item.effect.syncValue !== null) {
-            effectData.syncValue = Boolean(item.effect.syncValue);
-          }
-          if (item.effect.targetItemId !== undefined && item.effect.targetItemId !== null) {
-            effectData.targetItemId = String(item.effect.targetItemId);
-          }
-          if (item.effect.duration !== undefined && item.effect.duration !== null) {
-            effectData.duration = Number(item.effect.duration);
-          }
-          if (item.effect.description !== undefined && item.effect.description !== null) {
-            effectData.description = String(item.effect.description);
-          }
-          
-          itemData.effects = [effectData];
-        }
-        
-        // 清除舊的 effect 欄位
-        delete itemData.effect;
-        
-        if (item.usageLimit !== undefined) itemData.usageLimit = item.usageLimit;
-        if (item.cooldown !== undefined) itemData.cooldown = item.cooldown;
-        if (item.lastUsedAt !== undefined) itemData.lastUsedAt = item.lastUsedAt;
-
-        // Phase 8: 處理檢定設定
-        if (item.checkType !== undefined) {
-          itemData.checkType = item.checkType;
-        }
-
-        // 根據檢定類型設定對應的配置
-        if (item.checkType === 'contest') {
-          if (item.contestConfig) {
-            itemData.contestConfig = item.contestConfig;
-          }
-          // 清除 randomConfig
-          delete itemData.randomConfig;
-        } else if (item.checkType === 'random') {
-          // 確保 randomConfig 存在且有完整的值
-          const maxValue = item.randomConfig?.maxValue;
-          const threshold = item.randomConfig?.threshold;
-
-          if (!maxValue || threshold === undefined || threshold === null) {
-            console.warn(
-              `道具 ${item.name} 設定為隨機檢定但 randomConfig 不完整，使用預設值`
-            );
-            itemData.randomConfig = {
-              maxValue: maxValue && maxValue > 0 ? maxValue : 100,
-              threshold:
-                threshold !== undefined && threshold !== null && threshold > 0
-                  ? threshold
-                  : 50,
-            };
-          } else {
-            // 確保 threshold 不超過 maxValue
-            itemData.randomConfig = {
-              maxValue,
-              threshold: Math.min(threshold, maxValue),
-            };
-          }
-          // 清除 contestConfig
-          delete itemData.contestConfig;
-        } else {
-          // checkType === 'none' 或 undefined，清除所有配置
-          delete itemData.randomConfig;
-          delete itemData.contestConfig;
-        }
-
-        return itemData;
-      });
-
-      const newItems = updateData.items as Array<{
-        id: string;
-        name: string;
-        description: string;
-        imageUrl?: string;
-        type: string;
-        quantity: number;
-        acquiredAt?: string | Date;
-      }>;
-
-      // 比對新增/更新
-      newItems.forEach((newItem) => {
-        const oldItem = currentItems.find((i) => i.id === newItem.id);
-        if (!oldItem) {
-          inventoryDiffs.push({
-            action: "added",
-            item: {
-              id: newItem.id,
-              name: newItem.name,
-              description: newItem.description || "",
-              imageUrl: newItem.imageUrl,
-              acquiredAt: newItem.acquiredAt
-                ? new Date(newItem.acquiredAt).toISOString()
-                : undefined,
-            },
-          });
-        } else if (
-          oldItem.name !== newItem.name ||
-          oldItem.description !== newItem.description ||
-          oldItem.imageUrl !== newItem.imageUrl ||
-          oldItem.quantity !== newItem.quantity
-        ) {
-          inventoryDiffs.push({
-            action: "updated",
-            item: {
-              id: newItem.id,
-              name: newItem.name,
-              description: newItem.description || "",
-              imageUrl: newItem.imageUrl,
-              acquiredAt: newItem.acquiredAt
-                ? new Date(newItem.acquiredAt).toISOString()
-                : undefined,
-            },
-          });
-        }
-      });
-
-      // 刪除
-      currentItems.forEach((oldItem) => {
-        const exist = data.items!.some((i) => i.id === oldItem.id);
-        if (!exist) {
-          inventoryDiffs.push({
-            action: "deleted",
-            item: {
-              id: oldItem.id,
-              name: oldItem.name,
-              description: oldItem.description || "",
-              imageUrl: oldItem.imageUrl,
-              acquiredAt: oldItem.acquiredAt
-                ? new Date(oldItem.acquiredAt).toISOString()
-                : undefined,
-            },
-          });
-        }
-      });
+      }
+      const currentItems: MongoItem[] = character.items || [];
+      const itemsResult = updateCharacterItems(data.items, currentItems);
+      updateData.items = itemsResult.items;
+      inventoryDiffs = itemsResult.inventoryDiffs;
     }
 
-    // Phase 5: 處理 skills 更新
+    // Phase 3.3: 使用驗證和更新模組處理 skills 更新
     if (data.skills !== undefined) {
-      const normalizedSkills = (data.skills || []).filter((s) => s && s.id);
-      updateData.skills = normalizedSkills.map((skill) => {
-        const skillData: Record<string, unknown> = {
-          id: skill.id,
-          name: skill.name,
-          description: skill.description || "",
-          checkType: skill.checkType,
-          usageCount: skill.usageCount || 0,
+      const skillsValidation = validateSkills(data.skills);
+      if (!skillsValidation.success) {
+        return {
+          success: false,
+          error: skillsValidation.error || 'VALIDATION_ERROR',
+          message: skillsValidation.message || 'Skills 驗證失敗',
         };
-
-        if (skill.iconUrl !== undefined) skillData.iconUrl = skill.iconUrl;
-        if (skill.usageLimit !== undefined)
-          skillData.usageLimit = skill.usageLimit;
-        if (skill.cooldown !== undefined) skillData.cooldown = skill.cooldown;
-        if (skill.lastUsedAt !== undefined)
-          skillData.lastUsedAt = skill.lastUsedAt;
-
-        skillData.effects = (skill.effects || [])
-          .filter((effect) => effect && effect.type)
-          .map((effect) => {
-            // 建立完整的 effectData，明確包含所有欄位（即使是 undefined）
-            // 但要注意：MongoDB 會忽略 undefined，所以我們只包含有值的欄位
-            const effectData: Record<string, unknown> = {
-              type: effect.type,
-            };
-
-            // Phase 6.5 / Phase 7: 目標設定
-            const effectAny = effect as Record<string, unknown>;
-            // Phase 7: item_take 和 item_steal 效果預設為 "other"，其他效果預設為 "self"
-            const defaultTargetType = 
-              (effect.type === 'item_take' || effect.type === 'item_steal') 
-                ? "other" 
-                : "self";
-            const normalizedTargetType =
-              (effectAny.targetType as "self" | "other" | "any" | undefined) ??
-              defaultTargetType;
-            effectData.targetType = normalizedTargetType;
-            const normalizedRequiresTarget =
-              effectAny.requiresTarget !== undefined &&
-              effectAny.requiresTarget !== null
-                ? Boolean(effectAny.requiresTarget)
-                : normalizedTargetType !== "self";
-            effectData.requiresTarget = normalizedRequiresTarget;
-
-            // 明確設定所有可能的欄位，確保它們被正確儲存
-            if (effect.targetStat !== undefined && effect.targetStat !== null) {
-              effectData.targetStat = String(effect.targetStat);
-            }
-            if (effect.value !== undefined && effect.value !== null) {
-              effectData.value = Number(effect.value);
-            }
-
-            // 關鍵：statChangeTarget 和 syncValue 必須明確設定，即使值可能是 undefined
-            // 但我們只在有值時才設定，因為 MongoDB 會忽略 undefined
-            if (
-              effect.statChangeTarget !== undefined &&
-              effect.statChangeTarget !== null
-            ) {
-              effectData.statChangeTarget = String(effect.statChangeTarget);
-            }
-            if (effect.syncValue !== undefined && effect.syncValue !== null) {
-              effectData.syncValue = Boolean(effect.syncValue);
-            }
-
-            if (
-              effect.targetItemId !== undefined &&
-              effect.targetItemId !== null
-            ) {
-              effectData.targetItemId = String(effect.targetItemId);
-            }
-            if (
-              effect.targetTaskId !== undefined &&
-              effect.targetTaskId !== null
-            ) {
-              effectData.targetTaskId = String(effect.targetTaskId);
-            }
-            if (
-              effect.targetCharacterId !== undefined &&
-              effect.targetCharacterId !== null
-            ) {
-              effectData.targetCharacterId = String(effect.targetCharacterId);
-            }
-            if (
-              effect.description !== undefined &&
-              effect.description !== null
-            ) {
-              effectData.description = String(effect.description);
-            }
-
-            return effectData;
-          });
-
-        // 根據檢定類型設定對應的配置
-        if (skill.checkType === "contest") {
-          if (skill.contestConfig) {
-            skillData.contestConfig = skill.contestConfig;
-          } else {
-            console.warn(
-              `技能 ${skill.name} 設定為對抗檢定但沒有 contestConfig`
-            );
-          }
-          // 清除 randomConfig（使用 $unset 或直接不設定）
-          // 注意：不要設定為 undefined，而是直接不包含在 skillData 中
-          delete skillData.randomConfig;
-        } else if (skill.checkType === "random") {
-          // 確保 randomConfig 存在且有完整的值
-          const maxValue = skill.randomConfig?.maxValue;
-          const threshold = skill.randomConfig?.threshold;
-
-          if (!maxValue || threshold === undefined || threshold === null) {
-            console.warn(
-              `技能 ${skill.name} 設定為隨機檢定但 randomConfig 不完整，使用預設值`
-            );
-            skillData.randomConfig = {
-              maxValue: maxValue && maxValue > 0 ? maxValue : 100,
-              threshold:
-                threshold !== undefined && threshold !== null && threshold > 0
-                  ? threshold
-                  : 50,
-            };
-          } else {
-            // 確保 threshold 不超過 maxValue
-            skillData.randomConfig = {
-              maxValue,
-              threshold: Math.min(threshold, maxValue),
-            };
-          }
-          // 清除 contestConfig（使用 $unset 或直接不設定）
-          // 注意：不要設定為 undefined，而是直接不包含在 skillData 中
-          delete skillData.contestConfig;
-        } else {
-          // checkType === 'none'，清除所有配置
-          // 注意：不要設定為 undefined，而是直接不包含在 skillData 中
-          delete skillData.randomConfig;
-          delete skillData.contestConfig;
-        }
-
-        return skillData;
-      });
+      }
+      updateData.skills = updateCharacterSkills(data.skills);
     }
 
     // 使用 findById 取得文件，手動更新後再 save，確保所有欄位都被正確保存
@@ -1297,14 +786,7 @@ export async function updateCharacter(
   } catch (error) {
     console.error("Error updating character:", error);
 
-    if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: error.issues[0]?.message || "驗證失敗",
-      };
-    }
-
+    // Phase 3.3: 驗證錯誤已在驗證模組中處理，這裡只處理其他錯誤
     return {
       success: false,
       error: "UPDATE_FAILED",
