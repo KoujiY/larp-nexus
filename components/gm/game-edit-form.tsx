@@ -29,6 +29,7 @@ export function GameEditForm({ game }: GameEditFormProps) {
       worldSetting: game.publicInfo?.worldSetting || '',
       chapters: game.publicInfo?.chapters || [],
     },
+    randomContestMaxValue: game.randomContestMaxValue || 100,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,6 +46,7 @@ export function GameEditForm({ game }: GameEditFormProps) {
           worldSetting: formData.publicInfo.worldSetting,
           chapters: formData.publicInfo.chapters,
         },
+        randomContestMaxValue: formData.randomContestMaxValue,
       };
 
       const result = await updateGame(game.id, updateData);
@@ -128,6 +130,29 @@ export function GameEditForm({ game }: GameEditFormProps) {
               }
               disabled={isLoading}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="randomContestMaxValue">
+              隨機對抗檢定上限值
+            </Label>
+            <Input
+              id="randomContestMaxValue"
+              type="number"
+              min={1}
+              value={formData.randomContestMaxValue}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  randomContestMaxValue: Math.max(1, parseInt(e.target.value) || 100),
+                }))
+              }
+              disabled={isLoading}
+              placeholder="100"
+            />
+            <p className="text-xs text-muted-foreground">
+              設定隨機對抗檢定時使用的上限值（預設 100，必須大於 0）
+            </p>
           </div>
         </CardContent>
       </Card>

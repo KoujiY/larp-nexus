@@ -55,6 +55,10 @@ export async function getPublicCharacter(
     // Phase 5: 清理技能的 _id
     const cleanSkills = cleanSkillData(character.skills);
 
+    // Phase 7.6: 獲取劇本的 randomContestMaxValue
+    const game = await Game.findById(character.gameId).select('randomContestMaxValue').lean();
+    const randomContestMaxValue = game?.randomContestMaxValue || 100;
+
     return {
       success: true,
       data: {
@@ -73,6 +77,7 @@ export async function getPublicCharacter(
         items: cleanItems,
         stats: cleanStats,
         skills: cleanSkills,
+        randomContestMaxValue, // Phase 7.6: 隨機對抗檢定上限值
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },

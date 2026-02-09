@@ -29,14 +29,16 @@ import { Plus, Trash2, Save, Zap, Pencil } from 'lucide-react';
 import type { Skill, SkillEffect, Stat } from '@/types/character';
 import { EditFormCard } from './edit-form-card';
 import { EffectEditor } from './effect-editor';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface SkillsEditFormProps {
   characterId: string;
   initialSkills: Skill[];
   stats: Stat[]; // 用於檢定選擇相關數值
+  randomContestMaxValue?: number; // Phase 7.6: 劇本的隨機對抗檢定上限值
 }
 
-export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEditFormProps) {
+export function SkillsEditForm({ characterId, initialSkills, stats, randomContestMaxValue = 100 }: SkillsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [skills, setSkills] = useState<Skill[]>(initialSkills);
@@ -52,6 +54,9 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
       description: '',
       checkType: 'none',
       usageCount: 0,
+      usageLimit: 0, // 預設為 0（無限制）
+      cooldown: 0, // 預設為 0（無冷卻）
+      tags: [], // Phase 7.6: 初始化標籤為空陣列
     };
     setEditingSkill(newSkill);
     setIsDialogOpen(true);
@@ -59,7 +64,11 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
 
   // 編輯技能
   const handleEditSkill = (skill: Skill) => {
-    setEditingSkill({ ...skill, effects: skill.effects ? [...skill.effects] : [] });
+    setEditingSkill({ 
+      ...skill, 
+      effects: skill.effects ? [...skill.effects] : [],
+      tags: skill.tags ? [...skill.tags] : [], // Phase 7.6: 確保 tags 存在，如果沒有則初始化為空陣列
+    });
     setIsDialogOpen(true);
   };
 
@@ -77,6 +86,17 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
       if (!editingSkill.contestConfig?.relatedStat) {
         toast.error('請選擇對抗檢定使用的數值');
         return;
+      }
+    }
+    if (editingSkill.checkType === 'random_contest') {
+      // 隨機對抗檢定不需要 relatedStat，只需要確保 contestConfig 存在
+      if (!editingSkill.contestConfig) {
+        editingSkill.contestConfig = {
+          relatedStat: '', // 不需要，但保留欄位以保持資料結構一致
+          opponentMaxItems: 0,
+          opponentMaxSkills: 0,
+          tieResolution: 'attacker_wins',
+        };
       }
     }
     if (editingSkill.checkType === 'random') {
@@ -124,6 +144,18 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
       if (!editingSkill.contestConfig) {
         finalSkill.contestConfig = {
           relatedStat: '',
+          opponentMaxItems: 0,
+          opponentMaxSkills: 0,
+          tieResolution: 'attacker_wins',
+        };
+      }
+      // 清除 randomConfig
+      finalSkill.randomConfig = undefined;
+    } else if (editingSkill.checkType === 'random_contest') {
+      // 隨機對抗檢定：不需要 relatedStat，但保留 contestConfig 結構
+      if (!editingSkill.contestConfig) {
+        finalSkill.contestConfig = {
+          relatedStat: '', // 不需要，但保留欄位以保持資料結構一致
           opponentMaxItems: 0,
           opponentMaxSkills: 0,
           tieResolution: 'attacker_wins',
@@ -278,11 +310,16 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary">
-                    檢定：{skill.checkType === 'none' ? '無' : skill.checkType === 'contest' ? '對抗檢定' : '隨機檢定'}
+                    檢定：{skill.checkType === 'none' ? '無' : skill.checkType === 'contest' ? '對抗檢定' : skill.checkType === 'random_contest' ? '隨機對抗檢定' : '隨機檢定'}
                   </Badge>
-                  {skill.checkType === 'contest' && skill.contestConfig?.relatedStat && (
+                  {(skill.checkType === 'contest' || skill.checkType === 'random_contest') && skill.contestConfig?.relatedStat && (
                     <Badge variant="outline">
                       使用 {skill.contestConfig.relatedStat} 對抗
+                    </Badge>
+                  )}
+                  {skill.tags && skill.tags.length > 0 && (
+                    <Badge variant="outline">
+                      標籤：{skill.tags.map(tag => tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag).join('、')}
                     </Badge>
                   )}
                   {skill.checkType === 'random' && skill.randomConfig && (
@@ -290,14 +327,18 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                       {skill.randomConfig.threshold} / {skill.randomConfig.maxValue}
                     </Badge>
                   )}
-                  {skill.usageLimit && skill.usageLimit > 0 && (
+                  {skill.usageLimit != null && (
                     <Badge variant="outline">
-                      使用次數：{skill.usageCount || 0} / {skill.usageLimit}
+                      {skill.usageLimit > 0 
+                        ? `使用次數：${skill.usageCount || 0} / ${skill.usageLimit}`
+                        : '使用次數：無限制'}
                     </Badge>
                   )}
-                  {skill.cooldown && skill.cooldown > 0 && (
+                  {skill.cooldown != null && (
                     <Badge variant="outline">
-                      冷卻：{skill.cooldown} 秒
+                      {skill.cooldown > 0 
+                        ? `冷卻：${skill.cooldown} 秒`
+                        : '冷卻：無冷卻時間'}
                     </Badge>
                   )}
                   {skill.effects && skill.effects.length > 0 && (
@@ -357,6 +398,43 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                         placeholder="https://..."
                       />
                     </div>
+                    <div className="space-y-2 pt-2 border-t">
+                      <Label>標籤</Label>
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="tag-combat"
+                            checked={editingSkill.tags?.includes('combat') || false}
+                            onCheckedChange={(checked) => {
+                              const currentTags = editingSkill.tags || [];
+                              const newTags = checked
+                                ? [...currentTags, 'combat']
+                                : currentTags.filter(tag => tag !== 'combat');
+                              setEditingSkill({ ...editingSkill, tags: newTags });
+                            }}
+                          />
+                          <Label htmlFor="tag-combat" className="text-sm font-normal cursor-pointer">
+                            戰鬥（可用於對抗檢定回應）
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="tag-stealth"
+                            checked={editingSkill.tags?.includes('stealth') || false}
+                            onCheckedChange={(checked) => {
+                              const currentTags = editingSkill.tags || [];
+                              const newTags = checked
+                                ? [...currentTags, 'stealth']
+                                : currentTags.filter(tag => tag !== 'stealth');
+                              setEditingSkill({ ...editingSkill, tags: newTags });
+                            }}
+                          />
+                          <Label htmlFor="tag-stealth" className="text-sm font-normal cursor-pointer">
+                            隱匿（攻擊方姓名不出現在防守方訊息中）
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </EditFormCard>
 
@@ -367,9 +445,9 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                       <Label htmlFor="check-type">檢定類型</Label>
                       <Select
                         value={editingSkill.checkType}
-                        onValueChange={(value: 'none' | 'contest' | 'random') => {
+                        onValueChange={(value: 'none' | 'contest' | 'random' | 'random_contest') => {
                           const newSkill = { ...editingSkill, checkType: value };
-                          if (value === 'contest') {
+                          if (value === 'contest' || value === 'random_contest') {
                             newSkill.contestConfig = {
                               relatedStat: '',
                               opponentMaxItems: 0,
@@ -377,6 +455,14 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                               tieResolution: 'attacker_wins',
                             };
                             newSkill.randomConfig = undefined;
+                            // 當檢定類型變為對抗檢定時，將所有效果的目標對象設為「其他玩家」
+                            if (newSkill.effects && newSkill.effects.length > 0) {
+                              newSkill.effects = newSkill.effects.map((effect) => ({
+                                ...effect,
+                                targetType: 'other' as const,
+                                requiresTarget: true,
+                              }));
+                            }
                           } else if (value === 'random') {
                             newSkill.randomConfig = {
                               maxValue: 100,
@@ -397,6 +483,7 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                           <SelectItem value="none">無檢定</SelectItem>
                           <SelectItem value="contest">對抗檢定</SelectItem>
                           <SelectItem value="random">隨機檢定</SelectItem>
+                          <SelectItem value="random_contest">隨機對抗檢定</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -431,6 +518,82 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                               </SelectContent>
                             </Select>
                           </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>對方最多可使用道具數</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={editingSkill.contestConfig?.opponentMaxItems || 0}
+                                onChange={(e) =>
+                                  setEditingSkill({
+                                    ...editingSkill,
+                                    contestConfig: {
+                                      ...editingSkill.contestConfig!,
+                                      opponentMaxItems: e.target.value ? parseInt(e.target.value) : 0,
+                                    },
+                                  })
+                                }
+                                placeholder="0"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>對方最多可使用技能數</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={editingSkill.contestConfig?.opponentMaxSkills || 0}
+                                onChange={(e) =>
+                                  setEditingSkill({
+                                    ...editingSkill,
+                                    contestConfig: {
+                                      ...editingSkill.contestConfig!,
+                                      opponentMaxSkills: e.target.value ? parseInt(e.target.value) : 0,
+                                    },
+                                  })
+                                }
+                                placeholder="0"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>平手裁決方式</Label>
+                            <Select
+                              value={editingSkill.contestConfig?.tieResolution || 'attacker_wins'}
+                              onValueChange={(value: 'attacker_wins' | 'defender_wins' | 'both_fail') =>
+                                setEditingSkill({
+                                  ...editingSkill,
+                                  contestConfig: {
+                                    ...editingSkill.contestConfig!,
+                                    tieResolution: value,
+                                  },
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="attacker_wins">攻擊方獲勝</SelectItem>
+                                <SelectItem value="defender_wins">防守方獲勝</SelectItem>
+                                <SelectItem value="both_fail">雙方失敗</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {editingSkill.checkType === 'random_contest' && (
+                      <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                        <Label className="text-sm font-medium">隨機對抗檢定設定</Label>
+                        <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded text-sm text-blue-800 dark:text-blue-200 mb-3">
+                          <strong>提示：</strong>隨機對抗檢定使用劇本預設的上限值 <strong>{randomContestMaxValue}</strong>。
+                          攻擊方和防守方都骰 1 到 {randomContestMaxValue} 的隨機數，比拚大小決定勝負。
+                          防守方只能選擇「隨機對抗檢定」類型的技能/道具來回應。
+                          可在劇本設定中修改此值。
+                        </div>
+                        <div className="space-y-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
                               <Label>對方最多可使用道具數</Label>
@@ -563,14 +726,14 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                       <Input
                         type="number"
                         min={0}
-                        value={editingSkill.usageLimit || ''}
+                        value={editingSkill.usageLimit ?? 0}
                         onChange={(e) =>
                           setEditingSkill({
                             ...editingSkill,
-                            usageLimit: e.target.value ? parseInt(e.target.value) : undefined,
+                            usageLimit: parseInt(e.target.value) || 0,
                           })
                         }
-                        placeholder="0 或留空 = 無限制"
+                        placeholder="0 = 無限制"
                       />
                       <p className="text-xs text-muted-foreground">
                         0 或留空表示無限制
@@ -581,14 +744,14 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                       <Input
                         type="number"
                         min={0}
-                        value={editingSkill.cooldown || ''}
+                        value={editingSkill.cooldown ?? 0}
                         onChange={(e) =>
                           setEditingSkill({
                             ...editingSkill,
-                            cooldown: e.target.value ? parseInt(e.target.value) : undefined,
+                            cooldown: parseInt(e.target.value) || 0,
                           })
                         }
-                        placeholder="0 或留空 = 無冷卻"
+                        placeholder="0 = 無冷卻"
                       />
                       <p className="text-xs text-muted-foreground">
                         0 或留空表示無冷卻
@@ -622,6 +785,7 @@ export function SkillsEditForm({ characterId, initialSkills, stats }: SkillsEdit
                         onChange={(updatedEffect) => handleEditEffect(index, updatedEffect)}
                         onDelete={() => handleDeleteEffect(index)}
                         availableTypes={['stat_change', 'item_take', 'item_steal', 'task_reveal', 'task_complete', 'custom']}
+                        checkType={editingSkill.checkType}
                       />
                     ))}
                   </div>

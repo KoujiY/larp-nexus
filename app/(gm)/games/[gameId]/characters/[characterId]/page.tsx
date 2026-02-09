@@ -181,6 +181,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
               characterId={character.id}
               initialItems={character.items || []}
               stats={character.stats || []}
+              randomContestMaxValue={game.randomContestMaxValue}
             />
           </TabsContent>
 
@@ -190,6 +191,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
               characterId={character.id}
               initialSkills={character.skills || []}
               stats={character.stats || []}
+              randomContestMaxValue={game.randomContestMaxValue}
             />
           </TabsContent>
 

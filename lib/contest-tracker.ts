@@ -10,18 +10,21 @@ interface ContestInfo {
   timestamp: number;
   sourceType: 'skill' | 'item';
   sourceId: string;
+  attackerRandomValue?: number; // Phase 7.6: 攻擊方的隨機數（僅用於 random_contest）
+  checkType?: 'contest' | 'random_contest'; // Phase 7.6: 檢定類型
 }
 
 // 內存中的對抗檢定追蹤 Map
 // Key: contestId, Value: ContestInfo
 const activeContests = new Map<string, ContestInfo>();
 
-// 清理過期對抗檢定（超過 10 分鐘）
+// 清理過期對抗檢定（超過 3 分鐘）
+const CONTEST_TIMEOUT = 180000; // 3 分鐘（180000 ms）
 const CLEANUP_INTERVAL = 60000; // 1 分鐘清理一次
 setInterval(() => {
   const now = Date.now();
   for (const [contestId, contest] of activeContests.entries()) {
-    if (now - contest.timestamp > 600000) { // 10 分鐘
+    if (now - contest.timestamp > CONTEST_TIMEOUT) {
       activeContests.delete(contestId);
     }
   }
@@ -35,7 +38,9 @@ export function addActiveContest(
   attackerId: string,
   defenderId: string,
   sourceType: 'skill' | 'item',
-  sourceId: string
+  sourceId: string,
+  attackerRandomValue?: number, // Phase 7.6: 攻擊方的隨機數（僅用於 random_contest）
+  checkType?: 'contest' | 'random_contest' // Phase 7.6: 檢定類型
 ): void {
   // 確保 ID 都是字符串格式，避免類型不匹配問題
   activeContests.set(contestId, {
@@ -45,20 +50,16 @@ export function addActiveContest(
     timestamp: Date.now(),
     sourceType,
     sourceId,
+    attackerRandomValue,
+    checkType,
   });
-  console.log('[contest-tracker] 已添加對抗檢定:', { contestId, attackerId: String(attackerId), defenderId: String(defenderId), sourceType, sourceId });
 }
 
 /**
  * 移除正在進行的對抗檢定
  */
 export function removeActiveContest(contestId: string): void {
-  const deleted = activeContests.delete(contestId);
-  if (deleted) {
-    console.log('[contest-tracker] 已移除對抗檢定:', { contestId });
-  } else {
-    console.warn('[contest-tracker] 嘗試移除不存在的對抗檢定:', { contestId });
-  }
+  activeContests.delete(contestId);
 }
 
 /**
@@ -105,7 +106,6 @@ export function removeContestsByCharacterId(characterId: string): void {
   // 移除所有相關的對抗檢定
   for (const contestId of contestsToRemove) {
     activeContests.delete(contestId);
-    console.log('[contest-tracker] 已根據角色 ID 清除對抗檢定:', { characterId: characterIdStr, contestId });
   }
 }
 

@@ -32,14 +32,16 @@ import type { BaseEvent, RoleUpdatedEvent, InventoryUpdatedEvent, ItemTransferre
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { EffectEditor } from './effect-editor';
 import { EditFormCard } from './edit-form-card';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ItemsEditFormProps {
   characterId: string;
   initialItems: Item[];
   stats: Stat[]; // 用於效果選擇目標數值
+  randomContestMaxValue?: number; // Phase 7.6: 劇本的隨機對抗檢定上限值
 }
 
-export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFormProps) {
+export function ItemsEditForm({ characterId, initialItems, stats, randomContestMaxValue = 100 }: ItemsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<Item[]>(initialItems);
@@ -132,6 +134,7 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
       type: 'consumable',
       quantity: 1,
       usageLimit: 1, // 消耗品預設1次
+      cooldown: 0, // 預設為 0（無冷卻）
       isTransferable: true,
       acquiredAt: new Date(),
     };
@@ -183,6 +186,17 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
       if (!editingItem.contestConfig?.relatedStat) {
         toast.error('請選擇對抗檢定使用的數值');
         return;
+      }
+    }
+    if (editingItem.checkType === 'random_contest') {
+      // 隨機對抗檢定不需要 relatedStat，只需要確保 contestConfig 存在
+      if (!editingItem.contestConfig) {
+        editingItem.contestConfig = {
+          relatedStat: '', // 不需要，但保留欄位以保持資料結構一致
+          opponentMaxItems: 0,
+          opponentMaxSkills: 0,
+          tieResolution: 'attacker_wins',
+        };
       }
     }
     if (editingItem.checkType === 'random') {
@@ -239,6 +253,17 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
       if (!finalItem.contestConfig) {
         finalItem.contestConfig = {
           relatedStat: '',
+          opponentMaxItems: 0,
+          opponentMaxSkills: 0,
+          tieResolution: 'attacker_wins',
+        };
+      }
+      finalItem.randomConfig = undefined;
+    } else if (finalItem.checkType === 'random_contest') {
+      // 隨機對抗檢定：不需要 relatedStat，但保留 contestConfig 結構
+      if (!finalItem.contestConfig) {
+        finalItem.contestConfig = {
+          relatedStat: '', // 不需要，但保留欄位以保持資料結構一致
           opponentMaxItems: 0,
           opponentMaxSkills: 0,
           tieResolution: 'attacker_wins',
@@ -480,6 +505,43 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                           })}
                         />
                       </div>
+                      <div className="space-y-2 pt-2 border-t">
+                        <Label>標籤</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="item-tag-combat"
+                              checked={editingItem.tags?.includes('combat') || false}
+                              onCheckedChange={(checked) => {
+                                const currentTags = editingItem.tags || [];
+                                const newTags = checked
+                                  ? [...currentTags, 'combat']
+                                  : currentTags.filter(tag => tag !== 'combat');
+                                setEditingItem({ ...editingItem, tags: newTags });
+                              }}
+                            />
+                            <Label htmlFor="item-tag-combat" className="text-sm font-normal cursor-pointer">
+                              戰鬥（可用於對抗檢定回應）
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="item-tag-stealth"
+                              checked={editingItem.tags?.includes('stealth') || false}
+                              onCheckedChange={(checked) => {
+                                const currentTags = editingItem.tags || [];
+                                const newTags = checked
+                                  ? [...currentTags, 'stealth']
+                                  : currentTags.filter(tag => tag !== 'stealth');
+                                setEditingItem({ ...editingItem, tags: newTags });
+                              }}
+                            />
+                            <Label htmlFor="item-tag-stealth" className="text-sm font-normal cursor-pointer">
+                              隱匿（攻擊方姓名不出現在防守方訊息中）
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </EditFormCard>
 
@@ -490,9 +552,9 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                         <Label htmlFor="check-type">檢定類型</Label>
                         <Select
                           value={editingItem.checkType || 'none'}
-                          onValueChange={(value: 'none' | 'contest' | 'random') => {
+                          onValueChange={(value: 'none' | 'contest' | 'random' | 'random_contest') => {
                             const newItem = { ...editingItem, checkType: value };
-                            if (value === 'contest') {
+                            if (value === 'contest' || value === 'random_contest') {
                               newItem.contestConfig = {
                                 relatedStat: '',
                                 opponentMaxItems: 0,
@@ -520,6 +582,7 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                             <SelectItem value="none">無檢定</SelectItem>
                             <SelectItem value="contest">對抗檢定</SelectItem>
                             <SelectItem value="random">隨機檢定</SelectItem>
+                            <SelectItem value="random_contest">隨機對抗檢定</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -558,6 +621,75 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                                 </SelectContent>
                               </Select>
                             </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>對方最多可使用道具數</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={editingItem.contestConfig?.opponentMaxItems || 0}
+                                  onChange={(e) => setEditingItem({
+                                    ...editingItem,
+                                    contestConfig: {
+                                      ...editingItem.contestConfig!,
+                                      opponentMaxItems: Math.max(0, parseInt(e.target.value) || 0),
+                                    },
+                                  })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>對方最多可使用技能數</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={editingItem.contestConfig?.opponentMaxSkills || 0}
+                                  onChange={(e) => setEditingItem({
+                                    ...editingItem,
+                                    contestConfig: {
+                                      ...editingItem.contestConfig!,
+                                      opponentMaxSkills: Math.max(0, parseInt(e.target.value) || 0),
+                                    },
+                                  })}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>平手裁決方式</Label>
+                              <Select
+                                value={editingItem.contestConfig?.tieResolution || 'attacker_wins'}
+                                onValueChange={(value: 'attacker_wins' | 'defender_wins' | 'both_fail') => setEditingItem({
+                                  ...editingItem,
+                                  contestConfig: {
+                                    ...editingItem.contestConfig!,
+                                    tieResolution: value,
+                                  },
+                                })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="attacker_wins">攻擊方獲勝</SelectItem>
+                                  <SelectItem value="defender_wins">防守方獲勝</SelectItem>
+                                  <SelectItem value="both_fail">雙方失敗</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 隨機對抗檢定設定 */}
+                      {editingItem.checkType === 'random_contest' && (
+                        <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                          <Label className="text-sm font-medium">隨機對抗檢定設定</Label>
+                          <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded text-sm text-blue-800 dark:text-blue-200 mb-3">
+                            <strong>提示：</strong>隨機對抗檢定使用劇本預設的上限值 <strong>{randomContestMaxValue}</strong>。
+                            攻擊方和防守方都骰 1 到 {randomContestMaxValue} 的隨機數，比拚大小決定勝負。
+                            防守方只能選擇「隨機對抗檢定」類型的技能/道具來回應。
+                            可在劇本設定中修改此值。
+                          </div>
+                          <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-2">
                                 <Label>對方最多可使用道具數</Label>
@@ -688,6 +820,11 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                         <p className="text-xs text-muted-foreground">
                           {editingItem.type === 'consumable' 
                             ? '消耗品建議至少 1 次' 
+                            : '設為 0 表示無限制'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {editingItem.type === 'consumable' 
+                            ? '消耗品建議至少 1 次' 
                             : '非消耗品可設為 0（無限使用）'}
                         </p>
                       </div>
@@ -697,13 +834,16 @@ export function ItemsEditForm({ characterId, initialItems, stats }: ItemsEditFor
                           id="cooldown"
                           type="number"
                           min={0}
-                          value={editingItem.cooldown || ''}
+                          value={editingItem.cooldown ?? 0}
                           onChange={(e) => setEditingItem({
                             ...editingItem,
-                            cooldown: e.target.value ? parseInt(e.target.value) : undefined,
+                            cooldown: parseInt(e.target.value) || 0,
                           })}
-                          placeholder="0 或空白 = 無冷卻"
+                          placeholder="0 = 無冷卻"
                         />
+                        <p className="text-xs text-muted-foreground">
+                          設為 0 表示無冷卻時間
+                        </p>
                       </div>
                     </div>
                   </EditFormCard>
@@ -806,10 +946,14 @@ interface ItemCardProps {
 
 function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
   return (
-    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg group">
+    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg group">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        {/* 第一行：名稱 */}
+        <div className="flex items-center gap-2">
           <span className="font-medium truncate">{item.name || '未命名道具'}</span>
+        </div>
+        {/* 第二行：標籤 */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
           {(item.effects && item.effects.length > 0) || item.effect && (
             <Badge variant="secondary" className="text-xs">
               <Zap className="h-3 w-3 mr-1" />
@@ -818,10 +962,22 @@ function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
           )}
           {item.checkType && item.checkType !== 'none' && (
             <Badge variant="outline" className="text-xs">
-              {item.checkType === 'contest' ? '對抗檢定' : '隨機檢定'}
+              {item.checkType === 'contest' ? '對抗檢定' : item.checkType === 'random_contest' ? '隨機對抗檢定' : '隨機檢定'}
             </Badge>
           )}
-          {item.cooldown && item.cooldown > 0 && (
+          {item.tags && item.tags.length > 0 && item.tags.map(tag => (
+            <Badge key={tag} variant="outline" className="text-xs">
+              {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
+            </Badge>
+          ))}
+          {item.usageLimit != null && (
+            <Badge variant="outline" className="text-xs">
+              {item.usageLimit > 0
+                ? `${item.usageCount || 0} / ${item.usageLimit} 次`
+                : '無限次'}
+            </Badge>
+          )}
+          {item.cooldown != null && item.cooldown > 0 && (
             <Badge variant="outline" className="text-xs">
               <Clock className="h-3 w-3 mr-1" />
               {item.cooldown}s
@@ -829,7 +985,7 @@ function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
           )}
         </div>
         {item.description && (
-          <p className="text-sm text-muted-foreground line-clamp-1">{item.description}</p>
+          <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{item.description}</p>
         )}
       </div>
 

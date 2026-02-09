@@ -59,6 +59,9 @@ export async function useItem(
     const item = items[itemIndex];
     const now = new Date();
 
+    // Phase 8: 取得道具檢定類型
+    const itemCheckType = item.checkType || 'none';
+
     // Phase 8: 檢查使用者本身是否正在進行對抗檢定（無論道具是否需要檢定）
     const userContestStatus = isCharacterInContest(characterId);
     if (userContestStatus.inContest) {
@@ -143,12 +146,11 @@ export async function useItem(
     // Phase 8: 驗證目標角色（如果需要）
     // 重構：支援多個效果
     const effects = item.effects || (item.effect ? [item.effect] : []);
-    const checkType = item.checkType || 'none';
-    const requiresTarget = effects.some((e: { requiresTarget?: boolean }) => e.requiresTarget) || checkType === 'contest';
+    const requiresTarget = effects.some((e: { requiresTarget?: boolean }) => e.requiresTarget) || itemCheckType === 'contest' || itemCheckType === 'random_contest';
     
     // Phase 8: 對抗檢定時，如果有 item_take/item_steal 效果，不需要在初始使用時選擇目標道具
     const hasItemTakeOrSteal = effects.some((e: { type?: string }) => e.type === 'item_take' || e.type === 'item_steal');
-    const needsTargetItemInContest = checkType === 'contest' && hasItemTakeOrSteal;
+    const needsTargetItemInContest = (itemCheckType === 'contest' || itemCheckType === 'random_contest') && hasItemTakeOrSteal;
     
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -259,7 +261,7 @@ export async function useItem(
     const finalCheckResult = checkResultData.checkResult;
 
     // 如果是對抗檢定，需要提前返回
-    if (checkType === 'contest') {
+    if (itemCheckType === 'contest' || itemCheckType === 'random_contest') {
       // 更新道具使用記錄（但不執行效果，效果將在防守方回應後執行）
       await Character.findByIdAndUpdate(characterId, {
         $set: {
@@ -287,7 +289,6 @@ export async function useItem(
 
     // 準備更新
     const usageUpdates: Record<string, unknown> = {};
-    const targetStatUpdates: Record<string, unknown> = {};
 
     // 總是記錄道具使用時間（用於追蹤使用歷史）
     usageUpdates[`items.${itemIndex}.lastUsedAt`] = now;

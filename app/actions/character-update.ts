@@ -14,6 +14,7 @@ import {
   cleanTaskData,
   cleanSecretData,
 } from "@/lib/character-cleanup";
+import { normalizeTags } from "@/lib/utils/tags";
 import {
   validateCharacterData,
   validateCharacterAccess,
@@ -130,8 +131,10 @@ export async function updateCharacter(
         duration?: number;
         description?: string;
       };
-      // Phase 8: 檢定系統
-      checkType?: "none" | "contest" | "random";
+      // Phase 7.6: 標籤系統
+      tags?: string[];
+      // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
+      checkType?: "none" | "contest" | "random" | "random_contest";
       contestConfig?: {
         relatedStat: string;
         opponentMaxItems?: number;
@@ -155,7 +158,10 @@ export async function updateCharacter(
       name: string;
       description: string;
       iconUrl?: string;
-      checkType: "none" | "contest" | "random";
+      // Phase 7.6: 標籤系統
+      tags?: string[];
+      // Phase 7.6: 擴展為包含 random_contest
+      checkType: "none" | "contest" | "random" | "random_contest";
       contestConfig?: {
         relatedStat: string;
         opponentMaxItems?: number;
@@ -356,6 +362,9 @@ export async function updateCharacter(
 
             if (skillData.iconUrl !== undefined)
               skillObj.iconUrl = skillData.iconUrl;
+            // Phase 7.6: 處理標籤系統 - 使用統一的標準化函數
+            // updateCharacterSkills 已經處理過 tags，這裡確保標準化
+            skillObj.tags = normalizeTags(skillData.tags);
             if (skillData.usageLimit !== undefined)
               skillObj.usageLimit = skillData.usageLimit;
             if (skillData.usageCount !== undefined)
@@ -450,6 +459,12 @@ export async function updateCharacter(
             if (skillData.checkType === "contest" && skillData.contestConfig) {
               skillObj.contestConfig = skillData.contestConfig;
             } else if (
+              skillData.checkType === "random_contest" &&
+              skillData.contestConfig
+            ) {
+              // Phase 7.6: 隨機對抗檢定也使用 contestConfig
+              skillObj.contestConfig = skillData.contestConfig;
+            } else if (
               skillData.checkType === "random" &&
               skillData.randomConfig
             ) {
@@ -464,8 +479,26 @@ export async function updateCharacter(
         characterDoc.skills = [];
         characterDoc.markModified("skills");
 
-        // 然後設定新的 skills 陣列
-        characterDoc.set("skills", skillsArray);
+        // 直接使用 updateCharacterSkills 處理過的資料，確保 tags 已標準化
+        // 將技能物件轉換為純 JavaScript 物件，確保所有欄位都被正確保存
+        const skillsToSave = skillsArray.map((skillObj) => {
+          // 確保 tags 欄位已標準化
+          const normalizedSkill: Record<string, unknown> = {
+            ...skillObj,
+            tags: normalizeTags(skillObj.tags),
+          };
+          // 使用 JSON 序列化/反序列化確保深拷貝，移除任何 Mongoose 內部屬性
+          return JSON.parse(JSON.stringify(normalizedSkill));
+        });
+        
+        // 清空現有技能陣列
+        characterDoc.skills = [];
+        characterDoc.markModified("skills");
+        
+        // 逐個添加技能，確保 Mongoose 正確處理所有欄位
+        skillsToSave.forEach((skillData) => {
+          characterDoc.skills.push(skillData as typeof characterDoc.skills[number]);
+        });
         characterDoc.markModified("skills");
       } else if (key === "items" && updateData.items) {
         // 對於 items 陣列，需要逐個建立 Mongoose 子文檔
@@ -491,6 +524,9 @@ export async function updateCharacter(
 
             if (itemData.imageUrl !== undefined)
               itemObj.imageUrl = itemData.imageUrl;
+            // Phase 7.6: 處理標籤系統 - 使用統一的標準化函數
+            // updateCharacterItems 已經處理過 tags，這裡確保標準化
+            itemObj.tags = normalizeTags(itemData.tags);
             if (itemData.usageLimit !== undefined)
               itemObj.usageLimit = itemData.usageLimit;
             if (itemData.cooldown !== undefined)
@@ -601,6 +637,12 @@ export async function updateCharacter(
               itemObj.checkType = itemData.checkType;
             }
             if (itemData.checkType === "contest" && itemData.contestConfig) {
+              itemObj.contestConfig = itemData.contestConfig;
+            } else if (
+              itemData.checkType === "random_contest" &&
+              itemData.contestConfig
+            ) {
+              // Phase 7.6: 隨機對抗檢定也使用 contestConfig
               itemObj.contestConfig = itemData.contestConfig;
             } else if (
               itemData.checkType === "random" &&

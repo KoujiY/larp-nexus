@@ -116,11 +116,15 @@ export function useCharacterWebSocketHandler(
         }
 
         case 'character.affected': {
-          // 跨角色影響事件
-          // 防守方受到影響時，不顯示技能名稱或攻擊方名稱（隱私保護）
+          // Phase 7.6: 跨角色影響事件，根據隱匿標籤決定是否顯示攻擊方姓名
           const payload = event.payload as CharacterAffectedEvent['payload'];
           const stats = payload.changes?.stats;
           if (stats && stats.length > 0) {
+            // Phase 7.6: 根據隱匿標籤決定是否顯示攻擊方姓名
+            const hasStealthTag = payload.sourceHasStealthTag || false;
+            const sourceName = payload.sourceCharacterName || '';
+            const attackerPrefix = !hasStealthTag && sourceName ? `${sourceName} 對你使用了` : '你受到了';
+            
             const statMessages = stats
               .map((s) => {
                 const name = s.name || '數值';
@@ -149,9 +153,9 @@ export function useCharacterWebSocketHandler(
               .filter(Boolean);
 
             if (statMessages.length > 0) {
-              // 不顯示來源資訊，只顯示影響內容
-              toast.info('你受到了影響', {
-                description: statMessages.join('、'),
+              // Phase 7.6: 根據隱匿標籤決定 toast 訊息內容
+              toast.info(hasStealthTag ? '你受到了影響' : `${sourceName} 對你使用了技能或道具`, {
+                description: `${attackerPrefix}，效果：${statMessages.join('、')}`,
               });
             }
           }

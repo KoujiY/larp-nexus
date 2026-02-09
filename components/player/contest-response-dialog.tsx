@@ -44,12 +44,6 @@ export function ContestResponseDialog({
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [isResponding, setIsResponding] = useState(false);
 
-  // 調試：檢查 props
-  useEffect(() => {
-    if (open) {
-      console.log('ContestResponseDialog opened', { contestId, characterId, contestEvent });
-    }
-  }, [open, contestId, characterId, contestEvent]);
 
   // 當 dialog 打開時重置選擇
   useEffect(() => {
@@ -65,8 +59,16 @@ export function ContestResponseDialog({
   // 防守方不應該知道攻擊方的數值（如果 attackerValue 為 0，表示這是佔位符）
   const showAttackerValue = attackerValue !== 0;
   // 防守方不應該看到技能或道具名稱（隱私保護）
+  // Phase 7.6: 根據隱匿標籤決定是否顯示攻擊方名稱
+  const attackerDisplayName = contestEvent.sourceHasStealthTag ? '有人' : (contestEvent.attackerName || '有人');
 
-  // 取得可用的道具（不在冷卻中，未達使用次數上限）
+  // Phase 7.6: 取得攻擊方的檢定類型和相關數值
+  const attackerCheckType = contestEvent.checkType || 'contest';
+  const attackerRelatedStat = contestEvent.relatedStat;
+  // Phase 7.6: 取得攻擊方是否有戰鬥標籤（如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤）
+  const attackerHasCombatTag = contestEvent.attackerHasCombatTag ?? false;
+
+  // Phase 7.6: 取得可用的道具（過濾條件：根據攻擊方是否有戰鬥標籤決定是否需要 combat 標籤、checkType 相同、relatedStat 相同）
   const availableItems = items.filter((item) => {
     // 檢查冷卻時間
     if (item.cooldown && item.cooldown > 0 && item.lastUsedAt) {
@@ -89,10 +91,27 @@ export function ContestResponseDialog({
       return false;
     }
 
+    // Phase 7.6: 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
+    if (attackerHasCombatTag && (!item.tags || !item.tags.includes('combat'))) {
+      return false;
+    }
+
+    // Phase 7.6: checkType 必須與攻擊方相同
+    if (item.checkType !== attackerCheckType) {
+      return false;
+    }
+
+    // Phase 7.6: 如果是 contest 類型，relatedStat 必須與攻擊方相同
+    if (attackerCheckType === 'contest' && attackerRelatedStat) {
+      if (item.contestConfig?.relatedStat !== attackerRelatedStat) {
+        return false;
+      }
+    }
+
     return true;
   });
 
-  // 取得可用的技能（不在冷卻中，未達使用次數上限）
+  // Phase 7.6: 取得可用的技能（過濾條件：根據攻擊方是否有戰鬥標籤決定是否需要 combat 標籤、checkType 相同、relatedStat 相同）
   const availableSkills = skills.filter((skill) => {
     // 檢查冷卻時間
     if (skill.cooldown && skill.cooldown > 0 && skill.lastUsedAt) {
@@ -106,6 +125,23 @@ export function ContestResponseDialog({
     // 檢查使用次數限制
     if (skill.usageLimit && skill.usageLimit > 0) {
       if ((skill.usageCount || 0) >= skill.usageLimit) {
+        return false;
+      }
+    }
+
+    // Phase 7.6: 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
+    if (attackerHasCombatTag && (!skill.tags || !skill.tags.includes('combat'))) {
+      return false;
+    }
+
+    // Phase 7.6: checkType 必須與攻擊方相同
+    if (skill.checkType !== attackerCheckType) {
+      return false;
+    }
+
+    // Phase 7.6: 如果是 contest 類型，relatedStat 必須與攻擊方相同
+    if (attackerCheckType === 'contest' && attackerRelatedStat) {
+      if (skill.contestConfig?.relatedStat !== attackerRelatedStat) {
         return false;
       }
     }
@@ -144,42 +180,36 @@ export function ContestResponseDialog({
   };
 
   const handleRespond = async (e?: React.MouseEvent) => {
-    console.log('handleRespond called', { contestId, characterId, selectedItems, selectedSkills, isResponding });
-    
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     
     if (isResponding) {
-      console.log('Already responding, ignoring');
       return; // 防止重複點擊
     }
     
     if (!contestId) {
-      console.error('No contestId provided!');
       toast.error('對抗請求 ID 無效');
       return;
     }
     
-    console.log('Starting response...');
+    // Phase 7.6: 優先使用事件中的 contestId（如果有的話），確保與攻擊方生成的一致
+    const finalContestId = contestEvent?.contestId || contestId;
+    
     setIsResponding(true);
     try {
-      console.log('Calling respondToContest...', { contestId, characterId, selectedItems, selectedSkills, targetItemId: contestEvent.targetItemId });
       const result = await respondToContest(
-        contestId,
+        finalContestId,
         characterId,
         selectedItems.length > 0 ? selectedItems : undefined,
         selectedSkills.length > 0 ? selectedSkills : undefined,
         contestEvent.targetItemId // Phase 7: 從 contestEvent 中獲取 targetItemId
       );
-      
-      console.log('respondToContest result:', result);
 
       if (result.success) {
         // 回應成功，關閉 dialog
         // 通知會通過 character.affected 事件顯示（只有當有實際數值變化時）
-        console.log('[contest-response-dialog] 回應成功，結果:', result.data?.contestResult);
         
         // 不顯示檢定結果通知，讓 character.affected 事件來處理實際的數值變化
         onResponded();
@@ -228,7 +258,7 @@ export function ContestResponseDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-orange-500" />
-            對抗檢定：有人對你使用了技能或道具
+            對抗檢定：{attackerDisplayName}對你使用了技能或道具
           </DialogTitle>
           <DialogDescription>
             你可以選擇使用道具或技能來增強防禦，或直接使用基礎數值回應
@@ -240,7 +270,9 @@ export function ContestResponseDialog({
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="font-semibold">攻擊方數值：</span>
+                <span className="font-semibold">
+                  {contestEvent.checkType === 'random_contest' ? '攻擊方骰子：' : '攻擊方數值：'}
+                </span>
                 {showAttackerValue ? (
                   <Badge variant="destructive" className="text-lg">
                     {attackerValue}
@@ -255,15 +287,30 @@ export function ContestResponseDialog({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold">你的數值：</span>
+                <span className="font-semibold">
+                  {contestEvent.checkType === 'random_contest' ? '你的骰子：' : '你的數值：'}
+                </span>
                 <Badge variant="default" className="text-lg">
                   {defenderValue}
                 </Badge>
               </div>
             </div>
             <div className="text-sm text-muted-foreground mt-2">
-              有人對你使用了技能或道具，請選擇道具或技能來增強防禦
+              {contestEvent.checkType === 'random_contest' 
+                ? `這是隨機對抗檢定，雙方各自骰出 1 到 ${contestEvent.randomContestMaxValue || 100} 的隨機數值進行比較。請選擇道具或技能來增強防禦。`
+                : `${attackerDisplayName}對你使用了技能或道具，請選擇道具或技能來增強防禦`}
             </div>
+            {/* Phase 7.6: 顯示檢定類型資訊 */}
+            {contestEvent.checkType === 'contest' && contestEvent.relatedStat && (
+              <div className="text-xs text-muted-foreground mt-2">
+                檢定類型：對抗檢定（使用 {contestEvent.relatedStat} 數值）
+              </div>
+            )}
+            {contestEvent.checkType === 'random_contest' && (
+              <div className="text-xs text-muted-foreground mt-2">
+                檢定類型：隨機對抗檢定（雙方各自骰出 1 到 {contestEvent.randomContestMaxValue || 100} 的隨機數值，D{contestEvent.randomContestMaxValue || 100}）
+              </div>
+            )}
           </div>
 
           {/* 道具選擇 */}
@@ -359,9 +406,48 @@ export function ContestResponseDialog({
             </div>
           )}
 
-          {availableItems.length === 0 && availableSkills.length === 0 && (
+          {/* 多選提示訊息 */}
+          {(selectedItems.length > 1 || selectedSkills.length > 1) && (
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="text-yellow-600 dark:text-yellow-400 text-lg">⚠️</span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
+                    注意：如果獲勝，只有第一個選擇的技能/道具效果會執行
+                  </p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                    {selectedItems.length > 1 && `已選擇 ${selectedItems.length} 個道具，`}
+                    {selectedSkills.length > 1 && `已選擇 ${selectedSkills.length} 個技能，`}
+                    只有第一個的效果會生效
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 只有在允許使用道具或技能時，才顯示「沒有符合條件的道具或技能」提示 */}
+          {availableItems.length === 0 && availableSkills.length === 0 && (maxItems > 0 || maxSkills > 0) && (
             <div className="p-4 bg-muted rounded-lg text-center text-muted-foreground">
-              沒有可用的道具或技能
+              <p className="font-semibold mb-2">沒有符合條件的道具或技能</p>
+              <p className="text-sm">
+                防守方使用的技能/道具必須：
+              </p>
+              <ul className="text-sm mt-2 space-y-1 text-left list-disc list-inside">
+                <li>具有「戰鬥」標籤</li>
+                <li>檢定類型與攻擊方相同（{attackerCheckType === 'contest' ? '對抗檢定' : '隨機對抗檢定'}）</li>
+                {attackerCheckType === 'contest' && attackerRelatedStat && (
+                  <li>使用相同的數值（{attackerRelatedStat}）</li>
+                )}
+              </ul>
+            </div>
+          )}
+          
+          {/* 如果不允許使用道具或技能，顯示提示 */}
+          {maxItems === 0 && maxSkills === 0 && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                此技能/道具不允許防守方使用道具或技能回應，只能使用基礎數值進行對抗
+              </p>
             </div>
           )}
         </div>

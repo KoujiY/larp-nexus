@@ -3,66 +3,57 @@
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
 import { Character } from '@/lib/db/models';
-import { emitInventoryUpdated, emitCharacterAffected, emitRoleUpdated } from '@/lib/websocket/events';
-import { cleanItemData } from '@/lib/character-cleanup';
 import { getContestInfo, removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
-import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
+import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
 import type { ApiResponse } from '@/types/api';
-import type { BaseEvent } from '@/types/event';
+import type { CharacterDocument } from '@/lib/db/models';
 
 /**
- * Phase 8: 攻擊方選擇目標道具後執行效果
+ * Phase 8: 選擇目標道具後執行效果
  * 用於對抗檢定獲勝後，需要選擇目標道具的情況
+ * Phase 9: 支援攻擊方和防守方選擇目標道具
  */
 export async function selectTargetItemForContest(
   contestId: string,
-  attackerId: string,
+  characterId: string, // Phase 9: 選擇者的角色 ID（攻擊方或防守方）
   targetItemId: string,
-  defenderId?: string // 可選參數：如果服務器端記錄丟失，可以使用此參數
+  targetCharacterId?: string, // Phase 9: 目標角色 ID（如果服務器端記錄丟失，可以使用此參數）
+  defenderSourceId?: string, // Phase 9: 防守方使用的技能/道具 ID（當防守方選擇道具時需要）
+  defenderSourceType?: 'skill' | 'item' // Phase 9: 防守方使用的技能/道具類型（當防守方選擇道具時需要）
 ): Promise<ApiResponse<{ success: boolean; effectApplied?: string }>> {
   try {
     await dbConnect();
 
     // 解析對抗請求 ID（格式：attackerId::itemId::timestamp）
-    const parts = contestId.split('::');
-    if (parts.length !== 3) {
+    const { parseContestId } = await import('@/lib/contest/contest-id');
+    const parsed = parseContestId(contestId);
+    if (!parsed) {
       return {
         success: false,
         error: 'INVALID_CONTEST_ID',
         message: '無效的對抗請求 ID',
       };
     }
-    const [parsedAttackerId, sourceId, timestamp] = parts;
-    if (!parsedAttackerId || !sourceId || !timestamp) {
-      return {
-        success: false,
-        error: 'INVALID_CONTEST_ID',
-        message: '無效的對抗請求 ID',
-      };
-    }
+    const { attackerId: parsedAttackerId, sourceId } = parsed;
 
-    // 驗證攻擊方 ID 匹配
-    if (parsedAttackerId !== attackerId) {
-      return {
-        success: false,
-        error: 'INVALID_ATTACKER',
-        message: '攻擊方 ID 不匹配',
-      };
-    }
+    // Phase 9: 判斷選擇者是攻擊方還是防守方
+    const characterIdStr = String(characterId);
+    const parsedAttackerIdStr = String(parsedAttackerId);
+    const isDefenderSelecting = characterIdStr !== parsedAttackerIdStr;
 
     // 從對抗檢定追蹤系統中獲取防守方 ID
     const contestInfo = getContestInfo(contestId);
     let resolvedDefenderId: string;
-    let sourceType: 'skill' | 'item';
+    let attackerSourceType: 'skill' | 'item'; // 攻擊方的技能/道具類型
     
     if (!contestInfo) {
       // 如果找不到記錄（可能是服務器重啟或記錄過期），嘗試從參數或 contestId 解析信息
-      if (defenderId) {
-        // 如果提供了 defenderId 參數，使用它
-        resolvedDefenderId = defenderId;
+      if (targetCharacterId) {
+        // 如果提供了 targetCharacterId 參數，使用它作為防守方 ID
+        resolvedDefenderId = targetCharacterId;
         
-        // 從 contestId 解析 sourceId，然後從資料庫查詢確定 sourceType
-        const attacker = await Character.findById(attackerId);
+        // 從 contestId 解析 sourceId，然後從資料庫查詢確定攻擊方的 sourceType
+        const attacker = await Character.findById(parsedAttackerIdStr);
         if (!attacker) {
           return {
             success: false,
@@ -76,14 +67,14 @@ export async function selectTargetItemForContest(
         const itemIndex = attackerItems.findIndex((i: { id: string }) => i.id === sourceId);
         
         if (itemIndex !== -1) {
-          sourceType = 'item';
+          attackerSourceType = 'item';
         } else {
           // 嘗試找技能
           const attackerSkills = attacker.skills || [];
           const skillIndex = attackerSkills.findIndex((s: { id: string }) => s.id === sourceId);
           
           if (skillIndex !== -1) {
-            sourceType = 'skill';
+            attackerSourceType = 'skill';
           } else {
             return {
               success: false,
@@ -93,7 +84,7 @@ export async function selectTargetItemForContest(
           }
         }
       } else {
-        // 如果沒有提供 defenderId 且找不到記錄，返回錯誤
+        // 如果沒有提供 targetCharacterId 且找不到記錄，返回錯誤
         return {
           success: false,
           error: 'CONTEST_NOT_FOUND',
@@ -102,11 +93,11 @@ export async function selectTargetItemForContest(
       }
     } else {
       resolvedDefenderId = contestInfo.defenderId;
-      sourceType = contestInfo.sourceType;
+      attackerSourceType = contestInfo.sourceType; // 這是攻擊方的技能/道具類型
     }
 
     // 取得攻擊方和防守方角色
-    const attacker = await Character.findById(attackerId);
+    const attacker = await Character.findById(parsedAttackerIdStr);
     const defender = await Character.findById(resolvedDefenderId);
     
     if (!attacker || !defender) {
@@ -126,419 +117,279 @@ export async function selectTargetItemForContest(
       };
     }
 
-    // 根據來源類型找到技能或道具
-    let effects: Array<{ type: string; [key: string]: unknown }> = [];
-    let sourceName = '';
+    // Phase 9: 根據是否是防守方選擇，從對應的角色身上找到技能或道具
+    type SkillType = NonNullable<CharacterDocument['skills']>[number];
+    type ItemType = NonNullable<CharacterDocument['items']>[number];
+    let source: SkillType | ItemType | null = null;
+    let actualSourceType: 'skill' | 'item'; // 實際使用的技能/道具類型（用於效果執行）
     
-    if (sourceType === 'item') {
-      // 找到道具
-      const attackerItems = attacker.items || [];
-      const itemIndex = attackerItems.findIndex((i: { id: string }) => i.id === sourceId);
-      if (itemIndex === -1) {
+    // Phase 9: 如果防守方選擇道具，使用傳入的防守方技能/道具信息
+    if (isDefenderSelecting && defenderSourceId && defenderSourceType) {
+      const sourceCharacter = defender; // 防守方選擇時，從防守方身上查找
+      if (defenderSourceType === 'item') {
+        // 找到道具
+        const sourceItems = sourceCharacter.items || [];
+        const itemIndex = sourceItems.findIndex((i: { id: string }) => i.id === defenderSourceId);
+        if (itemIndex === -1) {
+          return {
+            success: false,
+            error: 'NOT_FOUND',
+            message: '找不到防守方道具',
+          };
+        }
+        source = sourceItems[itemIndex] as ItemType;
+        actualSourceType = 'item'; // 防守方的類型
+      } else if (defenderSourceType === 'skill') {
+        // 找到技能
+        const sourceSkills = sourceCharacter.skills || [];
+        const skillIndex = sourceSkills.findIndex((s: { id: string }) => s.id === defenderSourceId);
+        if (skillIndex === -1) {
+          return {
+            success: false,
+            error: 'NOT_FOUND',
+            message: '找不到防守方技能',
+          };
+        }
+        source = sourceSkills[skillIndex] as SkillType;
+        actualSourceType = 'skill'; // 防守方的類型
+      } else {
         return {
           success: false,
-          error: 'NOT_FOUND',
-          message: '找不到道具',
+          error: 'INVALID_SOURCE_TYPE',
+          message: '無效的防守方來源類型',
         };
       }
-      const item = attackerItems[itemIndex];
-      effects = item.effects || (item.effect ? [item.effect] : []);
-      sourceName = item.name;
-    } else if (sourceType === 'skill') {
-      // 找到技能
-      const attackerSkills = attacker.skills || [];
-      const skillIndex = attackerSkills.findIndex((s: { id: string }) => s.id === sourceId);
-      if (skillIndex === -1) {
-        return {
-          success: false,
-          error: 'NOT_FOUND',
-          message: '找不到技能',
-        };
-      }
-      const skill = attackerSkills[skillIndex];
-      effects = skill.effects || [];
-      sourceName = skill.name;
     } else {
+      // 攻擊方選擇道具時，使用從 contestId 解析出的攻擊方技能/道具信息
+      const sourceCharacter = attacker; // 攻擊方選擇時，從攻擊方身上查找
+      if (attackerSourceType === 'item') {
+        // 找到道具
+        const sourceItems = sourceCharacter.items || [];
+        const itemIndex = sourceItems.findIndex((i: { id: string }) => i.id === sourceId);
+        if (itemIndex === -1) {
+          return {
+            success: false,
+            error: 'NOT_FOUND',
+            message: '找不到道具',
+          };
+        }
+        source = sourceItems[itemIndex] as ItemType;
+        actualSourceType = 'item'; // 攻擊方的類型
+      } else if (attackerSourceType === 'skill') {
+        // 找到技能
+        const sourceSkills = sourceCharacter.skills || [];
+        const skillIndex = sourceSkills.findIndex((s: { id: string }) => s.id === sourceId);
+        if (skillIndex === -1) {
+          return {
+            success: false,
+            error: 'NOT_FOUND',
+            message: '找不到技能',
+          };
+        }
+        source = sourceSkills[skillIndex] as SkillType;
+        actualSourceType = 'skill'; // 攻擊方的類型
+      } else {
+        return {
+          success: false,
+          error: 'INVALID_SOURCE_TYPE',
+          message: '無效的來源類型',
+        };
+      }
+    }
+
+    if (!source) {
       return {
         success: false,
-        error: 'INVALID_SOURCE_TYPE',
-        message: '無效的來源類型',
+        error: 'NOT_FOUND',
+        message: '找不到技能或道具',
       };
     }
 
+    // Phase 9: 決定對抗檢定結果（根據選擇者）
+    // 攻擊方選擇目標道具 = 攻擊方獲勝
+    // 防守方選擇目標道具 = 防守方獲勝
+    const contestResult: 'attacker_wins' | 'defender_wins' = isDefenderSelecting ? 'defender_wins' : 'attacker_wins';
 
-    // Phase 8: 執行所有效果（包括 stat_change 和 item_take/item_steal）
-    // 決定效果作用對象：
-    // - 道具效果：總是作用於防守方
-    // - 技能效果：根據效果的 targetType 決定（other = 防守方，self = 攻擊方）
-    const effectTarget = sourceType === 'item' 
-      ? defender 
-      : (effects.some((e: { type: string; targetType?: string }) => e.targetType === 'other') ? defender : attacker);
-    const targetStats = effectTarget.stats || [];
-    const targetStatUpdates: Record<string, unknown> = {};
-    const statUpdates: Array<{ id: string; name: string; value: number; maxValue?: number; deltaValue?: number; deltaMax?: number }> = [];
-    const crossCharacterChanges: Array<{ name: string; deltaValue?: number; deltaMax?: number; newValue: number; newMax?: number }> = [];
-    const effectsApplied: string[] = [];
-    // 保存目標道具資訊，用於後續發送通知
-    let targetItemInfo: { id: string; name: string; description?: string; imageUrl?: string; acquiredAt?: Date; quantity: number } | null = null;
-
-    // 處理所有效果
-    for (const effect of effects) {
-      // 處理 stat_change 效果
-      if (effect.type === 'stat_change' && effect.targetStat && typeof effect.value === 'number') {
-        const statIndex = targetStats.findIndex((s: { name: string }) => s.name === effect.targetStat);
-        if (statIndex !== -1) {
-          const statChangeTarget = effect.statChangeTarget || 'value';
-          const currentStat = targetStats[statIndex];
-          const beforeValue = currentStat.value;
-          const beforeMax = currentStat.maxValue ?? null;
-          const syncValue = effect.syncValue;
-          const delta = effect.value;
-
-          // 若目標無 maxValue，但要求改 maxValue，退回改 value
-          const effectiveTarget = statChangeTarget === 'maxValue' && beforeMax === null ? 'value' : statChangeTarget;
-
-          let newValue = beforeValue;
-          let newMaxValue = beforeMax;
-          let deltaValue = 0;
-          let deltaMax = 0;
-
-          if (effectiveTarget === 'maxValue' && beforeMax !== null) {
-            // 修改最大值
-            newMaxValue = Math.max(1, beforeMax + delta);
-            deltaMax = newMaxValue - beforeMax;
-            targetStatUpdates[`stats.${statIndex}.maxValue`] = newMaxValue;
-
-            if (syncValue) {
-              // 同步修改目前值
-              newValue = Math.max(0, beforeValue + delta);
-              newValue = Math.min(newValue, newMaxValue);
-              deltaValue = newValue - beforeValue;
-              targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-              effectsApplied.push(`${effect.targetStat} 最大值 ${delta > 0 ? '+' : ''}${delta}，目前值同步調整`);
-            } else {
-              // 只修改最大值，確保目前值不超過新最大值
-              newValue = Math.min(beforeValue, newMaxValue);
-              deltaValue = newValue - beforeValue;
-              targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-              effectsApplied.push(`${effect.targetStat} 最大值 ${delta > 0 ? '+' : ''}${delta}`);
-            }
-          } else {
-            // 修改目前值
-            newValue = Math.max(0, beforeValue + delta);
-            if (beforeMax !== null) {
-              newValue = Math.min(newValue, beforeMax);
-            }
-            deltaValue = newValue - beforeValue;
-            targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-            effectsApplied.push(`${effect.targetStat} ${delta > 0 ? '+' : ''}${delta}`);
-          }
-
-          statUpdates.push({
-            id: currentStat.id,
-            name: effect.targetStat as string,
-            value: newValue,
-            maxValue: newMaxValue !== null && newMaxValue !== beforeMax ? newMaxValue : undefined,
-            deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-            deltaMax: deltaMax !== 0 ? deltaMax : undefined,
-          });
-
-          const isAffectingOthers = effectTarget._id.toString() !== attacker._id.toString();
-          if (isAffectingOthers) {
-            crossCharacterChanges.push({
-              name: effect.targetStat as string,
-              deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-              deltaMax: deltaMax !== 0 ? deltaMax : undefined,
-              newValue,
-              newMax: newMaxValue !== null && newMaxValue !== beforeMax ? newMaxValue : undefined,
-            });
-          }
-        }
-      } else if (effect.type === 'custom' && effect.description) {
-        const description = effect.description as string | undefined;
-        if (description) {
-          effectsApplied.push(description);
-        }
-      } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
-        // 處理 item_take/item_steal 效果
-        // 找到目標道具（目標是防守方）
-        const targetItems = defender.items || [];
-        const targetItemIndex = targetItems.findIndex((i: { id: string }) => i.id === targetItemId);
-        
-        if (targetItemIndex === -1) {
-          continue; // 跳過此效果
-        }
-
-        const targetItem = targetItems[targetItemIndex];
-        const targetItemName = targetItem.name;
-        const targetItemQuantity = targetItem.quantity || 1;
-        const newQuantity = targetItemQuantity - 1;
-        
-        // 保存目標道具資訊，用於後續發送通知
-        targetItemInfo = {
-          id: targetItem.id,
-          name: targetItem.name,
-          description: targetItem.description,
-          imageUrl: targetItem.imageUrl,
-          acquiredAt: targetItem.acquiredAt,
-          quantity: targetItemQuantity,
-        };
-
-        // 準備更新：先移除舊的道具
-        await Character.findByIdAndUpdate(resolvedDefenderId, {
-          $pull: { items: { id: targetItemId } },
-        });
-
-        // 如果數量 > 0，添加更新後的道具
-        if (newQuantity > 0) {
-          const updatedItem = {
-            ...targetItem,
-            quantity: newQuantity,
-          };
-          // 移除可能的 Mongoose 特定欄位
-          const cleanedItem = updatedItem as Record<string, unknown>;
-          delete cleanedItem._id;
-          delete cleanedItem.__v;
-          await Character.findByIdAndUpdate(resolvedDefenderId, {
-            $push: { items: cleanedItem },
-          });
-        }
-
-        if (effect.type === 'item_steal') {
-          // 偷竊：將道具轉移到攻擊者身上
-          // 重新載入攻擊者資料以確保資料是最新的
-          const updatedAttacker = await Character.findById(attackerId);
-          if (updatedAttacker) {
-            const attackerItemsList = updatedAttacker.items || [];
-            const attackerItemIndex = attackerItemsList.findIndex((i: { id: string }) => i.id === targetItemId);
-
-            if (attackerItemIndex !== -1) {
-              // 攻擊者已有此道具，增加數量
-              const currentItem = attackerItemsList[attackerItemIndex];
-              const currentQuantity = currentItem.quantity || 1;
-              
-              await Character.findByIdAndUpdate(attackerId, {
-                $pull: { items: { id: targetItemId } },
-              });
-              
-              const updatedAttackerItem = {
-                ...currentItem,
-                quantity: currentQuantity + 1,
-              };
-              const cleanedAttackerItem = updatedAttackerItem as Record<string, unknown>;
-              delete cleanedAttackerItem._id;
-              delete cleanedAttackerItem.__v;
-              
-              await Character.findByIdAndUpdate(attackerId, {
-                $push: { items: cleanedAttackerItem },
-              });
-            } else {
-              // 攻擊者沒有此道具，新增道具
-              const stolenItem = {
-                id: targetItem.id,
-                name: targetItem.name,
-                description: targetItem.description || '',
-                imageUrl: targetItem.imageUrl,
-                type: targetItem.type,
-                quantity: 1,
-                isTransferable: targetItem.isTransferable !== undefined ? targetItem.isTransferable : true,
-                acquiredAt: new Date(),
-                usageCount: 0,
-              };
-              
-              await Character.findByIdAndUpdate(attackerId, {
-                $push: { items: stolenItem },
-              });
-            }
-          }
-
-          effectsApplied.push(`偷竊了 ${targetItemName}`);
-        } else {
-          // 移除：只移除目標道具，不轉移
-          effectsApplied.push(`移除了 ${targetItemName}`);
-        }
-
-        // 注意：WebSocket 事件將在所有效果執行完成後統一發送（見下方）
-      }
+    // Phase 9: 準備防守方來源（如果防守方獲勝）
+    let defenderSources: Array<{ type: 'skill' | 'item'; id: string }> | undefined;
+    if (isDefenderSelecting && source) {
+      // 使用實際找到的防守方技能/道具信息
+      defenderSources = [{ type: actualSourceType, id: source.id }];
     }
 
-    // 應用統計變化
-    if (Object.keys(targetStatUpdates).length > 0) {
-      const targetId = effectTarget._id.toString();
-      await Character.findByIdAndUpdate(targetId, {
-        $set: targetStatUpdates,
-        $unset: { 'tasks.$[].gmNotes': 1 },
-      });
+    // Phase 8: 使用統一的效果執行器執行效果
+    const { executeContestEffects } = await import('@/lib/contest/contest-effect-executor');
+    let effectsApplied: string[] = [];
+    let updatedAttacker: CharacterDocument;
+    let updatedDefender: CharacterDocument;
+    try {
+      const effectResult = await executeContestEffects(
+        attacker!,
+        defender!,
+        source,
+        targetItemId,
+        contestResult,
+        defenderSources
+      );
+      effectsApplied = effectResult.effectsApplied;
+      updatedAttacker = effectResult.updatedAttacker;
+      updatedDefender = effectResult.updatedDefender;
+    } catch (error) {
+      console.error('[contest-select-item] 執行效果時發生錯誤:', error);
+      return {
+        success: false,
+        error: 'EFFECT_EXECUTION_FAILED',
+        message: `執行效果失敗：${error instanceof Error ? error.message : '未知錯誤'}`,
+      };
     }
 
     // Phase 8: 重新驗證路徑，確保頁面資料更新（在所有效果執行完成後）
-    revalidatePath(`/c/${attackerId}`);
+    revalidatePath(`/c/${parsedAttackerIdStr}`);
     revalidatePath(`/c/${resolvedDefenderId}`);
 
-    // Phase 8: 在所有效果執行完成後，統一發送 WebSocket 事件
-    // 1. 發送統計變化通知（如果有）
-    const isAffectingDefender = effectTarget._id.toString() === resolvedDefenderId;
-    const isAffectingAttacker = effectTarget._id.toString() === attackerId;
-    
-    if (isAffectingDefender && crossCharacterChanges.length > 0) {
-      // 效果作用於防守方
-      emitCharacterAffected(resolvedDefenderId, {
-        targetCharacterId: resolvedDefenderId,
-        sourceCharacterId: attackerId,
-        sourceCharacterName: '', // 不顯示攻擊方名稱
-        sourceType,
-        sourceName: '', // 不顯示來源名稱
-        effectType: 'stat_change',
-        changes: {
-          stats: crossCharacterChanges.map(change => ({
-            name: change.name,
-            deltaValue: change.deltaValue,
-            deltaMax: change.deltaMax,
-            newValue: change.newValue,
-            newMax: change.newMax,
-          })),
-        },
-      }).catch((error) => console.error('Failed to emit character.affected (stat_change)', error));
-    } else if (isAffectingAttacker && statUpdates.length > 0) {
-      // 效果作用於攻擊方（技能對自己使用）
-      emitRoleUpdated(attackerId, {
-        characterId: attackerId,
-        updates: {
-          stats: statUpdates.map(stat => ({
-            name: stat.name,
-            value: stat.value,
-            maxValue: stat.maxValue,
-            deltaValue: stat.deltaValue,
-            deltaMax: stat.deltaMax,
-          })),
-        },
-      }).catch((error) => console.error('Failed to emit role.updated (attacker)', error));
-    }
-
-    // 2. 發送道具變化通知（如果有 item_take/item_steal 效果）
-    const itemTakeOrStealEffects = effects.filter(e => e.type === 'item_take' || e.type === 'item_steal');
-    if (itemTakeOrStealEffects.length > 0 && targetItemInfo) {
-      // 使用之前保存的目標道具資訊發送通知
-      const wasCompletelyRemoved = targetItemInfo.quantity <= 1;
-      
-      // 發送 inventory.updated 事件給防守方
-      emitInventoryUpdated(resolvedDefenderId, {
-        characterId: resolvedDefenderId,
-        item: {
-          id: targetItemInfo.id,
-          name: targetItemInfo.name,
-          description: targetItemInfo.description || '',
-          imageUrl: targetItemInfo.imageUrl,
-          acquiredAt: targetItemInfo.acquiredAt?.toISOString(),
-        },
-        action: wasCompletelyRemoved ? 'deleted' : 'updated',
-      }).catch((error) => console.error('Failed to emit inventory.updated (select target item)', error));
-
-      // 發送跨角色影響事件給防守方（道具變化）
-      const effectType = itemTakeOrStealEffects[0].type === 'item_steal' ? 'item_steal' : 'item_take';
-      
-      emitCharacterAffected(resolvedDefenderId, {
-        targetCharacterId: resolvedDefenderId,
-        sourceCharacterId: attackerId,
-        sourceCharacterName: '', // 不顯示攻擊方名稱（隱私保護）
-        sourceType,
-        sourceName: '', // 不顯示來源名稱（隱私保護）
-        effectType,
-        changes: {
-          items: [{
-            id: targetItemInfo.id,
-            name: targetItemInfo.name,
-            action: effectType === 'item_steal' ? 'stolen' : 'removed',
-          }],
-        },
-      }).catch((error) => console.error('Failed to emit character.affected (select target item)', error));
-
-      // Phase 9: 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
-      // 重新載入兩個角色的最新資料
-      const [updatedAttackerCharacter, updatedDefenderCharacter] = await Promise.all([
-        Character.findById(attackerId).lean(),
-        Character.findById(resolvedDefenderId).lean(),
-      ]);
-
-      if (updatedAttackerCharacter && updatedDefenderCharacter) {
-        const attackerCleanItems = cleanItemData(updatedAttackerCharacter.items);
-        const defenderCleanItems = cleanItemData(updatedDefenderCharacter.items);
-
-
-        // 發送 role.updated 給兩個角色，包含最新的道具列表
-        await emitRoleUpdated(attackerId, {
-          characterId: attackerId,
-          updates: {
-            items: attackerCleanItems as unknown as Array<Record<string, unknown>>,
-          },
-        }).catch((error) => {
-          console.error('[contest-select-item] Failed to emit role.updated (attacker character items)', error);
-        });
-
-        await emitRoleUpdated(resolvedDefenderId, {
-          characterId: resolvedDefenderId,
-          updates: {
-            items: defenderCleanItems as unknown as Array<Record<string, unknown>>,
-          },
-        }).catch((error) => {
-          console.error('[contest-select-item] Failed to emit role.updated (defender character items)', error);
-        });
+    // Phase 2: 使用統一的通知管理器發送對抗檢定效果事件（選擇目標道具後）
+    try {
+      // 使用更新後的角色資料獲取技能或道具對象（用於通知）
+      let attackerSource: SkillType | ItemType | null = null;
+      if (attackerSourceType === 'skill') {
+        const attackerSkills = updatedAttacker.skills || [];
+        const skillIndex = attackerSkills.findIndex((s: { id: string }) => s.id === sourceId);
+        if (skillIndex !== -1) {
+          attackerSource = attackerSkills[skillIndex] as SkillType;
+        }
       } else {
+        const attackerItems = updatedAttacker.items || [];
+        const itemIndex = attackerItems.findIndex((i: { id: string }) => i.id === sourceId);
+        if (itemIndex !== -1) {
+          attackerSource = attackerItems[itemIndex] as ItemType;
+        }
       }
-    }
-
-    // 3. 發送技能/道具使用成功通知給攻擊方（使用 skill.contest 事件，讓攻擊方能看見完整訊息）
-    const pusher = getPusherServer();
-    if (pusher && isPusherEnabled()) {
-      const contestPayload: {
-        attackerId: string;
-        attackerName: string;
-        defenderId: string;
-        defenderName: string;
-        skillId?: string;
-        skillName?: string;
-        itemId?: string;
-        itemName?: string;
-        sourceType?: 'skill' | 'item';
-        attackerValue: number;
-        defenderValue: number;
-        result: 'attacker_wins';
-        effectsApplied?: string[];
-      } = {
-        attackerId: attackerId,
-        attackerName: attacker.name,
-        defenderId: resolvedDefenderId,
-        defenderName: defender.name,
-        attackerValue: 1, // 必須不為 0，否則會被 mapSkillContest 忽略（這是結果通知，對抗檢定已完成）
-        defenderValue: 0,
-        result: 'attacker_wins',
-        effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
-        sourceType,
-      };
       
-      // 根據來源類型設定對應的 ID 和名稱
-      if (sourceType === 'skill') {
-        contestPayload.skillId = sourceId;
-        contestPayload.skillName = sourceName;
-      } else if (sourceType === 'item') {
-        contestPayload.itemId = sourceId;
-        contestPayload.itemName = sourceName;
+      // Phase 9: 如果防守方獲勝，從更新後的角色資料獲取防守方使用的技能或道具對象
+      let defenderSource: SkillType | ItemType | undefined;
+      let defenderSourceTypeForNotification: 'skill' | 'item' | undefined;
+      if (isDefenderSelecting && source) {
+        // 從更新後的防守方角色資料中查找技能/道具
+        if (actualSourceType === 'skill') {
+          const defenderSkills = updatedDefender.skills || [];
+          const skillIndex = defenderSkills.findIndex((s: { id: string }) => s.id === source.id);
+          if (skillIndex !== -1) {
+            defenderSource = defenderSkills[skillIndex] as SkillType;
+          } else {
+            // 如果找不到，使用傳入的 source（可能是因為資料庫更新延遲）
+            defenderSource = source;
+          }
+        } else {
+          const defenderItems = updatedDefender.items || [];
+          const itemIndex = defenderItems.findIndex((i: { id: string }) => i.id === source.id);
+          if (itemIndex !== -1) {
+            defenderSource = defenderItems[itemIndex] as ItemType;
+          } else {
+            // 如果找不到，使用傳入的 source（可能是因為資料庫更新延遲）
+            defenderSource = source;
+          }
+        }
+        defenderSourceTypeForNotification = actualSourceType;
       }
-
-      const event: BaseEvent = {
-        type: 'skill.contest',
-        timestamp: Date.now(),
-        payload: contestPayload,
-      };
-
-      try {
-        // 只發送給攻擊方，因為這是攻擊方選擇目標道具後的結果通知
-        const attackerChannelName = `private-character-${attackerId}`;
-        await pusher.trigger(attackerChannelName, 'skill.contest', event);
-      } catch (error) {
-        console.error('[contest-select-item] Failed to emit skill.contest', error);
+      
+      if (attackerSource) {
+        // Phase 9: 如果攻擊方獲勝，需要查找防守方使用的技能/道具（用於發送防守方失敗通知）
+        let defenderSourceForNotification: SkillType | ItemType | undefined = defenderSource;
+        let defenderSourceTypeForEffectNotification: 'skill' | 'item' | undefined = defenderSourceTypeForNotification;
+        let defenderSkillsForNotification: string[] | undefined;
+        let defenderItemsForNotification: string[] | undefined;
+        
+        if (!isDefenderSelecting && contestResult === 'attacker_wins') {
+          // 攻擊方獲勝：需要查找防守方使用的技能/道具
+          // 修復：僅當防守方確實回應時才查找，避免使用前一個對抗的值
+          // 檢查防守方的技能/道具是否在當前對抗的時間範圍內使用
+          const contestStartTime = contestInfo?.timestamp;
+          
+          // 修復：如果 contestInfo 不存在或 timestamp 為 0/undefined，不應該查找防守方的回應
+          // 因為我們無法確定時間範圍，可能會錯誤地包含前一個對抗的值
+          if (contestStartTime && contestStartTime > 0) {
+            const currentTime = Date.now();
+            
+            const defenderSkillsData = updatedDefender.skills || [];
+            const defenderItemsData = updatedDefender.items || [];
+            
+            // 查找在當前對抗時間範圍內使用的技能（按 lastUsedAt 排序）
+            // 重要：僅包含在對抗開始後、選擇目標道具前使用的技能
+            const recentlyUsedSkills = defenderSkillsData
+              .filter((s: { lastUsedAt?: Date }) => {
+                if (!s.lastUsedAt) return false;
+                const usedTime = new Date(s.lastUsedAt).getTime();
+                // 僅包含在對抗開始後使用的技能
+                return usedTime >= contestStartTime && usedTime <= currentTime;
+              })
+              .sort((a: { lastUsedAt?: Date }, b: { lastUsedAt?: Date }) => {
+                const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+                const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+                return bTime - aTime;
+              });
+            
+            // 查找在當前對抗時間範圍內使用的道具（按 lastUsedAt 排序）
+            const recentlyUsedItems = defenderItemsData
+              .filter((i: { lastUsedAt?: Date }) => {
+                if (!i.lastUsedAt) return false;
+                const usedTime = new Date(i.lastUsedAt).getTime();
+                // 僅包含在對抗開始後使用的道具
+                return usedTime >= contestStartTime && usedTime <= currentTime;
+              })
+              .sort((a: { lastUsedAt?: Date }, b: { lastUsedAt?: Date }) => {
+                const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+                const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+                return bTime - aTime;
+              });
+            
+            // 優先使用技能（如果有的話）
+            if (recentlyUsedSkills.length > 0) {
+              const mostRecentSkill = recentlyUsedSkills[0] as SkillType;
+              defenderSourceForNotification = mostRecentSkill;
+              defenderSourceTypeForEffectNotification = 'skill';
+              defenderSkillsForNotification = [mostRecentSkill.id];
+              defenderItemsForNotification = undefined;
+            } else if (recentlyUsedItems.length > 0) {
+              const mostRecentItem = recentlyUsedItems[0] as ItemType;
+              defenderSourceForNotification = mostRecentItem;
+              defenderSourceTypeForEffectNotification = 'item';
+              defenderItemsForNotification = [mostRecentItem.id];
+              defenderSkillsForNotification = undefined;
+            }
+            // 如果沒有找到在當前對抗時間範圍內使用的技能/道具，則 defenderSkillsForNotification 和 defenderItemsForNotification 保持為 undefined
+          }
+          // contestInfo 不存在或 timestamp 無效時，不查找防守方的回應，defenderSkillsForNotification 和 defenderItemsForNotification 保持為 undefined
+        } else if (isDefenderSelecting && contestResult === 'defender_wins') {
+          // 防守方獲勝：使用傳入的防守方技能/道具信息
+          defenderSkillsForNotification = defenderSourceTypeForNotification === 'skill' && defenderSource ? [defenderSource.id] : undefined;
+          defenderItemsForNotification = defenderSourceTypeForNotification === 'item' && defenderSource ? [defenderSource.id] : undefined;
+        }
+        
+        // 使用統一的通知管理器發送效果通知
+        // 使用更新後的角色資料發送通知
+        await ContestNotificationManager.sendContestEffectNotification({
+          result: contestResult,
+          attacker: updatedAttacker, // 使用更新後的角色資料
+          defender: updatedDefender, // 使用更新後的角色資料
+          attackerSource,
+          attackerSourceType: attackerSourceType, // 使用攻擊方的類型
+          defenderSource: defenderSourceForNotification,
+          defenderSourceType: defenderSourceTypeForEffectNotification,
+          effectsApplied,
+          needsTargetItemSelection: false, // 已經選擇完成
+          contestId,
+          attackerValue: 1, // 必須不為 0，否則會被前端忽略（這是效果通知，對抗檢定已完成）
+          defenderValue: 0,
+          checkType: contestInfo?.checkType,
+          contestConfig: undefined, // 對抗檢定已完成，不需要配置
+          // Phase 9: 傳入防守方使用的技能/道具 ID
+          // 修復：確保防守方沒有回應時，傳入 undefined 而不是前一個對抗的值
+          defenderSkills: defenderSkillsForNotification,
+          defenderItems: defenderItemsForNotification,
+        });
       }
-    } else {
+    } catch (error) {
+      console.error('[contest-select-item] Failed to send contest effect notification', error);
     }
 
     // Phase 8: 清除對抗檢定追蹤
@@ -546,7 +397,7 @@ export async function selectTargetItemForContest(
     removeActiveContest(contestId);
     // 同時根據攻擊方和防守方的 ID 清除所有相關的對抗檢定（確保清除完整）
     // 這可以處理 contestId 格式不匹配的情況
-    removeContestsByCharacterId(attackerId);
+    removeContestsByCharacterId(parsedAttackerIdStr);
     removeContestsByCharacterId(resolvedDefenderId);
 
     const finalEffectMessage = effectsApplied.length > 0 ? effectsApplied.join('、') : '效果已應用';
@@ -558,7 +409,7 @@ export async function selectTargetItemForContest(
         success: true,
         effectApplied: finalEffectMessage,
       },
-      message: `${sourceType === 'skill' ? '技能' : '道具'}使用成功：${finalEffectMessage}`,
+      message: `目標道具選擇成功：${finalEffectMessage}`,
     };
   } catch (error) {
     console.error('Error selecting target item for contest:', error);

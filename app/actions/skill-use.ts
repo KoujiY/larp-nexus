@@ -216,8 +216,8 @@ export async function useSkill(
     const checkPassed = checkResultData.checkPassed;
     const finalCheckResult = checkResultData.checkResult;
 
-    // 如果是對抗檢定，需要提前返回
-    if (skill.checkType === 'contest') {
+    // 如果是對抗檢定或隨機對抗檢定，需要提前返回
+    if (skill.checkType === 'contest' || skill.checkType === 'random_contest') {
       // 更新技能使用記錄（但不執行效果，效果將在防守方回應後執行）
       await Character.findByIdAndUpdate(characterId, {
         $set: {

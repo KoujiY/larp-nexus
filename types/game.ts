@@ -14,6 +14,8 @@ export interface GameData {
     worldSetting: string;
     chapters: Chapter[];
   };
+  // Phase 7.6: 隨機對抗檢定設定
+  randomContestMaxValue?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +49,8 @@ export interface Game {
     worldSetting: string;
     chapters: Chapter[];
   };
+  // Phase 7.6: 隨機對抗檢定設定
+  randomContestMaxValue?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,5 +80,7 @@ export interface UpdateGameInput {
     worldSetting?: string;
     chapters?: Chapter[];
   };
+  // Phase 7.6: 隨機對抗檢定設定
+  randomContestMaxValue?: number;
 }
 

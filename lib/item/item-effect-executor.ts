@@ -370,13 +370,18 @@ export async function executeItemEffects(
     const targetId = isAffectingOthers ? targetCharacterId! : characterId;
 
     if (isAffectingOthers && crossCharacterChanges.length > 0) {
+      // Phase 7.6: 檢查來源道具是否有隱匿標籤
+      const sourceTags = item.tags || [];
+      const hasStealthTag = sourceTags.includes('stealth');
+      
       // 跨角色影響：只發送 character.affected，不發送 role.updated 的 stats（避免重複通知）
       emitCharacterAffected(targetId, {
         targetCharacterId: targetId,
         sourceCharacterId: characterId,
-        sourceCharacterName: character.name,
+        sourceCharacterName: hasStealthTag ? '' : character.name, // Phase 7.6: 有隱匿標籤時不顯示來源方名稱
         sourceType: 'item',
         sourceName: item.name,
+        sourceHasStealthTag: hasStealthTag, // Phase 7.6: 標記是否有隱匿標籤
         effectType: 'stat_change',
         changes: {
           stats: crossCharacterChanges.map((change) => ({

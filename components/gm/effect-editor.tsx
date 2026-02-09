@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +21,7 @@ interface EffectEditorProps {
   onChange: (effect: ItemEffect | SkillEffect) => void;
   onDelete: () => void;
   availableTypes: Array<'stat_change' | 'custom' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete'>;
+  checkType?: 'none' | 'contest' | 'random' | 'random_contest'; // 檢定類型（用於限制目標對象）
 }
 
 export function EffectEditor({
@@ -29,6 +31,7 @@ export function EffectEditor({
   onChange,
   onDelete,
   availableTypes,
+  checkType = 'none',
 }: EffectEditorProps) {
   const handleTypeChange = (value: string) => {
     if (value === 'stat_change') {
@@ -66,7 +69,23 @@ export function EffectEditor({
     : null;
   const hasMaxValue = targetStatData?.maxValue !== undefined && targetStatData.maxValue !== null;
   const statChangeTarget = effect.statChangeTarget || 'value';
+  
+  // 當檢定類型是對抗檢定或隨機對抗檢定時，目標對象只能選擇「其他玩家」
+  const isContestType = checkType === 'contest' || checkType === 'random_contest';
   const targetType: 'self' | 'other' | 'any' = effect.targetType || 'self';
+  const restrictedTargetType = isContestType ? 'other' : targetType;
+  
+  // 如果檢定類型是對抗檢定，但效果的 targetType 不是 'other'，自動更新
+  useEffect(() => {
+    if (isContestType && effect.targetType !== 'other' && (effect.type === 'stat_change' || effect.type === 'item_take' || effect.type === 'item_steal')) {
+      onChange({
+        ...effect,
+        targetType: 'other',
+        requiresTarget: true,
+      } as ItemEffect | SkillEffect);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isContestType, checkType]);
 
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-card">
@@ -115,28 +134,34 @@ export function EffectEditor({
           <div className="space-y-2">
             <Label>目標對象</Label>
             <Select
-              value={targetType}
+              value={restrictedTargetType}
               onValueChange={(value: 'self' | 'other' | 'any') => {
+                const finalValue = isContestType ? 'other' : value;
                 onChange({
                   ...effect,
-                  targetType: value,
-                  requiresTarget: value !== 'self',
+                  targetType: finalValue,
+                  requiresTarget: finalValue !== 'self',
                 } as ItemEffect | SkillEffect);
               }}
+              disabled={isContestType}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="self">自己</SelectItem>
+                <SelectItem value="self" disabled={isContestType}>自己</SelectItem>
                 <SelectItem value="other">其他玩家</SelectItem>
-                <SelectItem value="any">任一名玩家（包含自己）</SelectItem>
+                <SelectItem value="any" disabled={isContestType}>任一名玩家（包含自己）</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {targetType === 'self' && '只能影響自己'}
-              {targetType === 'other' && '使用時需選擇其他角色'}
-              {targetType === 'any' && '使用時可選擇任意角色（包含自己）'}
+              {isContestType 
+                ? '對抗檢定類型只能選擇其他玩家作為目標'
+                : targetType === 'self' 
+                  ? '只能影響自己'
+                  : targetType === 'other' 
+                    ? '使用時需選擇其他角色'
+                    : '使用時可選擇任意角色（包含自己）'}
             </p>
           </div>
 
@@ -231,28 +256,34 @@ export function EffectEditor({
           <div className="space-y-2">
             <Label>目標對象</Label>
             <Select
-              value={targetType}
+              value={restrictedTargetType}
               onValueChange={(value: 'self' | 'other' | 'any') => {
+                const finalValue = isContestType ? 'other' : value;
                 onChange({
                   ...effect,
-                  targetType: value,
-                  requiresTarget: value !== 'self',
+                  targetType: finalValue,
+                  requiresTarget: finalValue !== 'self',
                 } as ItemEffect | SkillEffect);
               }}
+              disabled={isContestType}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="self">自己</SelectItem>
+                <SelectItem value="self" disabled={isContestType}>自己</SelectItem>
                 <SelectItem value="other">其他玩家</SelectItem>
-                <SelectItem value="any">任一名玩家（包含自己）</SelectItem>
+                <SelectItem value="any" disabled={isContestType}>任一名玩家（包含自己）</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {targetType === 'self' && '只能對自己使用'}
-              {targetType === 'other' && '使用時需選擇其他角色'}
-              {targetType === 'any' && '使用時可選擇任意角色（包含自己）'}
+              {isContestType 
+                ? '對抗檢定類型只能選擇其他玩家作為目標'
+                : targetType === 'self' 
+                  ? '只能對自己使用'
+                  : targetType === 'other' 
+                    ? '使用時需選擇其他角色'
+                    : '使用時可選擇任意角色（包含自己）'}
             </p>
           </div>
           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">

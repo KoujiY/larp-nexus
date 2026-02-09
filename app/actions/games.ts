@@ -44,6 +44,7 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
         description: game.description,
         isActive: game.isActive,
         publicInfo: game.publicInfo,
+        randomContestMaxValue: game.randomContestMaxValue,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       })),
@@ -94,6 +95,7 @@ export async function getGameById(
         description: game.description,
         isActive: game.isActive,
         publicInfo: game.publicInfo,
+        randomContestMaxValue: game.randomContestMaxValue,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       },
@@ -147,6 +149,7 @@ export async function createGame(data: {
         description: game.description,
         isActive: game.isActive,
         publicInfo: game.publicInfo,
+        randomContestMaxValue: game.randomContestMaxValue,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       },
@@ -190,6 +193,8 @@ export async function updateGame(
         order: number;
       }>;
     };
+    // Phase 7.6: 隨機對抗檢定設定
+    randomContestMaxValue?: number;
   }
 ): Promise<ApiResponse<GameData>> {
   try {
@@ -225,6 +230,18 @@ export async function updateGame(
         chapters: data.publicInfo.chapters ?? currentPublicInfo.chapters ?? [],
       };
     }
+    
+    // Phase 7.6: 處理 randomContestMaxValue 更新
+    if (data.randomContestMaxValue !== undefined) {
+      if (data.randomContestMaxValue <= 0) {
+        return {
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: '隨機對抗檢定上限值必須大於 0',
+        };
+      }
+      updateData.randomContestMaxValue = data.randomContestMaxValue;
+    }
 
     const game = await Game.findOneAndUpdate(
       { _id: gameId, gmUserId },
@@ -252,6 +269,7 @@ export async function updateGame(
         description: game.description,
         isActive: game.isActive,
         publicInfo: game.publicInfo,
+        randomContestMaxValue: game.randomContestMaxValue,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       },

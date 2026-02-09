@@ -91,7 +91,7 @@ export function EffectDisplay({
         {requiresTarget && targetOptions.length > 0 && (
           <div className="space-y-1">
             <Select
-              value={selectedTargetId}
+              value={selectedTargetId ?? ''}
               onValueChange={onTargetChange}
               disabled={disabled}
             >

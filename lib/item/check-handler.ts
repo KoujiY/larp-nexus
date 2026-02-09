@@ -6,9 +6,7 @@
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
-import { emitSkillContest } from '@/lib/websocket/events';
-import { addActiveContest } from '@/lib/contest-tracker';
+import { handleContestCheck, type CheckResult } from '@/lib/contest/contest-handler';
 import type { CharacterDocument } from '@/lib/db/models';
 
 /**
@@ -17,16 +15,9 @@ import type { CharacterDocument } from '@/lib/db/models';
 type ItemType = NonNullable<CharacterDocument['items']>[number];
 
 /**
- * 檢定結果
+ * 檢定結果（從統一處理器導入）
  */
-export interface CheckResult {
-  checkPassed: boolean;
-  checkResult?: number;
-  contestId?: string;
-  attackerValue?: number;
-  defenderValue?: number;
-  preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail';
-}
+export type { CheckResult };
 
 /**
  * 處理道具檢定
@@ -50,99 +41,13 @@ export async function handleItemCheck(
 
   const checkType = item.checkType || 'none';
 
-  if (checkType === 'contest') {
-    // 對抗檢定
-    if (!item.contestConfig) {
-      throw new Error('對抗檢定設定不完整');
-    }
-
-    // 對抗檢定必須有目標角色
+  if (checkType === 'contest' || checkType === 'random_contest') {
+    // Phase 3: 使用統一對抗檢定處理器
     if (!targetCharacterId) {
       throw new Error('對抗檢定需要選擇目標角色');
     }
 
-    const targetCharacter = await Character.findById(targetCharacterId);
-    if (!targetCharacter) {
-      throw new Error('找不到目標角色');
-    }
-
-    // 驗證在同一劇本內
-    if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
-      throw new Error('目標角色不在同一劇本內');
-    }
-
-    const contestConfig = item.contestConfig;
-    const relatedStatName = contestConfig.relatedStat;
-
-    // 取得攻擊方的相關數值
-    const attackerStats = character.stats || [];
-    const attackerStat = attackerStats.find((s) => s.name === relatedStatName);
-    if (!attackerStat) {
-      throw new Error(`你沒有 ${relatedStatName} 數值`);
-    }
-
-    const attackerValue = attackerStat.value;
-
-    // 取得防守方的相關數值（基礎值）
-    const defenderStats = targetCharacter.stats || [];
-    const defenderStat = defenderStats.find((s: { name: string }) => s.name === relatedStatName);
-    if (!defenderStat) {
-      throw new Error(`目標角色沒有 ${relatedStatName} 數值`);
-    }
-
-    const defenderBaseValue = defenderStat.value;
-
-    // 創建對抗請求 ID（格式：attackerId::itemId::timestamp）
-    const now = new Date();
-    const contestId = `${character._id.toString()}::${item.id}::${now.getTime()}`;
-
-    // 計算初步對抗結果（使用防守方基礎數值）
-    let preliminaryResult: 'attacker_wins' | 'defender_wins' | 'both_fail';
-    if (attackerValue > defenderBaseValue) {
-      preliminaryResult = 'attacker_wins';
-    } else if (defenderBaseValue > attackerValue) {
-      preliminaryResult = 'defender_wins';
-    } else {
-      // 平手
-      preliminaryResult = contestConfig.tieResolution || 'attacker_wins';
-      if (preliminaryResult === 'both_fail') {
-        preliminaryResult = 'both_fail';
-      }
-    }
-
-    // 添加到對抗檢定追蹤系統
-    addActiveContest(contestId, character._id.toString(), targetCharacterId, 'item', item.id);
-
-    // 檢查是否有 item_take 或 item_steal 效果
-    const effects = item.effects || (item.effect ? [item.effect] : []);
-    const hasItemTakeOrSteal = effects.some((e: { type?: string }) => e.type === 'item_take' || e.type === 'item_steal');
-    const needsTargetItemSelection = hasItemTakeOrSteal;
-
-    // 推送對抗檢定請求事件給防守方
-    emitSkillContest(character._id.toString(), targetCharacterId, {
-      attackerId: character._id.toString(),
-      attackerName: character.name,
-      defenderId: targetCharacterId,
-      defenderName: targetCharacter.name,
-      itemId: item.id,
-      itemName: item.name,
-      sourceType: 'item',
-      attackerValue: 0, // 防守方不應該知道攻擊方數值，使用 0 作為佔位符
-      defenderValue: defenderBaseValue,
-      result: preliminaryResult,
-      effectsApplied: undefined, // 效果將在防守方回應後執行
-      opponentMaxItems: contestConfig.opponentMaxItems,
-      opponentMaxSkills: contestConfig.opponentMaxSkills,
-      needsTargetItemSelection, // 標記是否需要選擇目標道具
-    }).catch((error) => console.error('Failed to emit item.contest (request)', error));
-
-    return {
-      checkPassed: false, // 等待防守方回應
-      contestId,
-      attackerValue,
-      defenderValue: defenderBaseValue,
-      preliminaryResult,
-    };
+    return await handleContestCheck(item, 'item', character, targetCharacterId);
   } else if (checkType === 'random') {
     // 隨機檢定（由前端傳入結果）
     if (!item.randomConfig) {

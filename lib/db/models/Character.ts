@@ -92,8 +92,10 @@ export interface CharacterDocument extends Document {
       duration?: number;
       description?: string;
     };
-    // Phase 8: 檢定系統
-    checkType?: 'none' | 'contest' | 'random';
+    // Phase 7.6: 標籤系統
+    tags?: string[];
+    // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
+    checkType?: 'none' | 'contest' | 'random' | 'random_contest';
     contestConfig?: {
       relatedStat: string;
       opponentMaxItems?: number;
@@ -128,8 +130,10 @@ export interface CharacterDocument extends Document {
     name: string;
     description: string;
     iconUrl?: string;
-    // 檢定系統
-    checkType: 'none' | 'contest' | 'random';
+    // Phase 7.6: 標籤系統
+    tags?: string[];
+    // 檢定系統（Phase 7.6: 擴展為包含 random_contest）
+    checkType: 'none' | 'contest' | 'random' | 'random_contest';
     // 對抗檢定設定
     contestConfig?: {
       relatedStat: string; // 使用的數值名稱
@@ -374,10 +378,12 @@ const CharacterSchema = new Schema<CharacterDocument>(
           duration: Number,
           description: String,
         },
-        // Phase 8: 檢定系統
+        // Phase 7.6: 標籤系統
+        tags: [String],
+        // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
         checkType: {
           type: String,
-          enum: ['none', 'contest', 'random'],
+          enum: ['none', 'contest', 'random', 'random_contest'],
           default: 'none',
         },
         // 對抗檢定設定
@@ -465,10 +471,15 @@ const CharacterSchema = new Schema<CharacterDocument>(
         iconUrl: {
           type: String,
         },
-        // 檢定系統
+        // Phase 7.6: 標籤系統
+        tags: {
+          type: [String],
+          default: [],
+        },
+        // 檢定系統（Phase 7.6: 擴展為包含 random_contest）
         checkType: {
           type: String,
-          enum: ['none', 'contest', 'random'],
+          enum: ['none', 'contest', 'random', 'random_contest'],
           default: 'none',
         },
         // 對抗檢定設定

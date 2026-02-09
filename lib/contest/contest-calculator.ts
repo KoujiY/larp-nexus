@@ -16,8 +16,6 @@ export interface ContestCalculationResult {
  */
 export function calculateAttackerValue(
   baseValue: number,
-  relatedStatName: string,
-  attacker: CharacterDocument
 ): number {
   // 目前攻擊方不支援額外的道具/技能加成
   // 未來可以擴展為攻擊方也可以選擇額外的道具/技能
@@ -84,13 +82,50 @@ export function calculateContestResult(
   defenderValue: number,
   tieResolution: 'attacker_wins' | 'defender_wins' | 'both_fail' = 'attacker_wins'
 ): 'attacker_wins' | 'defender_wins' | 'both_fail' {
+  let result: 'attacker_wins' | 'defender_wins' | 'both_fail';
   if (attackerValue > defenderValue) {
-    return 'attacker_wins';
+    result = 'attacker_wins';
   } else if (defenderValue > attackerValue) {
-    return 'defender_wins';
+    result = 'defender_wins';
   } else {
     // 平手，根據 tieResolution 決定
-    return tieResolution === 'both_fail' ? 'both_fail' : tieResolution;
+    result = tieResolution === 'both_fail' ? 'both_fail' : tieResolution;
   }
+  
+  return result;
+}
+
+/**
+ * Phase 7.6: 計算隨機對抗檢定結果
+ * 攻擊方和防守方各自骰 1 到 maxValue 的隨機數，比較大小決定勝負
+ * 
+ * @param maxValue 隨機數上限值（來自 Game.randomContestMaxValue）
+ * @param tieResolution 平手時的裁決方式
+ * @returns 對抗結果和雙方骰出的數值
+ */
+export function calculateRandomContestResult(
+  maxValue: number,
+  tieResolution: 'attacker_wins' | 'defender_wins' | 'both_fail' = 'attacker_wins'
+): ContestCalculationResult {
+  // 攻擊方和防守方各自骰 1 到 maxValue 的隨機數
+  const attackerValue = Math.floor(Math.random() * maxValue) + 1;
+  const defenderValue = Math.floor(Math.random() * maxValue) + 1;
+
+  // 比較雙方數值，較大者獲勝
+  let result: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  if (attackerValue > defenderValue) {
+    result = 'attacker_wins';
+  } else if (defenderValue > attackerValue) {
+    result = 'defender_wins';
+  } else {
+    // 平手，根據 tieResolution 決定
+    result = tieResolution === 'both_fail' ? 'both_fail' : tieResolution;
+  }
+
+  return {
+    attackerValue,
+    defenderValue,
+    result,
+  };
 }
 

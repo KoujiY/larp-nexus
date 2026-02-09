@@ -1,3 +1,5 @@
+import { normalizeTags } from './utils/tags';
+
 // MongoDB lean() 返回的類型（可能包含 _id）
 interface MongoSecret {
   id: string;
@@ -58,8 +60,10 @@ interface MongoItem {
     duration?: number;
     description?: string;
   };
-  // Phase 8: 檢定系統
-  checkType?: 'none' | 'contest' | 'random';
+  // Phase 7.6: 標籤系統
+  tags?: string[];
+  // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
+  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {
     relatedStat: string;
     opponentMaxItems?: number;
@@ -92,7 +96,10 @@ interface MongoSkill {
   name: string;
   description: string;
   iconUrl?: string;
-  checkType: 'none' | 'contest' | 'random';
+  // Phase 7.6: 標籤系統
+  tags?: string[];
+  // Phase 7.6: 擴展為包含 random_contest
+  checkType: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {
     relatedStat: string;
     opponentMaxItems?: number;
@@ -135,6 +142,8 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
       name: skill.name,
       description: skill.description,
       iconUrl: skill.iconUrl,
+      // Phase 7.6: 標籤系統 - 使用統一的標準化函數
+      tags: normalizeTags(skill.tags),
       checkType: skill.checkType,
       contestConfig: skill.contestConfig,
       randomConfig: skill.randomConfig,
@@ -194,8 +203,10 @@ export function cleanItemData(items: MongoItem[] | undefined): Array<{
     duration?: number;
     description?: string;
   };
-  // Phase 8: 檢定系統
-  checkType?: 'none' | 'contest' | 'random';
+  // Phase 7.6: 標籤系統
+  tags?: string[];
+  // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
+  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {
     relatedStat: string;
     opponentMaxItems?: number;
@@ -291,7 +302,9 @@ export function cleanItemData(items: MongoItem[] | undefined): Array<{
         effects: finalEffects,
         // 向後兼容：如果只有單一效果，也保留 effect 欄位
         effect: finalEffects && finalEffects.length === 1 ? finalEffects[0] : undefined,
-        // Phase 8: 檢定系統
+        // Phase 7.6: 標籤系統 - 使用統一的標準化函數
+        tags: normalizeTags(item.tags),
+        // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
         checkType: item.checkType,
         contestConfig: item.contestConfig,
         randomConfig: item.randomConfig,

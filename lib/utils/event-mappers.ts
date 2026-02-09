@@ -241,9 +241,13 @@ export function createEventMappers(
 
   /**
    * 映射角色受影響事件
+   * Phase 7.6: 根據隱匿標籤決定是否顯示攻擊方姓名
    */
   const mapCharacterAffected = (event: BaseEvent): Notification[] => {
     const payload = event.payload as {
+      sourceCharacterName?: string;
+      sourceHasStealthTag?: boolean;
+      targetCharacterId?: string;
       changes?: {
         stats?: Array<{
           name?: string;
@@ -260,7 +264,11 @@ export function createEventMappers(
       return [];
     }
     
-    // 防守方受到影響，但不顯示技能名稱或攻擊方名稱（隱私保護）
+    // Phase 7.6: 根據隱匿標籤決定是否顯示攻擊方名稱
+    const hasStealthTag = payload.sourceHasStealthTag || false;
+    const sourceName = payload.sourceCharacterName || '';
+    const prefix = !hasStealthTag && sourceName ? `${sourceName} 對你使用了技能或道具` : '你受到了影響';
+    
     const notifList: Notification[] = [];
     
     stats.forEach((s, idx) => {
@@ -275,7 +283,7 @@ export function createEventMappers(
         notifList.push({
           id: `evt-${event.timestamp}-${idx}`,
           title: '受到影響',
-          message: `${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}，目前值同步調整${maxText}`,
+          message: `${prefix}，效果：${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}，目前值同步調整${maxText}`,
           type: event.type,
         });
       } else {
@@ -284,7 +292,7 @@ export function createEventMappers(
           notifList.push({
             id: `evt-${event.timestamp}-${idx}-val`,
             title: '受到影響',
-            message: `${name} ${deltaVal > 0 ? '+' : ''}${deltaVal}`,
+            message: `${prefix}，效果：${name} ${deltaVal > 0 ? '+' : ''}${deltaVal}`,
             type: event.type,
           });
         }
@@ -295,7 +303,7 @@ export function createEventMappers(
           notifList.push({
             id: `evt-${event.timestamp}-${idx}-max`,
             title: '受到影響',
-            message: `${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}${maxText}`,
+            message: `${prefix}，效果：${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}${maxText}`,
             type: event.type,
           });
         }
@@ -316,14 +324,16 @@ export function createEventMappers(
       return [];
     }
     
-    // 檢查是否是攻擊方
+    // 檢查是攻擊方還是防守方
     // 確保 ID 比較時都轉換為字符串，避免類型不匹配問題
     const characterIdStr = String(characterId);
     const attackerIdStr = String(payload.attackerId);
+    const defenderIdStr = String(payload.defenderId);
     const isAttacker = attackerIdStr === characterIdStr;
+    const isDefender = defenderIdStr === characterIdStr;
     
-    // 只處理攻擊方的通知
-    if (!isAttacker) {
+    // 只處理攻擊方或防守方的通知
+    if (!isAttacker && !isDefender) {
       return [];
     }
     
@@ -349,24 +359,113 @@ export function createEventMappers(
     
     // 攻擊方：提示使用成功或失敗
     const isSuccess = payload.result === 'attacker_wins';
+    const isDefenderWins = payload.result === 'defender_wins';
     const needsTargetItemSelection = payload.needsTargetItemSelection === true;
     
     // 如果需要選擇目標道具且沒有效果，不顯示通知（效果將在選擇目標道具後發送完整通知）
     if (needsTargetItemSelection && isSuccess && (!payload.effectsApplied || payload.effectsApplied.length === 0)) {
-      console.log('[event-mappers] 需要選擇目標道具且無效果，跳過顯示通知，等待選擇目標道具後的完整通知');
       return [];
     }
     
     let message = '';
     
-    if (isSuccess) {
-      message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用成功`;
-      if (payload.effectsApplied && payload.effectsApplied.length > 0) {
+    if (isAttacker) {
+      // 攻擊方的通知
+      if (isSuccess) {
+        // 修復：如果攻擊方獲勝但沒有效果資訊，這是初始通知，跳過（稍後會有包含效果的完整通知）
+        // 這樣可以避免重複通知，只保留最終的詳細通知
+        if (!payload.effectsApplied || payload.effectsApplied.length === 0) {
+          return [];
+        }
+        message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用成功`;
+        // 攻擊方獲勝時，應該包含效果資訊（防守方受到的影響）
         message += `，效果：${payload.effectsApplied.join('、')}`;
+      } else if (isDefenderWins) {
+        // 攻擊方使用失敗（防守方獲勝）
+        // 注意：攻擊方還會收到 character.affected 事件通知（受到防守方技能/道具的影響）
+        // 這個通知應該在 skill.contest 之後顯示
+        message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用失敗`;
+      } else {
+        // 攻擊方使用失敗（both_fail 情況）
+        message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用失敗`;
       }
+    } else if (isDefender && isDefenderWins) {
+      // 防守方獲勝時的通知
+      // 檢查防守方是否真的使用了技能/道具（通過 defenderSkills 和 defenderItems 陣列）
+      const hasDefenderSkills = payload.defenderSkills && payload.defenderSkills.length > 0;
+      const hasDefenderItems = payload.defenderItems && payload.defenderItems.length > 0;
+      const hasDefenderResponse = hasDefenderSkills || hasDefenderItems;
+      
+      // 修復：如果防守方沒有使用技能/道具，不顯示通知
+      // 這很重要，因為當防守方獲勝但沒有回應時（例如攻擊方數值為0），不應該顯示防守方使用了技能/道具的通知
+      if (!hasDefenderResponse) {
+        return [];
+      }
+      
+      // 修復：如果防守方獲勝但沒有效果資訊，這是初始通知，跳過（稍後會有包含效果的完整通知）
+      // 這樣可以避免重複通知，只保留最終的詳細通知
+      if (!payload.effectsApplied || payload.effectsApplied.length === 0) {
+        return [];
+      }
+      
+      // 防守方有回應，顯示通知
+      // 目標角色是攻擊方（attackerName）
+      // Phase 7.6: 如果攻擊方有隱匿標籤，隱藏攻擊方名稱
+      const targetName = payload.sourceHasStealthTag ? '某人' : payload.attackerName;
+      
+      // 修復：確保 skillName/itemName 對應防守方的技能/道具，而不是攻擊方的
+      // 檢查 sourceType 是否與防守方的回應類型一致
+      // 如果 sourceType 是攻擊方的類型（且與防守方的回應類型不一致），則不應該使用 skillName/itemName
+      const defenderSourceType = hasDefenderSkills ? 'skill' : 'item';
+      const payloadSourceType = payload.sourceType || (payload.skillName ? 'skill' : 'item');
+      
+      // 修復：額外檢查：如果 payload 中的 skillName/itemName 對應的是攻擊方的技能/道具（通過 sourceType 判斷），
+      // 且 sourceType 與防守方的回應類型不一致，則不應該顯示通知
+      // 這可以防止前一個對抗的值被錯誤地使用
+      if (payloadSourceType !== defenderSourceType && payloadSourceType === (payload.skillName ? 'skill' : 'item')) {
+        // sourceType 與防守方的回應類型不一致，且 skillName/itemName 存在，可能是前一個對抗的殘留值
+        return [];
+      }
+      
+      // 判斷防守方使用的是技能還是道具（優先使用 payload 中的 skillName/itemName，這些應該已經在效果執行後更新為防守方的）
+      // 但需要確保 sourceType 與防守方的回應類型一致
+      if (payload.skillName && hasDefenderSkills && (payloadSourceType === 'skill' || defenderSourceType === 'skill')) {
+        // 防守方使用了技能，且 payload 中的 sourceType 與防守方的回應類型一致
+        message = `你對 ${targetName} 使用了 ${payload.skillName}，技能使用成功`;
+        if (payload.effectsApplied && payload.effectsApplied.length > 0) {
+          message += `，效果：${payload.effectsApplied.join('、')}`;
+        }
+      } else if (payload.itemName && hasDefenderItems && (payloadSourceType === 'item' || defenderSourceType === 'item')) {
+        // 防守方使用了道具，且 payload 中的 sourceType 與防守方的回應類型一致
+        message = `你對 ${targetName} 使用了 ${payload.itemName}，道具使用成功`;
+        if (payload.effectsApplied && payload.effectsApplied.length > 0) {
+          message += `，效果：${payload.effectsApplied.join('、')}`;
+        }
+      } else {
+        // 如果 sourceType 與防守方的回應類型不一致，或者沒有 skillName/itemName，不顯示通知
+        // 這可能是前一個對抗的殘留值，或者是事件發送時機問題
+        return [];
+      }
+    } else if (isDefender && !isDefenderWins) {
+      // 防守方失敗時的通知
+      // 檢查防守方是否真的使用了技能/道具（通過 defenderSkills 和 defenderItems 陣列）
+      const hasDefenderSkills = payload.defenderSkills && payload.defenderSkills.length > 0;
+      const hasDefenderItems = payload.defenderItems && payload.defenderItems.length > 0;
+      const hasDefenderResponse = hasDefenderSkills || hasDefenderItems;
+      
+      // 如果防守方沒有使用技能/道具，不顯示通知
+      if (!hasDefenderResponse) {
+        return [];
+      }
+      
+      // 防守方有回應但失敗，顯示失敗通知
+      // 注意：這裡我們無法直接獲取防守方的技能/道具名稱，因為 payload 中沒有
+      // 但我們可以通過 skill.used 事件來顯示通知
+      // 所以這裡暫時返回空，讓 skill.used 事件來處理
+      return [];
     } else {
-      // 攻擊方使用失敗
-      message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用失敗`;
+      // 其他情況，不顯示通知
+      return [];
     }
     
     return [
@@ -392,11 +491,49 @@ export function createEventMappers(
       return [];
     }
     
-    // 對抗檢定類型的 skill.used 事件不應該顯示通知
-    // 因為對抗檢定結果已經通過 skill.contest 事件顯示了通知
-    // 避免重複顯示「道具使用成功」的通知
-    if (payload.checkType === 'contest') {
-      console.log('[event-mappers] 跳過對抗檢定類型的 skill.used 事件通知，避免重複');
+    // 對抗檢定類型的 skill.used 事件處理：
+    // - 如果 checkPassed 為 false 且 effectsApplied 為 undefined，這是攻擊方發送的對抗請求事件，應該跳過（避免重複）
+    // - 如果 checkPassed 為 true，這是防守方獲勝時發送的成功通知，但應該通過 skill.contest 事件處理
+    //   因為 skill.contest 事件中包含目標角色名稱，可以顯示正確格式的通知
+    // - 如果 checkPassed 為 false 且 effectsApplied 不為 undefined（或對抗檢定已完成），這是防守方失敗的通知，需要顯示
+    if (payload.checkType === 'contest' || payload.checkType === 'random_contest') {
+      // 檢查是否是防守方失敗的情況
+      // 如果 checkPassed 為 false，且這是防守方的技能使用事件（對抗檢定已完成），需要顯示失敗通知
+      // 區分方法：攻擊方在對抗請求時發送的 skill.used 事件，effectsApplied 為 undefined
+      //           防守方失敗時發送的 skill.used 事件，對抗檢定已完成（此時 effectsApplied 可能為空陣列，但對抗檢定已確定結果）
+      if (!payload.checkPassed) {
+        // 這是失敗通知
+        // 如果 effectsApplied 為 undefined，這是攻擊方發送的對抗請求事件，不顯示
+        // 如果 effectsApplied 不為 undefined（即使是空陣列），這表示對抗檢定已完成，需要顯示防守方的失敗通知
+        if (payload.effectsApplied === undefined) {
+          // 攻擊方發送的對抗請求事件，不顯示
+          return [];
+        }
+        
+        // 對抗檢定已完成，這是防守方的失敗通知
+        // 對齊攻擊方的通知格式：包含目標角色名稱
+        const title = '技能使用結果';
+        const skillName = payload.skillName || '技能';
+        let message: string;
+        
+        if (payload.targetCharacterName) {
+          // 有目標角色名稱：使用與攻擊方一致的格式
+          message = `你對 ${payload.targetCharacterName} 使用了 ${skillName}，技能使用失敗`;
+        } else {
+          // 沒有目標角色名稱：使用簡化格式（向後兼容）
+          message = `${skillName}使用失敗`;
+        }
+        
+        return [
+          {
+            id: `evt-${event.timestamp}`,
+            title,
+            message,
+            type: event.type,
+          },
+        ];
+      }
+      // 其他情況（攻擊方失敗、防守方成功等）都通過 skill.contest 事件處理
       return [];
     }
     

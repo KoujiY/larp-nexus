@@ -51,22 +51,29 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
       const attackerIdStr = String(payload.attackerId);
       const defenderIdStr = String(payload.defenderId);
 
+      // Phase 2: 優先使用 subType 判斷事件類型，向後兼容 attackerValue === 0 的邏輯
+      const eventSubType = payload.subType;
+      const isRequestEvent = eventSubType === 'request' || (!eventSubType && payload.attackerValue === 0);
+      const isResultEvent = eventSubType === 'result' || (!eventSubType && payload.attackerValue !== 0);
+      const isEffectEvent = eventSubType === 'effect';
+
       // 檢查是否是針對當前角色的對抗檢定（防守方）
       if (defenderIdStr === characterIdStr) {
         // 防守方處理邏輯
-        // 請求事件的 attackerValue 為 0（佔位符），結果事件會包含真實數值（不為 0）
-        const isResultEvent = payload.attackerValue !== 0;
-
         if (isResultEvent) {
           // 這是結果事件，關閉 dialog 並清除持久化狀態
           // 通知會通過 character.affected 事件顯示（只有當有實際數值變化時）
           clearDefenderContest();
           onDefenderContestResult?.(payload);
-        } else {
+        } else if (isRequestEvent) {
           // 這是請求事件，打開 dialog
-          // 創建對抗請求 ID（格式：attackerId::skillId/itemId::timestamp）
-          const sourceId = payload.itemId || payload.skillId || '';
-          const contestId = `${payload.attackerId}::${sourceId}::${eventTimestamp}`;
+          // Phase 7.6: 使用事件中的 contestId（如果有的話），否則重新生成
+          // 優先使用事件中的 contestId，確保與攻擊方生成的一致
+          const contestId = payload.contestId || (() => {
+            // 如果事件中沒有 contestId，則重新生成（向後兼容）
+            const sourceId = payload.itemId || payload.skillId || '';
+            return `${payload.attackerId}::${sourceId}::${eventTimestamp}`;
+          })();
 
           // 保存到持久化狀態
           setDefenderContest(contestId, payload);
@@ -74,17 +81,44 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
 
           // 確保 dialog 打開後再顯示 toast
           // 防守方不應該看到技能或道具名稱（隱私保護）
+          // Phase 7.6: 如果攻擊方有隱匿標籤，隱藏攻擊方名稱
+          const attackerDisplayName = payload.sourceHasStealthTag ? '某人' : payload.attackerName;
           setTimeout(() => {
-            toast.info(`${payload.attackerName} 對你使用了技能或道具`, {
+            toast.info(`${attackerDisplayName} 對你使用了技能或道具`, {
               description: '請選擇道具/技能回應',
               duration: 5000,
             });
           }, 100);
         }
+        // 防守方忽略 effect 事件（這是給攻擊方的）
       } else if (attackerIdStr === characterIdStr) {
         // 攻擊方處理邏輯
-        // 攻擊方應該忽略請求事件（attackerValue === 0），只處理結果事件
-        if (payload.attackerValue !== 0) {
+        // 攻擊方應該忽略請求事件，只處理結果事件和效果事件
+        
+        // Phase 2: 處理效果事件（選擇目標道具後）
+        if (isEffectEvent) {
+          // 效果事件：顯示效果已執行的訊息
+          const effectSourceId = payload.itemId || payload.skillId;
+          // Phase 8: 在清除對抗檢定狀態之前，先確保 dialogOpen 狀態已更新為 false
+          // 修復：直接調用 removePendingContest，它內部會先設置 dialogOpen 為 false 再刪除記錄
+          // 這樣可以確保狀態更新的一致性，避免 React 狀態更新的異步性導致的問題
+          if (effectSourceId) {
+            removePendingContest(effectSourceId);
+          }
+          
+          toast.success('對抗檢定效果已執行', {
+            description:
+              payload.effectsApplied && payload.effectsApplied.length > 0
+                ? `效果：${payload.effectsApplied.join('、')}`
+                : undefined,
+          });
+          
+          onAttackerContestResult?.(payload);
+          return;
+        }
+        
+        // Phase 2: 處理結果事件（防守方回應後）
+        if (isResultEvent) {
           // Phase 8: 當收到對抗檢定結果時，自動切換到對應的分頁並處理結果
           // 這樣無論用戶在哪個分頁，都能正確接收回應並開啟對應的面板
           if (payload.sourceType === 'item' && payload.itemId) {
@@ -121,23 +155,15 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
               // 不顯示 toast，讓 item-list.tsx 處理
             } else {
               // 不需要選擇目標道具，清除對抗檢定狀態
+              // Phase 8: 在清除對抗檢定狀態之前，先確保 dialogOpen 狀態已更新為 false
+              // 修復：直接調用 removePendingContest，它內部會先設置 dialogOpen 為 false 再刪除記錄
+              // 這樣可以確保狀態更新的一致性，避免 React 狀態更新的異步性導致的問題
               if (sourceId) {
                 removePendingContest(sourceId);
               }
 
-              // 顯示結果 toast
-              const resultText =
-                payload.result === 'attacker_wins'
-                  ? '攻擊方獲勝'
-                  : payload.result === 'defender_wins'
-                    ? '防守方獲勝'
-                    : '雙方平手';
-              toast.success(`對抗檢定結果：${resultText}`, {
-                description:
-                  payload.effectsApplied && payload.effectsApplied.length > 0
-                    ? `效果：${payload.effectsApplied.join('、')}`
-                    : undefined,
-              });
+              // 修復：不顯示 toast，因為 event-mappers.ts 已經會生成更詳細的「道具使用結果」通知
+              // 這樣可以避免重複通知，只保留 event-mappers 生成的詳細通知
             }
 
             onAttackerContestResult?.(payload);
@@ -179,23 +205,15 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
               // 不顯示 toast，讓 skill-list.tsx 處理
             } else {
               // 不需要選擇目標道具，清除對抗檢定狀態
+              // Phase 8: 在清除對抗檢定狀態之前，先確保 dialogOpen 狀態已更新為 false
+              // 修復：直接調用 removePendingContest，它內部會先設置 dialogOpen 為 false 再刪除記錄
+              // 這樣可以確保狀態更新的一致性，避免 React 狀態更新的異步性導致的問題
               if (sourceId) {
                 removePendingContest(sourceId);
               }
 
-              // 顯示結果 toast
-              const resultText =
-                payload.result === 'attacker_wins'
-                  ? '攻擊方獲勝'
-                  : payload.result === 'defender_wins'
-                    ? '防守方獲勝'
-                    : '雙方平手';
-              toast.success(`對抗檢定結果：${resultText}`, {
-                description:
-                  payload.effectsApplied && payload.effectsApplied.length > 0
-                    ? `效果：${payload.effectsApplied.join('、')}`
-                    : undefined,
-              });
+              // 修復：不顯示 toast，因為 event-mappers.ts 已經會生成更詳細的「技能使用結果」通知
+              // 這樣可以避免重複通知，只保留 event-mappers 生成的詳細通知
             }
 
             onAttackerContestResult?.(payload);

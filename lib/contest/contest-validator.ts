@@ -4,7 +4,6 @@
  */
 
 import type { CharacterDocument } from '@/lib/db/models/Character';
-import type { ApiResponse } from '@/types/api';
 
 export interface ValidationResult {
   success: boolean;
@@ -23,22 +22,16 @@ export async function validateContestRequest(
   defender: CharacterDocument | null
 ): Promise<ValidationResult> {
   // 解析對抗請求 ID（格式：attackerId::skillId/itemId::timestamp）
-  const parts = contestId.split('::');
-  if (parts.length !== 3) {
+  const { parseContestId } = await import('@/lib/contest/contest-id');
+  const parsed = parseContestId(contestId);
+  if (!parsed) {
     return {
       success: false,
       error: 'INVALID_CONTEST_ID',
       message: '無效的對抗請求 ID',
     };
   }
-  const [parsedAttackerId, sourceId, timestamp] = parts;
-  if (!parsedAttackerId || !sourceId || !timestamp) {
-    return {
-      success: false,
-      error: 'INVALID_CONTEST_ID',
-      message: '無效的對抗請求 ID',
-    };
-  }
+  const { attackerId: parsedAttackerId } = parsed;
 
   // 驗證攻擊方 ID 匹配
   const attackerIdStr = attacker?._id?.toString() || attackerId;
@@ -94,7 +87,8 @@ export function validateContestSource(
   
   if (skillIndex !== -1) {
     const skill = attackerSkills[skillIndex];
-    if (skill && skill.checkType === 'contest' && skill.contestConfig) {
+    // Phase 7.6: 支援 contest 和 random_contest 類型
+    if (skill && (skill.checkType === 'contest' || skill.checkType === 'random_contest') && skill.contestConfig) {
       return {
         success: true,
         sourceType: 'skill',
@@ -115,7 +109,9 @@ export function validateContestSource(
   
   if (itemIndex !== -1) {
     const item = attackerItems[itemIndex];
-    if (item && item.checkType === 'contest' && item.contestConfig) {
+    // Phase 7.6: 支援 contest 和 random_contest 類型
+    const itemCheckType = item.checkType || 'none';
+    if (item && (itemCheckType === 'contest' || itemCheckType === 'random_contest') && item.contestConfig) {
       return {
         success: true,
         sourceType: 'item',
@@ -306,5 +302,186 @@ export function validateDefenderSkills(
   }
 
   return { success: true, skills };
+}
+
+/**
+ * Phase 7.6: 驗證攻擊方技能/道具是否具有 "戰鬥" 標籤
+ */
+export function validateAttackerCombatTag(
+  source: { tags?: string[] },
+  sourceName: string,
+  sourceType: 'skill' | 'item'
+): ValidationResult {
+  const tags = source.tags || [];
+  if (!tags.includes('combat')) {
+    return {
+      success: false,
+      error: 'MISSING_COMBAT_TAG',
+      message: `${sourceType === 'skill' ? '技能' : '道具'}「${sourceName}」必須具有「戰鬥」標籤才能發起對抗檢定`,
+    };
+  }
+  return { success: true };
+}
+
+/**
+ * Phase 7.6: 驗證防守方技能/道具是否具有 "戰鬥" 標籤
+ * 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
+ * 如果攻擊方沒有戰鬥標籤，防守方也不需要有戰鬥標籤
+ */
+export function validateDefenderCombatTag(
+  defender: CharacterDocument,
+  itemIds: string[],
+  skillIds: string[],
+  attackerHasCombatTag: boolean
+): ValidationResult {
+  // 如果攻擊方沒有戰鬥標籤，防守方也不需要戰鬥標籤
+  if (!attackerHasCombatTag) {
+    return { success: true };
+  }
+
+  // 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
+  // 驗證道具標籤
+  if (itemIds && itemIds.length > 0) {
+    const defenderItemsData = defender.items || [];
+    for (const itemId of itemIds) {
+      const item = defenderItemsData.find((i: { id: string }) => i.id === itemId);
+      if (!item) {
+        continue; // 已由 validateDefenderItems 驗證，這裡跳過
+      }
+      const tags = item.tags || [];
+      if (!tags.includes('combat')) {
+        return {
+          success: false,
+          error: 'MISSING_COMBAT_TAG',
+          message: `道具「${item.name}」必須具有「戰鬥」標籤才能回應具備戰鬥標籤的對抗檢定`,
+        };
+      }
+    }
+  }
+
+  // 驗證技能標籤
+  if (skillIds && skillIds.length > 0) {
+    const defenderSkillsData = defender.skills || [];
+    for (const skillId of skillIds) {
+      const skill = defenderSkillsData.find((s: { id: string }) => s.id === skillId);
+      if (!skill) {
+        continue; // 已由 validateDefenderSkills 驗證，這裡跳過
+      }
+      const tags = skill.tags || [];
+      if (!tags.includes('combat')) {
+        return {
+          success: false,
+          error: 'MISSING_COMBAT_TAG',
+          message: `技能「${skill.name}」必須具有「戰鬥」標籤才能回應具備戰鬥標籤的對抗檢定`,
+        };
+      }
+    }
+  }
+
+  return { success: true };
+}
+
+/**
+ * Phase 7.6: 驗證防守方的檢定類型必須與攻擊方相同
+ */
+export function validateDefenderCheckType(
+  attackerCheckType: 'contest' | 'random_contest',
+  defender: CharacterDocument,
+  itemIds: string[],
+  skillIds: string[]
+): ValidationResult {
+  // 驗證道具檢定類型
+  if (itemIds && itemIds.length > 0) {
+    const defenderItemsData = defender.items || [];
+    for (const itemId of itemIds) {
+      const item = defenderItemsData.find((i: { id: string }) => i.id === itemId);
+      if (!item) {
+        continue;
+      }
+      const itemCheckType = item.checkType || 'none';
+      if (itemCheckType !== attackerCheckType) {
+        return {
+          success: false,
+          error: 'INVALID_CHECK_TYPE',
+          message: `道具「${item.name}」的檢定類型必須與攻擊方相同（${attackerCheckType === 'contest' ? '對抗檢定' : '隨機對抗檢定'}）`,
+        };
+      }
+    }
+  }
+
+  // 驗證技能檢定類型
+  if (skillIds && skillIds.length > 0) {
+    const defenderSkillsData = defender.skills || [];
+    for (const skillId of skillIds) {
+      const skill = defenderSkillsData.find((s: { id: string }) => s.id === skillId);
+      if (!skill) {
+        continue;
+      }
+      const skillCheckType = skill.checkType || 'none';
+      if (skillCheckType !== attackerCheckType) {
+        return {
+          success: false,
+          error: 'INVALID_CHECK_TYPE',
+          message: `技能「${skill.name}」的檢定類型必須與攻擊方相同（${attackerCheckType === 'contest' ? '對抗檢定' : '隨機對抗檢定'}）`,
+        };
+      }
+    }
+  }
+
+  return { success: true };
+}
+
+/**
+ * Phase 7.6: 驗證防守方的 relatedStat 必須與攻擊方相同（僅適用於 contest 類型）
+ */
+export function validateDefenderRelatedStat(
+  attackerRelatedStat: string,
+  defender: CharacterDocument,
+  itemIds: string[],
+  skillIds: string[]
+): ValidationResult {
+  // 驗證道具 relatedStat
+  if (itemIds && itemIds.length > 0) {
+    const defenderItemsData = defender.items || [];
+    for (const itemId of itemIds) {
+      const item = defenderItemsData.find((i: { id: string }) => i.id === itemId);
+      if (!item) {
+        continue;
+      }
+      // 只驗證 contest 類型的道具
+      if (item.checkType === 'contest' && item.contestConfig) {
+        if (item.contestConfig.relatedStat !== attackerRelatedStat) {
+          return {
+            success: false,
+            error: 'INVALID_RELATED_STAT',
+            message: `道具「${item.name}」使用的數值（${item.contestConfig.relatedStat}）必須與攻擊方相同（${attackerRelatedStat}）`,
+          };
+        }
+      }
+    }
+  }
+
+  // 驗證技能 relatedStat
+  if (skillIds && skillIds.length > 0) {
+    const defenderSkillsData = defender.skills || [];
+    for (const skillId of skillIds) {
+      const skill = defenderSkillsData.find((s: { id: string }) => s.id === skillId);
+      if (!skill) {
+        continue;
+      }
+      // 只驗證 contest 類型的技能
+      if (skill.checkType === 'contest' && skill.contestConfig) {
+        if (skill.contestConfig.relatedStat !== attackerRelatedStat) {
+          return {
+            success: false,
+            error: 'INVALID_RELATED_STAT',
+            message: `技能「${skill.name}」使用的數值（${skill.contestConfig.relatedStat}）必須與攻擊方相同（${attackerRelatedStat}）`,
+          };
+        }
+      }
+    }
+  }
+
+  return { success: true };
 }
 

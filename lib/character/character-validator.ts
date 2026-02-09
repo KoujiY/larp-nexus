@@ -187,7 +187,8 @@ export function validateSkills(skills: Array<{
   id: string;
   name: string;
   description: string;
-  checkType: 'none' | 'contest' | 'random';
+  // Phase 7.6: 擴展為包含 random_contest
+  checkType: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {
     relatedStat: string;
     opponentMaxItems?: number;
@@ -255,7 +256,8 @@ export function validateItems(items: Array<{
   description: string;
   type: 'consumable' | 'equipment';
   quantity: number;
-  checkType?: 'none' | 'contest' | 'random';
+  // Phase 7.6: 擴展為包含 random_contest
+  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {
     relatedStat: string;
     opponentMaxItems?: number;

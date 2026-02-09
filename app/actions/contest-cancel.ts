@@ -2,7 +2,7 @@
 
 import dbConnect from '@/lib/db/mongodb';
 import { Character } from '@/lib/db/models';
-import { removeActiveContest, removeContestsByCharacterId, getContestInfo } from '@/lib/contest-tracker';
+import { removeActiveContest, removeContestsByCharacterId, getContestInfo, isCharacterInContest } from '@/lib/contest-tracker';
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 import type { ApiResponse } from '@/types/api';
 import type { BaseEvent } from '@/types/event';
@@ -19,16 +19,24 @@ export async function cancelContestItemSelection(
     await dbConnect();
 
     // 從對抗檢定追蹤系統中獲取信息
-    const contestInfo = getContestInfo(contestId);
+    let contestInfo = getContestInfo(contestId);
     if (!contestInfo) {
-      // 對抗檢定已經不存在，返回成功（可能是已經被清除）
-      return {
-        success: true,
-        data: {
-          cancelled: true,
-        },
-        message: '對抗檢定已清除',
-      };
+      // contestId 不匹配（可能是客戶端和服務器端生成的 contestId 不同）
+      // 檢查角色是否在對抗檢定中，如果是，則清除所有相關的對抗檢定
+      const characterContestStatus = isCharacterInContest(characterId);
+      if (characterContestStatus.inContest && characterContestStatus.contestInfo) {
+        // 找到對抗檢定，使用它來清除狀態
+        contestInfo = characterContestStatus.contestInfo;
+      } else {
+        // 對抗檢定已經不存在，返回成功（可能是已經被清除）
+        return {
+          success: true,
+          data: {
+            cancelled: true,
+          },
+          message: '對抗檢定已清除',
+        };
+      }
     }
 
     // 驗證角色 ID 匹配（確保是攻擊方）
@@ -132,7 +140,8 @@ export async function cancelContestItemSelection(
     }
 
     // 清除對抗檢定追蹤
-    removeActiveContest(contestId);
+    // 使用實際找到的 contestId（可能與提供的 contestId 不同）
+    removeActiveContest(contestInfo.contestId);
     // 同時根據攻擊方和防守方的 ID 清除所有相關的對抗檢定（確保清除完整）
     removeContestsByCharacterId(attackerIdStr);
     removeContestsByCharacterId(String(contestInfo.defenderId));

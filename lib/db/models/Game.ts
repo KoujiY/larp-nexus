@@ -21,6 +21,9 @@ export interface GameDocument extends Document {
     }>;
   };
   
+  // Phase 7.6: 隨機對抗檢定設定
+  randomContestMaxValue?: number; // 隨機對抗檢定的上限值（劇本共通，預設 100）
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +75,11 @@ const GameSchema = new Schema<GameDocument>(
           },
         },
       ],
+    },
+    // Phase 7.6: 隨機對抗檢定設定
+    randomContestMaxValue: {
+      type: Number,
+      default: 100,
     },
   },
   {

@@ -6,6 +6,7 @@
  */
 
 import type { CharacterDocument } from '@/lib/db/models';
+import { normalizeTags } from '@/lib/utils/tags';
 
 /**
  * MongoDB lean() 返回的類型（可能包含 _id）
@@ -66,7 +67,10 @@ interface MongoItem {
     duration?: number;
     description?: string;
   };
-  checkType?: 'none' | 'contest' | 'random';
+  // Phase 7.6: 標籤系統
+  tags?: string[];
+  // Phase 7.6: 擴展為包含 random_contest
+  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {
     relatedStat: string;
     opponentMaxItems?: number;
@@ -122,7 +126,10 @@ export function updateCharacterSkills(skills: Array<{
   name: string;
   description: string;
   iconUrl?: string;
-  checkType: 'none' | 'contest' | 'random';
+  // Phase 7.6: 標籤系統
+  tags?: string[];
+  // Phase 7.6: 擴展為包含 random_contest
+  checkType: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {
     relatedStat: string;
     opponentMaxItems?: number;
@@ -162,6 +169,8 @@ export function updateCharacterSkills(skills: Array<{
     };
 
     if (skill.iconUrl !== undefined) skillData.iconUrl = skill.iconUrl;
+    // Phase 7.6: 處理標籤系統 - 使用統一的標準化函數
+    skillData.tags = normalizeTags(skill.tags);
     if (skill.usageLimit !== undefined) skillData.usageLimit = skill.usageLimit;
     if (skill.cooldown !== undefined) skillData.cooldown = skill.cooldown;
     if (skill.lastUsedAt !== undefined) skillData.lastUsedAt = skill.lastUsedAt;
@@ -236,7 +245,7 @@ export function updateCharacterSkills(skills: Array<{
       });
 
     // 根據檢定類型設定對應的配置
-    if (skill.checkType === 'contest') {
+    if (skill.checkType === 'contest' || skill.checkType === 'random_contest') {
       if (skill.contestConfig) {
         skillData.contestConfig = skill.contestConfig;
       } else {
@@ -315,7 +324,10 @@ export function updateCharacterItems(
       duration?: number;
       description?: string;
     };
-    checkType?: 'none' | 'contest' | 'random';
+    // Phase 7.6: 標籤系統
+    tags?: string[];
+    // Phase 7.6: 擴展為包含 random_contest
+    checkType?: 'none' | 'contest' | 'random' | 'random_contest';
     contestConfig?: {
       relatedStat: string;
       opponentMaxItems?: number;
@@ -371,6 +383,8 @@ export function updateCharacterItems(
     };
 
     if (item.imageUrl !== undefined) itemData.imageUrl = item.imageUrl;
+    // Phase 7.6: 標籤系統 - 使用統一的標準化函數
+    itemData.tags = normalizeTags(item.tags);
 
     // Phase 6.5 / Phase 7: 處理道具效果（優先處理 effects 陣列，向後兼容 effect）
     if (item.effects !== undefined && item.effects !== null) {

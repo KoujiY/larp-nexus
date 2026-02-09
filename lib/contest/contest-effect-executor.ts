@@ -50,15 +50,19 @@ export interface ContestEffectExecutionResult {
  * 
  * @param attacker 攻擊方角色
  * @param defender 防守方角色
- * @param source 技能或道具
+ * @param source 技能或道具（攻擊方或防守方）
  * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
+ * @param contestResult 對抗檢定結果（Phase 7.6: 決定執行攻擊方還是防守方的效果）
+ * @param defenderSources 防守方使用的技能/道具列表（Phase 7.6: 防守方獲勝時使用）
  * @returns 執行結果
  */
 export async function executeContestEffects(
   attacker: CharacterDocument,
   defender: CharacterDocument,
   source: SkillType | ItemType,
-  targetItemId?: string
+  targetItemId?: string,
+  contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail' = 'attacker_wins',
+  defenderSources?: Array<{ type: 'skill' | 'item'; id: string }>
 ): Promise<ContestEffectExecutionResult> {
   await dbConnect();
 
@@ -69,11 +73,42 @@ export async function executeContestEffects(
   const attackerIdStr = attacker._id.toString();
   const defenderIdStr = defender._id.toString();
 
+  // Phase 7.6: 根據對抗結果決定執行攻擊方還是防守方的效果
+  // Phase 9: 如果防守方獲勝且傳入了 defenderSources，優先使用傳入的 source（已經從防守方身上找到的正確對象）
+  // 只有在 contest-respond.ts 中調用時（沒有傳入正確的 source）才需要重新查找
+  let actualSource: SkillType | ItemType = source;
+  let actualSourceType: 'skill' | 'item' = 'effects' in source && Array.isArray(source.effects) ? 'skill' : 'item';
+  
+  // Phase 9: 只有在沒有 targetItemId 的情況下（從 contest-respond.ts 調用），才需要重新查找防守方的技能/道具
+  // 如果有 targetItemId（從 contest-select-item.ts 調用），說明已經找到了正確的 source，直接使用即可
+  if (contestResult === 'defender_wins' && defenderSources && defenderSources.length > 0 && !targetItemId) {
+    // 防守方獲勝：執行防守方使用的第一個技能/道具的效果
+    // 注意：如果防守方使用了多個技能/道具，這裡只執行第一個的效果
+    // 未來可以擴展為執行所有防守方技能/道具的效果
+    const firstDefenderSource = defenderSources[0];
+    
+    if (firstDefenderSource.type === 'skill') {
+      const defenderSkill = defender.skills?.find((s: { id: string }) => s.id === firstDefenderSource.id);
+      if (defenderSkill) {
+        actualSource = defenderSkill as SkillType;
+        actualSourceType = 'skill';
+      }
+    } else {
+      const defenderItem = defender.items?.find((i: { id: string }) => i.id === firstDefenderSource.id);
+      if (defenderItem) {
+        actualSource = defenderItem as ItemType;
+        actualSourceType = 'item';
+      }
+    }
+  } else if (contestResult === 'defender_wins' && targetItemId) {
+    // Phase 9: 防守方獲勝且有 targetItemId，說明是從 contest-select-item.ts 調用，直接使用傳入的 source
+  }
+  
+
   // 判斷來源類型並獲取效果列表
-  const sourceType: 'skill' | 'item' = 'effects' in source && Array.isArray(source.effects) ? 'skill' : 'item';
-  const effects: Effect[] = sourceType === 'skill' 
-    ? (source as SkillType).effects || []
-    : (source as ItemType).effects || ((source as ItemType).effect ? [(source as ItemType).effect!] : []);
+  const effects: Effect[] = actualSourceType === 'skill' 
+    ? (actualSource as SkillType).effects || []
+    : (actualSource as ItemType).effects || ((actualSource as ItemType).effect ? [(actualSource as ItemType).effect!] : []);
 
   // 檢查是否有 item_take/item_steal 效果且沒有 targetItemId
   const hasItemTakeOrSteal = effects.some((e) => e.type === 'item_take' || e.type === 'item_steal');
@@ -96,13 +131,25 @@ export async function executeContestEffects(
     };
   }
 
-  // 決定效果作用對象（根據效果的 targetType）
-  // 對抗檢定時，技能效果可能作用於自己或防守方，道具效果總是作用於防守方
-  const effectTarget = sourceType === 'skill' && effects.some((e) => e.targetType === 'other')
-    ? defender
-    : sourceType === 'item'
-    ? defender
-    : attacker;
+  // Phase 7.6: 決定效果作用對象（根據效果的 targetType 和對抗結果）
+  // 攻擊方獲勝：效果作用於防守方（或根據 targetType）
+  // 防守方獲勝：效果作用於攻擊方（或根據 targetType）
+  let effectTarget: CharacterDocument;
+  if (contestResult === 'defender_wins') {
+    // 防守方獲勝：效果作用於攻擊方
+    // 對於對抗檢定，防守方獲勝時效果應該作用於攻擊方（從攻擊方那裡偷道具/造成影響）
+    // 除非效果明確指定 targetType === 'self'，否則都作用於攻擊方
+    effectTarget = actualSourceType === 'skill' && effects.some((e) => e.targetType === 'self')
+      ? defender
+      : attacker;
+  } else {
+    // 攻擊方獲勝：效果作用於防守方（原有邏輯）
+    effectTarget = actualSourceType === 'skill' && effects.some((e) => e.targetType === 'other')
+      ? defender
+      : actualSourceType === 'item'
+      ? defender
+      : attacker;
+  }
 
   const targetStats = effectTarget.stats || [];
   const targetTasks = effectTarget.tasks || [];
@@ -182,7 +229,10 @@ export async function executeContestEffects(
           deltaMax: deltaMax !== 0 ? deltaMax : undefined,
         });
 
-        const isAffectingOthers = effectTarget._id.toString() !== attackerIdStr;
+        // Phase 7.6: 判斷是否影響他人（根據對抗結果和效果目標）
+        const isAffectingOthers = contestResult === 'defender_wins'
+          ? effectTarget._id.toString() !== defenderIdStr
+          : effectTarget._id.toString() !== attackerIdStr;
         if (isAffectingOthers) {
           crossCharacterChanges.push({
             name: effect.targetStat,
@@ -215,8 +265,11 @@ export async function executeContestEffects(
         continue; // 跳過此效果，但繼續處理其他效果
       }
 
-      // 找到目標道具（目標是防守方，因為效果作用於防守方）
-      const targetItems = defender.items || [];
+      // Phase 4: 修復目標道具查找邏輯
+      // 根據效果作用對象決定目標道具所在位置
+      // 攻擊方獲勝：效果作用於防守方，目標道具在防守方身上
+      // 防守方獲勝：效果作用於攻擊方，目標道具在攻擊方身上
+      const targetItems = effectTarget.items || [];
       const targetItemIndex = targetItems.findIndex((i) => i.id === targetItemId);
 
       if (targetItemIndex === -1) {
@@ -229,8 +282,12 @@ export async function executeContestEffects(
       const targetItemQuantity = targetItem.quantity || 1;
       const newQuantity = targetItemQuantity - 1;
 
+      // Phase 4: 修復道具更新邏輯
+      // 根據效果作用對象決定更新哪個角色
+      const targetIdStr = effectTarget._id.toString();
+      
       // 準備更新：先移除舊的道具
-      await Character.findByIdAndUpdate(defenderIdStr, {
+      await Character.findByIdAndUpdate(targetIdStr, {
         $pull: { items: { id: targetItemId } },
       });
 
@@ -245,44 +302,48 @@ export async function executeContestEffects(
         const cleanedItem = updatedItem as Record<string, unknown>;
         delete cleanedItem._id;
         delete cleanedItem.__v;
-        await Character.findByIdAndUpdate(defenderIdStr, {
+        await Character.findByIdAndUpdate(targetIdStr, {
           $push: { items: cleanedItem },
         });
       }
 
       if (effect.type === 'item_steal') {
-        // 偷竊：將道具轉移到攻擊者身上
-        // 重新載入攻擊者資料以確保資料是最新的
-        const updatedAttacker = await Character.findById(attackerIdStr);
-        if (!updatedAttacker) {
+        // Phase 4: 修復偷竊邏輯
+        // 偷竊：將道具轉移到效果來源方身上
+        // 攻擊方獲勝：道具從防守方轉移到攻擊方
+        // 防守方獲勝：道具從攻擊方轉移到防守方
+        const sourceIdStr = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
+        
+        const updatedSource = await Character.findById(sourceIdStr);
+        if (!updatedSource) {
           continue;
         }
 
-        const attackerItems = updatedAttacker.items || [];
-        const attackerItemIndex = attackerItems.findIndex((i: { id: string }) => i.id === targetItemId);
+        const sourceItems = updatedSource.items || [];
+        const sourceItemIndex = sourceItems.findIndex((i: { id: string }) => i.id === targetItemId);
 
-        if (attackerItemIndex !== -1) {
-          // 攻擊者已有此道具，增加數量
-          const currentItem = attackerItems[attackerItemIndex];
+        if (sourceItemIndex !== -1) {
+          // 來源方已有此道具，增加數量
+          const currentItem = sourceItems[sourceItemIndex];
           const currentQuantity = currentItem.quantity || 1;
-
-          await Character.findByIdAndUpdate(attackerIdStr, {
+          
+          await Character.findByIdAndUpdate(sourceIdStr, {
             $pull: { items: { id: targetItemId } },
           });
-
-          const updatedAttackerItem = {
+          
+          const updatedSourceItem = {
             ...(currentItem.toObject ? currentItem.toObject() : currentItem),
             quantity: currentQuantity + 1,
           };
-          const cleanedAttackerItem = updatedAttackerItem as Record<string, unknown>;
-          delete cleanedAttackerItem._id;
-          delete cleanedAttackerItem.__v;
+          const cleanedSourceItem = updatedSourceItem as Record<string, unknown>;
+          delete cleanedSourceItem._id;
+          delete cleanedSourceItem.__v;
 
-          await Character.findByIdAndUpdate(attackerIdStr, {
-            $push: { items: cleanedAttackerItem },
+          await Character.findByIdAndUpdate(sourceIdStr, {
+            $push: { items: cleanedSourceItem },
           });
         } else {
-          // 攻擊者沒有此道具，新增道具
+          // 來源方沒有此道具，新增道具
           const stolenItem = {
             id: targetItem.id,
             name: targetItem.name,
@@ -295,7 +356,7 @@ export async function executeContestEffects(
             usageCount: 0,
           };
 
-          await Character.findByIdAndUpdate(attackerIdStr, {
+          await Character.findByIdAndUpdate(sourceIdStr, {
             $push: { items: stolenItem },
           });
         }
@@ -306,9 +367,10 @@ export async function executeContestEffects(
         effectsApplied.push(`移除了 ${targetItemName}`);
       }
 
-      // 發送 WebSocket 事件給防守方
-      emitInventoryUpdated(defenderIdStr, {
-        characterId: defenderIdStr,
+      // Phase 4: 修復通知發送邏輯
+      // 發送 WebSocket 事件給效果作用對象
+      emitInventoryUpdated(targetIdStr, {
+        characterId: targetIdStr,
         item: {
           id: targetItem.id,
           name: targetItem.name,
@@ -317,15 +379,23 @@ export async function executeContestEffects(
           acquiredAt: targetItem.acquiredAt?.toISOString(),
         },
         action: targetItemQuantity <= 1 ? 'deleted' : 'updated',
-      }).catch((error) => console.error('Failed to emit inventory.updated (take/steal defender)', error));
+      }).catch((error) => console.error('Failed to emit inventory.updated (take/steal)', error));
 
-      // 發送跨角色影響事件
-      emitCharacterAffected(defenderIdStr, {
-        targetCharacterId: defenderIdStr,
-        sourceCharacterId: attackerIdStr,
-        sourceCharacterName: '', // 不顯示攻擊方名稱（隱私保護）
-        sourceType: sourceType,
+      // 發送跨角色影響事件給效果作用對象
+      const sourceIdForNotification = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
+      const sourceNameForNotification = contestResult === 'defender_wins' ? defender.name : attacker.name;
+      
+      // Phase 7.6: 檢查來源技能/道具是否有隱匿標籤
+      const sourceTags = actualSource.tags || [];
+      const hasStealthTag = sourceTags.includes('stealth');
+      
+      emitCharacterAffected(targetIdStr, {
+        targetCharacterId: targetIdStr,
+        sourceCharacterId: sourceIdForNotification,
+        sourceCharacterName: hasStealthTag ? '' : sourceNameForNotification, // Phase 7.6: 有隱匿標籤時不顯示來源方名稱
+        sourceType: actualSourceType,
         sourceName: '', // 不顯示技能/道具名稱（隱私保護）
+        sourceHasStealthTag: hasStealthTag, // Phase 7.6: 標記是否有隱匿標籤
         effectType: effect.type === 'item_steal' ? 'item_steal' : 'item_take',
         changes: {
           items: [{
@@ -336,7 +406,9 @@ export async function executeContestEffects(
         },
       }).catch((error) => console.error('Failed to emit character.affected (item_take/steal)', error));
 
+      // Phase 4: 修復 role.updated 事件發送邏輯
       // 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
+      // 需要重新載入兩個角色的最新資料（因為道具可能已經轉移）
       const [updatedAttackerCharacter, updatedDefenderCharacter] = await Promise.all([
         Character.findById(attackerIdStr).lean(),
         Character.findById(defenderIdStr).lean(),
@@ -379,16 +451,23 @@ export async function executeContestEffects(
       $unset: { 'tasks.$[].gmNotes': 1 },
     });
 
-    // 如果效果作用於防守方（攻擊方獲勝），發送 character.affected 事件給防守方
-    // 不顯示技能/道具名稱或攻擊方名稱（隱私保護）
-    const isAffectingDefender = effectTarget._id.toString() === defenderIdStr;
-    if (isAffectingDefender && crossCharacterChanges.length > 0) {
-      emitCharacterAffected(defenderIdStr, {
-        targetCharacterId: defenderIdStr,
-        sourceCharacterId: attackerIdStr,
-        sourceCharacterName: '', // 不顯示攻擊方名稱
-        sourceType: sourceType,
-        sourceName: '', // 不顯示技能/道具名稱
+    // Phase 7.6: 發送 character.affected 事件（根據對抗結果）
+    if (crossCharacterChanges.length > 0) {
+      const targetId = effectTarget._id.toString();
+      const sourceId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
+      const sourceName = contestResult === 'defender_wins' ? defender.name : attacker.name;
+      
+      // Phase 7.6: 檢查來源技能/道具是否有隱匿標籤
+      const sourceTags = actualSource.tags || [];
+      const hasStealthTag = sourceTags.includes('stealth');
+      
+      emitCharacterAffected(targetId, {
+        targetCharacterId: targetId,
+        sourceCharacterId: sourceId,
+        sourceCharacterName: hasStealthTag ? '' : sourceName, // Phase 7.6: 有隱匿標籤時不顯示來源方名稱
+        sourceType: actualSourceType,
+        sourceName: '', // 不顯示技能/道具名稱（隱私保護）
+        sourceHasStealthTag: hasStealthTag, // Phase 7.6: 標記是否有隱匿標籤
         effectType: 'stat_change',
         changes: {
           stats: crossCharacterChanges.map((change) => ({

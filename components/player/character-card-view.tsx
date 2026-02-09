@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { CharacterData, Skill, Item } from '@/types/character';
+import type { CharacterData } from '@/types/character';
 import type { BaseEvent } from '@/types/event';
 import { PinUnlock } from './pin-unlock';
 import { PublicInfoSection } from './public-info-section';
@@ -22,11 +22,12 @@ import { useCharacterWebSocket, useGameWebSocket } from '@/hooks/use-websocket';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ContestResponseDialog } from './contest-response-dialog';
-import { AttackerContestWaitingDialog } from './attacker-contest-waiting-dialog';
+import { TargetItemSelectionDialog } from './target-item-selection-dialog';
 import type { SkillContestEvent } from '@/types/event';
 import { useDefenderContestState, useContestState } from '@/hooks/use-contest-state';
 import { useNotificationSystem } from '@/hooks/use-notification-system';
 import { useCharacterWebSocketHandler } from '@/hooks/use-character-websocket-handler';
+import { useContestDialogState } from '@/hooks/use-contest-dialog-state';
 
 interface CharacterCardViewProps {
   character: CharacterData;
@@ -70,6 +71,18 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   // Phase 3.1: 使用通知系統 Hook
   const { notifications, unreadCount, markAsRead, addNotification } = useNotificationSystem(character.id);
 
+  // Phase 3: 使用統一的 Dialog 狀態管理
+  const { dialogState, setAttackerWaitingDialog: setAttackerWaitingDialogState, setDefenderResponseDialog, setTargetItemSelectionDialog, clearDialogState } = useContestDialogState(character.id);
+  
+  // Phase 9: 防守方目標道具選擇 dialog 狀態
+  const [defenderTargetItemSelectionDialog, setDefenderTargetItemSelectionDialog] = useState<{
+    open: boolean;
+    contestId: string;
+    attackerId: string;
+    sourceType: 'skill' | 'item';
+    sourceId: string;
+  } | null>(null);
+
   // Phase 7: 對抗檢定相關狀態
   // Phase 8: 使用持久化狀態管理防守方 dialog
   const { defenderState, setDefenderContest, clearDefenderContest } = useDefenderContestState(character.id);
@@ -79,86 +92,74 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   );
   const [currentContestId, setCurrentContestId] = useState<string>(defenderState?.contestId || '');
 
-  // Phase 8: 攻擊方對抗檢定狀態管理（用於顯示全局等待 dialog）
+  // Phase 8: 攻擊方對抗檢定狀態管理
   const { pendingContests } = useContestState(character.id);
-  const [attackerWaitingDialog, setAttackerWaitingDialog] = useState<{
-    sourceType: 'skill' | 'item';
-    sourceId: string;
-    contestId: string;
-  } | null>(null);
 
-  // Phase 8: 從持久化狀態恢復防守方 dialog
+  // Phase 3: 從統一 Dialog 狀態恢復防守方 dialog
   useEffect(() => {
-    if (defenderState) {
+    if (dialogState?.type === 'defender_response') {
+      // 從 dialogState 恢復防守方 dialog
+      if (defenderState && defenderState.contestId === dialogState.contestId) {
+        setContestDialogOpen(true);
+        setCurrentContestEvent(defenderState.contestEvent);
+        setCurrentContestId(defenderState.contestId);
+      }
+    } else if (defenderState) {
+      // 兼容舊的邏輯：如果沒有 dialogState 但有 defenderState，也恢復
       setContestDialogOpen(true);
       setCurrentContestEvent(defenderState.contestEvent);
       setCurrentContestId(defenderState.contestId);
+      // 同時設置統一的 Dialog 狀態
+      const sourceId = defenderState.contestEvent.itemId || defenderState.contestEvent.skillId || '';
+      const sourceType = defenderState.contestEvent.sourceType || (defenderState.contestEvent.itemId ? 'item' : 'skill');
+      setDefenderResponseDialog(defenderState.contestId, sourceType, sourceId);
     }
-  }, [defenderState]);
+  }, [dialogState, defenderState, setDefenderResponseDialog]);
+
+  // Phase 3: 從統一 Dialog 狀態恢復攻擊方等待 dialog 和選擇目標道具 dialog
+  useEffect(() => {
+    if (!dialogState) return;
+
+    switch (dialogState.type) {
+      case 'attacker_waiting':
+        // 恢復攻擊方等待 Dialog（根據 sourceType 切換到對應分頁）
+        // 注意：不再有全局等待 dialog，只顯示技能或道具 dialog
+        if (dialogState.sourceType === 'skill') {
+          // 切換到技能分頁，讓 skill-list.tsx 處理
+          setActiveTab('skills');
+        } else {
+          // 切換到道具分頁，讓 item-list.tsx 處理
+          setActiveTab('items');
+        }
+        break;
+      case 'target_item_selection':
+        // 恢復選擇目標道具 Dialog
+        if (dialogState.sourceType === 'skill') {
+          setActiveTab('skills');
+          // 讓 skill-list.tsx 處理
+        } else {
+          setActiveTab('items');
+          // 讓 item-list.tsx 處理
+        }
+        break;
+    }
+  }, [dialogState]);
 
   // Phase 8: 從持久化狀態恢復攻擊方等待 dialog
-  // 注意：對於道具類型的對抗檢定，不顯示全局等待 modal，而是顯示道具 dialog（由 item-list.tsx 處理）
-  // 對於技能類型的對抗檢定，也不顯示全局等待 modal，而是顯示技能 dialog（由 skill-list.tsx 處理）
-  // 但是，如果 item-list 或 skill-list 已經關閉了 dialog（設置 dialogOpen 為 false），則顯示全局等待 modal
-  // 例外：偷竊（item_steal）和移除道具（item_take）這兩種場景不應該顯示全局等待 modal
-  // 使用 useEffect 並添加微任務延遲，確保在 skill-list 的 useLayoutEffect 更新狀態後執行
+  // 注意：攻擊方等待時應顯示原本的技能或道具 dialog，而非全局等待 dialog
+  // skill-list.tsx 和 item-list.tsx 會根據 pendingContests 自動恢復 dialog 狀態
   useEffect(() => {
-    // 使用微任務延遲，確保 skill-list 的 useLayoutEffect 已經執行並更新了狀態
-    Promise.resolve().then(() => {
-      if (Object.keys(pendingContests).length > 0) {
-        // 找到第一個有 dialogOpen 的 pending contest
-        // 注意：如果 item-list.tsx 或 skill-list.tsx 已經處理了（設置 dialogOpen 為 false），這裡就不會顯示全局等待 modal
-        let foundDialog = false;
-        for (const [sourceId, contest] of Object.entries(pendingContests)) {
-          if (contest.dialogOpen) {
-            // 檢查是否有 item_steal 或 item_take 效果（例外場景）
-            let hasStealOrTake = false;
-            
-            if (contest.sourceType === 'skill') {
-              const skill = character.skills?.find((s) => s.id === sourceId);
-              if (skill?.effects) {
-                hasStealOrTake = skill.effects.some(
-                  (effect) => effect.type === 'item_steal' || effect.type === 'item_take'
-                );
-              }
-            } else if (contest.sourceType === 'item') {
-              const item = character.items?.find((i) => i.id === sourceId);
-              if (item) {
-                const effects = item.effects || (item.effect ? [item.effect] : []);
-                hasStealOrTake = effects.some(
-                  (effect) => effect.type === 'item_steal' || effect.type === 'item_take'
-                );
-              }
-            }
-            
-            // 如果有偷竊或移除道具效果，跳過顯示全局等待 modal（例外場景）
-            if (hasStealOrTake) {
-              console.log('[character-card-view] 跳過顯示全局等待 modal（偷竊/移除道具場景）:', {
-                sourceId,
-                sourceType: contest.sourceType,
-              });
-              continue;
-            }
-            
-            // 顯示全局等待 modal
-            setAttackerWaitingDialog({
-              sourceType: contest.sourceType,
-              sourceId,
-              contestId: contest.contestId,
-            });
-            foundDialog = true;
-            break;
-          }
+    if (Object.keys(pendingContests).length > 0) {
+      // 找到第一個有 dialogOpen 的 pending contest，設置 Dialog 狀態以確保重新整理後能正確恢復
+      for (const [sourceId, contest] of Object.entries(pendingContests)) {
+        if (contest.dialogOpen) {
+          // 設置統一的 Dialog 狀態，確保重新整理後能正確恢復技能或道具 dialog
+          setAttackerWaitingDialogState(contest.contestId, contest.sourceType, sourceId);
+          break;
         }
-        // 如果沒有找到 dialogOpen 為 true 的 contest，關閉等待 dialog
-        if (!foundDialog) {
-          setAttackerWaitingDialog(null);
-        }
-      } else {
-        setAttackerWaitingDialog(null);
       }
-    });
-  }, [pendingContests, character.skills, character.items]);
+    }
+  }, [pendingContests, setAttackerWaitingDialogState]);
 
   // 最終解鎖狀態：localStorage 或手動解鎖
   const isUnlocked = isStorageUnlocked || isManuallyUnlocked;
@@ -172,15 +173,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   // 道具使用 callback
   // Phase 8: 添加檢定結果參數，返回結果以便處理對抗檢定
   const handleUseItem = useCallback(async (itemId: string, targetCharacterId?: string, checkResult?: number, targetItemId?: string) => {
-    console.log('[character-card-view] handleUseItem 調用:', { itemId, targetCharacterId, checkResult, targetItemId });
     const result = await consumeItemAction(character.id, itemId, targetCharacterId, checkResult, targetItemId);
-    console.log('[character-card-view] handleUseItem 返回結果:', {
-      success: result.success,
-      data: result.data,
-      message: result.message,
-      hasContestId: !!result.data?.contestId,
-      checkPassed: result.data?.checkPassed,
-    });
     // 返回結果給 item-list.tsx 處理，讓它可以決定是否關閉 dialog
     return {
       success: result.success,
@@ -205,21 +198,62 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
     characterId: character.id,
     addNotification, // ✅ 傳入通知系統的 addNotification 函數
     onTabChange: setActiveTab,
-    onContestRequest: (payload) => {
+    onContestRequest: async (payload) => {
       // 防守方收到對抗檢定請求時，設置 dialog 狀態
       const sourceId = payload.itemId || payload.skillId || '';
-      const contestId = `${payload.attackerId}::${sourceId}::${Date.now()}`;
+      // Phase 1: 優先使用事件中的 contestId，如果沒有則生成新的
+      const { generateContestId } = await import('@/lib/contest/contest-id');
+      const contestId = payload.contestId || generateContestId(payload.attackerId, sourceId);
       setDefenderContest(contestId, payload);
       setCurrentContestEvent(payload);
       setCurrentContestId(contestId);
       setContestDialogOpen(true);
+      // Phase 3: 同時設置統一的 Dialog 狀態
+      const sourceType = payload.sourceType || (payload.itemId ? 'item' : 'skill');
+      setDefenderResponseDialog(contestId, sourceType, sourceId);
     },
-    onContestResult: (payload) => {
-      // 對抗檢定結果處理（防守方和攻擊方都會收到）
-      // 防守方：關閉 dialog
+    onContestResult: (payload) => {// 對抗檢定結果處理（防守方和攻擊方都會收到）
+      // 防守方：處理結果
       if (String(payload.defenderId) === String(character.id)) {
+        // Phase 9: 如果防守方獲勝且需要選擇目標道具，開啟選擇道具 dialog
+        if (payload.result === 'defender_wins' && payload.needsTargetItemSelection) {
+          const sourceId = payload.itemId || payload.skillId || '';
+          const sourceType = payload.sourceType || (payload.itemId ? 'item' : 'skill');
+          if (sourceId && payload.attackerId && payload.contestId) {
+            // 關閉原本的 dialog
+            clearDefenderContest();
+            setContestDialogOpen(false);
+            clearDialogState();
+            // 開啟選擇道具 dialog
+            setDefenderTargetItemSelectionDialog({
+              open: true,
+              contestId: payload.contestId,
+              attackerId: String(payload.attackerId),
+              sourceType,
+              sourceId,
+            });
+            return;
+          }
+        }
+        // 不需要選擇目標道具，關閉 dialog
         clearDefenderContest();
         setContestDialogOpen(false);
+        // Phase 3: 清除統一的 Dialog 狀態
+        clearDialogState();
+      }
+      // 攻擊方：關閉等待 dialog（除非需要選擇目標道具）
+      if (String(payload.attackerId) === String(character.id)) {
+        const sourceId = payload.itemId || payload.skillId || '';
+        // Phase 3: 如果需要選擇目標道具，設置選擇目標道具 Dialog 狀態
+        if (payload.needsTargetItemSelection && sourceId && payload.defenderId) {
+          const sourceType = payload.sourceType || (payload.itemId ? 'item' : 'skill');
+          setTargetItemSelectionDialog(payload.contestId || '', sourceType, sourceId, payload.defenderId);
+        } else {
+          // 不需要選擇目標道具，清除統一的 Dialog 狀態
+          if (dialogState?.type === 'attacker_waiting' && dialogState.sourceId === sourceId) {
+            clearDialogState();
+          }
+        }
       }
     },
   });
@@ -420,6 +454,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
                   characterId={character.id}
                   gameId={character.gameId}
                   characterName={character.name}
+                  randomContestMaxValue={character.randomContestMaxValue}
                   onUseItem={handleUseItem}
                   onTransferItem={handleTransferItem}
                 />
@@ -432,6 +467,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
                   gameId={character.gameId}
                   characterName={character.name}
                   stats={character.stats}
+                  randomContestMaxValue={character.randomContestMaxValue}
                 />
               </TabsContent>
             </div>
@@ -479,50 +515,33 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
         onResponded={() => {
           // Phase 8: 防守方回應後清除持久化狀態
           clearDefenderContest();
+          // Phase 3: 清除統一的 Dialog 狀態
+          clearDialogState();
           router.refresh();
         }}
       />
 
-      {/* Phase 8: 攻擊方等待對抗檢定結果 Dialog（全局） */}
-      {/* 注意：偷竊（item_steal）和移除道具（item_take）這兩種場景不應該顯示此 dialog */}
-      {attackerWaitingDialog && (() => {
-        const source = attackerWaitingDialog.sourceType === 'skill'
-          ? character.skills?.find((s) => s.id === attackerWaitingDialog.sourceId)
-          : character.items?.find((i) => i.id === attackerWaitingDialog.sourceId);
-        
-        // 再次檢查是否有偷竊或移除道具效果（防禦性檢查）
-        let hasStealOrTake = false;
-        if (source) {
-          if (attackerWaitingDialog.sourceType === 'skill') {
-            const skill = source as Skill;
-            if (skill.effects) {
-              hasStealOrTake = skill.effects.some(
-                (effect: { type?: string }) => effect.type === 'item_steal' || effect.type === 'item_take'
-              );
+      {/* Phase 9: 防守方目標道具選擇 Dialog */}
+      {defenderTargetItemSelectionDialog && (
+        <TargetItemSelectionDialog
+          open={defenderTargetItemSelectionDialog.open}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDefenderTargetItemSelectionDialog(null);
             }
-          } else {
-            const item = source as Item;
-            const effects = item.effects || (item.effect ? [item.effect] : []);
-            hasStealOrTake = effects.some(
-              (effect: { type?: string }) => effect.type === 'item_steal' || effect.type === 'item_take'
-            );
-          }
-        }
-        
-        // 如果有偷竊或移除道具效果，不顯示全局等待 dialog
-        if (hasStealOrTake) {
-          return null;
-        }
-        
-        return (
-          <AttackerContestWaitingDialog
-            open={!!attackerWaitingDialog}
-            sourceType={attackerWaitingDialog.sourceType}
-            source={source || null}
-            contestId={attackerWaitingDialog.contestId}
-          />
-        );
-      })()}
+          }}
+          contestId={defenderTargetItemSelectionDialog.contestId}
+          characterId={character.id}
+          defenderId={defenderTargetItemSelectionDialog.attackerId}
+          sourceType={defenderTargetItemSelectionDialog.sourceType}
+          sourceId={defenderTargetItemSelectionDialog.sourceId}
+          onSelectionComplete={() => {
+            setDefenderTargetItemSelectionDialog(null);
+            router.refresh();
+          }}
+        />
+      )}
+
     </div>
   );
 }

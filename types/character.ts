@@ -16,6 +16,7 @@ export interface CharacterData {
   items?: Item[];
   stats?: Stat[];
   skills?: Skill[];
+  randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
   createdAt: Date;
   updatedAt: Date;
 }
@@ -131,8 +132,10 @@ export interface Item {
   // 向後兼容：保留 effect 欄位（單一效果），但優先使用 effects
   /** @deprecated 使用 effects 陣列代替 */
   effect?: ItemEffect;
-  // 檢定系統（Phase 8）
-  checkType?: 'none' | 'contest' | 'random';
+  // Phase 7.6: 標籤系統
+  tags?: string[];
+  // 檢定系統（Phase 8，Phase 7.6: 擴展為包含 random_contest）
+  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   // 對抗檢定設定（checkType === 'contest' 時使用）
   contestConfig?: ContestConfig;
   // 隨機檢定設定（checkType === 'random' 時使用）
@@ -206,8 +209,10 @@ export interface Skill {
   name: string;
   description: string;
   iconUrl?: string;
-  // 檢定系統
-  checkType: 'none' | 'contest' | 'random';
+  // Phase 7.6: 標籤系統
+  tags?: string[];
+  // 檢定系統（Phase 7.6: 擴展為包含 random_contest）
+  checkType: 'none' | 'contest' | 'random' | 'random_contest';
   // 對抗檢定設定（checkType === 'contest' 時使用）
   contestConfig?: ContestConfig;
   // 隨機檢定設定（checkType === 'random' 時使用）
@@ -267,7 +272,7 @@ export interface CreateItemInput {
   effects?: ItemEffect[];
   /** @deprecated 使用 effects 陣列代替 */
   effect?: ItemEffect;
-  checkType?: 'none' | 'contest' | 'random';
+  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: ContestConfig;
   randomConfig?: RandomConfig;
   usageLimit?: number;

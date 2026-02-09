@@ -4,4 +4,5 @@ export * from './validators';
 export * from './hash';
 export * from './qr-code';
 export * from './date';
+export * from './tags';
 
