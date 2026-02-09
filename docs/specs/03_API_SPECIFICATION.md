@@ -548,9 +548,13 @@ interface ItemInput {
 - **檢定類型**：`checkType === 'random_contest'`
 - **上限值來源**：使用劇本共通的 `Game.randomContestMaxValue`（預設 100）
 - **檢定流程**：
-  1. 攻擊方和防守方各自骰一個 1 到 `randomContestMaxValue` 的隨機數
-  2. 比較雙方數值，較大者獲勝
-  3. 若平手，根據 `contestConfig.tieResolution` 決定結果
+  1. 攻擊方使用隨機對抗技能/道具並選擇目標
+  2. **攻擊方隨機數決定**：在選擇目標後、等待防守方回應時，攻擊方的隨機數立即決定（儲存在對抗檢定追蹤系統中）
+  3. 防守方收到對抗請求事件，可選擇是否使用技能或道具
+  4. **防守方隨機數決定**：防守方按下確認按鈕時，防守方的隨機數才決定
+  5. 比較雙方數值，較大者獲勝
+  6. 若平手，根據 `contestConfig.tieResolution` 決定結果
+  7. 執行對應效果並發送結果通知
 - **數值匹配規則**：防守方只能使用相同檢定類型（`random_contest`）的技能/道具回應
 
 **Phase 8 時效性效果實作細節**：
@@ -1045,7 +1049,10 @@ interface PushEventInput {
    - 若為 `contest` 類型，`relatedStat` 必須與攻擊方相同
 4. 驗證防守方使用的道具/技能是否可用（冷卻、次數限制等）
 5. 計算攻擊方和防守方的數值（包含使用的道具/技能加成）
-   - **Phase 7.6**：若為 `random_contest`，雙方各自骰 1 到 `Game.randomContestMaxValue` 的隨機數
+   - **Phase 7.6**：若為 `random_contest`：
+     - 從對抗檢定追蹤系統中獲取攻擊方的隨機數（已在選擇目標後決定）
+     - 防守方的隨機數在此時決定（按下確認按鈕時）
+     - 雙方各自骰 1 到 `Game.randomContestMaxValue` 的隨機數
 6. 計算對抗結果（攻擊方獲勝/防守方獲勝/雙方平手）
 7. **Phase 7.6**：執行效果（僅成功方）：
    - 若攻擊方獲勝：執行攻擊方技能/道具效果

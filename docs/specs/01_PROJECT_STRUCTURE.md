@@ -565,8 +565,8 @@ UI Components
   - [x] 防守方收到對抗請求通知（WebSocket）
   - [x] 防守方可選擇使用道具/技能
   - [x] 顯示對抗結果（雙方）
-  - [x] 攻擊方等待 Dialog
-  - [x] 狀態持久化（重新整理後恢復）
+  - [x] 攻擊方等待狀態（持續顯示原本使用的技能或道具 dialog，**不應顯示全局等待 dialog**）
+  - [x] 狀態持久化（重新整理後恢復技能或道具 dialog 的等待狀態）
   - [x] 跨分頁回應處理
 - [x] Server Action：對抗檢定流程
   - [x] 驗證防守方使用的道具/技能是否可用
@@ -587,7 +587,7 @@ UI Components
 - [x] 道具/技能選擇介面
 - [x] 對抗檢定事件（`skill.contest`）
 
-### Phase 7.6：標籤系統與檢定模式擴展（Week 10-11）
+### Phase 7.6：標籤系統與檢定模式擴展（Week 10-11）✅ 已完成
 
 #### 目標
 - 新增技能與道具的標籤系統（"戰鬥"、"隱匿"）
@@ -598,76 +598,76 @@ UI Components
 #### 開發任務
 
 ##### 1. 標籤系統實作
-- [ ] 資料模型擴展
-  - [ ] 擴展 `Skill` 和 `Item` 介面：新增 `tags?: string[]` 欄位
-  - [ ] 更新 MongoDB Schema：在技能和道具中新增 `tags` 陣列欄位
-  - [ ] 支援的標籤：`"combat"`（戰鬥）、`"stealth"`（隱匿）
-- [ ] GM 端標籤編輯 UI
-  - [ ] `skills-edit-form.tsx`：新增標籤選擇介面（複選框）
-  - [ ] `items-edit-form.tsx`：新增標籤選擇介面（複選框）
-  - [ ] 顯示標籤說明（"戰鬥"：可用於對抗檢定回應；"隱匿"：攻擊方姓名不出現在防守方訊息中）
-- [ ] 標籤驗證邏輯
-  - [ ] 攻擊方：只有標註 "戰鬥" 標籤的技能/道具才能發起對抗檢定
-  - [ ] 防守方：只有標註 "戰鬥" 標籤的技能/道具才能在回應中使用
-  - [ ] 更新 `lib/contest/contest-validator.ts`：驗證標籤
+- [x] 資料模型擴展
+  - [x] 擴展 `Skill` 和 `Item` 介面：新增 `tags?: string[]` 欄位
+  - [x] 更新 MongoDB Schema：在技能和道具中新增 `tags` 陣列欄位
+  - [x] 支援的標籤：`"combat"`（戰鬥）、`"stealth"`（隱匿）
+- [x] GM 端標籤編輯 UI
+  - [x] `skills-edit-form.tsx`：新增標籤選擇介面（複選框）
+  - [x] `items-edit-form.tsx`：新增標籤選擇介面（複選框）
+  - [x] 顯示標籤說明（"戰鬥"：可用於對抗檢定回應；"隱匿"：攻擊方姓名不出現在防守方訊息中）
+- [x] 標籤驗證邏輯
+  - [x] 攻擊方：只有標註 "戰鬥" 標籤的技能/道具才能發起對抗檢定
+  - [x] 防守方：只有標註 "戰鬥" 標籤的技能/道具才能在回應中使用
+  - [x] 更新 `lib/contest/contest-validator.ts`：驗證標籤
 
 ##### 2. 防守方效果結算調整
-- [ ] 修改對抗檢定結算邏輯
-  - [ ] 更新 `lib/contest/contest-effect-executor.ts`：防守方成功時只結算防守方的效果
-  - [ ] 更新 `app/actions/contest-respond.ts`：調整效果執行順序
-  - [ ] 攻擊方成功：結算攻擊方效果（現有邏輯）
-  - [ ] 防守方成功：結算防守方效果（新增邏輯）
-- [ ] 更新對抗檢定流程說明文件
+- [x] 修改對抗檢定結算邏輯
+  - [x] 更新 `lib/contest/contest-effect-executor.ts`：防守方成功時只結算防守方的效果
+  - [x] 更新 `app/actions/contest-respond.ts`：調整效果執行順序
+  - [x] 攻擊方成功：結算攻擊方效果（現有邏輯）
+  - [x] 防守方成功：結算防守方效果（新增邏輯）
+- [x] 更新對抗檢定流程說明文件
 
 ##### 3. 數值判定系統匹配
-- [ ] 驗證規則實作
-  - [ ] 攻擊方和防守方必須使用相同的 `relatedStat`（數值名稱）
-  - [ ] 攻擊方和防守方必須使用相同的檢定類型（`contest` vs `random_contest`）
-- [ ] 防守方回應面板過濾邏輯
-  - [ ] 更新 `components/player/contest-response-dialog.tsx`：只顯示符合條件的技能/道具
-  - [ ] 過濾條件：
+- [x] 驗證規則實作
+  - [x] 攻擊方和防守方必須使用相同的 `relatedStat`（數值名稱）
+  - [x] 攻擊方和防守方必須使用相同的檢定類型（`contest` vs `random_contest`）
+- [x] 防守方回應面板過濾邏輯
+  - [x] 更新 `components/player/contest-response-dialog.tsx`：只顯示符合條件的技能/道具
+  - [x] 過濾條件：
     - 必須有 "戰鬥" 標籤
     - `relatedStat` 必須與攻擊方相同
     - 檢定類型必須與攻擊方相同（`contest` 對 `contest`，`random_contest` 對 `random_contest`）
-- [ ] 更新驗證邏輯
-  - [ ] `lib/contest/contest-validator.ts`：驗證防守方選擇的技能/道具是否符合匹配規則
+- [x] 更新驗證邏輯
+  - [x] `lib/contest/contest-validator.ts`：驗證防守方選擇的技能/道具是否符合匹配規則
 
 ##### 4. 隱匿標籤實作
-- [ ] 修改通知訊息邏輯
-  - [ ] 更新 `lib/utils/event-mappers.ts`：`mapCharacterAffected` 函數根據 "隱匿" 標籤決定是否顯示攻擊方姓名
-  - [ ] 更新 `hooks/use-character-websocket-handler.ts`：`character.affected` 事件處理根據 "隱匿" 標籤決定 toast 訊息內容
-- [ ] 更新事件推送格式
-  - [ ] 更新 `lib/contest/contest-effect-executor.ts`：推送事件時根據 "隱匿" 標籤決定是否包含攻擊方資訊
-  - [ ] 更新 `types/event.ts`：`CharacterAffectedEvent` 類型說明
-- [ ] 規則說明
-  - [ ] 帶有 "隱匿" 標籤：攻擊方姓名不出現在防守方訊息中（現有行為）
-  - [ ] 不帶 "隱匿" 標籤：攻擊方姓名會出現在防守方訊息中（新增行為）
-  - [ ] 技能/道具名稱始終不出現在防守方訊息中（保持現有行為）
+- [x] 修改通知訊息邏輯
+  - [x] 更新 `lib/utils/event-mappers.ts`：`mapCharacterAffected` 函數根據 "隱匿" 標籤決定是否顯示攻擊方姓名
+  - [x] 更新 `hooks/use-character-websocket-handler.ts`：`character.affected` 事件處理根據 "隱匿" 標籤決定 toast 訊息內容
+- [x] 更新事件推送格式
+  - [x] 更新 `lib/contest/contest-effect-executor.ts`：推送事件時根據 "隱匿" 標籤決定是否包含攻擊方資訊
+  - [x] 更新 `types/event.ts`：`CharacterAffectedEvent` 類型說明
+- [x] 規則說明
+  - [x] 帶有 "隱匿" 標籤：攻擊方姓名不出現在防守方訊息中（現有行為）
+  - [x] 不帶 "隱匿" 標籤：攻擊方姓名會出現在防守方訊息中（新增行為）
+  - [x] 技能/道具名稱始終不出現在防守方訊息中（保持現有行為）
 
 ##### 5. 隨機對抗檢定實作
-- [ ] 資料模型擴展
-  - [ ] 擴展 `checkType`：新增 `'random_contest'` 選項
-  - [ ] 在 `Game` 模型中新增 `randomContestMaxValue?: number`（劇本共通的隨機對抗檢定上限值）
-  - [ ] 更新 `types/character.ts`：`checkType` 類型擴展
-  - [ ] 更新 MongoDB Schema
-- [ ] 業務邏輯實作
-  - [ ] `lib/skill/check-handler.ts`：新增 `random_contest` 處理邏輯
-  - [ ] `lib/item/check-handler.ts`：新增 `random_contest` 處理邏輯
-  - [ ] `lib/contest/contest-calculator.ts`：新增隨機對抗檢定的計算邏輯
-    - [ ] 攻擊方和防守方都骰 1 到 `game.randomContestMaxValue` 的隨機數
-    - [ ] 比拚雙方的大小決定勝負
-    - [ ] 平手處理：使用 `tieResolution` 機制
-  - [ ] `lib/contest/contest-validator.ts`：驗證防守方使用的檢定類型必須與攻擊方一致
-- [ ] UI 實作
-  - [ ] `components/gm/skills-edit-form.tsx`：新增 "隨機對抗檢定" 選項
-  - [ ] `components/gm/items-edit-form.tsx`：新增 "隨機對抗檢定" 選項
-  - [ ] `components/gm/game-edit-form.tsx`：新增 `randomContestMaxValue` 設定欄位
-  - [ ] `components/player/contest-response-dialog.tsx`：過濾只顯示相同檢定類型的技能/道具
-  - [ ] `components/player/skill-list.tsx`：隨機對抗檢定時的前端骰子 UI（顯示骰子結果）
-  - [ ] `components/player/item-list.tsx`：隨機對抗檢定時的前端骰子 UI（顯示骰子結果）
-- [ ] 文件更新
-  - [ ] 更新 API 規格：新增 `random_contest` 檢定類型說明
-  - [ ] 更新 WebSocket 事件規格：更新 `skill.contest` 事件格式
+- [x] 資料模型擴展
+  - [x] 擴展 `checkType`：新增 `'random_contest'` 選項
+  - [x] 在 `Game` 模型中新增 `randomContestMaxValue?: number`（劇本共通的隨機對抗檢定上限值）
+  - [x] 更新 `types/character.ts`：`checkType` 類型擴展
+  - [x] 更新 MongoDB Schema
+- [x] 業務邏輯實作
+  - [x] `lib/skill/check-handler.ts`：新增 `random_contest` 處理邏輯
+  - [x] `lib/item/check-handler.ts`：新增 `random_contest` 處理邏輯
+  - [x] `lib/contest/contest-calculator.ts`：新增隨機對抗檢定的計算邏輯
+    - [x] 攻擊方和防守方都骰 1 到 `game.randomContestMaxValue` 的隨機數
+    - [x] 比拚雙方的大小決定勝負
+    - [x] 平手處理：使用 `tieResolution` 機制
+  - [x] `lib/contest/contest-validator.ts`：驗證防守方使用的檢定類型必須與攻擊方一致
+- [x] UI 實作
+  - [x] `components/gm/skills-edit-form.tsx`：新增 "隨機對抗檢定" 選項
+  - [x] `components/gm/items-edit-form.tsx`：新增 "隨機對抗檢定" 選項
+  - [x] `components/gm/game-edit-form.tsx`：新增 `randomContestMaxValue` 設定欄位
+  - [x] `components/player/contest-response-dialog.tsx`：過濾只顯示相同檢定類型的技能/道具
+  - [x] `components/player/skill-list.tsx`：隨機對抗檢定時的前端骰子 UI（顯示骰子結果）
+  - [x] `components/player/item-list.tsx`：隨機對抗檢定時的前端骰子 UI（顯示骰子結果）
+- [x] 文件更新
+  - [x] 更新 API 規格：新增 `random_contest` 檢定類型說明
+  - [x] 更新 WebSocket 事件規格：更新 `skill.contest` 事件格式
 
 #### 注意事項
 - 標籤系統設計為 `tags: string[]`，支援多標籤，未來可擴展其他標籤

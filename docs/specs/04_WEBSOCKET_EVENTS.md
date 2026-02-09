@@ -419,6 +419,8 @@ interface SkillContestEvent extends BaseEvent {
     itemId?: string;               // Phase 7: 道具檢定時使用
     itemName?: string;             // Phase 7: 道具檢定時使用
     sourceType?: 'skill' | 'item'; // Phase 7: 來源類型
+    subType?: 'request' | 'result' | 'effect'; // Phase 7 重構: 事件子類型（優先判斷）
+    sourceHasStealthTag?: boolean;  // Phase 7.6: 來源是否具有 "隱匿" 標籤
     checkType: 'contest' | 'random_contest'; // Phase 7.6: 檢定類型
     relatedStat?: string;          // Phase 7.6: 數值判定名稱（contest 類型時使用）
     attackerValue: number;         // 攻擊方數值（0 表示請求事件，非 0 表示結果事件）
@@ -438,19 +440,31 @@ interface SkillContestEvent extends BaseEvent {
 }
 ```
 
-**事件類型**
-- **請求事件**：`attackerValue === 0`，防守方收到，需要回應
-- **結果事件**：`attackerValue !== 0`，雙方都收到，顯示對抗結果
+**事件類型**（優先使用 `subType` 判斷，向後兼容 `attackerValue === 0` 判斷）
+- **請求事件**（`subType: 'request'`）：防守方收到，需要回應
+- **結果事件**（`subType: 'result'`）：雙方都收到，顯示對抗結果
+- **效果事件**（`subType: 'effect'`）：攻擊方收到，選擇目標道具後的效果結算結果
 
 **Phase 7.6 擴展說明**：
 - **檢定類型**：`checkType` 欄位標示檢定類型（`contest` 或 `random_contest`）
 - **數值匹配**：防守方只能使用相同 `checkType` 和 `relatedStat` 的技能/道具回應
+- **隨機對抗檢定流程**：
+  - 攻擊方使用隨機對抗技能/道具並選擇目標後，攻擊方的隨機數立即決定（儲存在對抗檢定追蹤系統中）
+  - 防守方收到對抗請求事件，可選擇是否使用技能或道具
+  - 防守方按下確認按鈕時，防守方的隨機數才決定
+  - 雙方隨機數比較後決定勝負，並執行對應效果
 - **隨機對抗檢定**：`checkType === 'random_contest'` 時，使用 `randomContestMaxValue` 作為上限值
 - **效果結算**：僅成功方（攻擊方或防守方）的效果會被執行
 
 **前端處理**
+- **請求事件（攻擊方）**：
+  - 攻擊方發起對抗後，**持續顯示原本使用的技能或道具 dialog**（顯示等待狀態）
+  - **重要**：不應顯示全局等待 dialog，而是保持技能或道具 dialog 開啟狀態
+  - 狀態持久化（重新整理後恢復技能或道具 dialog 的等待狀態）
+  - 跨分頁處理（自動切換到對應分頁並恢復 dialog）
 - **請求事件（防守方）**：
   - 顯示對抗請求通知
+  - **Phase 7.6**：根據 `sourceHasStealthTag` 決定 toast 和 dialog 標題是否顯示攻擊方名稱
   - **Phase 7.6**：根據 `checkType` 和 `relatedStat` 過濾可用的技能/道具
   - **Phase 7.6**：僅顯示具有 "戰鬥"（`combat`）標籤的技能/道具
   - 打開回應 Dialog，可選擇道具/技能
@@ -507,8 +521,8 @@ interface CharacterAffectedEvent extends BaseEvent {
 **Phase 7.6 隱匿標籤影響**：
 - **隱匿標籤**：若來源技能/道具具有 "隱匿"（`stealth`）標籤，`sourceCharacterName` 不會顯示在防守方的通知訊息中
 - **訊息格式**：
-  - 無隱匿標籤：「XXX 對你使用了 YYY，效果：HP +5」
-  - 有隱匿標籤：「你受到了 YYY 的影響，效果：HP +5」（不顯示攻擊方姓名）
+  - 無隱匿標籤：「XXX 對你使用了技能或道具」（顯示攻擊方姓名，不顯示技能/道具名稱）
+  - 有隱匿標籤：「你受到了影響」（不顯示攻擊方姓名，也不顯示技能/道具名稱）
 - **技能/道具名稱**：無論是否有隱匿標籤，`sourceName` 都不會顯示在防守方訊息中（依需求文件要求）
 
 **前端處理**
