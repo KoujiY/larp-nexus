@@ -797,7 +797,53 @@ UI Components
 
 ---
 
-### Phase 9：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 12-13）
+### Phase 9：離線事件佇列系統（Week 12）
+
+#### 目標
+- 解決玩家離線時漏接 WebSocket 事件的問題（瀏覽器關閉、手機休眠等）
+- 實作 Server-side 事件佇列，所有 WebSocket 事件產生時同步寫入 DB
+- 玩家上線（頁面載入）時拉取未送達的事件，逐一顯示通知
+- 確保對抗檢定等關鍵互動不會因離線而卡住
+
+#### 資料模型
+- 新增 `pending_events` collection（或嵌入 Character document）
+- 欄位：`id`, `targetCharacterId`, `eventType`, `eventPayload`, `createdAt`, `isDelivered`, `deliveredAt`, `expiresAt`
+- 事件保留 24 小時，拉取後標記為已送達，定期清理已過期/已送達的記錄
+
+#### 開發任務
+
+##### 1. 資料模型與 Schema
+- [ ] 設計 `PendingEvent` TypeScript 介面
+- [ ] 建立 Mongoose Schema（`pending_events` collection 或 Character 嵌入陣列）
+- [ ] 建立索引：`targetCharacterId + isDelivered + expiresAt`
+
+##### 2. 事件寫入
+- [ ] 修改 `lib/websocket/events.ts` 所有 `emitXXX()` 函式：推送 WebSocket 的同時寫入 pending_events
+- [ ] 覆蓋所有事件類型：`role.updated`, `skill.contest`, `character.affected`, `item.transferred`, `role.inventoryUpdated`, `secret.revealed`, `task.revealed`, `item.showcased`, `role.message`, `game.broadcast`, `effect.expired`
+
+##### 3. 事件拉取與送達
+- [ ] 建立 Server Action `fetchPendingEvents(characterId)`：查詢未送達事件，標記為已送達，回傳事件列表
+- [ ] 修改 `getPublicCharacter()` 或玩家端頁面載入流程：觸發 `fetchPendingEvents()`
+- [ ] 前端收到 pending events 後逐一處理（顯示通知、開啟 dialog 等）
+
+##### 4. 定期清理
+- [ ] 擴展 Cron Job：清除超過 24 小時的已送達/已過期事件
+- [ ] 可與 Phase 8 的 `check-expired-effects` Cron 合併
+
+##### 5. 前端整合
+- [ ] 玩家端頁面載入時拉取 pending events，逐一還原為通知
+- [ ] 對抗檢定 pending event：自動開啟 ContestResponseDialog
+- [ ] 道具展示 pending event：自動開啟唯讀 Dialog
+
+#### 技術細節
+- **寫入時機**：在 `emitXXX()` 函式中同步寫入，確保與 WebSocket 推送一致
+- **拉取後清空**：`fetchPendingEvents()` 使用原子操作標記 `isDelivered = true`，避免重複拉取
+- **逐一顯示**：前端收到 pending events 後按 `createdAt` 排序，逐一觸發通知
+- **與 Phase 8 共用觸發點**：頁面載入時同時觸發 `checkExpiredEffects()` 和 `fetchPendingEvents()`
+
+---
+
+### Phase 10：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 13-14）
 
 #### 目標
 - 將設定階段（baseline）與遊戲進行中的狀態（runtime）分離，開始遊戲後所有變更落在 runtime，不影響 baseline。
@@ -827,7 +873,7 @@ UI Components
 #### 索引/安全
 - runtime/snapshot/ logs 皆需 `gameId` 索引；必要時 `characterId` 索引。
 
-### Phase 10：優化與測試（Week 13-14）
+### Phase 11：優化與測試（Week 14-15）
 
 #### 前置作業（⚠️ 需外部設定，部署前）
 - [ ] Vercel 帳號與專案設定

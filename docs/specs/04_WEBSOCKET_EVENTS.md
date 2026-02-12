@@ -726,6 +726,49 @@ interface ItemShowcasedEvent extends BaseEvent {
 
 ---
 
+## 2.18 離線事件佇列機制 - Phase 9
+
+Phase 9 引入 Server-side 事件佇列，解決玩家離線時漏接 WebSocket 事件的問題。
+
+### 機制概述
+
+所有 WebSocket 事件推送時**同時寫入** `pendingEvents` DB 集合。玩家頁面載入時，拉取所有未送達事件並逐一處理。
+
+### 需要寫入佇列的事件
+
+| 事件類型 | 寫入佇列 | 理由 |
+|----------|----------|------|
+| `skill.contest` | **是** | 對抗檢定可能卡住 |
+| `character.affected` | **是** | 被攻擊/buff 通知 |
+| `item.transferred` | **是** | 道具轉移通知 |
+| `role.inventoryUpdated` | **是** | 道具變更通知 |
+| `role.taskUpdated` | **是** | GM 修改任務 |
+| `secret.revealed` | **是** | 秘密揭露 |
+| `task.revealed` | **是** | 目標揭露 |
+| `item.showcased` | **是** | 道具展示 |
+| `role.message` | **是** | GM 訊息 |
+| `game.broadcast` | **是** | GM 廣播（使用 targetGameId） |
+| `effect.expired` | **是** | Phase 8 效果過期 |
+| `role.updated` | **否** | 頁面載入時已有最新資料 |
+| `skill.used` | **否** | 自己操作，一定在線 |
+| `skill.cooldown` | **否** | 自己操作，一定在線 |
+
+### 前端處理流程
+
+1. 頁面載入時，`getPublicCharacter()` 同時呼叫 `fetchPendingEvents()`
+2. 回傳的 `pendingEvents[]` 按 `createdAt` 排序（最舊優先）
+3. 前端逐一將 pending event 轉換為 `BaseEvent` 格式
+4. 復用 `handleWebSocketEvent()` 處理每個事件（通知、Toast、Dialog）
+5. 以 event `id` 去重，避免與即時 WebSocket 事件重複
+
+### 事件保留與清理
+
+- 事件保留 24 小時（`expiresAt = createdAt + 24h`）
+- 拉取後立即標記 `isDelivered = true`
+- Cron Job 定期清理已送達（>1 小時）和已過期的記錄
+
+---
+
 ## 3. 前端實作指引
 
 ### 3.1 Pusher Client 初始化

@@ -744,7 +744,49 @@ interface ItemInput {
 
 ---
 
-### 2.5 事件推送 (app/actions/events.ts)
+### 2.5 離線事件佇列 (app/actions/pending-events.ts) - Phase 9
+
+#### `fetchPendingEvents(characterId: string, gameId?: string)` ✅ Phase 9
+
+拉取玩家離線期間累積的未送達事件，並標記為已送達。
+
+**參數**
+```typescript
+{
+  characterId: string;  // 角色 ID
+  gameId?: string;      // 劇本 ID（用於查詢 game-level 事件，如 game.broadcast）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    events: Array<{
+      id: string;
+      targetCharacterId?: string;
+      targetGameId?: string;
+      eventType: string;
+      eventPayload: Record<string, unknown>;
+      createdAt: Date;
+    }>;
+  };
+  message?: string;
+}
+```
+
+**實作邏輯**
+1. 查詢 `pendingEvents` 集合：`(targetCharacterId === characterId || targetGameId === gameId) && isDelivered === false && expiresAt > now`
+2. 按 `createdAt ASC` 排序（最舊的先處理）
+3. 使用原子操作 `updateMany` 標記為 `isDelivered = true, deliveredAt = now`
+4. 回傳事件列表
+
+**注意**：此 API 在 `getPublicCharacter()` 中被呼叫，確保玩家每次開啟角色卡時自動拉取。
+
+---
+
+### 2.6 事件推送 (app/actions/events.ts)
 
 #### `pushEvent(eventData: PushEventInput)`
 
