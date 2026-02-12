@@ -1,7 +1,7 @@
 # 專案結構規劃
 
-## 版本：v1.3
-## 更新日期：2025-01-XX（Phase 8 時效性效果）
+## 版本：v1.4
+## 更新日期：2026-02-12（Phase 7.7 已完成）
 
 ---
 
@@ -674,6 +674,70 @@ UI Components
 - 攻擊方也需要 "戰鬥" 標籤才能發起對抗檢定
 - 隨機對抗檢定的上限值設定為劇本共通變數，避免攻擊方和防守方上限不一致的問題
 - 防守方成功時只結算防守方的效果，不結算攻擊方的效果
+
+### Phase 7.7：自動揭露條件 + 道具展示功能
+
+> 詳細規格：`docs/specs/SPEC-auto-reveal-item-showcase-2026-02-09.md`
+
+#### 開發任務
+
+##### A. 資料模型與類型定義
+- [x] 新增 `AutoRevealConditionType`、`AutoRevealCondition`（含 `matchLogic` AND/OR）、`ViewedItem` 類型（`types/character.ts`）
+- [x] 擴展 `Secret` 介面：新增 `autoRevealCondition` 欄位
+- [x] 擴展 `Task` 介面：新增 `autoRevealCondition` 欄位
+- [x] 擴展 Character Schema：Secret/Task 新增 `autoRevealCondition` 子文檔（`lib/db/models/Character.ts`）
+- [x] 擴展 Character Schema：新增 `viewedItems` 陣列欄位
+- [x] 新增事件類型：`SecretRevealedEvent`、`TaskRevealedEvent`、`ItemShowcasedEvent`（`types/event.ts`）
+
+##### B. 自動揭露條件評估引擎
+- [x] 建立 `lib/reveal/auto-reveal-evaluator.ts`：條件評估與連鎖揭露邏輯
+- [x] 建立 `lib/reveal/reveal-event-emitter.ts`：揭露事件與展示事件發送
+
+##### C. 道具展示與檢視記錄 Server Action
+- [x] 建立 `app/actions/item-showcase.ts`：`showcaseItem()` + `recordItemView()` 功能實作
+- [x] 新增 `app/actions/games.ts`：`getGameItems()` 輔助函數
+
+##### D. 整合自動揭露到既有流程
+- [x] 道具轉移後觸發揭露評估（`app/actions/item-use.ts` 等）
+- [x] GM 新增/更新道具後觸發揭露評估（`app/actions/character-update.ts`）
+- [x] 對抗檢定 `item_steal`/`item_take` 後觸發揭露評估（`lib/contest/contest-effect-executor.ts`）
+- [x] GM 手動揭露隱藏資訊後連鎖觸發隱藏目標揭露（`app/actions/character-update.ts`）
+
+##### E. GM 端 UI — 揭露條件設定
+- [x] 建立 `components/gm/auto-reveal-condition-editor.tsx`：通用條件編輯器
+- [x] 修改 `components/gm/character-edit-form.tsx`：隱藏資訊新增條件設定 UI
+- [x] 修改 `components/gm/tasks-edit-form.tsx`：隱藏目標新增條件設定 UI
+
+##### F. GM 端條件健全性清理
+- [x] 建立 `lib/reveal/condition-cleaner.ts`：清理已失效的條件引用
+- [x] GM 切換分頁時觸發清理邏輯
+
+##### G. 玩家端 — 道具展示 UI
+- [x] 修改 `components/player/item-list.tsx`：新增「展示」按鈕 + 點開時呼叫 `recordItemView()`
+- [x] 建立 `components/player/item-showcase-dialog.tsx`：唯讀道具 Dialog
+
+##### H. 玩家端 — 事件處理與通知
+- [x] 修改 `hooks/use-character-websocket-handler.ts`：處理新事件
+- [x] 修改 `lib/utils/event-mappers.ts`：新增事件映射函數
+- [x] 修改 `components/player/character-card-view.tsx`：管理展示 Dialog 狀態
+
+##### I. 資料過濾與安全
+- [x] 修改 `app/actions/character-update.ts`：支援 `autoRevealCondition` 儲存
+- [x] 修改 `app/actions/public.ts`：過濾 `autoRevealCondition`、`viewedItems` 等 GM 專用欄位
+
+##### J. 文件更新
+- [x] 更新 API 規格：新增 `showcaseItem`、`getGameItems` 說明
+- [x] 更新 WebSocket 事件規格：新增 `secret.revealed`、`task.revealed`、`item.showcased`
+- [x] 更新進度追蹤文件
+
+#### 注意事項
+- 自動揭露條件為**可選功能**，不影響既有 GM 手動揭露流程
+- 道具匹配以**道具 ID**做判定，GM 在設定時選擇具體道具
+- 連鎖揭露限制為 2 層：隱藏資訊 → 隱藏目標，不再深入
+- 展示道具的 payload 僅包含基本資訊，不洩露效果/檢定等敏感設定
+- 條件健全性清理在前端即時執行，儲存時持久化
+
+---
 
 ### Phase 8：時效性效果系統（Week 11-12）
 

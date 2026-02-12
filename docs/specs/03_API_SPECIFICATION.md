@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.5
-## 更新日期：2025-01-XX（Phase 8 時效性效果）
+## 版本：v1.6
+## 更新日期：2026-02-09（Phase 7.7 自動揭露條件 + 道具展示）
 
 ---
 
@@ -1168,6 +1168,117 @@ interface PushEventInput {
 1. 驗證對抗檢定存在且角色為攻擊方
 2. 發送通知給攻擊方（目標角色沒有道具）
 3. 清除對抗檢定追蹤狀態
+
+---
+
+### 2.6 道具展示相關 (app/actions/item-showcase.ts) - Phase 7.7
+
+#### `showcaseItem(characterId: string, itemId: string, targetCharacterId: string)` - Phase 7.7
+
+展示道具給其他角色查看。
+
+**參數**
+```typescript
+{
+  characterId: string;         // 展示方角色 ID
+  itemId: string;              // 要展示的道具 ID
+  targetCharacterId: string;   // 被展示方角色 ID
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    showcased: boolean;
+    revealTriggered?: boolean;  // 是否觸發了自動揭露
+    revealedCount?: number;     // 觸發的揭露數量
+  };
+  message?: string;
+}
+```
+
+**錯誤碼**
+- `NOT_FOUND`：角色或道具不存在
+- `INVALID_TARGET`：目標角色不在同一劇本內
+- `SELF_TARGET`：不能展示給自己
+
+**實作邏輯**
+1. 驗證展示方角色和道具存在
+2. 驗證目標角色存在且在同一劇本內
+3. 驗證不是展示給自己
+4. 記錄目標角色的 `viewedItems`（道具 ID + 來源角色 ID，去重）
+5. 呼叫自動揭露評估引擎
+6. 發送 `item.showcased` 事件給雙方
+7. 若有觸發揭露，發送揭露事件
+
+---
+
+#### `recordItemView(characterId: string, itemId: string)` - Phase 7.7
+
+記錄角色自行檢視道具（玩家點開道具詳情時呼叫）。
+
+**參數**
+```typescript
+{
+  characterId: string;  // 檢視方角色 ID
+  itemId: string;       // 被檢視的道具 ID
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    recorded: boolean;
+    revealTriggered?: boolean;
+    revealedCount?: number;
+  };
+  message?: string;
+}
+```
+
+**錯誤碼**
+- `NOT_FOUND`：角色或道具不存在
+
+**實作邏輯**
+1. 驗證角色和道具存在
+2. 記錄角色的 `viewedItems`（去重：同一道具 ID 不重複記錄）
+3. 無論是否為新記錄，都呼叫自動揭露評估引擎（GM 可能已重設揭露狀態）
+4. 若有觸發揭露，發送揭露事件
+
+---
+
+### 2.7 劇本道具查詢 (app/actions/games.ts) - Phase 7.7
+
+#### `getGameItems(gameId: string)` - Phase 7.7
+
+取得劇本中所有角色的所有道具列表（GM 端使用，用於揭露條件設定）。
+
+**參數**
+```typescript
+{
+  gameId: string;  // 劇本 ID
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: Array<{
+    characterId: string;
+    characterName: string;
+    itemId: string;
+    itemName: string;
+  }>;
+  message?: string;
+}
+```
+
+**認證需求**：需 GM Session + 權限驗證（劇本擁有者）
 
 ---
 

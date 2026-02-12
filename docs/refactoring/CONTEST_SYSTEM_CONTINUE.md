@@ -188,6 +188,46 @@
 
 ---
 
+## Phase 7.7 已完成項目
+
+> 對應 `docs/specs/SPEC-auto-reveal-item-showcase-2026-02-09.md`
+
+**Phase 7.7 狀態**：✅ 已完成（自動揭露條件系統 + 道具展示功能）
+
+1. ✅ **資料模型與類型定義**（Phase 7.7-A）
+   - `types/character.ts` — 新增 `AutoRevealConditionType`、`AutoRevealCondition`、`ViewedItem`
+   - `types/event.ts` — 新增 `SecretRevealedEvent`、`TaskRevealedEvent`、`ItemShowcasedEvent`
+   - `lib/db/models/Character.ts` — Secret/Task Schema 擴展 `autoRevealCondition`、新增 `viewedItems`
+
+2. ✅ **自動揭露條件評估引擎**（Phase 7.7-B）
+   - `lib/reveal/auto-reveal-evaluator.ts` — 條件評估與連鎖揭露
+   - `lib/reveal/reveal-event-emitter.ts` — 揭露/展示事件發送
+
+3. ✅ **道具展示 Server Action**（Phase 7.7-C）
+   - `app/actions/item-showcase.ts` — `showcaseItem()` + `recordItemView()`
+   - `app/actions/games.ts` — `getGameItems()`
+
+4. ✅ **整合自動揭露到既有流程**（Phase 7.7-D）
+   - `app/actions/item-use.ts`、`app/actions/character-update.ts`、`lib/contest/contest-effect-executor.ts` — 各觸發點整合
+
+5. ✅ **GM 端 UI**（Phase 7.7-E/F/G）
+   - `components/gm/auto-reveal-condition-editor.tsx` — 通用條件編輯器
+   - `lib/reveal/condition-cleaner.ts` — 條件健全性清理
+
+6. ✅ **玩家端 UI + 事件處理**（Phase 7.7-H/I）
+   - `components/player/item-showcase-dialog.tsx` — 唯讀道具 Dialog
+   - `hooks/use-character-websocket-handler.ts`、`lib/utils/event-mappers.ts` — 新事件處理
+
+7. ✅ **資料過濾與安全**（Phase 7.7-J）
+   - `lib/character-cleanup.ts` — autoRevealCondition 映射
+   - `app/actions/public.ts` — 顯式欄位映射排除 GM 專用欄位
+
+8. ✅ **Bug 修正**
+   - `hooks/use-websocket.ts` — 補齊 `CHARACTER_EVENT_TYPES` 遺漏的三個事件
+   - `app/actions/item-showcase.ts` — `executeAutoReveal` 改為無條件執行（GM 重設揭露狀態後可重新觸發）
+
+---
+
 ## 重要文件位置
 
 - **進度追蹤**：`docs/refactoring/CONTEST_SYSTEM_CONTINUE.md`（本文件）

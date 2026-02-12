@@ -1,7 +1,7 @@
 # WebSocket 事件格式規範
 
-## 版本：v1.4
-## 更新日期：2025-01-XX（Phase 8 時效性效果）
+## 版本：v1.5
+## 更新日期：2026-02-09（Phase 7.7 自動揭露條件 + 道具展示）
 ## WebSocket 服務：Pusher
 
 ---
@@ -633,6 +633,99 @@ interface EffectExpiredEvent extends BaseEvent {
 
 ---
 
+### 2.14 隱藏資訊揭露事件 (secret.revealed) - Phase 7.7
+
+當隱藏資訊被自動揭露或手動揭露時觸發。
+
+**頻道**：`private-character-{characterId}`
+
+**事件格式**
+```typescript
+interface SecretRevealedEvent extends BaseEvent {
+  type: 'secret.revealed';
+  payload: {
+    characterId: string;
+    secretId: string;
+    secretTitle: string;
+    revealType: 'auto' | 'manual';   // 區分自動揭露與手動揭露
+    triggerReason?: string;            // 觸發原因描述（如「檢視了道具：神秘信件」）
+  };
+}
+```
+
+**前端處理**
+- 顯示 Toast：「已揭露隱藏資訊，{secretTitle}」
+- 記錄到通知面板
+- 刷新角色資料（`router.refresh()`）
+
+---
+
+### 2.15 隱藏目標揭露事件 (task.revealed) - Phase 7.7
+
+當隱藏目標被自動揭露或手動揭露時觸發。
+
+**頻道**：`private-character-{characterId}`
+
+**事件格式**
+```typescript
+interface TaskRevealedEvent extends BaseEvent {
+  type: 'task.revealed';
+  payload: {
+    characterId: string;
+    taskId: string;
+    taskTitle: string;
+    revealType: 'auto' | 'manual';
+    triggerReason?: string;
+  };
+}
+```
+
+**前端處理**
+- 顯示 Toast：「已揭露隱藏目標，{taskTitle}」
+- 記錄到通知面板
+- 刷新角色資料（`router.refresh()`）
+
+---
+
+### 2.16 道具展示事件 (item.showcased) - Phase 7.7
+
+當玩家展示道具給其他角色時觸發（展示方和被展示方都會收到）。
+
+**頻道**：`private-character-{fromCharacterId}`、`private-character-{toCharacterId}`
+
+**事件格式**
+```typescript
+interface ItemShowcasedEvent extends BaseEvent {
+  type: 'item.showcased';
+  payload: {
+    fromCharacterId: string;      // 展示方角色 ID
+    fromCharacterName: string;    // 展示方角色名稱
+    toCharacterId: string;        // 被展示方角色 ID
+    toCharacterName: string;      // 被展示方角色名稱
+    item: {                       // 道具基本資訊（不含敏感欄位）
+      id: string;
+      name: string;
+      description: string;
+      imageUrl?: string;
+      type: 'consumable' | 'equipment';
+      quantity: number;
+      tags?: string[];
+    };
+  };
+}
+```
+
+**前端處理**
+- **展示方**：
+  - 顯示 Toast：「向 {toCharacterName} 展示了 {item.name}」
+  - 記錄到通知面板
+- **被展示方**：
+  - 顯示 Toast：「{fromCharacterName} 向你展示了 {item.name}」
+  - 彈出唯讀道具 Dialog（僅顯示基本資訊，僅有「關閉」按鈕）
+  - 記錄到通知面板
+
+---
+
 ## 3. 前端實作指引
 
 ### 3.1 Pusher Client 初始化
@@ -679,6 +772,9 @@ export function useCharacterWebSocket(characterId: string) {
       'character.affected',     // Phase 6.5
       'item.transferred',       // Phase 6.5
       'effect.expired',         // Phase 8
+      'secret.revealed',        // Phase 7.7
+      'task.revealed',          // Phase 7.7
+      'item.showcased',         // Phase 7.7
     ];
     
     eventTypes.forEach(eventType => {
