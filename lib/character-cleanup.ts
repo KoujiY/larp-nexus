@@ -1,4 +1,5 @@
 import { normalizeTags } from './utils/tags';
+import type { AutoRevealCondition } from '@/types/character';
 
 // MongoDB lean() 返回的類型（可能包含 _id）
 interface MongoSecret {
@@ -7,6 +8,8 @@ interface MongoSecret {
   content: string;
   isRevealed: boolean;
   revealCondition?: string;
+  // Phase 7.7: 自動揭露條件
+  autoRevealCondition?: AutoRevealCondition;
   revealedAt?: Date;
   _id?: unknown;
 }
@@ -22,6 +25,8 @@ interface MongoTask {
   completedAt?: Date;
   gmNotes?: string;
   revealCondition?: string;
+  // Phase 7.7: 自動揭露條件
+  autoRevealCondition?: AutoRevealCondition;
   createdAt: Date;
   _id?: unknown;
 }
@@ -349,6 +354,8 @@ export function cleanTaskData(tasks: MongoTask[] | undefined): MongoTask[] {
       completedAt: task.completedAt,
       gmNotes: task.gmNotes,
       revealCondition: task.revealCondition,
+      // Phase 7.7: 保留自動揭露條件（GM 端需要顯示）
+      autoRevealCondition: task.autoRevealCondition,
       createdAt: task.createdAt,
     }));
 }
@@ -365,6 +372,8 @@ export function cleanSecretData(secrets: MongoSecret[] | undefined): MongoSecret
       content: secret.content,
       isRevealed: secret.isRevealed,
       revealCondition: secret.revealCondition,
+      // Phase 7.7: 保留自動揭露條件（GM 端需要顯示）
+      autoRevealCondition: secret.autoRevealCondition,
       revealedAt: secret.revealedAt,
     }));
 }

@@ -1,8 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { getGameItems } from '@/app/actions/games';
+import type { GameItemInfo } from '@/app/actions/games';
+import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
+import type { SecretOption } from '@/components/gm/auto-reveal-condition-editor';
+import { cleanTaskConditions } from '@/lib/reveal/condition-cleaner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +36,10 @@ import type { Task } from '@/types/character';
 
 interface TasksEditFormProps {
   characterId: string;
+  gameId: string;
   initialTasks: Task[];
+  /** 該角色的隱藏資訊列表（用於 secrets_revealed 條件） */
+  secrets: SecretOption[];
 }
 
 type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'failed';
@@ -43,12 +51,43 @@ const statusConfig: Record<TaskStatus, { label: string; variant: 'default' | 'se
   failed: { label: '失敗', variant: 'destructive', icon: <XCircle className="h-3 w-3" /> },
 };
 
-export function TasksEditForm({ characterId, initialTasks }: TasksEditFormProps) {
+export function TasksEditForm({ characterId, gameId, initialTasks, secrets }: TasksEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
+
+  // Phase 7.7: 載入劇本中所有道具（用於自動揭露條件設定）
+  useEffect(() => {
+    getGameItems(gameId).then((result) => {
+      if (result.success && result.data) {
+        setAvailableItems(result.data);
+      }
+    }).catch((error) => {
+      console.error('Failed to load game items:', error);
+    });
+  }, [gameId]);
+
+  // Phase 7.7-G: 道具載入後，清理隱藏目標中引用已刪除道具/隱藏資訊的揭露條件
+  useEffect(() => {
+    if (availableItems.length === 0) return;
+
+    const existingItemIds = availableItems.map((item) => item.itemId);
+    const existingSecretIds = secrets.map((s) => s.id);
+    const { tasks: cleanedTasks, result } = cleanTaskConditions(
+      tasks,
+      existingItemIds,
+      existingSecretIds
+    );
+
+    if (result.cleaned) {
+      setTasks(cleanedTasks);
+      toast.info(`已自動清理 ${result.removedCount} 個失效的揭露條件引用`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 僅在 availableItems 載入完成後執行一次
+  }, [availableItems]);
 
   // 新增任務
   const handleAddTask = () => {
@@ -262,7 +301,7 @@ export function TasksEditForm({ characterId, initialTasks }: TasksEditFormProps)
                   <div className="space-y-0.5">
                     <Label>隱藏目標</Label>
                     <p className="text-sm text-muted-foreground">
-                      設為隱藏目標後，需手動揭露才會顯示給玩家
+                      設為隱藏目標後，需手動或自動揭露才會顯示給玩家
                     </p>
                   </div>
                   <Switch
@@ -303,6 +342,18 @@ export function TasksEditForm({ characterId, initialTasks }: TasksEditFormProps)
                         placeholder="例：當玩家發現密室後揭露"
                       />
                     </div>
+
+                    {/* Phase 7.7: 自動揭露條件編輯器 */}
+                    <AutoRevealConditionEditor
+                      condition={editingTask.autoRevealCondition}
+                      onChange={(newCondition) => setEditingTask({
+                        ...editingTask,
+                        autoRevealCondition: newCondition,
+                      })}
+                      availableItems={availableItems}
+                      availableSecrets={secrets}
+                      allowSecretsCondition={true}
+                    />
                   </>
                 )}
 
@@ -335,9 +386,10 @@ export function TasksEditForm({ characterId, initialTasks }: TasksEditFormProps)
           <h4 className="font-medium mb-2">💡 使用說明</h4>
           <ul className="list-disc list-inside space-y-1 text-blue-700">
             <li><strong>一般任務</strong>：玩家可直接看到</li>
-            <li><strong>隱藏目標</strong>：需 GM 手動揭露後玩家才能看到</li>
+            <li><strong>隱藏目標</strong>：需 GM 手動揭露或滿足自動揭露條件後玩家才能看到</li>
             <li>點擊「👁️」按鈕可快速切換隱藏目標的揭露狀態</li>
             <li>使用下拉選單可快速更新任務狀態</li>
+            <li><strong>自動揭露</strong>：可設定檢視道具、取得道具、或隱藏資訊已揭露等條件</li>
           </ul>
         </div>
       </CardContent>

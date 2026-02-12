@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { Game } from '@/lib/db/models';
+import { Game, Character } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
@@ -333,6 +333,74 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
       success: false,
       error: 'DELETE_FAILED',
       message: '無法刪除劇本',
+    };
+  }
+}
+
+/**
+ * Phase 7.7: 取得劇本中所有角色的所有道具列表
+ * GM 端使用，用於自動揭露條件的道具選擇器
+ */
+export interface GameItemInfo {
+  characterId: string;
+  characterName: string;
+  itemId: string;
+  itemName: string;
+}
+
+export async function getGameItems(
+  gameId: string
+): Promise<ApiResponse<GameItemInfo[]>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '請先登入',
+      };
+    }
+
+    await dbConnect();
+
+    // 驗證劇本屬於當前 GM
+    const game = await Game.findOne({ _id: gameId, gmUserId }).lean();
+    if (!game) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此劇本',
+      };
+    }
+
+    // 取得該劇本所有角色及其道具
+    const characters = await Character.find({ gameId })
+      .select('_id name items')
+      .lean();
+
+    const items: GameItemInfo[] = [];
+    for (const char of characters) {
+      const charItems = char.items || [];
+      for (const item of charItems) {
+        items.push({
+          characterId: char._id.toString(),
+          characterName: char.name,
+          itemId: item.id,
+          itemName: item.name,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: items,
+    };
+  } catch (error) {
+    console.error('Error fetching game items:', error);
+    return {
+      success: false,
+      error: 'FETCH_FAILED',
+      message: '無法取得劇本道具列表',
     };
   }
 }

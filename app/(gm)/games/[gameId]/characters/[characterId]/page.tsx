@@ -171,7 +171,12 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
           <TabsContent value="tasks">
             <TasksEditForm
               characterId={character.id}
+              gameId={gameId}
               initialTasks={character.tasks || []}
+              secrets={(character.secretInfo?.secrets || []).map((s) => ({
+                id: s.id,
+                title: s.title,
+              }))}
             />
           </TabsContent>
 

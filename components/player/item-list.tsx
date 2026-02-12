@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Package, Zap, Clock, ArrowRightLeft, Sparkles, User } from 'lucide-react';
+import { Package, Zap, Clock, ArrowRightLeft, Sparkles, User, Eye } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -44,6 +44,7 @@ import { CheckInfoDisplay } from './check-info-display';
 import { TargetSelectionSection } from './target-selection-section';
 import { TargetItemSelectionSection } from './target-item-selection-section';
 import type { ItemListProps } from '@/types/item-list';
+import { recordItemView, showcaseItem } from '@/app/actions/item-showcase';
 
 export function ItemList({ items, characterId, gameId, characterName, randomContestMaxValue = 100, onUseItem, onTransferItem }: ItemListProps) {
   const router = useRouter();
@@ -70,7 +71,15 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   const [isLoadingTargets, setIsLoadingTargets] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferItem, setTransferItem] = useState<Item | null>(null); // 用於轉移對話框的道具引用
-  
+
+  // Phase 7.7: 展示相關狀態
+  const [isShowcaseSelectOpen, setIsShowcaseSelectOpen] = useState(false);
+  const [showcaseTargets, setShowcaseTargets] = useState<TransferTargetCharacter[]>([]);
+  const [selectedShowcaseTargetId, setSelectedShowcaseTargetId] = useState<string>('');
+  const [isLoadingShowcaseTargets, setIsLoadingShowcaseTargets] = useState(false);
+  const [isShowcasing, setIsShowcasing] = useState(false);
+  const [itemToShowcase, setItemToShowcase] = useState<Item | null>(null);
+
   // Phase 3.3: 使用 useTargetSelection Hook 管理目標選擇
   // Phase 8: 使用道具時的目標選擇狀態（包含檢定類型）
   // 重構：支援多個效果
@@ -807,6 +816,50 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     }
   };
 
+  // Phase 7.7: 開啟展示選擇 Dialog
+  const handleOpenShowcase = async () => {
+    if (!selectedItem || !gameId || !characterId) return;
+
+    // 保存道具引用，避免關閉道具詳情 dialog 時丟失
+    setItemToShowcase(selectedItem);
+    setIsLoadingShowcaseTargets(true);
+    setIsShowcaseSelectOpen(true);
+
+    try {
+      const result = await getTransferTargets(gameId, characterId);
+      if (result.success && result.data) {
+        setShowcaseTargets(result.data);
+      } else {
+        setShowcaseTargets([]);
+      }
+    } finally {
+      setIsLoadingShowcaseTargets(false);
+    }
+  };
+
+  // Phase 7.7: 執行展示
+  const handleShowcase = async () => {
+    if (!itemToShowcase || !selectedShowcaseTargetId) return;
+
+    setIsShowcasing(true);
+    try {
+      const result = await showcaseItem(characterId, itemToShowcase.id, selectedShowcaseTargetId);
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message || '展示失敗');
+      }
+      setIsShowcaseSelectOpen(false);
+      setItemToShowcase(null);
+      setSelectedShowcaseTargetId('');
+    } catch (error) {
+      console.error('展示道具錯誤:', error);
+      toast.error('展示失敗');
+    } finally {
+      setIsShowcasing(false);
+    }
+  };
+
   // 分類道具
   const consumables = items.filter((i) => i.type === 'consumable');
   const equipment = items.filter((i) => i.type === 'equipment');
@@ -836,6 +889,8 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                     onClick={() => {
                       if (!isCardDisabled) {
                         setSelectedItem(item);
+                        // Phase 7.7: 記錄道具檢視（fire-and-forget）
+                        recordItemView(characterId, item.id).catch(() => {});
                       }
                     }}
                     disabled={isCardDisabled}
@@ -868,6 +923,8 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                     onClick={() => {
                       if (!isCardDisabled) {
                         setSelectedItem(item);
+                        // Phase 7.7: 記錄道具檢視（fire-and-forget）
+                        recordItemView(characterId, item.id).catch(() => {});
                       }
                     }}
                     disabled={isCardDisabled}
@@ -1175,6 +1232,28 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                   );
                 })()}
                 
+                {/* Phase 7.7: 展示按鈕 */}
+                {gameId && characterId && (() => {
+                  const isPendingContest = hasPendingContest(selectedItem.id);
+                  const isWaitingInRef = waitingContestRef.current.has(selectedItem.id);
+                  const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
+                                            dialogState.sourceType === 'item' &&
+                                            dialogState.sourceId === selectedItem.id;
+                  const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
+
+                  return (
+                    <Button
+                      variant="outline"
+                      onClick={handleOpenShowcase}
+                      disabled={isWaitingForContest}
+                      className="w-full sm:w-auto"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      展示
+                    </Button>
+                  );
+                })()}
+
                 {/* 轉移按鈕 */}
                 {selectedItem.isTransferable && onTransferItem && gameId && characterId && (() => {
                   const isPendingContest = hasPendingContest(selectedItem.id);
@@ -1259,6 +1338,67 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
               disabled={!selectedTargetId || isTransferring}
             >
               {isTransferring ? '轉移中...' : '確認轉移'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phase 7.7: 展示選擇 Dialog */}
+      <Dialog open={isShowcaseSelectOpen} onOpenChange={(open) => {
+        setIsShowcaseSelectOpen(open);
+        if (!open) {
+          setItemToShowcase(null);
+          setSelectedShowcaseTargetId('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>選擇展示對象</DialogTitle>
+            <DialogDescription>
+              將「{itemToShowcase?.name}」展示給其他角色
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingShowcaseTargets ? (
+            <div className="py-8 text-center text-muted-foreground">
+              載入中...
+            </div>
+          ) : showcaseTargets.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              <User className="mx-auto h-12 w-12 mb-4" />
+              <p>沒有其他角色可以展示</p>
+            </div>
+          ) : (
+            <Select value={selectedShowcaseTargetId} onValueChange={setSelectedShowcaseTargetId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="選擇角色..." />
+              </SelectTrigger>
+              <SelectContent>
+                {showcaseTargets.map((target) => (
+                  <SelectItem key={target.id} value={target.id}>
+                    {target.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsShowcaseSelectOpen(false);
+                setItemToShowcase(null);
+                setSelectedShowcaseTargetId('');
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleShowcase}
+              disabled={!selectedShowcaseTargetId || isShowcasing}
+            >
+              {isShowcasing ? '展示中...' : '確認展示'}
             </Button>
           </DialogFooter>
         </DialogContent>

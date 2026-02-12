@@ -17,6 +17,13 @@ interface MongoSecret {
   content: string;
   isRevealed: boolean;
   revealCondition?: string;
+  // Phase 7.7: 自動揭露條件
+  autoRevealCondition?: {
+    type: string;
+    itemIds?: string[];
+    secretIds?: string[];
+    matchLogic?: string;
+  };
   revealedAt?: Date;
   _id?: unknown;
 }
@@ -32,6 +39,13 @@ interface MongoTask {
   completedAt?: Date;
   gmNotes?: string;
   revealCondition?: string;
+  // Phase 7.7: 自動揭露條件
+  autoRevealCondition?: {
+    type: string;
+    itemIds?: string[];
+    secretIds?: string[];
+    matchLogic?: string;
+  };
   createdAt: Date;
   _id?: unknown;
 }
@@ -628,6 +642,13 @@ export function updateCharacterTasks(
     completedAt?: Date;
     gmNotes?: string;
     revealCondition?: string;
+    // Phase 7.7: 自動揭露條件
+    autoRevealCondition?: {
+      type: string;
+      itemIds?: string[];
+      secretIds?: string[];
+      matchLogic?: string;
+    };
     createdAt: Date;
   }>,
   currentTasks: MongoTask[] = []
@@ -650,6 +671,15 @@ export function updateCharacterTasks(
       revealCondition: newTask.revealCondition || '',
       createdAt: newTask.createdAt || new Date(),
     };
+
+    // Phase 7.7: 處理自動揭露條件
+    if (newTask.autoRevealCondition && newTask.autoRevealCondition.type !== 'none') {
+      cleanTask.autoRevealCondition = newTask.autoRevealCondition;
+    } else if (oldTask?.autoRevealCondition && !newTask.autoRevealCondition) {
+      // 保留資料庫中的既有條件（前端未傳送時）
+      cleanTask.autoRevealCondition = oldTask.autoRevealCondition;
+    }
+    // 若 type 為 'none' 或 undefined，不設定 autoRevealCondition（清除）
 
     // 如果隱藏目標從未揭露變為已揭露，設定揭露時間
     if (
@@ -691,6 +721,13 @@ export function updateCharacterSecrets(
     content: string;
     isRevealed: boolean;
     revealCondition?: string;
+    // Phase 7.7: 自動揭露條件
+    autoRevealCondition?: {
+      type: string;
+      itemIds?: string[];
+      secretIds?: string[];
+      matchLogic?: string;
+    };
     revealedAt?: Date;
   }>,
   currentSecrets: MongoSecret[] = []
@@ -708,6 +745,15 @@ export function updateCharacterSecrets(
       revealCondition: newSecret.revealCondition || '',
       revealedAt: undefined as Date | undefined,
     };
+
+    // Phase 7.7: 處理自動揭露條件
+    if (newSecret.autoRevealCondition && newSecret.autoRevealCondition.type !== 'none') {
+      cleanSecret.autoRevealCondition = newSecret.autoRevealCondition;
+    } else if (oldSecret?.autoRevealCondition && !newSecret.autoRevealCondition) {
+      // 保留資料庫中的既有條件（前端未傳送時）
+      cleanSecret.autoRevealCondition = oldSecret.autoRevealCondition;
+    }
+    // 若 type 為 'none' 或 undefined，不設定 autoRevealCondition（清除）
 
     // 如果從未揭露變為已揭露，設定揭露時間
     if (newSecret.isRevealed && (!oldSecret || !oldSecret.isRevealed)) {

@@ -189,6 +189,58 @@ export interface ItemTransferredEvent extends BaseEvent<{
   type: 'item.transferred';
 }
 
+/**
+ * Phase 7.7: 隱藏資訊自動揭露事件
+ */
+export interface SecretRevealedEvent extends BaseEvent<{
+  characterId: string;
+  secretId: string;
+  secretTitle: string;
+  revealType: 'auto' | 'manual';  // 區分自動揭露與手動揭露
+  triggerReason?: string;           // 觸發原因描述（如「檢視了道具：神秘信件」）
+}> {
+  type: 'secret.revealed';
+}
+
+/**
+ * Phase 7.7: 隱藏目標自動揭露事件
+ */
+export interface TaskRevealedEvent extends BaseEvent<{
+  characterId: string;
+  taskId: string;
+  taskTitle: string;
+  revealType: 'auto' | 'manual';
+  triggerReason?: string;
+}> {
+  type: 'task.revealed';
+}
+
+/**
+ * Phase 7.7: 道具展示事件
+ */
+export interface ItemShowcasedEvent extends BaseEvent<{
+  /** 展示方角色 ID */
+  fromCharacterId: string;
+  /** 展示方角色名稱 */
+  fromCharacterName: string;
+  /** 被展示方角色 ID */
+  toCharacterId: string;
+  /** 被展示方角色名稱 */
+  toCharacterName: string;
+  /** 道具資訊（完整，用於被展示方顯示 Dialog） */
+  item: {
+    id: string;
+    name: string;
+    description: string;
+    imageUrl?: string;
+    type: 'consumable' | 'equipment';
+    quantity: number;
+    tags?: string[];
+  };
+}> {
+  type: 'item.showcased';
+}
+
 // WebSocket 事件聯合類型
 export type WebSocketEvent =
   | RoleUpdatedEvent
@@ -201,5 +253,8 @@ export type WebSocketEvent =
   | SkillCooldownEvent
   | SkillContestEvent
   | CharacterAffectedEvent
-  | ItemTransferredEvent;
+  | ItemTransferredEvent
+  | SecretRevealedEvent      // Phase 7.7
+  | TaskRevealedEvent        // Phase 7.7
+  | ItemShowcasedEvent;      // Phase 7.7
 

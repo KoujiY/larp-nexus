@@ -9,6 +9,7 @@ import dbConnect from '@/lib/db/mongodb';
 import { Character } from '@/lib/db/models';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
+import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import type { CharacterDocument } from '@/lib/db/models';
 
 /**
@@ -436,6 +437,15 @@ export async function executeContestEffects(
         }).catch((error) => {
           console.error('[contest-effect-executor] Failed to emit role.updated (defender character items)', error);
         });
+      }
+
+      // Phase 7.7: item_steal 後，為接收方觸發自動揭露評估（items_acquired）
+      // 攻擊方獲勝：道具轉移到攻擊方 → 評估攻擊方
+      // 防守方獲勝：道具轉移到防守方 → 評估防守方
+      if (effect.type === 'item_steal') {
+        const receiverIdStr = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
+        executeAutoReveal(receiverIdStr, { type: 'items_acquired' })
+          .catch((error) => console.error('[contest-effect-executor] Failed to execute auto-reveal for item_steal receiver', error));
       }
     } else if (effect.type === 'custom' && effect.description) {
       // 自定義效果

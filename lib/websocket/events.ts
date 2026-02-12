@@ -10,6 +10,9 @@ import type {
   GameBroadcastEvent,
   TaskUpdatedEvent,
   InventoryUpdatedEvent,
+  SecretRevealedEvent,
+  TaskRevealedEvent,
+  ItemShowcasedEvent,
 } from '@/types/event';
 import { getPusherServer, isPusherEnabled } from './pusher-server';
 
@@ -68,5 +71,20 @@ export async function emitTaskUpdated(characterId: string, payload: TaskUpdatedE
 
 export async function emitInventoryUpdated(characterId: string, payload: InventoryUpdatedEvent['payload']) {
   await trigger(`private-character-${characterId}`, 'role.inventoryUpdated', payload);
+}
+
+// Phase 7.7: 自動揭露條件 + 道具展示事件
+
+export async function emitSecretRevealed(characterId: string, payload: SecretRevealedEvent['payload']) {
+  await trigger(`private-character-${characterId}`, 'secret.revealed', payload);
+}
+
+export async function emitTaskRevealed(characterId: string, payload: TaskRevealedEvent['payload']) {
+  await trigger(`private-character-${characterId}`, 'task.revealed', payload);
+}
+
+export async function emitItemShowcased(fromCharacterId: string, toCharacterId: string, payload: ItemShowcasedEvent['payload']) {
+  await trigger(`private-character-${fromCharacterId}`, 'item.showcased', payload);
+  await trigger(`private-character-${toCharacterId}`, 'item.showcased', payload);
 }
 

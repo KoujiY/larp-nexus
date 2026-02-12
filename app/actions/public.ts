@@ -30,10 +30,20 @@ export async function getPublicCharacter(
     }
 
     // Phase 3.5: 過濾出已揭露的隱藏資訊（清理 _id）
+    // Phase 7.7: 排除 GM 專用欄位（revealCondition、autoRevealCondition）
     const allSecrets = cleanSecretData(character.secretInfo?.secrets);
-    const revealedSecrets = allSecrets.filter((secret) => secret.isRevealed === true);
+    const revealedSecrets = allSecrets
+      .filter((secret) => secret.isRevealed === true)
+      .map((secret) => ({
+        id: secret.id,
+        title: secret.title,
+        content: secret.content,
+        isRevealed: secret.isRevealed,
+        revealedAt: secret.revealedAt,
+      }));
 
     // Phase 4.5: 過濾任務（一般任務 + 已揭露的隱藏任務），清理 _id 和 GM 專用欄位
+    // Phase 7.7: 排除 GM 專用欄位（gmNotes、revealCondition、autoRevealCondition）
     const visibleTasks = cleanTaskData(character.tasks)
       .filter((task) => {
         // 一般任務總是可見（isHidden 為 false 或 undefined）
@@ -42,8 +52,15 @@ export async function getPublicCharacter(
         return task.isRevealed === true;
       })
       .map((task) => ({
-        ...task,
-        // 不包含 gmNotes 和 revealCondition（GM 專用欄位）
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        isHidden: task.isHidden,
+        isRevealed: task.isRevealed,
+        revealedAt: task.revealedAt,
+        status: task.status,
+        completedAt: task.completedAt,
+        createdAt: task.createdAt,
       }));
 
     // Phase 4.5: 清理道具的 _id

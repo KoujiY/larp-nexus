@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { getGameItems } from '@/app/actions/games';
+import type { GameItemInfo } from '@/app/actions/games';
+import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
+import { cleanSecretConditions } from '@/lib/reveal/condition-cleaner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,17 +15,18 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { X, Plus, Lock } from 'lucide-react';
-import type { CharacterData, Secret } from '@/types/character';
+import type { CharacterData, Secret, AutoRevealCondition } from '@/types/character';
 
 interface CharacterEditFormProps {
   character: CharacterData;
   gameId: string;
 }
 
-export function CharacterEditForm({ character }: CharacterEditFormProps) {
+export function CharacterEditForm({ character, gameId }: CharacterEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
   const [formData, setFormData] = useState({
     name: character.name,
     description: character.description || '',
@@ -36,6 +41,37 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
       secrets: (character.secretInfo?.secrets || []) as Secret[],
     },
   });
+
+  // Phase 7.7: 載入劇本中所有道具（用於自動揭露條件設定）
+  useEffect(() => {
+    getGameItems(gameId).then((result) => {
+      if (result.success && result.data) {
+        setAvailableItems(result.data);
+      }
+    }).catch((error) => {
+      console.error('Failed to load game items:', error);
+    });
+  }, [gameId]);
+
+  // Phase 7.7-G: 道具載入後，清理隱藏資訊中引用已刪除道具的揭露條件
+  useEffect(() => {
+    if (availableItems.length === 0) return;
+
+    const existingItemIds = availableItems.map((item) => item.itemId);
+    const { secrets: cleanedSecrets, result } = cleanSecretConditions(
+      formData.secretInfo.secrets,
+      existingItemIds
+    );
+
+    if (result.cleaned) {
+      setFormData((prev) => ({
+        ...prev,
+        secretInfo: { secrets: cleanedSecrets },
+      }));
+      toast.info(`已自動清理 ${result.removedCount} 個失效的揭露條件引用`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 僅在 availableItems 載入完成後執行一次
+  }, [availableItems]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +95,7 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
             content: string;
             isRevealed: boolean;
             revealCondition?: string;
+            autoRevealCondition?: AutoRevealCondition;
           }>;
         };
       } = {
@@ -77,6 +114,7 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
             content: secret.content,
             isRevealed: secret.isRevealed,
             revealCondition: secret.revealCondition || '',
+            autoRevealCondition: secret.autoRevealCondition,
           })),
         },
       };
@@ -463,6 +501,22 @@ export function CharacterEditForm({ character }: CharacterEditFormProps) {
                     描述此隱藏資訊的揭露條件（僅供 GM 參考，玩家可見）
                   </p>
                 </div>
+
+                {/* Phase 7.7: 自動揭露條件編輯器 */}
+                <AutoRevealConditionEditor
+                  condition={secret.autoRevealCondition}
+                  onChange={(newCondition) => {
+                    const newSecrets = [...formData.secretInfo.secrets];
+                    newSecrets[index] = { ...newSecrets[index], autoRevealCondition: newCondition };
+                    setFormData((prev) => ({
+                      ...prev,
+                      secretInfo: { secrets: newSecrets },
+                    }));
+                  }}
+                  availableItems={availableItems}
+                  allowSecretsCondition={false}
+                  disabled={isLoading}
+                />
 
                 <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
                   <div className="space-y-0.5">

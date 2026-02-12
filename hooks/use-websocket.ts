@@ -17,6 +17,10 @@ const CHARACTER_EVENT_TYPES = [
   'skill.contest',
   'character.affected',
   'item.transferred',
+  // Phase 7.7: 自動揭露 + 道具展示事件
+  'secret.revealed',
+  'task.revealed',
+  'item.showcased',
 ] as const;
 
 const GAME_EVENT_TYPES = ['game.broadcast', 'game.started', 'game.reset', 'game.ended'] as const;

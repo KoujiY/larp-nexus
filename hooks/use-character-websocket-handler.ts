@@ -12,7 +12,7 @@
 import { useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { BaseEvent, SkillContestEvent, CharacterAffectedEvent } from '@/types/event';
+import type { BaseEvent, SkillContestEvent, CharacterAffectedEvent, ItemShowcasedEvent } from '@/types/event';
 import { createEventMappers } from '@/lib/utils/event-mappers';
 import type { Notification } from '@/lib/utils/event-mappers';
 import { useContestHandler } from '@/hooks/use-contest-handler';
@@ -23,6 +23,8 @@ export interface UseCharacterWebSocketHandlerOptions {
   onTabChange?: (tab: string) => void;
   onContestRequest?: (event: SkillContestEvent['payload']) => void;
   onContestResult?: (event: SkillContestEvent['payload']) => void;
+  /** Phase 7.7: 被展示方收到道具展示事件時的回調（用於開啟唯讀 Dialog） */
+  onItemShowcased?: (payload: ItemShowcasedEvent['payload']) => void;
 }
 
 export interface UseCharacterWebSocketHandlerReturn {
@@ -35,7 +37,7 @@ export interface UseCharacterWebSocketHandlerReturn {
 export function useCharacterWebSocketHandler(
   options: UseCharacterWebSocketHandlerOptions
 ): UseCharacterWebSocketHandlerReturn {
-  const { characterId, addNotification, onTabChange, onContestRequest, onContestResult } = options;
+  const { characterId, addNotification, onTabChange, onContestRequest, onContestResult, onItemShowcased } = options;
   const router = useRouter();
 
   // 追蹤最近的轉移/偷竊事件，用於過濾 inventoryUpdated 通知
@@ -163,12 +165,43 @@ export function useCharacterWebSocketHandler(
           break;
         }
 
+        case 'secret.revealed': {
+          // Phase 7.7: 隱藏資訊揭露通知
+          if (friendlyList.length > 0) {
+            toast.info(friendlyList[friendlyList.length - 1].message);
+          }
+          router.refresh();
+          break;
+        }
+
+        case 'task.revealed': {
+          // Phase 7.7: 隱藏目標揭露通知
+          if (friendlyList.length > 0) {
+            toast.info(friendlyList[friendlyList.length - 1].message);
+          }
+          router.refresh();
+          break;
+        }
+
+        case 'item.showcased': {
+          // Phase 7.7: 道具展示事件
+          const showcasePayload = event.payload as ItemShowcasedEvent['payload'];
+          if (friendlyList.length > 0) {
+            toast.info(friendlyList[friendlyList.length - 1].message);
+          }
+          // 被展示方：觸發回調以開啟唯讀 Dialog
+          if (showcasePayload.toCharacterId === characterId) {
+            onItemShowcased?.(showcasePayload);
+          }
+          break;
+        }
+
         default:
           // 其他事件僅記錄於 console，避免干擾玩家
           console.debug('[ws][character]', event);
       }
     },
-    [characterId, router, addNotification, handleContestEvent]
+    [characterId, router, addNotification, handleContestEvent, onItemShowcased]
   );
 
   return {

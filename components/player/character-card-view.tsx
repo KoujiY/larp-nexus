@@ -23,7 +23,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ContestResponseDialog } from './contest-response-dialog';
 import { TargetItemSelectionDialog } from './target-item-selection-dialog';
-import type { SkillContestEvent } from '@/types/event';
+import { ItemShowcaseDialog } from './item-showcase-dialog';
+import type { ShowcasedItemInfo } from './item-showcase-dialog';
+import type { SkillContestEvent, ItemShowcasedEvent } from '@/types/event';
 import { useDefenderContestState, useContestState } from '@/hooks/use-contest-state';
 import { useNotificationSystem } from '@/hooks/use-notification-system';
 import { useCharacterWebSocketHandler } from '@/hooks/use-character-websocket-handler';
@@ -67,6 +69,11 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   // Phase 8: 分頁狀態管理（用於自動切換到對應分頁）
   const [activeTab, setActiveTab] = useState<string>('info');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+
+  // Phase 7.7: 道具展示 Dialog 狀態（被展示方）
+  const [showcaseDialogOpen, setShowcaseDialogOpen] = useState(false);
+  const [showcaseFromName, setShowcaseFromName] = useState('');
+  const [showcaseItemInfo, setShowcaseItemInfo] = useState<ShowcasedItemInfo | null>(null);
 
   // Phase 3.1: 使用通知系統 Hook
   const { notifications, unreadCount, markAsRead, addNotification } = useNotificationSystem(character.id);
@@ -211,6 +218,12 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
       // Phase 3: 同時設置統一的 Dialog 狀態
       const sourceType = payload.sourceType || (payload.itemId ? 'item' : 'skill');
       setDefenderResponseDialog(contestId, sourceType, sourceId);
+    },
+    // Phase 7.7: 被展示方收到道具展示事件
+    onItemShowcased: (payload: ItemShowcasedEvent['payload']) => {
+      setShowcaseFromName(payload.fromCharacterName);
+      setShowcaseItemInfo(payload.item);
+      setShowcaseDialogOpen(true);
     },
     onContestResult: (payload) => {// 對抗檢定結果處理（防守方和攻擊方都會收到）
       // 防守方：處理結果
@@ -541,6 +554,18 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
           }}
         />
       )}
+
+      {/* Phase 7.7: 道具展示 Dialog（被展示方） */}
+      <ItemShowcaseDialog
+        open={showcaseDialogOpen}
+        onClose={() => {
+          setShowcaseDialogOpen(false);
+          setShowcaseItemInfo(null);
+          setShowcaseFromName('');
+        }}
+        fromCharacterName={showcaseFromName}
+        item={showcaseItemInfo}
+      />
 
     </div>
   );

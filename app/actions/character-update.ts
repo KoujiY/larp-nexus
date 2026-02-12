@@ -23,6 +23,7 @@ import {
   validateItems,
   validateTasks,
 } from "@/lib/character/character-validator";
+import { executeAutoReveal, executeChainRevealForSecrets } from "@/lib/reveal/auto-reveal-evaluator";
 import {
   updateCharacterStats,
   updateCharacterSkills,
@@ -73,6 +74,13 @@ export async function updateCharacter(
         content: string;
         isRevealed: boolean;
         revealCondition?: string;
+        // Phase 7.7: 自動揭露條件
+        autoRevealCondition?: {
+          type: string;
+          itemIds?: string[];
+          secretIds?: string[];
+          matchLogic?: string;
+        };
         revealedAt?: Date;
       }>;
     };
@@ -94,6 +102,13 @@ export async function updateCharacter(
       completedAt?: Date;
       gmNotes?: string;
       revealCondition?: string;
+      // Phase 7.7: 自動揭露條件
+      autoRevealCondition?: {
+        type: string;
+        itemIds?: string[];
+        secretIds?: string[];
+        matchLogic?: string;
+      };
       createdAt: Date;
     }>;
     // Phase 4.5: 道具系統
@@ -259,10 +274,23 @@ export async function updateCharacter(
     }
 
     // Phase 3.3: 使用欄位更新模組處理 secretInfo 更新
+    // Phase 7.7: 記錄手動揭露的隱藏資訊（用於連鎖揭露觸發）
+    let hasManualSecretReveal = false;
     if (data.secretInfo !== undefined) {
       const currentSecrets = character.secretInfo?.secrets || [];
       const secretsResult = updateCharacterSecrets(data.secretInfo.secrets, currentSecrets);
       updateData.secretInfo = { secrets: secretsResult };
+
+      // Phase 7.7: 檢查是否有隱藏資訊從未揭露變為已揭露（GM 手動揭露）
+      for (const newSecret of data.secretInfo.secrets) {
+        if (newSecret.isRevealed) {
+          const oldSecret = currentSecrets.find((s: { id: string }) => s.id === newSecret.id);
+          if (oldSecret && !oldSecret.isRevealed) {
+            hasManualSecretReveal = true;
+            break;
+          }
+        }
+      }
     }
 
     // Phase 3.3: 使用驗證和更新模組處理 stats 更新
@@ -803,6 +831,19 @@ export async function updateCharacter(
           console.error("Failed to emit role.inventoryUpdated", error)
         );
       });
+    }
+
+    // Phase 7.7: GM 新增道具後，觸發自動揭露評估（items_acquired）
+    const hasNewItems = inventoryDiffs.some((diff) => diff.action === "added");
+    if (hasNewItems) {
+      executeAutoReveal(characterId, { type: "items_acquired" })
+        .catch((error) => console.error("[character-update] Failed to execute auto-reveal for items_acquired", error));
+    }
+
+    // Phase 7.7: GM 手動揭露隱藏資訊後，觸發連鎖揭露（secrets_revealed → 隱藏目標）
+    if (hasManualSecretReveal) {
+      executeChainRevealForSecrets(characterId)
+        .catch((error) => console.error("[character-update] Failed to execute chain reveal for secrets", error));
     }
 
     return {

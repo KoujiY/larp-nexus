@@ -34,6 +34,12 @@ export interface CharacterDocument extends Document {
       content: string;
       isRevealed: boolean;
       revealCondition?: string;
+      // Phase 7.7: 自動揭露條件
+      autoRevealCondition?: {
+        type: 'none' | 'items_viewed' | 'items_acquired';
+        itemIds?: string[];
+        matchLogic?: 'and' | 'or';
+      };
       revealedAt?: Date;
     }>;
   };
@@ -53,6 +59,13 @@ export interface CharacterDocument extends Document {
     // GM 專用欄位
     gmNotes?: string;
     revealCondition?: string;
+    // Phase 7.7: 自動揭露條件
+    autoRevealCondition?: {
+      type: 'none' | 'items_viewed' | 'items_acquired' | 'secrets_revealed';
+      itemIds?: string[];
+      secretIds?: string[];
+      matchLogic?: 'and' | 'or';
+    };
     createdAt: Date;
   }>;
   
@@ -166,6 +179,13 @@ export interface CharacterDocument extends Document {
     }>;
   }>;
   
+  // Phase 7.7: 角色已檢視的道具記錄
+  viewedItems?: Array<{
+    itemId: string;
+    sourceCharacterId: string;
+    viewedAt: Date;
+  }>;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -240,6 +260,20 @@ const CharacterSchema = new Schema<CharacterDocument>(
               type: String,
               default: '',
             },
+            // Phase 7.7: 自動揭露條件
+            autoRevealCondition: {
+              type: {
+                type: String,
+                enum: ['none', 'items_viewed', 'items_acquired'],
+                default: 'none',
+              },
+              itemIds: [{ type: String }],
+              matchLogic: {
+                type: String,
+                enum: ['and', 'or'],
+                default: 'and',
+              },
+            },
             revealedAt: {
               type: Date,
             },
@@ -293,6 +327,21 @@ const CharacterSchema = new Schema<CharacterDocument>(
         revealCondition: {
           type: String,
           default: '',
+        },
+        // Phase 7.7: 自動揭露條件
+        autoRevealCondition: {
+          type: {
+            type: String,
+            enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed'],
+            default: 'none',
+          },
+          itemIds: [{ type: String }],
+          secretIds: [{ type: String }],
+          matchLogic: {
+            type: String,
+            enum: ['and', 'or'],
+            default: 'and',
+          },
         },
         createdAt: {
           type: Date,
@@ -543,6 +592,24 @@ const CharacterSchema = new Schema<CharacterDocument>(
             description: String,
           },
         ],
+      },
+    ],
+    // Phase 7.7: 角色已檢視的道具記錄
+    viewedItems: [
+      {
+        _id: false,
+        itemId: {
+          type: String,
+          required: true,
+        },
+        sourceCharacterId: {
+          type: String,
+          required: true,
+        },
+        viewedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
   },

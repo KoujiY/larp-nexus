@@ -17,6 +17,7 @@ export interface CharacterData {
   stats?: Stat[];
   skills?: Skill[];
   randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
+  viewedItems?: ViewedItem[]; // Phase 7.7: 已檢視的道具記錄
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +54,58 @@ export interface Relationship {
 }
 
 /**
+ * Phase 7.7: 自動揭露條件類型
+ */
+export type AutoRevealConditionType =
+  | 'none'                    // 無其他自動揭露條件
+  | 'items_viewed'            // 檢視過某幾樣道具（展示/自行檢視，支援 AND/OR 邏輯）
+  | 'items_acquired'          // 取得了某幾樣道具（支援 AND/OR 邏輯）
+  | 'secrets_revealed';       // 某幾樣隱藏資訊已揭露（僅隱藏目標可用）
+
+/**
+ * Phase 7.7: 自動揭露條件設定
+ */
+export interface AutoRevealCondition {
+  type: AutoRevealConditionType;
+  /**
+   * 條件引用的道具 ID 列表（items_viewed 和 items_acquired 使用）
+   * 此處的 ID 直接對應角色背包中的道具 ID，由 GM 在設定時選擇
+   * items_viewed 和 items_acquired 的匹配邏輯完全一致，僅資料來源不同
+   */
+  itemIds?: string[];
+  /** 條件引用的隱藏資訊 ID 列表（僅 secrets_revealed 使用） */
+  secretIds?: string[];
+  /**
+   * 匹配邏輯（items_viewed 和 items_acquired 使用）
+   * - 'and'：所有條件都要滿足（預設）
+   * - 'or'：滿足其一即可
+   *
+   * secrets_revealed 固定為 AND 邏輯（所有指定隱藏資訊都必須已揭露）
+   */
+  matchLogic?: 'and' | 'or';
+}
+
+/**
+ * Phase 7.7: 角色已檢視的道具記錄
+ * 用於追蹤「檢視過某幾樣道具」(items_viewed) 揭露條件
+ *
+ * 「檢視」的觸發場景有兩種：
+ * 1. 別人展示道具給你（showcase）→ itemId 為展示方背包中的道具 ID
+ * 2. 自己點開道具詳情查看（self-view）→ itemId 為自己背包中的道具 ID
+ *
+ * 判定邏輯：直接以道具 ID 匹配。
+ * GM 應在設定條件時就把所有可能的道具（包含同名道具）都設定進去。
+ */
+export interface ViewedItem {
+  /** 被檢視的道具 ID */
+  itemId: string;
+  /** 來源角色 ID（展示方角色 ID；若為自行檢視則為自己的角色 ID） */
+  sourceCharacterId: string;
+  /** 檢視時間 */
+  viewedAt: Date;
+}
+
+/**
  * Phase 3.5: 隱藏資訊
  */
 export interface SecretInfo {
@@ -65,6 +118,7 @@ export interface Secret {
   content: string;
   isRevealed: boolean;
   revealCondition?: string;
+  autoRevealCondition?: AutoRevealCondition;  // Phase 7.7: 結構化自動揭露條件
   revealedAt?: Date;
 }
 
@@ -85,6 +139,7 @@ export interface Task {
   // GM 專用欄位（玩家端不顯示）
   gmNotes?: string;
   revealCondition?: string;
+  autoRevealCondition?: AutoRevealCondition;  // Phase 7.7: 結構化自動揭露條件
   createdAt: Date;
 }
 

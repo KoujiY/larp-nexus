@@ -9,6 +9,7 @@ import { cleanItemData } from '@/lib/character-cleanup';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleItemCheck } from '@/lib/item/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
+import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -574,6 +575,10 @@ export async function transferItem(
       });
     } else {
     }
+
+    // Phase 7.7: 道具轉移後，為接收方觸發自動揭露評估（items_acquired）
+    executeAutoReveal(targetCharacterId, { type: 'items_acquired' })
+      .catch((error) => console.error('[transferItem] Failed to execute auto-reveal for target', error));
 
     revalidatePath(`/c/${characterId}`);
     revalidatePath(`/c/${targetCharacterId}`);
