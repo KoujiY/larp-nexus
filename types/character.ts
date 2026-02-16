@@ -19,6 +19,7 @@ export interface CharacterData {
   randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
   viewedItems?: ViewedItem[]; // Phase 7.7: 已檢視的道具記錄
   temporaryEffects?: TemporaryEffect[]; // Phase 8: 時效性效果記錄
+  pendingEvents?: import('@/types/event').PendingEvent[]; // Phase 9: 離線事件佇列
   createdAt: Date;
   updatedAt: Date;
 }

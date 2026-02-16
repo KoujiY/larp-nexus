@@ -7,6 +7,7 @@ import type { CharacterData, TemporaryEffect } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
+import { fetchPendingEvents } from './pending-events'; // Phase 9: 離線事件拉取
 
 /**
  * 取得公開角色資料（玩家端使用）
@@ -32,6 +33,10 @@ export async function getPublicCharacter(
 
     // Phase 8: 檢查並處理過期的時效性效果
     await checkExpiredEffects(characterId);
+
+    // Phase 9: 拉取離線事件（graceful degradation: 失敗不影響主流程）
+    const pendingEventsResult = await fetchPendingEvents(characterId, character.gameId.toString());
+    const pendingEvents = pendingEventsResult.success ? pendingEventsResult.data?.events : [];
 
     // Phase 3.5: 過濾出已揭露的隱藏資訊（清理 _id）
     // Phase 7.7: 排除 GM 專用欄位（revealCondition、autoRevealCondition）
@@ -127,6 +132,7 @@ export async function getPublicCharacter(
         skills: cleanSkills,
         randomContestMaxValue, // Phase 7.6: 隨機對抗檢定上限值
         temporaryEffects: activeTemporaryEffects, // Phase 8: 時效性效果
+        pendingEvents, // Phase 9: 離線事件佇列
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },

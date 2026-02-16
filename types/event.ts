@@ -264,6 +264,41 @@ export interface EffectExpiredEvent extends BaseEvent<{
   type: 'effect.expired';
 }
 
+/**
+ * Phase 9: 離線事件佇列記錄
+ *
+ * 用於儲存玩家離線時錯過的 WebSocket 事件，
+ * 確保玩家重新上線後能接收到所有通知。
+ */
+export interface PendingEvent {
+  /** 唯一識別碼 */
+  id: string;
+
+  /** 接收者角色 ID（character-level 事件） */
+  targetCharacterId?: string;
+
+  /** 接收劇本 ID（game-level 事件，如 game.broadcast） */
+  targetGameId?: string;
+
+  /** WebSocket 事件類型（如 'skill.contest', 'character.affected'） */
+  eventType: string;
+
+  /** 原始事件的 payload */
+  eventPayload: Record<string, unknown>;
+
+  /** 事件產生時間 */
+  createdAt: Date;
+
+  /** 是否已送達 */
+  isDelivered: boolean;
+
+  /** 送達時間 */
+  deliveredAt?: Date;
+
+  /** 過期時間（createdAt + 24h） */
+  expiresAt: Date;
+}
+
 // WebSocket 事件聯合類型
 export type WebSocketEvent =
   | RoleUpdatedEvent

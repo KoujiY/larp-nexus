@@ -32,6 +32,7 @@ import { useDefenderContestState, useContestState } from '@/hooks/use-contest-st
 import { useNotificationSystem } from '@/hooks/use-notification-system';
 import { useCharacterWebSocketHandler } from '@/hooks/use-character-websocket-handler';
 import { useContestDialogState } from '@/hooks/use-contest-dialog-state';
+import { usePendingEvents } from '@/hooks/use-pending-events'; // Phase 9: 離線事件處理
 
 interface CharacterCardViewProps {
   character: CharacterData;
@@ -294,6 +295,13 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
 
   // Phase 3.1: 使用 WebSocket 事件處理 Hook（已整合通知系統和事件映射）
   useCharacterWebSocket(character.id, handleWebSocketEvent);
+
+  // Phase 9: 處理離線事件佇列（復用 handleWebSocketEvent）
+  usePendingEvents({
+    pendingEvents: character.pendingEvents,
+    handleWebSocketEvent,
+    delayBetweenEvents: 500, // 每個事件間隔 500ms
+  });
 
   // WebSocket 訂閱（劇本廣播）
   // Phase 3.1: 使用通知系統處理遊戲廣播

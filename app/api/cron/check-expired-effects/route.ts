@@ -1,15 +1,18 @@
 /**
  * Phase 8: Cron Job API - 定時檢查過期的時效性效果
+ * Phase 9: 新增定期清理 pending events
  * 由 Vercel Cron Jobs 每分鐘呼叫一次
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
+import { cleanupPendingEvents } from '@/lib/websocket/clean-pending-events'; // Phase 9
 
 /**
  * GET /api/cron/check-expired-effects
  *
- * 定時檢查所有角色的過期效果並恢復數值
+ * Phase 8: 定時檢查所有角色的過期效果並恢復數值
+ * Phase 9: 定期清理過期或已送達的 pending events
  * 認證：驗證 Authorization header 中的 CRON_SECRET
  */
 export async function GET(request: NextRequest) {
@@ -28,16 +31,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 處理所有角色的過期效果
+    // Phase 8: 處理所有角色的過期效果
     const result = await processExpiredEffects();
 
-    // 清理超過 24 小時的已過期記錄
+    // Phase 8: 清理超過 24 小時的已過期記錄
     await cleanupOldExpiredEffects();
+
+    // Phase 9: 清理過期或已送達的 pending events
+    const pendingEventsCleanup = await cleanupPendingEvents();
 
     return NextResponse.json({
       success: true,
       data: {
+        // Phase 8: 過期效果處理統計
         processedCount: result.processedCount,
+        // Phase 9: Pending events 清理統計
+        pendingEventsDeleted: pendingEventsCleanup.totalDeleted,
+        pendingEventsExpired: pendingEventsCleanup.deletedExpired,
+        pendingEventsDelivered: pendingEventsCleanup.deletedDelivered,
         processedAt: new Date().toISOString(),
       },
     });
