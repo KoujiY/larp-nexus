@@ -1,7 +1,7 @@
 # 專案結構規劃
 
-## 版本：v1.4
-## 更新日期：2026-02-12（Phase 7.7 已完成）
+## 版本：v1.5
+## 更新日期：2026-02-17（Phase 9 已完成）
 
 ---
 
@@ -38,12 +38,15 @@ larp-nexus/
 │   │   ├── events/               # 事件推送 API
 │   │   │   └── push/             # 推送事件
 │   │   ├── upload/               # 圖片上傳 API
-│   │   └── webhook/              # Webhook (Pusher auth)
+│   │   ├── webhook/              # Webhook (Pusher auth)
+│   │   └── cron/                 # Cron Jobs (Phase 8, 9)
+│   │       └── check-expired-effects/  # 定期檢查過期效果 & 清理 pending events
 │   ├── actions/                  # Server Actions
 │   │   ├── auth.ts               # 認證相關 Actions
 │   │   ├── games.ts              # 劇本管理 Actions
 │   │   ├── characters.ts         # 角色管理 Actions
-│   │   └── events.ts             # 事件相關 Actions
+│   │   ├── events.ts             # 事件相關 Actions
+│   │   └── pending-events.ts     # Phase 9: 離線事件拉取
 │   ├── layout.tsx                # Root Layout
 │   ├── page.tsx                  # Landing Page
 │   └── globals.css               # 全域樣式
@@ -88,7 +91,9 @@ larp-nexus/
 │   │   ├── models/               # Mongoose Models
 │   │   │   ├── Game.ts           # 劇本模型
 │   │   │   ├── Character.ts      # 角色模型
-│   │   │   └── GMUser.ts         # GM 使用者模型
+│   │   │   ├── GMUser.ts         # GM 使用者模型
+│   │   │   ├── MagicLink.ts      # Magic Link 模型
+│   │   │   └── PendingEvent.ts   # Phase 9: 離線事件佇列模型
 │   │   └── queries/              # 資料查詢邏輯
 │   │       ├── games.ts          # 劇本查詢
 │   │       ├── characters.ts     # 角色查詢
@@ -101,8 +106,10 @@ larp-nexus/
 │   │   ├── blob.ts               # Vercel Blob 設定
 │   │   └── image-processor.ts    # 圖片處理
 │   ├── websocket/                # WebSocket 相關
-│   │   ├── pusher.ts             # Pusher 設定
-│   │   └── events.ts             # 事件定義
+│   │   ├── pusher-server.ts      # Pusher Server 設定
+│   │   ├── events.ts             # 事件推送函式（Phase 9: 整合 pending events 寫入）
+│   │   ├── pending-events.ts     # Phase 9: Pending events 寫入輔助函式
+│   │   └── clean-pending-events.ts  # Phase 9: Pending events 清理函式
 │   ├── utils/                    # 工具函式
 │   │   ├── cn.ts                 # className 合併
 │   │   ├── hash.ts               # Hash 工具（保留供未來使用）
@@ -123,7 +130,11 @@ larp-nexus/
 ├── hooks/                        # Custom React Hooks
 │   ├── use-auth.ts               # 認證狀態
 │   ├── use-websocket.ts          # WebSocket 連線
-│   ├── use-character.ts          # 角色資料
+│   ├── use-character-websocket-handler.ts  # 角色 WebSocket 事件處理
+│   ├── use-notification-system.ts  # 通知系統
+│   ├── use-pending-events.ts     # Phase 9: 離線事件處理
+│   ├── use-contest-handler.ts    # 對抗檢定處理
+│   ├── use-contest-state.ts      # 對抗檢定狀態管理
 │   └── use-toast.ts              # Toast 通知
 │
 ├── store/                        # Jotai 狀態管理
