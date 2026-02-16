@@ -3,9 +3,10 @@
 import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import type { ApiResponse } from '@/types/api';
-import type { CharacterData } from '@/types/character';
+import type { CharacterData, TemporaryEffect } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
+import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
 
 /**
  * 取得公開角色資料（玩家端使用）
@@ -28,6 +29,9 @@ export async function getPublicCharacter(
         message: '找不到此角色',
       };
     }
+
+    // Phase 8: 檢查並處理過期的時效性效果
+    await checkExpiredEffects(characterId);
 
     // Phase 3.5: 過濾出已揭露的隱藏資訊（清理 _id）
     // Phase 7.7: 排除 GM 專用欄位（revealCondition、autoRevealCondition）
@@ -76,6 +80,20 @@ export async function getPublicCharacter(
     const game = await Game.findById(character.gameId).select('randomContestMaxValue').lean();
     const randomContestMaxValue = game?.randomContestMaxValue || 100;
 
+    // Phase 8: 重新載入角色以取得最新的 temporaryEffects（過期檢查後）
+    const updatedCharacter = await Character.findById(characterId).lean();
+
+    // Phase 8: 過濾出未過期的 temporaryEffects
+    const now = new Date();
+    const activeTemporaryEffects = (updatedCharacter?.temporaryEffects || [])
+      .filter((effect: TemporaryEffect) => !effect.isExpired && effect.expiresAt > now)
+      .map((effect: TemporaryEffect) => ({
+        ...effect,
+        // 轉換 Date 為 ISO string 以便序列化
+        appliedAt: effect.appliedAt,
+        expiresAt: effect.expiresAt,
+      }));
+
     return {
       success: true,
       data: {
@@ -95,6 +113,7 @@ export async function getPublicCharacter(
         stats: cleanStats,
         skills: cleanSkills,
         randomContestMaxValue, // Phase 7.6: 隨機對抗檢定上限值
+        temporaryEffects: activeTemporaryEffects, // Phase 8: 時效性效果
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },

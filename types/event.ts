@@ -241,6 +241,29 @@ export interface ItemShowcasedEvent extends BaseEvent<{
   type: 'item.showcased';
 }
 
+/**
+ * Phase 8: 效果過期事件
+ */
+export interface EffectExpiredEvent extends BaseEvent<{
+  targetCharacterId: string;
+  effectId: string;
+  sourceType: 'skill' | 'item';
+  sourceId: string;
+  sourceCharacterId: string;
+  sourceCharacterName: string;
+  sourceName: string;
+  effectType: 'stat_change';
+  targetStat: string;
+  restoredValue: number;        // 恢復後的數值
+  restoredMax?: number;         // 恢復後的最大值
+  deltaValue?: number;          // 原始的變化量（用於顯示）
+  deltaMax?: number;            // 原始的最大值變化量
+  statChangeTarget: 'value' | 'maxValue';
+  duration: number;
+}> {
+  type: 'effect.expired';
+}
+
 // WebSocket 事件聯合類型
 export type WebSocketEvent =
   | RoleUpdatedEvent
@@ -256,5 +279,6 @@ export type WebSocketEvent =
   | ItemTransferredEvent
   | SecretRevealedEvent      // Phase 7.7
   | TaskRevealedEvent        // Phase 7.7
-  | ItemShowcasedEvent;      // Phase 7.7
+  | ItemShowcasedEvent       // Phase 7.7
+  | EffectExpiredEvent;      // Phase 8
 

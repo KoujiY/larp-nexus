@@ -6,6 +6,7 @@ import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleSkillCheck } from '@/lib/skill/check-handler';
 import { executeSkillEffects } from '@/lib/skill/skill-effect-executor';
+import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -40,6 +41,9 @@ export async function useSkill(
         message: '找不到此角色',
       };
     }
+
+    // Phase 8: 使用技能前檢查並處理過期的時效性效果
+    await checkExpiredEffects(characterId);
 
     // 找到目標技能
     const skills = character.skills || [];

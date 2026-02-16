@@ -11,6 +11,7 @@ import { PinUnlock } from './pin-unlock';
 import { PublicInfoSection } from './public-info-section';
 import { SecretInfoSection } from './secret-info-section';
 import { StatsDisplay } from './stats-display';
+import { ActiveEffectsPanel } from './active-effects-panel';
 import { TaskList } from './task-list';
 import { ItemList } from './item-list';
 import { SkillList } from './skill-list';
@@ -455,6 +456,9 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
                     <p>尚無角色數值</p>
                   </div>
                 )}
+
+                {/* Phase 8.7: 活躍效果面板 */}
+                <ActiveEffectsPanel effects={character.temporaryEffects} />
               </TabsContent>
 
               <TabsContent value="tasks" className="mt-0">

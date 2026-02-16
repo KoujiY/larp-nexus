@@ -10,6 +10,7 @@ import { Character } from '@/lib/db/models';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import type { CharacterDocument } from '@/lib/db/models';
+import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 
 /**
  * 技能類型
@@ -165,6 +166,28 @@ export async function executeSkillEffects(
             newValue,
             newMax: newMaxValue !== beforeMax ? newMaxValue : undefined,
           });
+        }
+
+        // Phase 8: 如果效果有 duration，建立時效性效果記錄
+        if (effect.duration && effect.duration > 0) {
+          await createTemporaryEffectRecord(
+            effectTarget._id.toString(),
+            {
+              sourceType: 'skill',
+              sourceId: skill.id,
+              sourceCharacterId: characterId,
+              sourceCharacterName: character.name,
+              sourceName: skill.name,
+            },
+            {
+              targetStat: effect.targetStat,
+              deltaValue: deltaValue !== 0 ? deltaValue : undefined,
+              deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+              statChangeTarget,
+              syncValue: effect.syncValue,
+            },
+            effect.duration
+          );
         }
       }
     } else if (effect.type === 'task_reveal' && effect.targetTaskId) {

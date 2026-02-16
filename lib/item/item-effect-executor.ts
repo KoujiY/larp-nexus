@@ -10,6 +10,7 @@ import { Character } from '@/lib/db/models';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import type { CharacterDocument } from '@/lib/db/models';
+import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 
 /**
  * 道具類型
@@ -121,6 +122,7 @@ export async function executeItemEffects(
         value?: number;
         statChangeTarget?: 'value' | 'maxValue';
         syncValue?: boolean;
+        duration?: number; // Phase 8: 時效性效果
         description?: string;
       }
       const effectWithTarget = effect as ItemEffectExtended;
@@ -188,6 +190,28 @@ export async function executeItemEffects(
           newValue,
           newMax: newMax ?? undefined,
         });
+      }
+
+      // Phase 8: 如果效果有 duration，建立時效性效果記錄
+      if (effectWithTarget.duration && effectWithTarget.duration > 0) {
+        await createTemporaryEffectRecord(
+          effectTarget._id.toString(),
+          {
+            sourceType: 'item',
+            sourceId: item.id,
+            sourceCharacterId: characterId,
+            sourceCharacterName: character.name,
+            sourceName: item.name,
+          },
+          {
+            targetStat: effect.targetStat!,
+            deltaValue: deltaValue !== 0 ? deltaValue : undefined,
+            deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+            statChangeTarget: effectiveTarget,
+            syncValue: effectWithTarget.syncValue,
+          },
+          effectWithTarget.duration
+        );
       }
     } else if (effect.type === 'custom' && effect.description) {
       // 自定義效果

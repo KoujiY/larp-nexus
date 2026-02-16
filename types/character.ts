@@ -18,6 +18,7 @@ export interface CharacterData {
   skills?: Skill[];
   randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
   viewedItems?: ViewedItem[]; // Phase 7.7: 已檢視的道具記錄
+  temporaryEffects?: TemporaryEffect[]; // Phase 8: 時效性效果記錄
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,6 +104,29 @@ export interface ViewedItem {
   sourceCharacterId: string;
   /** 檢視時間 */
   viewedAt: Date;
+}
+
+/**
+ * Phase 8: 時效性效果記錄
+ * 記錄在被影響方角色上
+ */
+export interface TemporaryEffect {
+  id: string;                           // 效果唯一識別碼（如 'teff-xxx-123'）
+  sourceType: 'skill' | 'item';        // 來源類型
+  sourceId: string;                     // 技能/道具 ID
+  sourceCharacterId: string;            // 施放者角色 ID
+  sourceCharacterName: string;          // 施放者角色名稱
+  sourceName: string;                   // 技能/道具名稱
+  effectType: 'stat_change';            // 效果類型（Phase 8 僅支援 stat_change）
+  targetStat: string;                   // 目標數值名稱
+  deltaValue?: number;                  // 對 value 的變化量（恢復時反向）
+  deltaMax?: number;                    // 對 maxValue 的變化量（恢復時反向）
+  statChangeTarget: 'value' | 'maxValue'; // 數值變化目標
+  syncValue?: boolean;                  // 是否同步修改了 value（當 statChangeTarget='maxValue'）
+  duration: number;                     // 持續時間（秒）
+  appliedAt: Date;                      // 效果套用時間
+  expiresAt: Date;                      // 效果過期時間
+  isExpired: boolean;                   // 是否已過期
 }
 
 /**
@@ -218,21 +242,23 @@ export interface Stat {
 /**
  * Phase 5: 技能效果
  * Phase 6.5: 擴展跨角色效果（方案 A）
+ * Phase 8: 添加 duration 欄位支援時效性效果
  */
 export interface SkillEffect {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
         'task_reveal' | 'task_complete' | 'custom';
-  
+
   // Phase 6.5 方案 A: 目標設定
   targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
   requiresTarget?: boolean;                // 是否需要玩家選擇目標角色
-  
+
   targetStat?: string;
   value?: number;
   // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值（需要該數值有 maxValue）
   statChangeTarget?: 'value' | 'maxValue';
   // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值
   syncValue?: boolean;
+  duration?: number; // Phase 8: 持續時間（秒），undefined/0 = 永久
   targetItemId?: string;
   targetTaskId?: string;
   description?: string;

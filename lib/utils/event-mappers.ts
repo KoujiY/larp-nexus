@@ -6,7 +6,7 @@
  */
 
 import type { BaseEvent } from '@/types/event';
-import type { SkillContestEvent, SkillUsedEvent, SecretRevealedEvent, TaskRevealedEvent, ItemShowcasedEvent } from '@/types/event';
+import type { SkillContestEvent, SkillUsedEvent, SecretRevealedEvent, TaskRevealedEvent, ItemShowcasedEvent, EffectExpiredEvent } from '@/types/event';
 
 export interface Notification {
   id: string;
@@ -623,6 +623,33 @@ export function createEventMappers(
   };
 
   /**
+   * Phase 8: 映射效果過期事件
+   * 顯示格式：「{技能/道具名稱} 的效果已結束，{數值名稱} 已恢復」
+   */
+  const mapEffectExpired = (event: BaseEvent): Notification[] => {
+    const payload = event.payload as EffectExpiredEvent['payload'];
+    const sourceName = payload.sourceName || (payload.sourceType === 'skill' ? '技能' : '道具');
+    const targetStat = payload.targetStat || '數值';
+
+    // 建構恢復訊息
+    let restoredMessage = '';
+    if (payload.statChangeTarget === 'value') {
+      restoredMessage = `${targetStat} 已恢復至 ${payload.restoredValue}`;
+    } else if (payload.statChangeTarget === 'maxValue' && payload.restoredMax !== undefined) {
+      restoredMessage = `${targetStat} 最大值已恢復至 ${payload.restoredMax}`;
+    } else {
+      restoredMessage = `${targetStat} 已恢復`;
+    }
+
+    return [{
+      id: `evt-${event.timestamp}`,
+      title: '效果結束',
+      message: `${sourceName} 的效果已結束，${restoredMessage}`,
+      type: event.type,
+    }];
+  };
+
+  /**
    * 將事件映射為通知
    */
   const mapEventToNotifications = (event: BaseEvent): Notification[] => {
@@ -647,6 +674,8 @@ export function createEventMappers(
         return mapTaskRevealed(event);
       case 'item.showcased':
         return mapItemShowcased(event);
+      case 'effect.expired':
+        return mapEffectExpired(event);
       // 其他技能相關：不顯示通知（需求指定）
       default:
         return [];
@@ -664,6 +693,7 @@ export function createEventMappers(
     mapSecretRevealed,
     mapTaskRevealed,
     mapItemShowcased,
+    mapEffectExpired,
     mapEventToNotifications,
   };
 }

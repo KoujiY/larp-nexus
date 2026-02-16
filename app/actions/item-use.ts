@@ -10,6 +10,7 @@ import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleItemCheck } from '@/lib/item/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
+import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -45,6 +46,9 @@ export async function useItem(
         message: '找不到此角色',
       };
     }
+
+    // Phase 8: 使用道具前檢查並處理過期的時效性效果
+    await checkExpiredEffects(characterId);
 
     // 找到目標道具
     const items = character.items || [];

@@ -196,6 +196,15 @@ export function useCharacterWebSocketHandler(
           break;
         }
 
+        case 'effect.expired': {
+          // Phase 8: 時效性效果過期通知
+          if (friendlyList.length > 0) {
+            toast.info(friendlyList[friendlyList.length - 1].message);
+          }
+          router.refresh();
+          break;
+        }
+
         default:
           // 其他事件僅記錄於 console，避免干擾玩家
           console.debug('[ws][character]', event);

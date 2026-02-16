@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { PageLayout } from '@/components/gm/page-layout';
 import { CharacterEditForm } from '@/components/gm/character-edit-form';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
+import { TemporaryEffectsCard } from '@/components/gm/temporary-effects-card';
 import { TasksEditForm } from '@/components/gm/tasks-edit-form';
 import { ItemsEditForm } from '@/components/gm/items-edit-form';
 import { SkillsEditForm } from '@/components/gm/skills-edit-form';
@@ -160,11 +161,14 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
           </TabsContent>
 
           {/* Stats Tab (Phase 4) */}
-          <TabsContent value="stats">
+          <TabsContent value="stats" className="space-y-6">
             <StatsEditForm
               characterId={character.id}
               initialStats={character.stats || []}
             />
+
+            {/* Phase 8.6: 時效性效果卡片 */}
+            <TemporaryEffectsCard characterId={character.id} />
           </TabsContent>
 
           {/* Tasks Tab (Phase 4.5) */}

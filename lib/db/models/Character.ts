@@ -166,12 +166,13 @@ export interface CharacterDocument extends Document {
     lastUsedAt?: Date;
     // 效果定義（可多個）
     effects?: Array<{
-      type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+      type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
             'task_reveal' | 'task_complete' | 'custom';
       targetStat?: string;
       value?: number;
       statChangeTarget?: 'value' | 'maxValue';
       syncValue?: boolean;
+      duration?: number;  // Phase 8: 持續時間（秒）
       targetItemId?: string;
       targetTaskId?: string;
       targetCharacterId?: string;
@@ -184,6 +185,26 @@ export interface CharacterDocument extends Document {
     itemId: string;
     sourceCharacterId: string;
     viewedAt: Date;
+  }>;
+
+  // Phase 8: 時效性效果記錄
+  temporaryEffects?: Array<{
+    id: string;
+    sourceType: 'skill' | 'item';
+    sourceId: string;
+    sourceCharacterId: string;
+    sourceCharacterName: string;
+    sourceName: string;
+    effectType: 'stat_change';
+    targetStat: string;
+    deltaValue?: number;
+    deltaMax?: number;
+    statChangeTarget: 'value' | 'maxValue';
+    syncValue?: boolean;
+    duration: number;
+    appliedAt: Date;
+    expiresAt: Date;
+    isExpired: boolean;
   }>;
 
   createdAt: Date;
@@ -587,6 +608,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
               enum: ['value', 'maxValue'],
             },
             syncValue: Boolean,
+            duration: Number, // Phase 8: 持續時間（秒）
             targetItemId: String,
             targetTaskId: String,
             description: String,
@@ -609,6 +631,76 @@ const CharacterSchema = new Schema<CharacterDocument>(
         viewedAt: {
           type: Date,
           default: Date.now,
+        },
+      },
+    ],
+    // Phase 8: 時效性效果記錄
+    temporaryEffects: [
+      {
+        _id: false,
+        id: {
+          type: String,
+          required: true,
+        },
+        sourceType: {
+          type: String,
+          enum: ['skill', 'item'],
+          required: true,
+        },
+        sourceId: {
+          type: String,
+          required: true,
+        },
+        sourceCharacterId: {
+          type: String,
+          required: true,
+        },
+        sourceCharacterName: {
+          type: String,
+          required: true,
+        },
+        sourceName: {
+          type: String,
+          required: true,
+        },
+        effectType: {
+          type: String,
+          enum: ['stat_change'],
+          default: 'stat_change',
+        },
+        targetStat: {
+          type: String,
+          required: true,
+        },
+        deltaValue: {
+          type: Number,
+        },
+        deltaMax: {
+          type: Number,
+        },
+        statChangeTarget: {
+          type: String,
+          enum: ['value', 'maxValue'],
+          default: 'value',
+        },
+        syncValue: {
+          type: Boolean,
+        },
+        duration: {
+          type: Number,
+          required: true,
+        },
+        appliedAt: {
+          type: Date,
+          required: true,
+        },
+        expiresAt: {
+          type: Date,
+          required: true,
+        },
+        isExpired: {
+          type: Boolean,
+          default: false,
         },
       },
     ],

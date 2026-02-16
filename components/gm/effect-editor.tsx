@@ -248,6 +248,32 @@ export function EffectEditor({
               )}
             </div>
           )}
+
+          {/* Phase 8.8: 時效性效果 - 持續時間 */}
+          <div className="space-y-2">
+            <Label>持續時間（分鐘）</Label>
+            <Input
+              type="number"
+              min="0"
+              value={
+                effect.duration !== undefined && effect.duration > 0
+                  ? Math.round(effect.duration / 60)
+                  : ''
+              }
+              onChange={(e) => {
+                const minutes = e.target.value ? parseInt(e.target.value) : 0;
+                const seconds = minutes > 0 ? minutes * 60 : undefined;
+                onChange({
+                  ...effect,
+                  duration: seconds,
+                } as ItemEffect | SkillEffect);
+              }}
+              placeholder="留空或 0 = 永久效果"
+            />
+            <p className="text-xs text-muted-foreground">
+              設定此數值變化的持續時間。時間到期後，數值會自動恢復。留空或設為 0 表示永久效果。
+            </p>
+          </div>
         </>
       )}
 

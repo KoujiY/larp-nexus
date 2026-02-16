@@ -11,6 +11,7 @@ import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/
 import { cleanItemData } from '@/lib/character-cleanup';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import type { CharacterDocument } from '@/lib/db/models';
+import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 
 /**
  * 技能或道具的效果類型
@@ -21,6 +22,7 @@ type Effect = {
   value?: number;
   statChangeTarget?: 'value' | 'maxValue';
   syncValue?: boolean;
+  duration?: number; // Phase 8: 時效性效果
   targetItemId?: string;
   targetTaskId?: string;
   targetType?: 'self' | 'other' | 'any';
@@ -242,6 +244,30 @@ export async function executeContestEffects(
             newValue,
             newMax: newMaxValue !== null && newMaxValue !== beforeMax ? newMaxValue : undefined,
           });
+        }
+
+        // Phase 8: 如果效果有 duration，建立時效性效果記錄
+        if (effect.duration && effect.duration > 0) {
+          // 決定來源角色（誰獲勝就是誰的效果）
+          const sourceCharacter = contestResult === 'defender_wins' ? defender : attacker;
+          await createTemporaryEffectRecord(
+            effectTarget._id.toString(),
+            {
+              sourceType: actualSourceType,
+              sourceId: actualSource.id,
+              sourceCharacterId: sourceCharacter._id.toString(),
+              sourceCharacterName: sourceCharacter.name,
+              sourceName: actualSource.name,
+            },
+            {
+              targetStat: effect.targetStat,
+              deltaValue: deltaValue !== 0 ? deltaValue : undefined,
+              deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+              statChangeTarget: effectiveTarget,
+              syncValue: effect.syncValue,
+            },
+            effect.duration
+          );
         }
       }
     } else if (effect.type === 'task_reveal' && effect.targetTaskId) {

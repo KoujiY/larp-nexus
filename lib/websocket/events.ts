@@ -13,6 +13,7 @@ import type {
   SecretRevealedEvent,
   TaskRevealedEvent,
   ItemShowcasedEvent,
+  EffectExpiredEvent,
 } from '@/types/event';
 import { getPusherServer, isPusherEnabled } from './pusher-server';
 
@@ -86,5 +87,11 @@ export async function emitTaskRevealed(characterId: string, payload: TaskReveale
 export async function emitItemShowcased(fromCharacterId: string, toCharacterId: string, payload: ItemShowcasedEvent['payload']) {
   await trigger(`private-character-${fromCharacterId}`, 'item.showcased', payload);
   await trigger(`private-character-${toCharacterId}`, 'item.showcased', payload);
+}
+
+// Phase 8: 時效性效果過期事件
+
+export async function emitEffectExpired(characterId: string, payload: EffectExpiredEvent['payload']) {
+  await trigger(`private-character-${characterId}`, 'effect.expired', payload);
 }
 
