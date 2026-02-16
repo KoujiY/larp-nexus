@@ -3,8 +3,8 @@
 ## 專案資訊
 
 - **專案名稱**：LARP Nexus
-- **版本**：v1.3 (MVP)
-- **更新日期**：2025-01-XX（Phase 7 對抗檢定系統完成）
+- **版本**：v1.5 (MVP)
+- **更新日期**：2026-02-16（Phase 8 時效性效果系統完成）
 - **專案類型**：LARP GM/玩家輔助系統
 
 ---
@@ -321,15 +321,33 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ## 更新日誌
 
+### v1.5 (2026-02-16) - Phase 8 時效性效果系統完成
+- **Phase 8 時效性效果系統實作完成**
+  - ✅ 型別定義與 Schema 擴展（`TemporaryEffect`、`SkillEffect.duration`、`EffectExpiredEvent`）
+  - ✅ 效果執行器整合（skill、item、contest）
+  - ✅ 共用工具建立（`create-temporary-effect.ts`、`check-expired-effects.ts`）
+  - ✅ Server Actions（`checkExpiredEffects`、`getTemporaryEffects`）
+  - ✅ Cron Job API（`/api/cron/check-expired-effects`）
+  - ✅ WebSocket 事件處理（`effect.expired` 完整流程）
+  - ✅ 前端觸發整合（頁面載入、技能/道具使用前）
+  - ✅ GM 端 UI（時效性效果卡片 + 持續時間設定）
+  - ✅ 玩家端 UI（活躍效果面板 + 倒數計時）
+- **核心特性**
+  - 數值變化效果支援持續時間（分鐘輸入 → 秒儲存）
+  - 效果到期自動恢復數值（反向 delta + clamp）
+  - 雙重觸發機制（前端即時檢查 + Cron Job 定期清理）
+  - 即時倒數計時（每秒更新 + 自動移除過期效果）
+  - 效果堆疊支援（同一數值可被多個效果獨立影響）
+
 ### v1.4 (2025-01-XX) - Phase 7.6 需求規劃
 - **需求變更**
   - ✅ 移除 Phase 7.5 戰鬥系統（變化過大，難以收斂）
   - ✅ 新增 Phase 7.6：標籤系統與檢定模式擴展
 - **Phase 7.6 規劃**
-  - 📋 標籤系統（"戰鬥"、"隱匿"）
-  - 📋 防守方效果結算調整
-  - 📋 數值判定系統匹配機制
-  - 📋 隨機對抗檢定模式
+  - ✅ 標籤系統（"戰鬥"、"隱匿"）
+  - ✅ 防守方效果結算調整
+  - ✅ 數值判定系統匹配機制
+  - ✅ 隨機對抗檢定模式
 
 ### v1.3 (2025-01-XX) - Phase 7 對抗檢定系統完成
 - **Phase 7 對抗檢定系統實作完成**
@@ -404,4 +422,4 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 - 定期 Review 文件完整性
 
 **文件維護者**：SPEC AGENT
-**最後更新**：2025-01-XX（Phase 7.6 需求規劃完成）
+**最後更新**：2026-02-16（Phase 8 時效性效果系統完成）
