@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
 import { getGameItems } from '@/app/actions/games';
+import { checkPinAvailability } from '@/app/actions/characters'; // Phase 10.9.3
 import type { GameItemInfo } from '@/app/actions/games';
 import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
 import { cleanSecretConditions } from '@/lib/reveal/condition-cleaner';
@@ -27,6 +28,12 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
   const [isLoading, setIsLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
+
+  // Phase 10.9.3: PIN 即時檢查狀態
+  const [pinCheckStatus, setPinCheckStatus] = useState<
+    'idle' | 'checking' | 'available' | 'unavailable' | 'invalid'
+  >('idle');
+
   const [formData, setFormData] = useState({
     name: character.name,
     description: character.description || '',
@@ -72,6 +79,50 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 僅在 availableItems 載入完成後執行一次
   }, [availableItems]);
+
+  // Phase 10.9.3: PIN 即時檢查（防抖 500ms）
+  const checkPin = useCallback(
+    async (pin: string) => {
+      const trimmedPin = pin.trim();
+
+      // 驗證格式（4-6 位數字）
+      if (!trimmedPin || trimmedPin.length < 4 || !/^\d{4,6}$/.test(trimmedPin)) {
+        setPinCheckStatus('invalid');
+        return;
+      }
+
+      setPinCheckStatus('checking');
+
+      try {
+        // 編輯時，排除當前角色（使用 character.id）
+        const result = await checkPinAvailability(gameId, trimmedPin, character.id);
+        if (result.success && result.data) {
+          setPinCheckStatus(result.data.isAvailable ? 'available' : 'unavailable');
+        } else {
+          setPinCheckStatus('invalid');
+        }
+      } catch (err) {
+        console.error('Error checking PIN:', err);
+        setPinCheckStatus('invalid');
+      }
+    },
+    [gameId, character.id]
+  );
+
+  // Phase 10.9.3: 當 PIN 變更時，觸發即時檢查（防抖 500ms）
+  useEffect(() => {
+    // 如果未啟用 PIN 鎖，或 PIN 為空（編輯時可留空），則不檢查
+    if (!formData.hasPinLock || !formData.pin) {
+      setPinCheckStatus('idle');
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      checkPin(formData.pin);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.hasPinLock, formData.pin, checkPin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,8 +280,23 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
                   }
                   disabled={isLoading}
                   required={formData.hasPinLock && !character.hasPinLock}
-                  className="pr-10"
+                  className="pr-20"
                 />
+                {/* Phase 10.9.3: PIN 檢查狀態指示器 */}
+                <div className="absolute right-12 top-1/2 -translate-y-1/2">
+                  {pinCheckStatus === 'checking' && (
+                    <span className="text-gray-400 text-sm">⏳</span>
+                  )}
+                  {pinCheckStatus === 'available' && (
+                    <span className="text-green-600 text-sm">✓</span>
+                  )}
+                  {pinCheckStatus === 'unavailable' && (
+                    <span className="text-red-600 text-sm">✗</span>
+                  )}
+                  {pinCheckStatus === 'invalid' && (
+                    <span className="text-orange-600 text-sm">⚠</span>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowPin(!showPin)}
@@ -240,11 +306,30 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
                   {showPin ? '🙈' : '👁️'}
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {character.hasPinLock
-                  ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
-                  : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'}
-              </p>
+              {/* Phase 10.9.3: PIN 檢查狀態提示 */}
+              {pinCheckStatus === 'checking' && (
+                <p className="text-xs text-gray-500">檢查中...</p>
+              )}
+              {pinCheckStatus === 'available' && (
+                <p className="text-xs text-green-600">此 PIN 可以使用</p>
+              )}
+              {pinCheckStatus === 'unavailable' && (
+                <p className="text-xs text-red-600">
+                  此 PIN 在本遊戲中已被使用，請使用其他 PIN
+                </p>
+              )}
+              {pinCheckStatus === 'invalid' && (
+                <p className="text-xs text-orange-600">
+                  PIN 格式錯誤（需要 4-6 位數字）
+                </p>
+              )}
+              {pinCheckStatus === 'idle' && (
+                <p className="text-xs text-muted-foreground">
+                  {character.hasPinLock
+                    ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
+                    : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'}
+                </p>
+              )}
             </div>
           )}
         </CardContent>
@@ -599,7 +684,17 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
         >
           取消
         </Button>
-        <Button type="submit" disabled={isLoading}>
+        <Button
+          type="submit"
+          disabled={
+            isLoading ||
+            (formData.hasPinLock &&
+              formData.pin.length > 0 && // 只有在輸入了新 PIN 時才檢查狀態
+              (pinCheckStatus === 'checking' ||
+                pinCheckStatus === 'unavailable' ||
+                pinCheckStatus === 'invalid'))
+          }
+        >
           {isLoading ? '儲存中...' : '💾 儲存變更'}
         </Button>
       </div>

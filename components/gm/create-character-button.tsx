@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createCharacter } from '@/app/actions/characters';
+import { createCharacter, checkPinAvailability } from '@/app/actions/characters'; // Phase 10.9.3
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,6 +34,60 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
     hasPinLock: false,
     pin: '',
   });
+
+  // Phase 10.9.3: PIN 即時檢查狀態
+  const [pinCheckStatus, setPinCheckStatus] = useState<
+    'idle' | 'checking' | 'available' | 'unavailable' | 'invalid'
+  >('idle');
+
+  // Phase 10.9.3: PIN 即時檢查（防抖 500ms）
+  const checkPin = useCallback(
+    async (pin: string) => {
+      const trimmedPin = pin.trim();
+
+      // 驗證格式（4-6 位數字）
+      if (!trimmedPin || trimmedPin.length < 4 || !/^\d{4,6}$/.test(trimmedPin)) {
+        setPinCheckStatus('invalid');
+        return;
+      }
+
+      setPinCheckStatus('checking');
+
+      try {
+        const result = await checkPinAvailability(gameId, trimmedPin);
+        if (result.success && result.data) {
+          setPinCheckStatus(result.data.isAvailable ? 'available' : 'unavailable');
+        } else {
+          setPinCheckStatus('invalid');
+        }
+      } catch (err) {
+        console.error('Error checking PIN:', err);
+        setPinCheckStatus('invalid');
+      }
+    },
+    [gameId]
+  );
+
+  // Phase 10.9.3: 當對話框關閉時，重置 PIN 檢查狀態
+  useEffect(() => {
+    if (!open) {
+      setPinCheckStatus('idle');
+    }
+  }, [open]);
+
+  // Phase 10.9.3: 當 PIN 變更時，觸發即時檢查（防抖 500ms）
+  useEffect(() => {
+    if (!formData.hasPinLock || !formData.pin) {
+      setPinCheckStatus('idle');
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      checkPin(formData.pin);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.hasPinLock, formData.pin, checkPin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,15 +202,30 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
                     placeholder="例：1234"
                     value={formData.pin}
                     onChange={(e) =>
-                      setFormData((prev) => ({ 
-                        ...prev, 
+                      setFormData((prev) => ({
+                        ...prev,
                         pin: e.target.value.replace(/\D/g, '').slice(0, 6)
                       }))
                     }
                     disabled={isLoading}
                     required={formData.hasPinLock}
-                    className="pr-10"
+                    className="pr-20"
                   />
+                  {/* Phase 10.9.3: PIN 檢查狀態指示器 */}
+                  <div className="absolute right-12 top-1/2 -translate-y-1/2">
+                    {pinCheckStatus === 'checking' && (
+                      <span className="text-gray-400 text-sm">⏳</span>
+                    )}
+                    {pinCheckStatus === 'available' && (
+                      <span className="text-green-600 text-sm">✓</span>
+                    )}
+                    {pinCheckStatus === 'unavailable' && (
+                      <span className="text-red-600 text-sm">✗</span>
+                    )}
+                    {pinCheckStatus === 'invalid' && (
+                      <span className="text-orange-600 text-sm">⚠</span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowPin(!showPin)}
@@ -166,9 +235,28 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
                     {showPin ? '🙈' : '👁️'}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  請記住此 PIN 碼，玩家需要此碼才能查看角色卡
-                </p>
+                {/* Phase 10.9.3: PIN 檢查狀態提示 */}
+                {pinCheckStatus === 'checking' && (
+                  <p className="text-xs text-gray-500">檢查中...</p>
+                )}
+                {pinCheckStatus === 'available' && (
+                  <p className="text-xs text-green-600">此 PIN 可以使用</p>
+                )}
+                {pinCheckStatus === 'unavailable' && (
+                  <p className="text-xs text-red-600">
+                    此 PIN 在本遊戲中已被使用，請使用其他 PIN
+                  </p>
+                )}
+                {pinCheckStatus === 'invalid' && (
+                  <p className="text-xs text-orange-600">
+                    PIN 格式錯誤（需要 4-6 位數字）
+                  </p>
+                )}
+                {pinCheckStatus === 'idle' && (
+                  <p className="text-xs text-muted-foreground">
+                    請記住此 PIN 碼，玩家需要此碼才能查看角色卡
+                  </p>
+                )}
               </div>
             )}
 
@@ -188,7 +276,16 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
             >
               取消
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button
+              type="submit"
+              disabled={
+                isLoading ||
+                (formData.hasPinLock &&
+                  (pinCheckStatus === 'checking' ||
+                    pinCheckStatus === 'unavailable' ||
+                    pinCheckStatus === 'invalid'))
+              }
+            >
               {isLoading ? '建立中...' : '建立角色'}
             </Button>
           </DialogFooter>

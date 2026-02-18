@@ -3,6 +3,8 @@ export * from './game';
 export * from './character';
 export * from './event';
 export * from './api';
+export * from './runtime'; // Phase 10
+export * from './log'; // Phase 10
 
 // GM User 類型
 export interface GMUser {

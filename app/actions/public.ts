@@ -2,6 +2,7 @@
 
 import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
+import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData, TemporaryEffect } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
@@ -21,15 +22,8 @@ export async function getPublicCharacter(
   try {
     await dbConnect();
 
-    const character = await Character.findById(characterId).lean();
-
-    if (!character) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到此角色',
-      };
-    }
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const character = await getCharacterData(characterId);
 
     // Phase 8: 檢查並處理過期的時效性效果
     await checkExpiredEffects(characterId);
@@ -82,8 +76,9 @@ export async function getPublicCharacter(
     const game = await Game.findById(character.gameId).select('randomContestMaxValue').lean();
     const randomContestMaxValue = game?.randomContestMaxValue || 100;
 
-    // Phase 8: 重新載入角色以取得過期檢查後的最新資料（stats + temporaryEffects）
-    const updatedCharacter = await Character.findById(characterId).lean();
+    // Phase 8: 重新載入角色以取得最新的 temporaryEffects（過期檢查後）
+    // Phase 10.4: 使用統一的讀取函數
+    const updatedCharacter = await getCharacterData(characterId);
 
     // Phase 8: 使用過期檢查後的最新 stats（確保恢復後的數值正確反映）
     const cleanStats = cleanStatData(updatedCharacter?.stats || character.stats);
@@ -246,17 +241,8 @@ export async function getTargetCharacterItems(
   try {
     await dbConnect();
 
-    const character = await Character.findById(targetCharacterId)
-      .select('items')
-      .lean();
-
-    if (!character) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到目標角色',
-      };
-    }
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const character = await getCharacterData(targetCharacterId);
 
     const items = character.items || [];
     const cleanItems = cleanItemData(items);

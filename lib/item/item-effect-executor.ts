@@ -11,6 +11,7 @@ import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/
 import { cleanItemData } from '@/lib/character-cleanup';
 import type { CharacterDocument } from '@/lib/db/models';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
+import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
 
 /**
  * 道具類型
@@ -443,6 +444,24 @@ export async function executeItemEffects(
   if (!updatedCharacter) {
     throw new Error('找不到角色');
   }
+
+  // Phase 10.6: 記錄道具使用日誌
+  await writeLog({
+    gameId: character.gameId.toString(),
+    characterId,
+    actorType: 'character',
+    actorId: characterId,
+    action: 'item_use',
+    details: {
+      itemId: item.id,
+      itemName: item.name,
+      targetCharacterId: targetCharacterId || undefined,
+      targetCharacterName: targetCharacter?.name || undefined,
+      effectsApplied: effectMessages,
+      statChanges: statUpdatePayload.length > 0 ? statUpdatePayload : undefined,
+      isAffectingOthers,
+    },
+  });
 
   return {
     effectsApplied: effectMessages,

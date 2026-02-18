@@ -7,6 +7,11 @@ import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
 import type { GameData } from '@/types/game';
+// Phase 10: Game Code 生成邏輯
+import {
+  generateUniqueGameCode,
+  isGameCodeUnique,
+} from '@/lib/game/generate-game-code';
 
 /**
  * Game 驗證 Schema
@@ -42,6 +47,7 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
         gmUserId: game.gmUserId.toString(),
         name: game.name,
         description: game.description,
+        gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
@@ -93,6 +99,7 @@ export async function getGameById(
         gmUserId: game.gmUserId.toString(),
         name: game.name,
         description: game.description,
+        gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
@@ -112,10 +119,12 @@ export async function getGameById(
 
 /**
  * 建立新劇本
+ * Phase 10: 支援可選的 gameCode 參數（如果提供，會先檢查唯一性）
  */
 export async function createGame(data: {
   name: string;
   description?: string;
+  gameCode?: string; // Phase 10: 可選的 Game Code
 }): Promise<ApiResponse<GameData>> {
   try {
     const gmUserId = await getCurrentGMUserId();
@@ -131,11 +140,43 @@ export async function createGame(data: {
     const validated = gameSchema.parse(data);
 
     await dbConnect();
+
+    // Phase 10: 處理 Game Code
+    let gameCode: string;
+    if (data.gameCode) {
+      // 使用者提供了 Game Code，需要驗證格式和唯一性
+      const gameCodeRegex = /^[A-Z0-9]{6}$/;
+      const trimmedCode = data.gameCode.trim().toUpperCase();
+
+      if (!gameCodeRegex.test(trimmedCode)) {
+        return {
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'Game Code 必須是 6 位英數字（例如：ABC123）',
+        };
+      }
+
+      const isUnique = await isGameCodeUnique(trimmedCode);
+      if (!isUnique) {
+        return {
+          success: false,
+          error: 'DUPLICATE_ERROR',
+          message: '此遊戲代碼已被使用，請使用其他代碼',
+        };
+      }
+
+      gameCode = trimmedCode;
+    } else {
+      // 自動生成唯一的 Game Code
+      gameCode = await generateUniqueGameCode();
+    }
+
     const game = await Game.create({
       gmUserId,
       name: validated.name,
       description: validated.description || '',
-      isActive: true,
+      gameCode, // Phase 10: 加入 Game Code
+      isActive: false, // Phase 10: 預設為待機狀態（false）
     });
 
     revalidatePath('/games');
@@ -147,6 +188,7 @@ export async function createGame(data: {
         gmUserId: game.gmUserId.toString(),
         name: game.name,
         description: game.description,
+        gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
@@ -267,6 +309,7 @@ export async function updateGame(
         gmUserId: game.gmUserId.toString(),
         name: game.name,
         description: game.description,
+        gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
@@ -401,6 +444,136 @@ export async function getGameItems(
       success: false,
       error: 'FETCH_FAILED',
       message: '無法取得劇本道具列表',
+    };
+  }
+}
+
+/**
+ * Phase 10: 更新劇本的 Game Code
+ *
+ * @param gameId - 劇本 ID
+ * @param newGameCode - 新的 Game Code（6 位英數字）
+ * @returns API 回應（成功或錯誤訊息）
+ */
+export async function updateGameCode(
+  gameId: string,
+  newGameCode: string
+): Promise<ApiResponse<GameData>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '請先登入',
+      };
+    }
+
+    // 驗證 Game Code 格式（6 位英數字）
+    const gameCodeRegex = /^[A-Z0-9]{6}$/;
+    const trimmedCode = newGameCode.trim().toUpperCase();
+
+    if (!gameCodeRegex.test(trimmedCode)) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'Game Code 必須是 6 位英數字（例如：ABC123）',
+      };
+    }
+
+    await dbConnect();
+
+    // 檢查 Game Code 唯一性
+    const isUnique = await isGameCodeUnique(trimmedCode);
+    if (!isUnique) {
+      return {
+        success: false,
+        error: 'DUPLICATE_ERROR',
+        message: '此遊戲代碼已被使用，請使用其他代碼',
+      };
+    }
+
+    // 更新 Game Code
+    const game = await Game.findOneAndUpdate(
+      { _id: gameId, gmUserId },
+      { $set: { gameCode: trimmedCode } },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!game) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此劇本',
+      };
+    }
+
+    revalidatePath('/games');
+    revalidatePath(`/games/${gameId}`);
+
+    return {
+      success: true,
+      data: {
+        id: game._id.toString(),
+        gmUserId: game.gmUserId.toString(),
+        name: game.name,
+        description: game.description,
+        gameCode: game.gameCode,
+        isActive: game.isActive,
+        publicInfo: game.publicInfo,
+        randomContestMaxValue: game.randomContestMaxValue,
+        createdAt: game.createdAt,
+        updatedAt: game.updatedAt,
+      },
+      message: 'Game Code 更新成功',
+    };
+  } catch (error) {
+    console.error('Error updating game code:', error);
+    return {
+      success: false,
+      error: 'UPDATE_FAILED',
+      message: '無法更新 Game Code',
+    };
+  }
+}
+
+/**
+ * Phase 10: 檢查 Game Code 是否可用（前端即時檢查用）
+ *
+ * @param gameCode - 要檢查的 Game Code
+ * @returns API 回應（isAvailable: true/false）
+ */
+export async function checkGameCodeAvailability(
+  gameCode: string
+): Promise<ApiResponse<{ isAvailable: boolean }>> {
+  try {
+    // 驗證 Game Code 格式（6 位英數字）
+    const gameCodeRegex = /^[A-Z0-9]{6}$/;
+    const trimmedCode = gameCode.trim().toUpperCase();
+
+    if (!gameCodeRegex.test(trimmedCode)) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'Game Code 必須是 6 位英數字（例如：ABC123）',
+      };
+    }
+
+    await dbConnect();
+
+    // 檢查唯一性
+    const isAvailable = await isGameCodeUnique(trimmedCode);
+
+    return {
+      success: true,
+      data: { isAvailable },
+    };
+  } catch (error) {
+    console.error('Error checking game code availability:', error);
+    return {
+      success: false,
+      error: 'CHECK_FAILED',
+      message: '無法檢查 Game Code 可用性',
     };
   }
 }

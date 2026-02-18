@@ -1,21 +1,27 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 /**
- * Phase 5 擴展版 Character Document
- * 包含 publicInfo（Phase 3）
- * 包含 secretInfo（Phase 3.5）
- * 包含 stats（Phase 4）
- * 包含 tasks、items 擴展（Phase 4.5）
- * 包含 skills（Phase 5）
+ * Phase 10: Character Runtime Document
+ * 角色遊戲中的狀態，完全複製 Character Schema + 額外欄位
+ *
+ * Runtime vs Snapshot:
+ * - type: 'runtime' → 遊戲進行中的即時狀態
+ * - type: 'snapshot' → 遊戲結束後的歷史快照
  */
-export interface CharacterDocument extends Document {
-  gameId: mongoose.Types.ObjectId;
+export interface CharacterRuntimeDocument extends Document {
+  // Phase 10: Runtime 專屬欄位
+  _id: mongoose.Types.ObjectId; // Runtime 專屬 ID
+  refId: mongoose.Types.ObjectId; // 指向 Baseline Character._id
+  type: 'runtime' | 'snapshot'; // 類型標記
+
+  // 以下欄位與 CharacterDocument 完全一致
+  gameId: mongoose.Types.ObjectId; // 繼承自 Baseline（用於查詢）
   name: string;
   description: string;
   imageUrl?: string;
   hasPinLock: boolean;
-  pin?: string; // PIN 明文儲存（僅 GM 可查看）
-  
+  pin?: string;
+
   // Phase 3: 公開資訊（PIN 解鎖後可見）
   publicInfo?: {
     background: string;
@@ -25,7 +31,7 @@ export interface CharacterDocument extends Document {
       description: string;
     }>;
   };
-  
+
   // Phase 3.5: 隱藏資訊（GM 控制揭露）
   secretInfo?: {
     secrets: Array<{
@@ -34,7 +40,6 @@ export interface CharacterDocument extends Document {
       content: string;
       isRevealed: boolean;
       revealCondition?: string;
-      // Phase 7.7: 自動揭露條件
       autoRevealCondition?: {
         type: 'none' | 'items_viewed' | 'items_acquired';
         itemIds?: string[];
@@ -43,23 +48,19 @@ export interface CharacterDocument extends Document {
       revealedAt?: Date;
     }>;
   };
-  
+
   // Phase 4.5: 任務系統（擴展版）
   tasks?: Array<{
     id: string;
     title: string;
     description: string;
-    // 隱藏目標機制
     isHidden: boolean;
     isRevealed: boolean;
     revealedAt?: Date;
-    // 完成狀態
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
     completedAt?: Date;
-    // GM 專用欄位
     gmNotes?: string;
     revealCondition?: string;
-    // Phase 7.7: 自動揭露條件
     autoRevealCondition?: {
       type: 'none' | 'items_viewed' | 'items_acquired' | 'secrets_revealed';
       itemIds?: string[];
@@ -68,17 +69,15 @@ export interface CharacterDocument extends Document {
     };
     createdAt: Date;
   }>;
-  
+
   // Phase 4.5: 道具系統（擴展版）
   items?: Array<{
     id: string;
     name: string;
     description: string;
     imageUrl?: string;
-    // 道具類型與數量
     type: 'consumable' | 'equipment';
     quantity: number;
-    // 使用效果（重構：改為陣列，支援多個效果）
     effects?: Array<{
       type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
       targetType?: 'self' | 'other' | 'any';
@@ -91,7 +90,6 @@ export interface CharacterDocument extends Document {
       duration?: number;
       description?: string;
     }>;
-    // 向後兼容：保留單一 effect 欄位（已棄用）
     /** @deprecated 使用 effects 陣列代替 */
     effect?: {
       type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
@@ -105,9 +103,7 @@ export interface CharacterDocument extends Document {
       duration?: number;
       description?: string;
     };
-    // Phase 7.6: 標籤系統
     tags?: string[];
-    // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
     checkType?: 'none' | 'contest' | 'random' | 'random_contest';
     contestConfig?: {
       relatedStat: string;
@@ -119,16 +115,14 @@ export interface CharacterDocument extends Document {
       maxValue: number;
       threshold: number;
     };
-    // 使用限制
     usageLimit?: number;
     usageCount?: number;
     cooldown?: number;
     lastUsedAt?: Date;
-    // 流通性
     isTransferable: boolean;
     acquiredAt: Date;
   }>;
-  
+
   // Phase 4: 數值系統
   stats?: Array<{
     id: string;
@@ -136,35 +130,29 @@ export interface CharacterDocument extends Document {
     value: number;
     maxValue?: number;
   }>;
-  
+
   // Phase 5: 技能系統
   skills?: Array<{
     id: string;
     name: string;
     description: string;
     iconUrl?: string;
-    // Phase 7.6: 標籤系統
     tags?: string[];
-    // 檢定系統（Phase 7.6: 擴展為包含 random_contest）
     checkType: 'none' | 'contest' | 'random' | 'random_contest';
-    // 對抗檢定設定
     contestConfig?: {
-      relatedStat: string; // 使用的數值名稱
-      opponentMaxItems?: number; // 對方最多可使用道具數（預設 0）
-      opponentMaxSkills?: number; // 對方最多可使用技能數（預設 0）
-      tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 平手裁決方式
+      relatedStat: string;
+      opponentMaxItems?: number;
+      opponentMaxSkills?: number;
+      tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
     };
-    // 隨機檢定設定
     randomConfig?: {
-      maxValue: number; // 隨機數值上限（預設 100）
-      threshold: number; // 門檻值（必須 <= maxValue）
+      maxValue: number;
+      threshold: number;
     };
-    // 使用限制
     usageLimit?: number;
     usageCount?: number;
     cooldown?: number;
     lastUsedAt?: Date;
-    // 效果定義（可多個）
     effects?: Array<{
       type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
             'task_reveal' | 'task_complete' | 'custom';
@@ -172,14 +160,14 @@ export interface CharacterDocument extends Document {
       value?: number;
       statChangeTarget?: 'value' | 'maxValue';
       syncValue?: boolean;
-      duration?: number;  // Phase 8: 持續時間（秒）
+      duration?: number;
       targetItemId?: string;
       targetTaskId?: string;
       targetCharacterId?: string;
       description?: string;
     }>;
   }>;
-  
+
   // Phase 7.7: 角色已檢視的道具記錄
   viewedItems?: Array<{
     itemId: string;
@@ -207,16 +195,40 @@ export interface CharacterDocument extends Document {
     isExpired: boolean;
   }>;
 
+  // Snapshot 專屬欄位（只有 type='snapshot' 時使用）
+  snapshotGameRuntimeId?: mongoose.Types.ObjectId; // 屬於哪個 Snapshot
+
   createdAt: Date;
   updatedAt: Date;
 }
 
-const CharacterSchema = new Schema<CharacterDocument>(
+/**
+ * Character Runtime Schema
+ * 與 CharacterSchema 欄位定義一致，但加入 Runtime 專屬欄位
+ */
+const CharacterRuntimeSchema = new Schema<CharacterRuntimeDocument>(
   {
+    // Phase 10: Runtime 專屬欄位
+    refId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Character',
+      required: true,
+      index: true,
+    },
+    type: {
+      type: String,
+      enum: ['runtime', 'snapshot'],
+      default: 'runtime',
+      required: true,
+      index: true,
+    },
+
+    // 以下欄位與 CharacterSchema 完全一致（複製定義）
     gameId: {
       type: Schema.Types.ObjectId,
       ref: 'Game',
       required: true,
+      index: true,
     },
     name: {
       type: String,
@@ -237,6 +249,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
     pin: {
       type: String,
     },
+
     // Phase 3: 公開資訊
     publicInfo: {
       background: {
@@ -249,18 +262,19 @@ const CharacterSchema = new Schema<CharacterDocument>(
       },
       relationships: [
         {
-          _id: false, // 禁用自動生成 _id
+          _id: false,
           targetName: String,
           description: String,
         },
       ],
     },
+
     // Phase 3.5: 隱藏資訊
     secretInfo: {
       type: {
         secrets: [
           {
-            _id: false, // 禁用自動生成 _id，使用自訂 id 欄位
+            _id: false,
             id: {
               type: String,
               required: true,
@@ -281,7 +295,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
               type: String,
               default: '',
             },
-            // Phase 7.7: 自動揭露條件
             autoRevealCondition: {
               type: {
                 type: String,
@@ -303,6 +316,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
       },
       default: { secrets: [] },
     },
+
     // Phase 4.5: 任務系統（擴展版）
     tasks: [
       {
@@ -319,7 +333,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
           type: String,
           default: '',
         },
-        // 隱藏目標機制
         isHidden: {
           type: Boolean,
           default: false,
@@ -331,7 +344,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
         revealedAt: {
           type: Date,
         },
-        // 完成狀態
         status: {
           type: String,
           enum: ['pending', 'in-progress', 'completed', 'failed'],
@@ -340,7 +352,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
         completedAt: {
           type: Date,
         },
-        // GM 專用欄位
         gmNotes: {
           type: String,
           default: '',
@@ -349,7 +360,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
           type: String,
           default: '',
         },
-        // Phase 7.7: 自動揭露條件
         autoRevealCondition: {
           type: {
             type: String,
@@ -370,6 +380,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
         },
       },
     ],
+
     // Phase 4.5: 道具系統（擴展版）
     items: [
       {
@@ -389,7 +400,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
         imageUrl: {
           type: String,
         },
-        // 道具類型與數量
         type: {
           type: String,
           enum: ['consumable', 'equipment'],
@@ -399,16 +409,14 @@ const CharacterSchema = new Schema<CharacterDocument>(
           type: Number,
           default: 1,
         },
-        // 使用效果（重構：支援多個效果）
         effects: [
           {
             _id: false,
             type: {
               type: String,
-              enum: ['stat_change', 'custom', 'item_take', 'item_steal'], // Phase 7: 添加 item_take 和 item_steal
+              enum: ['stat_change', 'custom', 'item_take', 'item_steal'],
               required: true,
             },
-            // Phase 6.5 方案 A: 目標設定
             targetType: {
               type: String,
               enum: ['self', 'other', 'any'],
@@ -421,12 +429,11 @@ const CharacterSchema = new Schema<CharacterDocument>(
               enum: ['value', 'maxValue'],
             },
             syncValue: Boolean,
-            targetItemId: String, // Phase 7: 目標道具 ID
+            targetItemId: String,
             duration: Number,
             description: String,
           },
         ],
-        // 向後兼容：保留單一 effect 欄位（已棄用）
         effect: {
           type: {
             type: String,
@@ -444,38 +451,33 @@ const CharacterSchema = new Schema<CharacterDocument>(
             enum: ['value', 'maxValue'],
           },
           syncValue: Boolean,
-          targetItemId: String, // Phase 7: 目標道具 ID
+          targetItemId: String,
           duration: Number,
           description: String,
         },
-        // Phase 7.6: 標籤系統
         tags: [String],
-        // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
         checkType: {
           type: String,
           enum: ['none', 'contest', 'random', 'random_contest'],
           default: 'none',
         },
-        // 對抗檢定設定
         contestConfig: {
-          relatedStat: String, // 使用的數值名稱
-          opponentMaxItems: Number, // 對方最多可使用道具數（預設 0）
-          opponentMaxSkills: Number, // 對方最多可使用技能數（預設 0）
+          relatedStat: String,
+          opponentMaxItems: Number,
+          opponentMaxSkills: Number,
           tieResolution: {
             type: String,
             enum: ['attacker_wins', 'defender_wins', 'both_fail'],
             default: 'attacker_wins',
           },
         },
-        // 隨機檢定設定
         randomConfig: {
           maxValue: {
             type: Number,
             default: 100,
           },
-          threshold: Number, // 門檻值（必須 <= maxValue）
+          threshold: Number,
         },
-        // 使用限制
         usageLimit: {
           type: Number,
         },
@@ -489,7 +491,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
         lastUsedAt: {
           type: Date,
         },
-        // 流通性
         isTransferable: {
           type: Boolean,
           default: true,
@@ -500,10 +501,11 @@ const CharacterSchema = new Schema<CharacterDocument>(
         },
       },
     ],
+
     // Phase 4: 數值系統
     stats: [
       {
-        _id: false, // 禁用自動生成 _id，使用自訂 id 欄位
+        _id: false,
         id: {
           type: String,
           required: true,
@@ -522,6 +524,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
         },
       },
     ],
+
     // Phase 5: 技能系統
     skills: [
       {
@@ -541,37 +544,32 @@ const CharacterSchema = new Schema<CharacterDocument>(
         iconUrl: {
           type: String,
         },
-        // Phase 7.6: 標籤系統
         tags: {
           type: [String],
           default: [],
         },
-        // 檢定系統（Phase 7.6: 擴展為包含 random_contest）
         checkType: {
           type: String,
           enum: ['none', 'contest', 'random', 'random_contest'],
           default: 'none',
         },
-        // 對抗檢定設定
         contestConfig: {
-          relatedStat: String, // 使用的數值名稱
-          opponentMaxItems: Number, // 對方最多可使用道具數（預設 0）
-          opponentMaxSkills: Number, // 對方最多可使用技能數（預設 0）
+          relatedStat: String,
+          opponentMaxItems: Number,
+          opponentMaxSkills: Number,
           tieResolution: {
             type: String,
             enum: ['attacker_wins', 'defender_wins', 'both_fail'],
             default: 'attacker_wins',
           },
         },
-        // 隨機檢定設定
         randomConfig: {
           maxValue: {
             type: Number,
             default: 100,
           },
-          threshold: Number, // 門檻值（必須 <= maxValue）
+          threshold: Number,
         },
-        // 使用限制
         usageLimit: {
           type: Number,
         },
@@ -585,17 +583,15 @@ const CharacterSchema = new Schema<CharacterDocument>(
         lastUsedAt: {
           type: Date,
         },
-        // 效果定義（可多個）
         effects: [
           {
             _id: false,
             type: {
               type: String,
-              enum: ['stat_change', 'item_give', 'item_take', 'item_steal', 
+              enum: ['stat_change', 'item_give', 'item_take', 'item_steal',
                      'task_reveal', 'task_complete', 'custom'],
               required: true,
             },
-            // Phase 6.5 方案 A: 目標設定
             targetType: {
               type: String,
               enum: ['self', 'other', 'any'],
@@ -608,7 +604,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
               enum: ['value', 'maxValue'],
             },
             syncValue: Boolean,
-            duration: Number, // Phase 8: 持續時間（秒）
+            duration: Number,
             targetItemId: String,
             targetTaskId: String,
             description: String,
@@ -616,6 +612,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
         ],
       },
     ],
+
     // Phase 7.7: 角色已檢視的道具記錄
     viewedItems: [
       {
@@ -634,6 +631,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
         },
       },
     ],
+
     // Phase 8: 時效性效果記錄
     temporaryEffects: [
       {
@@ -704,34 +702,30 @@ const CharacterSchema = new Schema<CharacterDocument>(
         },
       },
     ],
+
+    // Snapshot 專屬欄位
+    snapshotGameRuntimeId: {
+      type: Schema.Types.ObjectId,
+      ref: 'GameRuntime',
+    },
   },
   {
     timestamps: true,
-    collection: 'characters',
+    collection: 'character_runtime',
     strict: true, // 嚴格模式：只保存 Schema 中定義的欄位
-    // 但對於嵌套的子文檔，我們需要確保所有欄位都被正確保存
   }
 );
 
 // 建立索引
-CharacterSchema.index({ gameId: 1 });
+// 1. 複合索引：根據 refId 和 type 查詢（查詢特定角色的 runtime 或 snapshot）
+CharacterRuntimeSchema.index({ refId: 1, type: 1 });
 
-// Phase 10: 複合索引 - 同一 Game 內 PIN 唯一
-CharacterSchema.index(
-  { gameId: 1, pin: 1 },
-  {
-    unique: true,
-    sparse: true, // 允許 pin 為 null（無 PIN 鎖的角色）
-    partialFilterExpression: {
-      // 只對有 PIN 的角色建立唯一性約束（排除 null 和空字串）
-      $and: [
-        { pin: { $exists: true } },
-        { pin: { $ne: null } },
-        { pin: { $ne: '' } },
-      ],
-    },
-  }
-);
+// 2. 複合索引：根據 gameId 和 type 查詢（查詢特定遊戲的所有 runtime/snapshot 角色）
+CharacterRuntimeSchema.index({ gameId: 1, type: 1 });
 
-export default mongoose.models.Character || mongoose.model<CharacterDocument>('Character', CharacterSchema);
+// 3. 複合索引：Game Code + PIN 查詢（玩家訪問時使用）
+CharacterRuntimeSchema.index({ gameId: 1, pin: 1 });
 
+// 防止重複註冊 Model
+export default mongoose.models.CharacterRuntime ||
+  mongoose.model<CharacterRuntimeDocument>('CharacterRuntime', CharacterRuntimeSchema);

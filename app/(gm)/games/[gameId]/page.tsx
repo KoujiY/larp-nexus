@@ -13,6 +13,8 @@ import { CharacterCard } from '@/components/gm/character-card';
 import { GameEditForm } from '@/components/gm/game-edit-form';
 import { GenerateGamePublicQRCodeButton } from '@/components/gm/generate-game-public-qrcode-button';
 import { GameBroadcastPanel } from '@/components/gm/game-broadcast-panel';
+import { GameCodeSection } from '@/components/gm/game-code-section'; // Phase 10
+import { GameLifecycleControls } from '@/components/gm/game-lifecycle-controls'; // Phase 10.3.4
 
 interface GamePageProps {
   params: Promise<{ gameId: string }>;
@@ -60,13 +62,23 @@ export default async function GamePage({ params }: GamePageProps) {
             </div>
             <div className="flex items-center space-x-3">
               <h1 className="text-3xl font-bold truncate">{game.name}</h1>
-              <Badge variant={game.isActive ? 'default' : 'secondary'} className="shrink-0">
-                {game.isActive ? '啟用中' : '已停用'}
+              {/* Phase 10.3.4: 改進狀態顯示 */}
+              <Badge
+                variant={game.isActive ? 'default' : 'secondary'}
+                className={`shrink-0 ${game.isActive ? 'bg-green-600' : ''}`}
+              >
+                {game.isActive ? '🟢 進行中' : '⚪ 待機中'}
               </Badge>
             </div>
             {game.description && (
               <p className="text-muted-foreground text-sm line-clamp-1 mt-1">{game.description}</p>
             )}
+            {/* Phase 10: Game Code 顯示和編輯 */}
+            <div className="mt-3 flex items-center gap-3">
+              <GameCodeSection gameId={game.id} gameCode={game.gameCode} />
+              {/* Phase 10.3.4: 遊戲生命週期控制 */}
+              <GameLifecycleControls gameId={game.id} isActive={game.isActive} />
+            </div>
           </div>
           <div className="flex items-center space-x-2 shrink-0 ml-4">
             <GenerateGamePublicQRCodeButton gameId={game.id} />

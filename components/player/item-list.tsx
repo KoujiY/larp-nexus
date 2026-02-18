@@ -46,7 +46,14 @@ import { TargetItemSelectionSection } from './target-item-selection-section';
 import type { ItemListProps } from '@/types/item-list';
 import { recordItemView, showcaseItem } from '@/app/actions/item-showcase';
 
-export function ItemList({ items, characterId, gameId, characterName, randomContestMaxValue = 100, onUseItem, onTransferItem }: ItemListProps) {
+export function ItemList({ items, characterId, gameId, characterName, randomContestMaxValue = 100, isReadOnly = false, onUseItem, onTransferItem }: ItemListProps) {
+  // TODO (Phase 10.5.4): 未來優化 - 使用 isReadOnly 禁用互動功能
+  // 當 isReadOnly=true 時，應該禁用以下按鈕：
+  // 1. "使用道具" 按鈕 (handleUseItem)
+  // 2. "展示" 按鈕 (handleOpenShowcase)
+  // 3. "轉移道具" 按鈕 (handleOpenTransfer)
+  // 實作方式：在各按鈕的 disabled 屬性中加入 `|| isReadOnly` 條件
+
   const router = useRouter();
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   // 用於實時更新冷卻倒數的時間戳

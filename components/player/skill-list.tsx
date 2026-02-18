@@ -36,7 +36,12 @@ import { TargetSelectionSection } from './target-selection-section';
 import { TargetItemSelectionDialog } from './target-item-selection-dialog';
 import type { SkillListProps } from '@/types/skill-list';
 
-export function SkillList({ skills, characterId, gameId, characterName, stats = [], randomContestMaxValue = 100 }: SkillListProps) {
+export function SkillList({ skills, characterId, gameId, characterName, stats = [], randomContestMaxValue = 100, isReadOnly = false }: SkillListProps) {
+  // TODO (Phase 10.5.4): 未來優化 - 使用 isReadOnly 禁用互動功能
+  // 當 isReadOnly=true 時，應該禁用以下按鈕：
+  // 1. "使用技能" 按鈕 (handleUseSkill)
+  // 實作方式：在按鈕的 disabled 屬性中加入 `|| isReadOnly` 條件
+
   const router = useRouter();
   const [localSkills, setLocalSkills] = useState<Skill[]>(skills || []);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);

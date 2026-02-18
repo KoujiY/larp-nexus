@@ -1,12 +1,13 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import { removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { validateContestRequest, validateContestSource, validateDefenderItems, validateDefenderSkills, validateDefenderCombatTag, validateDefenderCheckType, validateDefenderRelatedStat } from '@/lib/contest/contest-validator';
 import { calculateAttackerValue, calculateDefenderValue, calculateContestResult } from '@/lib/contest/contest-calculator';
 import { executeContestEffects } from '@/lib/contest/contest-effect-executor';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
+import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
+import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
 import type { CharacterDocument } from '@/lib/db/models';
 
@@ -36,9 +37,9 @@ export async function respondToContest(
     }
     const { attackerId, sourceId } = parsed;
 
-    // 取得攻擊方和防守方角色
-    const attacker = await Character.findById(attackerId);
-    const defender = await Character.findById(defenderId);
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const attacker = await getCharacterData(attackerId);
+    const defender = await getCharacterData(defenderId);
 
     // Phase 3.2: 使用驗證模組驗證對抗檢定請求
     const validationResult = await validateContestRequest(contestId, attackerId, defenderId, attacker, defender);
@@ -450,7 +451,8 @@ export async function respondToContest(
     }
 
     if (Object.keys(defenderUpdates).length > 0) {
-      await Character.findByIdAndUpdate(defenderId, {
+      // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
+      await updateCharacterData(defenderId, {
         $set: defenderUpdates,
       });
     }

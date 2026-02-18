@@ -11,6 +11,8 @@ import { handleItemCheck } from '@/lib/item/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
+import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
+import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -38,14 +40,8 @@ export async function useItem(
   try {
     await dbConnect();
 
-    const character = await Character.findById(characterId);
-    if (!character) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到此角色',
-      };
-    }
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const character = await getCharacterData(characterId);
 
     // Phase 8: 使用道具前檢查並處理過期的時效性效果
     await checkExpiredEffects(characterId);
@@ -81,12 +77,13 @@ export async function useItem(
     const isAffectingOthers = targetCharacterId && targetCharacterId !== characterId;
     let targetCharacter: CharacterDocument | null = null;
     if (isAffectingOthers) {
-      targetCharacter = await Character.findById(targetCharacterId);
-      if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+      // Phase 10.4: 使用統一的讀取函數
+      targetCharacter = await getCharacterData(targetCharacterId);
+      if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
         return {
           success: false,
           error: 'INVALID_TARGET',
-          message: '目標角色不存在或不在同一劇本內',
+          message: '目標角色不在同一劇本內',
         };
       }
 
@@ -101,16 +98,21 @@ export async function useItem(
       }
     } else if (targetCharacterId && targetCharacterId !== characterId) {
       // Phase 8: 即使道具不需要目標，如果選擇了目標角色，也要檢查目標是否在對抗中
-      targetCharacter = await Character.findById(targetCharacterId);
-      if (targetCharacter && targetCharacter.gameId.toString() === character.gameId.toString()) {
-        const targetContestStatus = isCharacterInContest(targetCharacterId);
-        if (targetContestStatus.inContest) {
-          return {
-            success: false,
-            error: 'TARGET_IN_CONTEST',
-            message: '目標角色正在進行對抗檢定，暫時無法對其使用道具',
-          };
+      // Phase 10.4: 使用統一的讀取函數（如果角色不存在則忽略錯誤）
+      try {
+        targetCharacter = await getCharacterData(targetCharacterId);
+        if (targetCharacter.gameId.toString() === character.gameId.toString()) {
+          const targetContestStatus = isCharacterInContest(targetCharacterId);
+          if (targetContestStatus.inContest) {
+            return {
+              success: false,
+              error: 'TARGET_IN_CONTEST',
+              message: '目標角色正在進行對抗檢定，暫時無法對其使用道具',
+            };
+          }
         }
+      } catch {
+        // 目標角色不存在或其他錯誤，忽略（這是可選的檢查）
       }
     }
 
@@ -167,12 +169,13 @@ export async function useItem(
       }
 
       if (!targetCharacter) {
-        targetCharacter = await Character.findById(targetCharacterId);
-        if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+        // Phase 10.4: 使用統一的讀取函數
+        targetCharacter = await getCharacterData(targetCharacterId);
+        if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
           return {
             success: false,
             error: 'INVALID_TARGET',
-            message: '目標角色不存在或不在同一劇本內',
+            message: '目標角色不在同一劇本內',
           };
         }
       }
@@ -267,8 +270,8 @@ export async function useItem(
 
     // 如果是對抗檢定，需要提前返回
     if (itemCheckType === 'contest' || itemCheckType === 'random_contest') {
-      // 更新道具使用記錄（但不執行效果，效果將在防守方回應後執行）
-      await Character.findByIdAndUpdate(characterId, {
+      // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
+      await updateCharacterData(characterId, {
         $set: {
           [`items.${itemIndex}.lastUsedAt`]: now,
           [`items.${itemIndex}.usageCount`]: (item.usageCount || 0) + 1,
@@ -365,7 +368,8 @@ export async function useItem(
 
     // 執行更新：施放者（使用記錄）
     if (Object.keys(usageUpdates).length > 0) {
-      await Character.findByIdAndUpdate(characterId, { $set: usageUpdates });
+      // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
+      await updateCharacterData(characterId, { $set: usageUpdates });
     }
     revalidatePath(`/c/${characterId}`);
 
@@ -418,23 +422,9 @@ export async function transferItem(
       };
     }
 
-    const character = await Character.findById(characterId);
-    if (!character) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到來源角色',
-      };
-    }
-
-    const targetCharacter = await Character.findById(targetCharacterId);
-    if (!targetCharacter) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到目標角色',
-      };
-    }
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const character = await getCharacterData(characterId);
+    const targetCharacter = await getCharacterData(targetCharacterId);
 
     // 驗證在同一劇本
     if (character.gameId.toString() !== targetCharacter.gameId.toString()) {
@@ -489,8 +479,9 @@ export async function transferItem(
       targetUpdates[`items.${targetIndex}.quantity`] = newTargetQuantity;
     } else {
       // 目標沒有此道具，新增道具
+      // Phase 10.4: 使用 JSON 序列化來複製對象，避免 Mongoose document 類型問題
       const newItem = {
-        ...sourceItem.toObject(),
+        ...JSON.parse(JSON.stringify(sourceItem)),
         quantity,
         acquiredAt: new Date(),
       };
@@ -510,23 +501,24 @@ export async function transferItem(
       sourceUpdates[`items.${sourceIndex}.quantity`] = newSourceQuantity;
     }
 
+    // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
     // 執行更新：先更新目標角色，再更新來源角色
     if (targetUpdates.$push) {
-      await Character.findByIdAndUpdate(targetCharacterId, {
+      await updateCharacterData(targetCharacterId, {
         $push: targetUpdates.$push,
       });
     } else {
-      await Character.findByIdAndUpdate(targetCharacterId, {
+      await updateCharacterData(targetCharacterId, {
         $set: targetUpdates,
       });
     }
 
     if (sourceUpdates.$pull) {
-      await Character.findByIdAndUpdate(characterId, {
+      await updateCharacterData(characterId, {
         $pull: sourceUpdates.$pull,
       });
     } else {
-      await Character.findByIdAndUpdate(characterId, {
+      await updateCharacterData(characterId, {
         $set: sourceUpdates,
       });
     }

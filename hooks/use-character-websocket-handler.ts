@@ -202,6 +202,20 @@ export function useCharacterWebSocketHandler(
           break;
         }
 
+        case 'game.started': {
+          // Phase 10.7: 遊戲開始通知
+          toast.info('遊戲已開始，正在重新載入...');
+          router.refresh();
+          break;
+        }
+
+        case 'game.ended': {
+          // Phase 10.7: 遊戲結束通知
+          toast.info('遊戲已結束');
+          router.refresh();
+          break;
+        }
+
         default:
           // 其他事件僅記錄於 console，避免干擾玩家
           console.debug('[ws][character]', event);

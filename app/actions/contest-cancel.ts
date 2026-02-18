@@ -1,11 +1,12 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import { removeActiveContest, removeContestsByCharacterId, getContestInfo, isCharacterInContest } from '@/lib/contest-tracker';
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
+import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import type { ApiResponse } from '@/types/api';
 import type { BaseEvent } from '@/types/event';
+import type { CharacterDocument, CharacterRuntimeDocument } from '@/lib/db/models';
 
 /**
  * 取消對抗檢定（當目標角色沒有道具可選擇時）
@@ -51,16 +52,15 @@ export async function cancelContestItemSelection(
       };
     }
 
-    // 獲取攻擊方和防守方角色信息，用於發送通知
-    const attacker = await Character.findById(attackerIdStr);
-    const defender = await Character.findById(contestInfo.defenderId);
-    
-    if (!attacker) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到攻擊方角色',
-      };
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const attacker = await getCharacterData(attackerIdStr);
+
+    // 防守方可能不存在，使用 try-catch 處理
+    let defender: CharacterDocument | CharacterRuntimeDocument | null = null;
+    try {
+      defender = await getCharacterData(contestInfo.defenderId);
+    } catch {
+      // 防守方不存在，但這不影響取消操作（只是不發送通知）
     }
 
     // 根據來源類型獲取技能或道具信息

@@ -28,6 +28,7 @@ export interface ItemListProps {
   gameId: string;
   characterName: string;
   randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
+  isReadOnly?: boolean; // Phase 10.5.4: 預覽模式禁用互動
   onUseItem?: (
     itemId: string,
     targetCharacterId?: string,

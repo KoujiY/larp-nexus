@@ -12,6 +12,7 @@ import { cleanItemData } from '@/lib/character-cleanup';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import type { CharacterDocument } from '@/lib/db/models';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
+import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
 
 /**
  * 技能或道具的效果類型
@@ -525,6 +526,38 @@ export async function executeContestEffects(
   if (!updatedAttacker || !updatedDefender) {
     throw new Error('找不到角色');
   }
+
+  // Phase 10.6: 記錄對抗結果日誌
+  // 決定誰是 actor（獲勝方）
+  const winnerCharacterId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
+  const winnerCharacterName = contestResult === 'defender_wins' ? defender.name : attacker.name;
+  const loserCharacterId = contestResult === 'defender_wins' ? attackerIdStr : defenderIdStr;
+  const loserCharacterName = contestResult === 'defender_wins' ? attacker.name : defender.name;
+
+  await writeLog({
+    gameId: attacker.gameId.toString(),
+    characterId: winnerCharacterId,
+    actorType: 'character',
+    actorId: winnerCharacterId,
+    action: 'contest_result',
+    details: {
+      contestResult,
+      sourceType: actualSourceType,
+      sourceId: actualSource.id,
+      sourceName: actualSource.name,
+      attackerCharacterId: attackerIdStr,
+      attackerCharacterName: attacker.name,
+      defenderCharacterId: defenderIdStr,
+      defenderCharacterName: defender.name,
+      winnerCharacterId,
+      winnerCharacterName,
+      loserCharacterId,
+      loserCharacterName,
+      effectsApplied,
+      statChanges: statUpdates.length > 0 ? statUpdates : undefined,
+      targetItemId: targetItemId || undefined,
+    },
+  });
 
   return {
     effectsApplied,

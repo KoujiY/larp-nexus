@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import dbConnect from "@/lib/db/mongodb";
 import { Character } from "@/lib/db/models";
 import { getCurrentGMUserId } from "@/lib/auth/session";
+import { getCharacterData } from "@/lib/game/get-character-data"; // Phase 10.4: 統一讀取
 import type { ApiResponse } from "@/types/api";
 import type { CharacterData } from "@/types/character";
 import { emitRoleUpdated, emitInventoryUpdated } from "@/lib/websocket/events";
@@ -32,6 +33,7 @@ import {
   updateCharacterSecrets,
   updateCharacterPublicInfo,
 } from "@/lib/character/field-updaters";
+import { writeLog } from "@/lib/logs/write-log"; // Phase 10.6
 
 // Phase 3.3: MongoDB 類型定義已移至 field-updaters.ts
 // MongoDB lean() 返回的類型（可能包含 _id）
@@ -252,6 +254,23 @@ export async function updateCharacter(
       };
     }
 
+    // Phase 10.9.2: 檢查 PIN 在同遊戲內的唯一性（編輯時排除自己）
+    if (data.hasPinLock && data.pin) {
+      const existingCharacter = await Character.findOne({
+        gameId: character.gameId,
+        pin: data.pin,
+        _id: { $ne: characterId }, // 排除當前角色
+      });
+
+      if (existingCharacter) {
+        return {
+          success: false,
+          error: 'DUPLICATE_ERROR',
+          message: '此 PIN 在本遊戲中已被使用，請選擇其他 PIN',
+        };
+      }
+    }
+
     // 更新資料
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) {
@@ -359,16 +378,9 @@ export async function updateCharacter(
       updateData.skills = updateCharacterSkills(data.skills);
     }
 
-    // 使用 findById 取得文件，手動更新後再 save，確保所有欄位都被正確保存
-    const characterDoc = await Character.findById(characterId);
-
-    if (!characterDoc) {
-      return {
-        success: false,
-        error: "NOT_FOUND",
-        message: "找不到此角色",
-      };
-    }
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    // 取得文件，手動更新後再 save，Mongoose 會自動保存到正確的 collection
+    const characterDoc = await getCharacterData(characterId);
 
     // 手動更新所有欄位
     Object.keys(updateData).forEach((key) => {
@@ -529,10 +541,12 @@ export async function updateCharacter(
         // 清空現有技能陣列
         characterDoc.skills = [];
         characterDoc.markModified("skills");
-        
+
         // 逐個添加技能，確保 Mongoose 正確處理所有欄位
         skillsToSave.forEach((skillData) => {
-          characterDoc.skills.push(skillData as typeof characterDoc.skills[number]);
+          if (characterDoc.skills) {
+            characterDoc.skills.push(skillData as typeof characterDoc.skills[number]);
+          }
         });
         characterDoc.markModified("skills");
       } else if (key === "items" && updateData.items) {
@@ -852,6 +866,24 @@ export async function updateCharacter(
       executeChainRevealForSecrets(characterId)
         .catch((error) => console.error("[character-update] Failed to execute chain reveal for secrets", error));
     }
+
+    // Phase 10.6: 記錄 GM 更新角色日誌
+    await writeLog({
+      gameId: updatedCharacter.gameId.toString(),
+      characterId,
+      actorType: "gm",
+      actorId: gmUserId,
+      action: "gm_update",
+      details: {
+        characterName: updatedCharacter.name,
+        updatedFields: Object.keys(updateData),
+        hasStatsChange: statsChanged,
+        hasItemsChange: inventoryDiffs.length > 0,
+        hasSkillsChange: data.skills !== undefined,
+        hasTasksChange: data.tasks !== undefined,
+        hasSecretReveal: hasManualSecretReveal,
+      },
+    });
 
     return {
       success: true,

@@ -294,6 +294,22 @@ export async function createCharacter(data: {
 
     await dbConnect();
 
+    // Phase 10.9.2: 檢查 PIN 在同遊戲內的唯一性
+    if (validated.hasPinLock && validated.pin) {
+      const existingCharacter = await Character.findOne({
+        gameId: data.gameId,
+        pin: validated.pin,
+      });
+
+      if (existingCharacter) {
+        return {
+          success: false,
+          error: 'DUPLICATE_ERROR',
+          message: '此 PIN 在本遊戲中已被使用，請選擇其他 PIN',
+        };
+      }
+    }
+
     // 驗證 Game 存在且屬於當前 GM
     const game = await Game.findOne({ _id: data.gameId, gmUserId });
     if (!game) {
@@ -717,3 +733,60 @@ export async function setCharacterStat(
 }
 
 // 使用道具和技能函數已移動到 item-use.ts 和 skill-use.ts
+
+/**
+ * Phase 10.9.2: 檢查 PIN 是否可用（前端即時檢查用）
+ *
+ * @param gameId - 遊戲 ID
+ * @param pin - 要檢查的 PIN
+ * @param excludeCharacterId - 要排除的角色 ID（編輯時使用，排除自己）
+ * @returns API 回應（isAvailable: true/false）
+ */
+export async function checkPinAvailability(
+  gameId: string,
+  pin: string,
+  excludeCharacterId?: string
+): Promise<ApiResponse<{ isAvailable: boolean }>> {
+  try {
+    // 驗證 PIN 格式（4-6 位數字）
+    const pinRegex = /^\d{4,6}$/;
+    const trimmedPin = pin.trim();
+
+    if (!pinRegex.test(trimmedPin)) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'PIN 碼必須為 4-6 位數字',
+      };
+    }
+
+    await dbConnect();
+
+    // 建立查詢條件
+    const query: Record<string, unknown> = {
+      gameId,
+      pin: trimmedPin,
+    };
+
+    // 如果有 excludeCharacterId，排除該角色（編輯時使用）
+    if (excludeCharacterId) {
+      query._id = { $ne: excludeCharacterId };
+    }
+
+    // 檢查唯一性
+    const existingCharacter = await Character.findOne(query);
+    const isAvailable = !existingCharacter;
+
+    return {
+      success: true,
+      data: { isAvailable },
+    };
+  } catch (error) {
+    console.error('Error checking PIN availability:', error);
+    return {
+      success: false,
+      error: 'CHECK_FAILED',
+      message: '無法檢查 PIN 可用性',
+    };
+  }
+}

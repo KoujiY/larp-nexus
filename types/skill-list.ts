@@ -16,5 +16,6 @@ export interface SkillListProps {
   characterName: string;
   stats?: Array<{ name: string; value: number }>;
   randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
+  isReadOnly?: boolean; // Phase 10.5.4: 預覽模式禁用互動
 }
 

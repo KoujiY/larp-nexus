@@ -8,6 +8,7 @@ export interface GameData {
   gmUserId: string;
   name: string;
   description: string;
+  gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
   publicInfo?: {
     intro: string;
@@ -43,6 +44,7 @@ export interface Game {
   gmUserId: string;
   name: string;
   description: string;
+  gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
   publicInfo?: {
     intro: string;

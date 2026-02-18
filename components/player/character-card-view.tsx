@@ -36,6 +36,7 @@ import { usePendingEvents } from '@/hooks/use-pending-events'; // Phase 9: 離�
 
 interface CharacterCardViewProps {
   character: CharacterData;
+  isReadOnly?: boolean; // Phase 10.5.4: 預覽模式標記
 }
 
 // Hook 用於安全地讀取 localStorage（避免 SSR/CSR hydration 問題）
@@ -63,9 +64,9 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-export function CharacterCardView({ character }: CharacterCardViewProps) {
+export function CharacterCardView({ character, isReadOnly = false }: CharacterCardViewProps) {
   const router = useRouter();
-  
+
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
   const isStorageUnlocked = useLocalStorageUnlock(character.id, character.hasPinLock);
   const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
@@ -537,25 +538,27 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
               </TabsContent>
 
               <TabsContent value="items" className="mt-0">
-                <ItemList 
-                  items={character.items} 
+                <ItemList
+                  items={character.items}
                   characterId={character.id}
                   gameId={character.gameId}
                   characterName={character.name}
                   randomContestMaxValue={character.randomContestMaxValue}
                   onUseItem={handleUseItem}
                   onTransferItem={handleTransferItem}
+                  isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
                 />
               </TabsContent>
 
               <TabsContent value="skills" className="mt-0">
-                <SkillList 
+                <SkillList
                   skills={character.skills}
                   characterId={character.id}
                   gameId={character.gameId}
                   characterName={character.name}
                   stats={character.stats}
                   randomContestMaxValue={character.randomContestMaxValue}
+                  isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
                 />
               </TabsContent>
             </div>

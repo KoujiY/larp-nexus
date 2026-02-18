@@ -265,6 +265,42 @@ export interface EffectExpiredEvent extends BaseEvent<{
 }
 
 /**
+ * Phase 10.7: 遊戲開始事件
+ *
+ * 當 GM 按下「開始遊戲」時推送此事件，
+ * 通知所有玩家遊戲已開始，觸發頁面重新載入。
+ */
+export interface GameStartedEvent extends BaseEvent<{
+  /** 遊戲 ID */
+  gameId: string;
+  /** 遊戲代碼（6 位英數字） */
+  gameCode: string;
+  /** 遊戲名稱 */
+  gameName: string;
+}> {
+  type: 'game.started';
+}
+
+/**
+ * Phase 10.7: 遊戲結束事件
+ *
+ * 當 GM 按下「結束遊戲」時推送此事件，
+ * 通知所有玩家遊戲已結束，觸發頁面重新載入。
+ */
+export interface GameEndedEvent extends BaseEvent<{
+  /** 遊戲 ID */
+  gameId: string;
+  /** 遊戲代碼（6 位英數字） */
+  gameCode: string;
+  /** 遊戲名稱 */
+  gameName: string;
+  /** Snapshot ID（可選） */
+  snapshotId?: string;
+}> {
+  type: 'game.ended';
+}
+
+/**
  * Phase 9: 離線事件佇列記錄
  *
  * 用於儲存玩家離線時錯過的 WebSocket 事件，
@@ -315,5 +351,7 @@ export type WebSocketEvent =
   | SecretRevealedEvent      // Phase 7.7
   | TaskRevealedEvent        // Phase 7.7
   | ItemShowcasedEvent       // Phase 7.7
-  | EffectExpiredEvent;      // Phase 8
+  | EffectExpiredEvent       // Phase 8
+  | GameStartedEvent         // Phase 10.7
+  | GameEndedEvent;          // Phase 10.7
 

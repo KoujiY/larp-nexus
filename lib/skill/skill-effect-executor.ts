@@ -11,6 +11,7 @@ import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/
 import { cleanItemData } from '@/lib/character-cleanup';
 import type { CharacterDocument } from '@/lib/db/models';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
+import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
 
 /**
  * 技能類型
@@ -456,6 +457,24 @@ export async function executeSkillEffects(
   if (!updatedCharacter) {
     throw new Error('找不到角色');
   }
+
+  // Phase 10.6: 記錄技能使用日誌
+  await writeLog({
+    gameId: character.gameId.toString(),
+    characterId,
+    actorType: 'character',
+    actorId: characterId,
+    action: 'skill_use',
+    details: {
+      skillId: skill.id,
+      skillName: skill.name,
+      targetCharacterId: targetCharacterId || undefined,
+      targetCharacterName: targetCharacter?.name || undefined,
+      effectsApplied,
+      statChanges: statUpdates.length > 0 ? statUpdates : undefined,
+      isAffectingOthers,
+    },
+  });
 
   return {
     effectsApplied,

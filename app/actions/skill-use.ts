@@ -7,6 +7,8 @@ import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleSkillCheck } from '@/lib/skill/check-handler';
 import { executeSkillEffects } from '@/lib/skill/skill-effect-executor';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
+import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
+import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -33,14 +35,8 @@ export async function useSkill(
   try {
     await dbConnect();
 
-    const character = await Character.findById(characterId);
-    if (!character) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到此角色',
-      };
-    }
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const character = await getCharacterData(characterId);
 
     // Phase 8: 使用技能前檢查並處理過期的時效性效果
     await checkExpiredEffects(characterId);
@@ -83,12 +79,13 @@ export async function useSkill(
       }
 
       // 獲取目標角色（驗證在同一劇本內）
-      targetCharacter = await Character.findById(targetCharacterId);
-      if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+      // Phase 10.4: 使用統一的讀取函數
+      targetCharacter = await getCharacterData(targetCharacterId);
+      if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
         return {
           success: false,
           error: 'INVALID_TARGET',
-          message: '目標角色不存在或不在同一劇本內',
+          message: '目標角色不在同一劇本內',
         };
       }
 
@@ -104,7 +101,9 @@ export async function useSkill(
 
       // 驗證目標類型匹配
       const effectWithTarget = skill.effects?.find((e: Record<string, unknown>) => e.requiresTarget);
-      const targetType = effectWithTarget?.targetType as string | undefined;
+      const targetType = effectWithTarget && 'targetType' in effectWithTarget
+        ? (effectWithTarget.targetType as string)
+        : undefined;
 
       if (targetType === 'self' && targetCharacterId !== characterId) {
         return {
@@ -123,16 +122,21 @@ export async function useSkill(
       }
     } else if (targetCharacterId) {
       // Phase 8: 即使技能不需要目標，如果選擇了目標角色，也要檢查目標是否在對抗中
-      targetCharacter = await Character.findById(targetCharacterId);
-      if (targetCharacter && targetCharacter.gameId.toString() === character.gameId.toString()) {
-        const targetContestStatus = isCharacterInContest(targetCharacterId);
-        if (targetContestStatus.inContest) {
-          return {
-            success: false,
-            error: 'TARGET_IN_CONTEST',
-            message: '目標角色正在進行對抗檢定，暫時無法對其使用技能',
-          };
+      // Phase 10.4: 使用統一的讀取函數（如果角色不存在則忽略錯誤）
+      try {
+        targetCharacter = await getCharacterData(targetCharacterId);
+        if (targetCharacter.gameId.toString() === character.gameId.toString()) {
+          const targetContestStatus = isCharacterInContest(targetCharacterId);
+          if (targetContestStatus.inContest) {
+            return {
+              success: false,
+              error: 'TARGET_IN_CONTEST',
+              message: '目標角色正在進行對抗檢定，暫時無法對其使用技能',
+            };
+          }
         }
+      } catch {
+        // 目標角色不存在或其他錯誤，忽略（這是可選的檢查）
       }
     }
 
@@ -222,8 +226,8 @@ export async function useSkill(
 
     // 如果是對抗檢定或隨機對抗檢定，需要提前返回
     if (skill.checkType === 'contest' || skill.checkType === 'random_contest') {
-      // 更新技能使用記錄（但不執行效果，效果將在防守方回應後執行）
-      await Character.findByIdAndUpdate(characterId, {
+      // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
+      await updateCharacterData(characterId, {
         $set: {
           [`skills.${skillIndex}.lastUsedAt`]: now,
           [`skills.${skillIndex}.usageCount`]: (skill.usageCount || 0) + 1,
@@ -306,7 +310,8 @@ export async function useSkill(
     }
 
     if (Object.keys(usageUpdates).length > 0) {
-      await Character.findByIdAndUpdate(characterId, {
+      // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
+      await updateCharacterData(characterId, {
         $set: usageUpdates,
       });
     }

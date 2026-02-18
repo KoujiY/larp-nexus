@@ -14,6 +14,8 @@ import type {
   TaskRevealedEvent,
   ItemShowcasedEvent,
   EffectExpiredEvent,
+  GameStartedEvent,
+  GameEndedEvent,
 } from '@/types/event';
 import { getPusherServer, isPusherEnabled } from './pusher-server';
 // Phase 9: 離線事件佇列寫入
@@ -22,6 +24,8 @@ import {
   writePendingEvents,
   writePendingGameEvent,
 } from './pending-events';
+// Phase 10.7: 遊戲級別事件推送
+import { pushEventToGame } from './push-event-to-game';
 
 type EventName = WebSocketEvent['type'];
 
@@ -152,5 +156,37 @@ export async function emitEffectExpired(characterId: string, payload: EffectExpi
     trigger(`private-character-${characterId}`, 'effect.expired', payload),
     writePendingEvent(characterId, 'effect.expired', payload as Record<string, unknown>),
   ]);
+}
+
+// Phase 10.7: 遊戲狀態事件
+
+/**
+ * 推送「遊戲開始」事件到所有角色
+ *
+ * 當 GM 按下「開始遊戲」按鈕時調用，
+ * 通知所有玩家遊戲已開始，觸發頁面重新載入。
+ */
+export async function emitGameStarted(gameId: string, payload: GameStartedEvent['payload']) {
+  // Phase 10.7: 使用 pushEventToGame 推送到所有遊戲角色
+  await pushEventToGame(gameId, {
+    type: 'game.started',
+    timestamp: Date.now(),
+    payload,
+  });
+}
+
+/**
+ * 推送「遊戲結束」事件到所有角色
+ *
+ * 當 GM 按下「結束遊戲」按鈕時調用，
+ * 通知所有玩家遊戲已結束，觸發頁面重新載入。
+ */
+export async function emitGameEnded(gameId: string, payload: GameEndedEvent['payload']) {
+  // Phase 10.7: 使用 pushEventToGame 推送到所有遊戲角色
+  await pushEventToGame(gameId, {
+    type: 'game.ended',
+    timestamp: Date.now(),
+    payload,
+  });
 }
 

@@ -2,9 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import { getContestInfo, removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
+import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import type { ApiResponse } from '@/types/api';
 import type { CharacterDocument } from '@/lib/db/models';
 
@@ -51,16 +51,9 @@ export async function selectTargetItemForContest(
       if (targetCharacterId) {
         // 如果提供了 targetCharacterId 參數，使用它作為防守方 ID
         resolvedDefenderId = targetCharacterId;
-        
-        // 從 contestId 解析 sourceId，然後從資料庫查詢確定攻擊方的 sourceType
-        const attacker = await Character.findById(parsedAttackerIdStr);
-        if (!attacker) {
-          return {
-            success: false,
-            error: 'NOT_FOUND',
-            message: '找不到攻擊方角色',
-          };
-        }
+
+        // Phase 10.4: 使用統一的讀取函數確定攻擊方的 sourceType
+        const attacker = await getCharacterData(parsedAttackerIdStr);
         
         // 先嘗試找道具
         const attackerItems = attacker.items || [];
@@ -96,17 +89,9 @@ export async function selectTargetItemForContest(
       attackerSourceType = contestInfo.sourceType; // 這是攻擊方的技能/道具類型
     }
 
-    // 取得攻擊方和防守方角色
-    const attacker = await Character.findById(parsedAttackerIdStr);
-    const defender = await Character.findById(resolvedDefenderId);
-    
-    if (!attacker || !defender) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到角色',
-      };
-    }
+    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
+    const attacker = await getCharacterData(parsedAttackerIdStr);
+    const defender = await getCharacterData(resolvedDefenderId);
 
     // 驗證在同一劇本內
     if (attacker.gameId.toString() !== defender.gameId.toString()) {
