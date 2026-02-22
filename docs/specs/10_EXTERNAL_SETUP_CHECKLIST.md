@@ -564,101 +564,6 @@ SESSION_SECRET=Ab3dEf6gHi9jKl2mNo5pQr8sTu1vWx4yZ=
 
 ---
 
-### 4.2 Sentry 設定（錯誤追蹤）
-
-**用途**：即時錯誤監控  
-**方案**：Free Tier (5k errors/month)  
-**預估時間**：15 分鐘
-
-#### 設定步驟
-
-1. **註冊 Sentry**
-   - 前往 [Sentry](https://sentry.io/signup/)
-   - 使用 GitHub 帳號註冊
-
-2. **建立專案**
-   - 選擇 Platform：`Next.js`
-   - Project name：`larp-nexus`
-   - 點擊「Create Project」
-
-3. **安裝與設定**
-   ```bash
-   # 安裝 Sentry SDK
-   pnpm add @sentry/nextjs
-   
-   # 執行設定精靈
-   npx @sentry/wizard -i nextjs
-   ```
-
-4. **取得 DSN**
-   - 完成設定後會自動填入 `sentry.client.config.ts`
-   - DSN 格式：`https://xxxxx@sentry.io/xxxxx`
-
-5. **設定環境變數**
-   ```bash
-   NEXT_PUBLIC_SENTRY_DSN=https://xxxxx@sentry.io/xxxxx
-   ```
-
-6. **測試錯誤追蹤**
-   ```typescript
-   // 於任意頁面測試
-   throw new Error('Test Sentry Error');
-   ```
-
-#### ✅ 完成檢查
-- [ ] Sentry 帳號已註冊
-- [ ] 專案已建立
-- [ ] SDK 已安裝與設定
-- [ ] DSN 已記錄至環境變數
-- [ ] 測試錯誤可於 Sentry Dashboard 看到
-
----
-
-### 4.3 Upstash Redis（Rate Limiting）
-
-**用途**：API Rate Limiting  
-**方案**：Free Tier (10k commands/day)  
-**預估時間**：10 分鐘
-
-#### 設定步驟
-
-1. **註冊 Upstash**
-   - 前往 [Upstash](https://upstash.com/)
-   - 使用 GitHub 或 Google 帳號註冊
-
-2. **建立 Redis 資料庫**
-   - 點擊「Create Database」
-   - Name：`larp-nexus-ratelimit`
-   - Type：選擇 `Regional`
-   - Region：選擇 `ap-southeast-1`（Singapore）
-   - 點擊「Create」
-
-3. **取得 REST API 憑證**
-   - 進入資料庫 Dashboard
-   - 複製以下資訊：
-     - `UPSTASH_REDIS_REST_URL`
-     - `UPSTASH_REDIS_REST_TOKEN`
-
-4. **安裝套件**
-   ```bash
-   pnpm add @upstash/ratelimit @upstash/redis
-   ```
-
-5. **設定環境變數**
-   ```bash
-   UPSTASH_REDIS_REST_URL=https://xxxxx.upstash.io
-   UPSTASH_REDIS_REST_TOKEN=xxxxxxxxxx
-   ```
-
-#### ✅ 完成檢查
-- [ ] Upstash 帳號已註冊
-- [ ] Redis 資料庫已建立
-- [ ] REST API 憑證已取得
-- [ ] 套件已安裝
-- [ ] 環境變數已設定
-
----
-
 ## 📝 環境變數總表
 
 完成所有設定後，您的 `.env.local` 應包含：
@@ -677,11 +582,6 @@ NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 BLOB_READ_WRITE_TOKEN=xxx
 RESEND_API_KEY=xxx
 EMAIL_FROM=xxx
-
-# ===== 選用 =====
-UPSTASH_REDIS_REST_URL=xxx
-UPSTASH_REDIS_REST_TOKEN=xxx
-NEXT_PUBLIC_SENTRY_DSN=xxx
 ```
 
 ---

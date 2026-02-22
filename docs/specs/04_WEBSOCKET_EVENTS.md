@@ -1,7 +1,7 @@
 # WebSocket 事件格式規範
 
-## 版本：v1.5
-## 更新日期：2026-02-09（Phase 7.7 自動揭露條件 + 道具展示）
+## 版本：v1.6
+## 更新日期：2026-02-18（Phase 10.7 遊戲狀態事件）
 ## WebSocket 服務：Pusher
 
 ---
@@ -726,7 +726,94 @@ interface ItemShowcasedEvent extends BaseEvent {
 
 ---
 
-## 2.18 離線事件佇列機制 - Phase 9
+### 2.17 遊戲開始事件 (game.started) - Phase 10.7
+
+當 GM 按下「開始遊戲」按鈕時觸發，通知所有角色遊戲已開始。
+
+**頻道**：`private-character-{characterId}`（透過 `pushEventToGame()` 推送到所有角色）
+
+**事件格式**
+```typescript
+interface GameStartedEvent extends BaseEvent {
+  type: 'game.started';
+  payload: {
+    gameId: string;        // 遊戲 ID
+    gameCode: string;      // 遊戲代碼（6 位英數字）
+    gameName: string;      // 遊戲名稱
+  };
+}
+```
+
+**範例**
+```json
+{
+  "type": "game.started",
+  "timestamp": 1701234567890,
+  "payload": {
+    "gameId": "507f1f77bcf86cd799439012",
+    "gameCode": "ABC123",
+    "gameName": "迷霧莊園"
+  }
+}
+```
+
+**前端處理**
+- **玩家端**：
+  - 顯示 Toast：「遊戲已開始」
+  - 刷新角色資料（`router.refresh()`）
+  - 記錄到通知面板
+- **GM 端**：
+  - 更新遊戲狀態顯示
+  - 顯示通知（可選）
+
+---
+
+### 2.18 遊戲結束事件 (game.ended) - Phase 10.7
+
+當 GM 按下「結束遊戲」按鈕時觸發，通知所有角色遊戲已結束。
+
+**頻道**：`private-character-{characterId}`（透過 `pushEventToGame()` 推送到所有角色）
+
+**事件格式**
+```typescript
+interface GameEndedEvent extends BaseEvent {
+  type: 'game.ended';
+  payload: {
+    gameId: string;        // 遊戲 ID
+    gameCode: string;      // 遊戲代碼（6 位英數字）
+    gameName: string;      // 遊戲名稱
+    snapshotId?: string;   // Snapshot ID（可選）
+  };
+}
+```
+
+**範例**
+```json
+{
+  "type": "game.ended",
+  "timestamp": 1701234567890,
+  "payload": {
+    "gameId": "507f1f77bcf86cd799439012",
+    "gameCode": "ABC123",
+    "gameName": "迷霧莊園",
+    "snapshotId": "snap-xxx-123"
+  }
+}
+```
+
+**前端處理**
+- **玩家端**：
+  - 顯示 Toast：「遊戲已結束」
+  - 刷新角色資料（`router.refresh()`）
+  - 記錄到通知面板
+  - 顯示遊戲結束畫面（可選）
+- **GM 端**：
+  - 更新遊戲狀態顯示
+  - 顯示通知（可選）
+
+---
+
+## 2.19 離線事件佇列機制 - Phase 9
 
 Phase 9 引入 Server-side 事件佇列，解決玩家離線時漏接 WebSocket 事件的問題。
 
@@ -749,6 +836,8 @@ Phase 9 引入 Server-side 事件佇列，解決玩家離線時漏接 WebSocket 
 | `role.message` | **是** | GM 訊息 |
 | `game.broadcast` | **是** | GM 廣播（使用 targetGameId） |
 | `effect.expired` | **是** | Phase 8 效果過期 |
+| `game.started` | **是** | Phase 10.7 遊戲開始 |
+| `game.ended` | **是** | Phase 10.7 遊戲結束 |
 | `role.updated` | **否** | 頁面載入時已有最新資料 |
 | `skill.used` | **否** | 自己操作，一定在線 |
 | `skill.cooldown` | **否** | 自己操作，一定在線 |
@@ -818,6 +907,8 @@ export function useCharacterWebSocket(characterId: string) {
       'secret.revealed',        // Phase 7.7
       'task.revealed',          // Phase 7.7
       'item.showcased',         // Phase 7.7
+      'game.started',           // Phase 10.7
+      'game.ended',             // Phase 10.7
     ];
     
     eventTypes.forEach(eventType => {

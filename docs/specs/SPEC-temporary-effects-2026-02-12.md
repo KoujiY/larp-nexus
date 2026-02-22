@@ -318,85 +318,85 @@ duration: { type: Number },  // Phase 8: 持續時間（秒）
 ## 5. 實作步驟
 
 ### Phase 8.1：型別定義與 Schema 擴展
-- [ ] 在 `types/character.ts` 新增 `TemporaryEffect` 介面
-- [ ] 在 `types/character.ts` 的 `SkillEffect` 新增 `duration?: number` 欄位
-- [ ] 在 `types/character.ts` 的 `CharacterData` 新增 `temporaryEffects?: TemporaryEffect[]`
-- [ ] 在 `types/event.ts` 新增 `EffectExpiredEvent` 介面，並加入 `WebSocketEvent` 聯合類型
-- [ ] 在 `lib/db/models/Character.ts` 新增 `temporaryEffectSchema` 和 `temporaryEffects` 欄位
-- [ ] 在 `lib/db/models/Character.ts` 的技能效果 schema 新增 `duration: { type: Number }`
+- [x] 在 `types/character.ts` 新增 `TemporaryEffect` 介面
+- [x] 在 `types/character.ts` 的 `SkillEffect` 新增 `duration?: number` 欄位
+- [x] 在 `types/character.ts` 的 `CharacterData` 新增 `temporaryEffects?: TemporaryEffect[]`
+- [x] 在 `types/event.ts` 新增 `EffectExpiredEvent` 介面，並加入 `WebSocketEvent` 聯合類型
+- [x] 在 `lib/db/models/Character.ts` 新增 `temporaryEffectSchema` 和 `temporaryEffects` 欄位
+- [x] 在 `lib/db/models/Character.ts` 的技能效果 schema 新增 `duration: { type: Number }`
 
 ### Phase 8.2：效果執行器整合
-- [ ] 建立共用工具 `lib/effects/create-temporary-effect.ts`：
+- [x] 建立共用工具 `lib/effects/create-temporary-effect.ts`：
   - 函式 `createTemporaryEffectRecord()`：建立 TemporaryEffect 記錄並寫入目標角色
   - 參數：characterId, sourceInfo, statChange, duration
-- [ ] 修改 `lib/skill/skill-effect-executor.ts`：
+- [x] 修改 `lib/skill/skill-effect-executor.ts`：
   - 在 `stat_change` 效果成功套用後，檢查 `effect.duration > 0`
   - 若有 duration，呼叫 `createTemporaryEffectRecord()` 在 `effectTarget` 上建立記錄
-- [ ] 修改 `lib/item/item-effect-executor.ts`：
+- [x] 修改 `lib/item/item-effect-executor.ts`：
   - 同上邏輯：在 stat_change 套用後檢查 duration，建立記錄
-- [ ] 修改 `lib/contest/contest-effect-executor.ts`：
+- [x] 修改 `lib/contest/contest-effect-executor.ts`：
   - 同上邏輯：在 contest 結果處理中的 stat_change 套用後檢查 duration
   - 注意 `effectTarget` 根據 `contestResult` 動態決定
 
 ### Phase 8.3：過期檢查與數值恢復
-- [ ] 建立 `lib/effects/check-expired-effects.ts`：
+- [x] 建立 `lib/effects/check-expired-effects.ts`：
   - 函式 `processExpiredEffects(characterId?: string)`：核心過期處理邏輯
   - 查詢 `temporaryEffects` 中 `expiresAt <= now && isExpired === false`
   - 對每個過期效果：反向恢復數值 + clamp + 標記 isExpired
   - 推送 `effect.expired` WebSocket 事件
-- [ ] 建立 `app/actions/temporary-effects.ts`：
+- [x] 建立 `app/actions/temporary-effects.ts`：
   - `checkExpiredEffects(characterId?)` Server Action
   - `getTemporaryEffects(characterId)` Server Action（GM 端用）
-- [ ] 建立 `app/api/cron/check-expired-effects/route.ts`：
+- [x] 建立 `app/api/cron/check-expired-effects/route.ts`：
   - GET handler，呼叫 `processExpiredEffects()`
   - 支援 Vercel Cron Job 認證（`CRON_SECRET` header）
 
 ### Phase 8.4：WebSocket 事件處理
-- [ ] 在 `lib/websocket/events.ts` 新增 `emitEffectExpired()` 函式
-- [ ] 在 `hooks/use-character-websocket-handler.ts` 新增 `effect.expired` 事件處理：
+- [x] 在 `lib/websocket/events.ts` 新增 `emitEffectExpired()` 函式
+- [x] 在 `hooks/use-character-websocket-handler.ts` 新增 `effect.expired` 事件處理：
   - 顯示 Toast 通知：「[技能/道具名稱] 的效果已結束，[數值名稱] 已恢復」
   - 呼叫 `router.refresh()` 刷新角色資料
   - 加入通知面板
-- [ ] 在 `lib/utils/event-mappers.ts` 新增 `effect.expired` 的通知映射
+- [x] 在 `lib/utils/event-mappers.ts` 新增 `effect.expired` 的通知映射
 
 ### Phase 8.5：前端觸發整合
-- [ ] 修改 `app/actions/public.ts` 的 `getPublicCharacter()`：
+- [x] 修改 `app/actions/public.ts` 的 `getPublicCharacter()`：
   - 在回傳資料前呼叫 `checkExpiredEffects(characterId)`
   - 回傳 `temporaryEffects`（僅 `isExpired === false` 的記錄）
-- [ ] 修改 `app/actions/skill-use.ts` 的 `useSkill()`：
+- [x] 修改 `app/actions/skill-use.ts` 的 `useSkill()`：
   - 在技能執行前呼叫 `checkExpiredEffects(characterId)`
-- [ ] 修改 `app/actions/item-use.ts` 的 `useItem()`：
+- [x] 修改 `app/actions/item-use.ts` 的 `useItem()`：
   - 在道具執行前呼叫 `checkExpiredEffects(characterId)`
 
 ### Phase 8.6：GM 端 UI
-- [ ] 建立 `components/gm/temporary-effects-card.tsx`：
+- [x] 建立 `components/gm/temporary-effects-card.tsx`：
   - 顯示角色所有活躍的時效性效果
   - 每個效果卡片包含：來源資訊、目標數值、變化量、剩餘時間倒數
   - 倒數計時使用 `useEffect` + `setInterval` 每秒更新
   - 效果過期後自動從列表中移除（透過 WebSocket 或定時刷新）
   - **擴展空間**：預留「暫停」、「延長時間」按鈕位置（Phase 8 暫不實作）
-- [ ] 修改 GM 角色編輯頁（數值 Tab）：
+- [x] 修改 GM 角色編輯頁（數值 Tab）：
   - 在 `stats-edit-form.tsx` 下方或同頁面整合 `temporary-effects-card`
   - 傳入角色的 `temporaryEffects` 資料
 
 ### Phase 8.7：玩家端 UI
-- [ ] 修改 `components/player/stats-display.tsx`：
+- [x] 修改 `components/player/stats-display.tsx`：
   - 在 `StatsDisplay` 組件下方新增「活躍效果面板」
   - 顯示所有活躍的 temporaryEffects（`isExpired === false`）
   - 每個效果顯示：效果名稱、數值變化、剩餘時間倒數
   - 倒數計時使用 `useEffect` + `setInterval` 每秒更新
   - 效果過期時自動移除（配合 `effect.expired` WebSocket 事件）
-- [ ] 建立 `components/player/active-effects-panel.tsx`：
+- [x] 建立 `components/player/active-effects-panel.tsx`：
   - 專用的活躍效果面板組件
   - Badge 風格顯示，帶倒數計時器
   - 效果到期動畫（如漸淡消失）
 
 ### Phase 8.8：GM 設定介面擴展
-- [ ] 修改 `components/gm/skill-edit-dialog.tsx`（或相關組件）：
+- [x] 修改 `components/gm/skill-edit-dialog.tsx`（或相關組件）：
   - 在 `stat_change` 效果表單中新增「持續時間」欄位
   - 輸入單位為**分鐘**（整數），儲存時轉換為秒（`value * 60`）
   - 空值 / 0 = 永久效果
-- [ ] 修改 `components/gm/item-edit-dialog.tsx`（或相關組件）：
+- [x] 修改 `components/gm/item-edit-dialog.tsx`（或相關組件）：
   - 同上：在 `stat_change` 效果表單中新增「持續時間」欄位
   - `ItemEffect` 已有 `duration` 欄位，只需新增 UI 輸入
 
@@ -501,37 +501,37 @@ duration: { type: Number },  // Phase 8: 持續時間（秒）
 
 ### 7.1 功能驗收
 
-- [ ] AC-1：GM 在技能效果設定中可輸入「持續時間」（分鐘），儲存後轉換為秒
-- [ ] AC-2：GM 在道具效果設定中可輸入「持續時間」（分鐘），儲存後轉換為秒
-- [ ] AC-3：玩家使用帶 duration 的技能後，stat_change 效果正常套用
-- [ ] AC-4：效果套用後，被影響方角色的 `temporaryEffects` 陣列新增一筆記錄
-- [ ] AC-5：效果過期後，數值自動恢復（反向 delta + clamp）
-- [ ] AC-6：效果過期後，被影響方收到 `effect.expired` WebSocket 事件
-- [ ] AC-7：玩家端顯示 Toast：「[來源名稱] 的效果已結束，[數值名稱] 已恢復」
-- [ ] AC-8：同一數值可被多個時效性效果同時影響，各自獨立追蹤與恢復
-- [ ] AC-9：GM 端角色數值 tab 可見所有活躍的時效性效果與倒數計時
-- [ ] AC-10：玩家端數值顯示下方可見活躍效果面板與倒數計時
-- [ ] AC-11：頁面載入時自動檢查並處理過期效果
-- [ ] AC-12：使用技能/道具前自動檢查並處理過期效果
-- [ ] AC-13：對抗檢定結果產生的 stat_change 效果，若有 duration，正確建立 temporaryEffect
-- [ ] AC-14：跨角色效果（用技能/道具影響他人）的 temporaryEffect 記錄在被影響方
+- [x] AC-1：GM 在技能效果設定中可輸入「持續時間」（分鐘），儲存後轉換為秒
+- [x] AC-2：GM 在道具效果設定中可輸入「持續時間」（分鐘），儲存後轉換為秒
+- [x] AC-3：玩家使用帶 duration 的技能後，stat_change 效果正常套用
+- [x] AC-4：效果套用後，被影響方角色的 `temporaryEffects` 陣列新增一筆記錄
+- [x] AC-5：效果過期後，數值自動恢復（反向 delta + clamp）
+- [x] AC-6：效果過期後，被影響方收到 `effect.expired` WebSocket 事件
+- [x] AC-7：玩家端顯示 Toast：「[來源名稱] 的效果已結束，[數值名稱] 已恢復」
+- [x] AC-8：同一數值可被多個時效性效果同時影響，各自獨立追蹤與恢復
+- [x] AC-9：GM 端角色數值 tab 可見所有活躍的時效性效果與倒數計時
+- [x] AC-10：玩家端數值顯示下方可見活躍效果面板與倒數計時
+- [x] AC-11：頁面載入時自動檢查並處理過期效果
+- [x] AC-12：使用技能/道具前自動檢查並處理過期效果
+- [x] AC-13：對抗檢定結果產生的 stat_change 效果，若有 duration，正確建立 temporaryEffect
+- [x] AC-14：跨角色效果（用技能/道具影響他人）的 temporaryEffect 記錄在被影響方
 
 ### 7.2 錯誤處理驗收
 
-- [ ] ERR-1：恢復數值時，value 不會小於 0，不會大於 maxValue
-- [ ] ERR-2：恢復 maxValue 時，maxValue 不會小於 1
-- [ ] ERR-3：若目標角色在效果期間被刪除，過期檢查不會崩潰
-- [ ] ERR-4：若目標數值在效果期間被 GM 移除，過期檢查跳過該效果並標記為 isExpired
-- [ ] ERR-5：Cron Job 路由驗證 `CRON_SECRET`，未授權呼叫回傳 401
-- [ ] ERR-6：效果執行器建立 temporaryEffect 失敗時，stat_change 仍正常執行（效果退化為永久）
+- [x] ERR-1：恢復數值時，value 不會小於 0，不會大於 maxValue
+- [x] ERR-2：恢復 maxValue 時，maxValue 不會小於 1
+- [x] ERR-3：若目標角色在效果期間被刪除，過期檢查不會崩潰
+- [x] ERR-4：若目標數值在效果期間被 GM 移除，過期檢查跳過該效果並標記為 isExpired
+- [x] ERR-5：Cron Job 路由驗證 `CRON_SECRET`，未授權呼叫回傳 401
+- [x] ERR-6：效果執行器建立 temporaryEffect 失敗時，stat_change 仍正常執行（效果退化為永久）
 
 ### 7.3 使用者體驗驗收
 
-- [ ] UX-1：玩家端活躍效果面板的倒數計時每秒即時更新
-- [ ] UX-2：效果到期時面板中的效果卡片自動移除（無需手動刷新）
-- [ ] UX-3：GM 設定效果持續時間的輸入欄位清楚標示「分鐘」單位
-- [ ] UX-4：GM 端時效性效果卡片的倒數計時每秒即時更新
-- [ ] UX-5：永久效果（duration=0 或 undefined）的行為完全不受影響
+- [x] UX-1：玩家端活躍效果面板的倒數計時每秒即時更新
+- [x] UX-2：效果到期時面板中的效果卡片自動移除（無需手動刷新）
+- [x] UX-3：GM 設定效果持續時間的輸入欄位清楚標示「分鐘」單位
+- [x] UX-4：GM 端時效性效果卡片的倒數計時每秒即時更新
+- [x] UX-5：永久效果（duration=0 或 undefined）的行為完全不受影響
 
 ---
 

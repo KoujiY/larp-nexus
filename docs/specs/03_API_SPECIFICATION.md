@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.6
-## 更新日期：2026-02-09（Phase 7.7 自動揭露條件 + 道具展示）
+## 版本：v1.7
+## 更新日期：2026-02-18（Phase 10 Game Code + 唯一性檢查）
 
 ---
 
@@ -112,9 +112,11 @@
 
 ### 2.2 劇本管理 (app/actions/games.ts)
 
-#### `createGame(data: CreateGameInput)`
+#### `createGame(data: CreateGameInput)` ✅ Phase 10
 
 建立新劇本。
+
+**Phase 10 擴展**：支援可選的 gameCode 參數（6 位英數字，自動轉大寫），若未提供則自動生成。
 
 **參數**
 ```typescript
@@ -122,6 +124,7 @@ interface CreateGameInput {
   title: string;
   description?: string;
   coverImage?: string;  // Blob URL
+  gameCode?: string;    // Phase 10: 可選的 Game Code（6 位英數字）
   publicInfo: {
     intro: string;
     worldSetting: string;
@@ -139,11 +142,25 @@ interface CreateGameInput {
 {
   success: boolean;
   gameId?: string;
+  gameCode?: string;    // Phase 10: 回傳生成或驗證的 Game Code
   message?: string;
 }
 ```
 
+**錯誤碼**
+- `INVALID_GAME_CODE_FORMAT`：Game Code 格式錯誤（需 6 位英數字）
+- `GAME_CODE_TAKEN`：Game Code 已被其他劇本使用
+
 **認證需求**：需 GM Session
+
+**實作邏輯**（Phase 10）
+1. 若提供 `gameCode`：
+   - 驗證格式（6 位英數字，自動轉大寫）
+   - 檢查唯一性（使用 `isGameCodeUnique()`）
+   - 若不唯一，回傳錯誤
+2. 若未提供 `gameCode`：
+   - 使用 `generateUniqueGameCode()` 自動生成
+3. 儲存劇本資料
 
 ---
 
@@ -207,9 +224,11 @@ interface UpdateGameInput {
 
 ---
 
-#### `getGames()`
+#### `getGames()` ✅ Phase 10
 
 取得目前 GM 的所有劇本。
+
+**Phase 10 擴展**：回傳中新增 gameCode 欄位。
 
 **回傳**
 ```typescript
@@ -220,6 +239,7 @@ interface UpdateGameInput {
     title: string;
     description: string;
     coverImage?: string;
+    gameCode: string;        // Phase 10: 遊戲代碼（6 位英數字）
     status: string;
     characterCount: number;  // 計算該劇本的角色數
     createdAt: string;
@@ -1324,6 +1344,141 @@ interface PushEventInput {
 
 ---
 
+### 2.8 唯一性檢查 (lib/validation/uniqueness.ts) - Phase 10.9
+
+#### `checkGameCodeUniqueness(params: GameCodeUniquenessParams)` ✅ Phase 10.9
+
+檢查 Game Code 是否唯一（全局唯一性檢查）。
+
+**參數**
+```typescript
+interface GameCodeUniquenessParams {
+  gameCode: string;        // 要檢查的 Game Code
+  excludeGameId?: string;  // 排除的遊戲 ID（編輯時使用，排除自己）
+}
+```
+
+**回傳**
+```typescript
+interface UniquenessCheckResult {
+  isUnique: boolean;
+  message?: string;        // 錯誤訊息（若不唯一）
+  conflictId?: string;     // 衝突的資源 ID（若不唯一）
+}
+```
+
+**錯誤處理**
+- 若 Game Code 已被其他劇本使用，回傳 `isUnique: false` 和錯誤訊息
+- 若檢查過程發生錯誤，拋出異常
+
+**實作邏輯**
+1. 連接資料庫
+2. 查詢是否存在相同 Game Code 的劇本
+3. 若是編輯模式（`excludeGameId` 存在），排除自己
+4. 回傳檢查結果
+
+**注意**：此函數目前有 TODO Phase 11 標記，DB 查詢邏輯待實作，但框架已完成。
+
+---
+
+#### `checkPinUniqueness(params: PinUniquenessParams)` ✅ Phase 10.9
+
+檢查 PIN 是否在同遊戲內唯一（範圍內唯一性檢查）。
+
+**參數**
+```typescript
+interface PinUniquenessParams {
+  gameId: string;              // 所屬遊戲 ID
+  pin: string;                 // 要檢查的 PIN
+  excludeCharacterId?: string; // 排除的角色 ID（編輯時使用，排除自己）
+}
+```
+
+**回傳**
+```typescript
+interface UniquenessCheckResult {
+  isUnique: boolean;
+  message?: string;
+  conflictId?: string;
+}
+```
+
+**錯誤處理**
+- 若 PIN 在同遊戲中已被其他角色使用，回傳 `isUnique: false` 和錯誤訊息
+- 若檢查過程發生錯誤，拋出異常
+
+**實作邏輯**
+1. 連接資料庫
+2. 查詢同遊戲內是否存在相同 PIN 的角色
+3. 若是編輯模式（`excludeCharacterId` 存在），排除自己
+4. 回傳檢查結果
+
+**注意**：此函數目前有 TODO Phase 11 標記，DB 查詢邏輯待實作，但框架已完成。
+
+---
+
+#### `validateGameCodeFormat(gameCode: string)` ✅ Phase 10.9
+
+驗證 Game Code 格式（6 位英數字）。
+
+**參數**
+```typescript
+{
+  gameCode: string;  // 要驗證的 Game Code
+}
+```
+
+**回傳**
+```typescript
+boolean  // 是否符合格式
+```
+
+**驗證規則**
+- 長度：6 位
+- 字元：僅允許英文字母（A-Z）和數字（0-9）
+- 大小寫：不區分（會自動轉大寫）
+
+**範例**
+```typescript
+validateGameCodeFormat('ABC123'); // true
+validateGameCodeFormat('abc123'); // true (會自動轉大寫)
+validateGameCodeFormat('AB12');   // false (長度不足)
+validateGameCodeFormat('ABC-123'); // false (包含非法字元)
+```
+
+---
+
+#### `validatePinFormat(pin: string)` ✅ Phase 10.9
+
+驗證 PIN 格式（4-6 位數字）。
+
+**參數**
+```typescript
+{
+  pin: string;  // 要驗證的 PIN
+}
+```
+
+**回傳**
+```typescript
+boolean  // 是否符合格式
+```
+
+**驗證規則**
+- 長度：4-6 位
+- 字元：僅允許數字（0-9）
+
+**範例**
+```typescript
+validatePinFormat('1234');    // true
+validatePinFormat('123456');  // true
+validatePinFormat('123');     // false (長度不足)
+validatePinFormat('1234567'); // false (長度過長)
+validatePinFormat('12a4');    // false (包含非數字)
+```
+
+---
+
 ### 3.3 圖片上傳 API
 
 #### `POST /api/upload`
@@ -1513,7 +1668,7 @@ export async function requireGameOwnership(gmId: string, gameId: string) {
 
 ### 6.2 實作建議
 
-使用 **Upstash Redis** + `@upstash/ratelimit` 套件。
+可選用 Next.js 內建的 IP-based rate limiting 或第三方解決方案。
 
 ---
 

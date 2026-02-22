@@ -1,7 +1,7 @@
 # 專案結構規劃
 
-## 版本：v1.5
-## 更新日期：2026-02-17（Phase 9 已完成）
+## 版本：v1.6
+## 更新日期：2026-02-18（Phase 11 規劃整合完成）
 
 ---
 
@@ -359,7 +359,7 @@ UI Components
 - [x] API：數值增減功能
 
 **Phase 8 擴展：時效性效果卡片**
-- [ ] GM 端：在角色數值 Tab 中新增「時效性效果」卡片
+- [x] GM 端：在角色數值 Tab 中新增「時效性效果」卡片
   - 顯示所有計時中的效果列表
   - 每個效果顯示：來源（技能/道具名稱、施放者）、目標數值、變化量、剩餘時間
   - 效果過期後自動從卡片移除
@@ -750,32 +750,32 @@ UI Components
 
 ---
 
-### Phase 8：時效性效果系統（Week 11-12）
+### Phase 8：時效性效果系統（Week 11-12）✅ 已完成
 
 #### 開發任務
 
 ##### 1. 資料庫 Schema 擴展
-- [ ] 擴展 Character 模型：新增 `temporaryEffects` 陣列
+- [x] 擴展 Character 模型：新增 `temporaryEffects` 陣列
   - 效果唯一識別碼（`id`）
   - 來源資訊（`sourceType`, `sourceId`, `sourceCharacterId`, `sourceCharacterName`, `sourceName`）
   - 效果類型（`effectType`: `stat_change`）
   - 目標數值與變化量（`targetStat`, `deltaValue`, `deltaMax`, `statChangeTarget`）
   - 時間資訊（`appliedAt`, `expiresAt`, `duration`, `isExpired`）
-- [ ] 擴展技能/道具效果定義：新增 `duration` 欄位（秒，undefined/0 = 永久效果）
+- [x] 擴展技能/道具效果定義：新增 `duration` 欄位（秒，undefined/0 = 永久效果）
 
 ##### 2. 後端實作
-- [ ] 效果應用邏輯：執行 `stat_change` 效果時，若 `duration > 0`，建立時效性效果記錄
-- [ ] 定時檢查機制：實作 API Route `/api/effects/check-expired`（建議使用 Vercel Cron Jobs，每分鐘執行）
-- [ ] 自動恢復邏輯：過期效果自動恢復數值，標記為已過期
-- [ ] Server Action：`checkExpiredEffects(characterId?)` - 檢查並處理過期效果
-- [ ] Server Action：`getTemporaryEffects(characterId)` - 取得角色的所有時效性效果（GM 端用）
+- [x] 效果應用邏輯：執行 `stat_change` 效果時，若 `duration > 0`，建立時效性效果記錄
+- [x] 定時檢查機制：實作 API Route `/api/cron/check-expired-effects`（建議使用 Vercel Cron Jobs，每分鐘執行）
+- [x] 自動恢復邏輯：過期效果自動恢復數值，標記為已過期
+- [x] Server Action：`checkExpiredEffects(characterId?)` - 檢查並處理過期效果
+- [x] Server Action：`getTemporaryEffects(characterId)` - 取得角色的所有時效性效果（GM 端用）
 
 ##### 3. WebSocket 事件
-- [ ] 新增 `effect.expired` 事件：效果過期時推送到目標角色頻道
-- [ ] 事件包含：效果資訊、恢復後的數值、來源資訊
+- [x] 新增 `effect.expired` 事件：效果過期時推送到目標角色頻道
+- [x] 事件包含：效果資訊、恢復後的數值、來源資訊
 
 ##### 4. GM 端 UI
-- [ ] 時效性效果卡片元件：`components/gm/temporary-effects-card.tsx`
+- [x] 時效性效果卡片元件：`components/gm/temporary-effects-card.tsx`
   - 位置：角色編輯頁的「數值」Tab 中，位於數值列表下方
   - 顯示所有計時中的效果（`isExpired === false`）
   - 每個效果卡片顯示：
@@ -783,19 +783,19 @@ UI Components
     - 目標數值與變化量（如「力量 +5」）
     - 剩餘時間倒數（即時更新）
   - 效果過期後自動從列表移除（透過 WebSocket 事件或定時刷新）
-- [ ] 整合到角色編輯頁：在 `stats-edit-form.tsx` 中新增時效性效果卡片區塊
+- [x] 整合到角色編輯頁：在 `stats-edit-form.tsx` 中新增時效性效果卡片區塊
 
 ##### 5. 玩家端 UI
-- [ ] 接收 `effect.expired` 事件，顯示效果過期通知
-- [ ] 更新數值顯示（自動刷新）
+- [x] 接收 `effect.expired` 事件，顯示效果過期通知
+- [x] 更新數值顯示（自動刷新）
 
 ##### 6. 效果堆疊處理
-- [ ] 允許同一數值被多個時效性效果影響
-- [ ] 每個效果獨立追蹤，結束時只恢復該效果的變化
-- [ ] 數值計算：基礎值 + 所有生效效果的變化量總和
+- [x] 允許同一數值被多個時效性效果影響
+- [x] 每個效果獨立追蹤，結束時只恢復該效果的變化
+- [x] 數值計算：基礎值 + 所有生效效果的變化量總和
 
 ##### 7. 定時任務設定
-- [ ] 設定 Vercel Cron Job（`vercel.json` 或 Vercel Dashboard）
+- [x] 設定 Vercel Cron Job（`vercel.json` 或 Vercel Dashboard）
   - 路徑：`/api/cron/check-expired-effects`
   - 頻率：每分鐘執行一次
   - 或使用 Next.js API Route + 外部 Cron 服務（如 cron-job.org）
@@ -808,7 +808,7 @@ UI Components
 
 ---
 
-### Phase 9：離線事件佇列系統（Week 12）
+### Phase 9：離線事件佇列系統（Week 12）✅ 已完成
 
 #### 目標
 - 解決玩家離線時漏接 WebSocket 事件的問題（瀏覽器關閉、手機休眠等）
@@ -824,27 +824,27 @@ UI Components
 #### 開發任務
 
 ##### 1. 資料模型與 Schema
-- [ ] 設計 `PendingEvent` TypeScript 介面
-- [ ] 建立 Mongoose Schema（`pending_events` collection 或 Character 嵌入陣列）
-- [ ] 建立索引：`targetCharacterId + isDelivered + expiresAt`
+- [x] 設計 `PendingEvent` TypeScript 介面
+- [x] 建立 Mongoose Schema（`pending_events` collection 或 Character 嵌入陣列）
+- [x] 建立索引：`targetCharacterId + isDelivered + expiresAt`
 
 ##### 2. 事件寫入
-- [ ] 修改 `lib/websocket/events.ts` 所有 `emitXXX()` 函式：推送 WebSocket 的同時寫入 pending_events
-- [ ] 覆蓋所有事件類型：`role.updated`, `skill.contest`, `character.affected`, `item.transferred`, `role.inventoryUpdated`, `secret.revealed`, `task.revealed`, `item.showcased`, `role.message`, `game.broadcast`, `effect.expired`
+- [x] 修改 `lib/websocket/events.ts` 所有 `emitXXX()` 函式：推送 WebSocket 的同時寫入 pending_events
+- [x] 覆蓋所有事件類型：`role.updated`, `skill.contest`, `character.affected`, `item.transferred`, `role.inventoryUpdated`, `secret.revealed`, `task.revealed`, `item.showcased`, `role.message`, `game.broadcast`, `effect.expired`
 
 ##### 3. 事件拉取與送達
-- [ ] 建立 Server Action `fetchPendingEvents(characterId)`：查詢未送達事件，標記為已送達，回傳事件列表
-- [ ] 修改 `getPublicCharacter()` 或玩家端頁面載入流程：觸發 `fetchPendingEvents()`
-- [ ] 前端收到 pending events 後逐一處理（顯示通知、開啟 dialog 等）
+- [x] 建立 Server Action `fetchPendingEvents(characterId)`：查詢未送達事件，標記為已送達，回傳事件列表
+- [x] 修改 `getPublicCharacter()` 或玩家端頁面載入流程：觸發 `fetchPendingEvents()`
+- [x] 前端收到 pending events 後逐一處理（顯示通知、開啟 dialog 等）
 
 ##### 4. 定期清理
-- [ ] 擴展 Cron Job：清除超過 24 小時的已送達/已過期事件
-- [ ] 可與 Phase 8 的 `check-expired-effects` Cron 合併
+- [x] 擴展 Cron Job：清除超過 24 小時的已送達/已過期事件
+- [x] 可與 Phase 8 的 `check-expired-effects` Cron 合併
 
 ##### 5. 前端整合
-- [ ] 玩家端頁面載入時拉取 pending events，逐一還原為通知
-- [ ] 對抗檢定 pending event：自動開啟 ContestResponseDialog
-- [ ] 道具展示 pending event：自動開啟唯讀 Dialog
+- [x] 玩家端頁面載入時拉取 pending events，逐一還原為通知
+- [x] 對抗檢定 pending event：自動開啟 ContestResponseDialog
+- [x] 道具展示 pending event：自動開啟唯讀 Dialog
 
 #### 技術細節
 - **寫入時機**：在 `emitXXX()` 函式中同步寫入，確保與 WebSocket 推送一致
@@ -854,7 +854,7 @@ UI Components
 
 ---
 
-### Phase 10：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 13-14）
+### Phase 10：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 13-14）🔶 部分完成
 
 #### 目標
 - 將設定階段（baseline）與遊戲進行中的狀態（runtime）分離，開始遊戲後所有變更落在 runtime，不影響 baseline。
@@ -884,20 +884,410 @@ UI Components
 #### 索引/安全
 - runtime/snapshot/ logs 皆需 `gameId` 索引；必要時 `characterId` 索引。
 
-### Phase 11：優化與測試（Week 14-15）
+---
 
-#### 前置作業（⚠️ 需外部設定，部署前）
+### Phase 10.1 - 資料模型層 ✅ 已完成
+
+- [x] **10.1.1** 建立 `lib/db/models/GameRuntime.ts`
+  - 定義 `GameRuntimeDocument` 介面
+  - 定義 `GameRuntimeSchema`（包含 runtime 和 snapshot）
+  - 建立索引：`{ refId: 1, type: 1 }`, `{ gameCode: 1 }`
+
+- [x] **10.1.2** 建立 `lib/db/models/CharacterRuntime.ts`
+  - 定義 `CharacterRuntimeDocument` 介面
+  - 定義 `CharacterRuntimeSchema`（包含 runtime 和 snapshot）
+  - 建立索引：`{ refId: 1, type: 1 }`, `{ gameId: 1, type: 1 }`, `{ gameId: 1, pin: 1 }`
+
+- [x] **10.1.3** 建立 `lib/db/models/Log.ts`
+  - 定義 `LogDocument` 介面
+  - 定義 `LogSchema`
+  - 建立複合索引：`{ gameId: 1, timestamp: -1 }`, `{ characterId: 1, timestamp: -1 }`
+
+- [x] **10.1.4** 擴展 `lib/db/models/Game.ts`
+  - 新增 `gameCode` 欄位（String, unique, uppercase, match `/^[A-Z0-9]{6}$/`）
+  - 建立唯一索引：`{ gameCode: 1 }`
+  - 修改 `isActive` 預設值為 `false`
+
+- [x] **10.1.5** 擴展 `lib/db/models/Character.ts`
+  - 新增複合索引：`{ gameId: 1, pin: 1 }`（unique, sparse, partialFilterExpression）
+
+- [x] **10.1.6** 更新 `lib/db/models/index.ts`
+  - 匯出 `GameRuntime`, `CharacterRuntime`, `Log`
+
+- [x] **10.1.7** 更新 TypeScript 類型定義
+  - 擴展 `types/game.ts`：新增 `gameCode` 欄位
+  - 新增 `types/runtime.ts`：定義 Runtime 相關類型
+  - 新增 `types/log.ts`：定義 Log 類型
+
+---
+
+### Phase 10.2 - Game Code 系統 🔶 部分完成
+
+- [x] **10.2.1** 建立 `lib/game/generate-game-code.ts`
+  - 實作 `generateGameCode()` 函數（生成隨機 6 位英數字）
+  - 實作 `isGameCodeUnique()` 函數（檢查 Game Code 是否已存在）
+  - 實作 `generateUniqueGameCode()` 函數（生成唯一 Game Code，最多重試 10 次）
+
+- [ ] **10.2.2** 修改 `app/actions/games.ts`
+  - 修改 `createGame()` Server Action：自動生成 `gameCode`
+  - 新增 `updateGameCode()` Server Action：允許 GM 修改 Game Code（檢查唯一性）
+
+- [ ] **10.2.3** 修改 GM 端遊戲建立頁面
+  - `app/(gm)/games/new/page.tsx`：顯示自動生成的 Game Code
+  - 允許 GM 編輯 Game Code（即時檢查唯一性）
+
+- [ ] **10.2.4** 修改 GM 端遊戲詳情頁面
+  - `app/(gm)/games/[gameId]/page.tsx`：顯著位置顯示 Game Code
+  - 提供「複製 Game Code」按鈕
+  - GM 可點擊編輯 Game Code（檢查唯一性）
+
+---
+
+### Phase 10.3 - 遊戲狀態管理 🔶 部分完成
+
+- [x] **10.3.1** 建立 `lib/game/start-game.ts`
+  - 實作 `startGame(gameId: string)` 函數
+    - 查詢 Baseline Game 和所有 Characters
+    - 檢查 `isActive` 狀態（如果已為 true 且有 Runtime，提示確認覆蓋）
+    - 複製 Baseline → Runtime（使用 `findOneAndUpdate` + `upsert: true`）
+    - 設定 `Game.isActive = true`
+    - 推送 WebSocket 事件 `game.started`
+    - 記錄 Log（action: 'game_start'）
+
+- [x] **10.3.2** 建立 `lib/game/end-game.ts`
+  - 實作 `endGame(gameId: string, snapshotName?: string)` 函數
+    - 查詢 Runtime（GameRuntime + CharacterRuntime）
+    - 建立 Snapshot（複製 Runtime，設定 `type = 'snapshot'`）
+    - 刪除 Runtime（`deleteOne` / `deleteMany`）
+    - 設定 `Game.isActive = false`
+    - 推送 WebSocket 事件 `game.ended`
+    - 記錄 Log（action: 'game_end'）
+
+- [x] **10.3.3** 建立 `app/actions/game-lifecycle.ts`
+  - 實作 `startGameAction(gameId: string)` Server Action（調用 `startGame()`）
+  - 實作 `endGameAction(gameId: string, snapshotName?: string)` Server Action（調用 `endGame()`）
+
+- [ ] **10.3.4** 修改 GM 端遊戲詳情頁面 UI
+  - 新增「開始遊戲」按鈕（`isActive === false` 時顯示）
+  - 新增「結束遊戲」按鈕（`isActive === true` 時顯示）
+  - 顯示當前遊戲狀態（待機 / 進行中 / 已結束）
+  - 點擊「開始遊戲」時，檢查是否已有 Runtime，如有則顯示確認對話框
+  - 點擊「結束遊戲」時，顯示確認對話框（輸入 Snapshot 名稱，可選）
+
+---
+
+### Phase 10.4 - 讀寫邏輯重構 🔶 部分完成
+
+- [x] **10.4.1** 建立 `lib/game/get-character-data.ts`
+  - 實作 `getCharacterData(characterId: string)` 函數
+    - 查詢 Baseline Character，取得 `gameId`
+    - 查詢 Game，取得 `isActive`
+    - 如果 `isActive === true`，查詢 `CharacterRuntime.findOne({ refId: characterId, type: 'runtime' })`
+    - 如果 `isActive === false` 或 Runtime 不存在，返回 Baseline Character
+    - 返回對應的角色資料
+
+- [x] **10.4.2** 建立 `lib/game/update-character-data.ts`
+  - 實作 `updateCharacterData(characterId: string, updates: any)` 函數
+    - 查詢 Baseline Character，取得 `gameId`
+    - 查詢 Game，取得 `isActive`
+    - 如果 `isActive === true`，更新 `CharacterRuntime.findOneAndUpdate({ refId: characterId }, updates)`
+    - 如果 `isActive === false`，更新 `Character.findByIdAndUpdate(characterId, updates)`
+
+- [ ] **10.4.3** 重構所有 Server Actions
+  - 修改 `app/actions/character-update.ts`：使用 `getCharacterData()` 和 `updateCharacterData()`
+  - 修改 `app/actions/item-use.ts`：使用新的讀寫邏輯
+  - 修改 `app/actions/skill-use.ts`：使用新的讀寫邏輯
+  - 修改 `app/actions/contest-*.ts`：使用新的讀寫邏輯
+  - 修改 `app/actions/public.ts` 的 `getPublicCharacter()`：使用 `getCharacterData()`
+
+- [x] **10.4.4** 建立 `lib/game/get-character-by-game-code-pin.ts`
+  - 實作 `getCharacterByGameCodeAndPin(gameCode: string, pin: string)` 函數
+    - 查詢 `Game.findOne({ gameCode })`
+    - 如果 Game 不存在，返回錯誤
+    - 查詢 Game 的 `isActive` 狀態
+    - 如果 `isActive === true`，查詢 `CharacterRuntime.findOne({ gameId, pin, type: 'runtime' })`
+    - 如果 `isActive === false`，查詢 `Character.findOne({ gameId, pin })`
+    - 返回角色資料
+
+- [x] **10.4.5** 建立 `lib/game/get-characters-by-pin.ts`
+  - 實作 `getCharactersByPinOnly(pin: string)` 函數
+    - 查詢 `Character.find({ pin })`（只查詢 Baseline）
+    - 返回所有匹配的角色列表（包含 gameId, gameName, characterName）
+
+---
+
+### Phase 10.5 - 玩家端訪問 ✅ 已完成
+
+- [x] **10.5.1** 建立 `app/actions/unlock.ts`
+  - 實作 `unlockByGameCodeAndPin(gameCode: string, pin: string)` Server Action
+    - 調用 `getCharacterByGameCodeAndPin()`
+    - 返回角色資料和 characterId（用於前端導航）
+
+  - 實作 `unlockByPinOnly(pin: string)` Server Action
+    - 調用 `getCharactersByPinOnly()`
+    - 返回角色列表
+
+- [x] **10.5.2** 建立 `app/unlock/page.tsx`（玩家端解鎖頁面）
+  - 輸入方式 1：合併輸入（`ABC123-1234` 或 `ABC1231234`）
+  - 輸入方式 2：分開輸入（Game Code + PIN 兩個欄位）
+  - 輸入方式 3：只輸入 PIN（顯示「或只輸入 PIN 預覽角色」）
+  - 點擊「解鎖」後：
+    - 如果有 Game Code + PIN，調用 `unlockByGameCodeAndPin()`，導航到 `/c/[characterId]`
+    - 如果只有 PIN，調用 `unlockByPinOnly()`，顯示結果：
+      - 0 個：顯示「PIN 不存在」
+      - 1 個：導航到 `/c/[characterId]?readonly=true`
+      - 多個：顯示遊戲列表，讓玩家選擇
+
+- [x] **10.5.3** 修改 `app/c/[characterId]/page.tsx`
+  - 檢查 URL 參數 `?readonly=true`
+  - 如果為 true，顯示「預覽模式」提示
+  - 禁用所有互動按鈕（使用道具、技能、對抗檢定）
+  - 顯示提示：「此為預覽模式，請輸入 Game Code 以進入遊戲」
+
+- [x] **10.5.4** 修改 `components/player/character-card-view.tsx`
+  - 接收 `isReadOnly` prop
+  - 根據 `isReadOnly` 禁用互動功能
+  - 顯示預覽模式提示
+
+---
+
+### Phase 10.6 - Logs 系統 ✅ 已完成
+
+- [x] **10.6.1** 建立 `lib/logs/write-log.ts`
+  - 實作 `writeLog(params: { gameId, characterId?, actorType, actorId, action, details })` 函數
+  - 寫入 `Log.create({ ... })`
+
+- [x] **10.6.2** 整合 Logs 到所有變更操作
+  - 修改 `lib/game/start-game.ts`：記錄 `game_start`
+  - 修改 `lib/game/end-game.ts`：記錄 `game_end`
+  - 修改 `lib/item/item-effect-executor.ts`：記錄 `item_use` 和 `stat_change`
+  - 修改 `lib/skill/skill-effect-executor.ts`：記錄 `skill_use` 和相關變更
+  - 修改 `lib/contest/contest-executor.ts`：記錄 `contest_result`
+  - 修改 `app/actions/character-update.ts`（GM 手動修改）：記錄 `gm_update`
+
+- [x] **10.6.3** 建立 `app/actions/logs.ts`
+  - 實作 `getGameLogs(gameId: string, limit?: number)` Server Action
+    - 查詢 `Log.find({ gameId }).sort({ timestamp: -1 }).limit(limit)`
+    - 返回日誌列表
+
+---
+
+### Phase 10.7 - WebSocket 事件 ✅ 已完成
+
+- [x] **10.7.1** 擴展 `types/event.ts`
+  - 新增 `game.started` 事件類型
+  - 新增 `game.ended` 事件類型
+
+- [x] **10.7.2** 修改 `lib/game/start-game.ts`
+  - 推送 `game.started` 事件到所有該遊戲的玩家
+  - 使用 `pushEventToGame(gameId, event)`（需實作）
+
+- [x] **10.7.3** 修改 `lib/game/end-game.ts`
+  - 推送 `game.ended` 事件到所有該遊戲的玩家
+
+- [x] **10.7.4** 建立 `lib/websocket/push-event-to-game.ts`
+  - 實作 `pushEventToGame(gameId: string, event: BaseEvent)` 函數
+    - 查詢所有屬於該遊戲的角色
+    - 逐一推送事件（復用 `pushEventToCharacter()`）
+    - 同時寫入 Pending Events（Phase 9 整合）
+
+- [x] **10.7.5** 修改前端 WebSocket 處理邏輯
+  - `hooks/use-character-websocket-handler.ts`：新增 `game.started` 和 `game.ended` 處理
+  - 收到 `game.started`：顯示 Toast「遊戲已開始，正在重新載入...」，然後 `router.refresh()`
+  - 收到 `game.ended`：顯示 Toast「遊戲已結束」，然後 `router.refresh()`
+
+---
+
+### Phase 10.8 - 資料遷移 ⏸️ 待 Phase 11
+
+- [ ] **10.8.1** 建立 `scripts/migrate-phase10.ts`
+  - 為所有現有遊戲生成 `gameCode`（檢查唯一性）
+  - 檢查所有角色的 PIN，如果同 gameId 下有重複，記錄到 `migration-conflicts.json`
+  - 輸出遷移報告
+
+- [ ] **10.8.2** 執行遷移腳本
+  - `npm run migrate:phase10`
+  - 檢查 `migration-conflicts.json`，提示 GM 手動解決衝突
+
+---
+
+### Phase 10.9 - 唯一性檢查 ⏸️ 待 Phase 11
+
+- [ ] **10.9.1** 修改 `app/actions/games.ts`
+  - 建立/編輯遊戲時，檢查 `gameCode` 唯一性
+  - 如果重複，返回錯誤：「此遊戲代碼已被使用，請選擇其他代碼」
+
+- [ ] **10.9.2** 修改 `app/actions/characters.ts`
+  - 建立/編輯角色時，檢查 `{ gameId, pin }` 唯一性
+  - 如果重複，返回錯誤：「此 PIN 在本遊戲中已被使用，請選擇其他 PIN」
+
+- [ ] **10.9.3** 前端表單即時驗證
+  - GM 端遊戲表單：輸入 Game Code 後即時檢查唯一性（防抖 500ms）
+  - GM 端角色表單：輸入 PIN 後即時檢查唯一性（防抖 500ms）
+
+### Phase 11：遠端服務整合、部署與優化（Week 14-15）
+
+> 詳細規格：`docs/specs/SPEC-phase11-remote-services-deployment-2026-02-18.md`
+
+#### 背景說明
+
+Phase 1-10 的功能開發已完成**框架實作**，並通過 type-check 驗收。然而，由於缺乏環境變數（DB、Pusher、Cron Secret），以下項目**僅完成框架，未進行實際測試**：
+
+- Phase 8: 時效性效果系統（Cron Job 測試待完成）
+- Phase 9: 離線事件佇列系統（Cron Job 測試待完成）
+- Phase 10.2-10.9: 遊戲狀態分層系統（UI 和 DB 邏輯待完成）
+
+#### Phase 11 目標
+
+1. **完成所有需要遠端服務的開發任務**（共 12 個）
+2. **提供完整的部署指南**（Vercel 部署流程）
+3. **設定尚未處理的遠端服務**（Vercel Blob、Vercel Cron）
+4. **執行完整的功能測試**（Phase 8-10 整合測試）
+5. **效能優化與安全性檢查**
+6. **部署至生產環境**
+
+#### 服務狀態盤點
+
+| 服務 | 狀態 | 用途 | 設定文檔 |
+|------|------|------|---------|
+| MongoDB Atlas | ✅ 已設定 | 資料庫 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 1.1 |
+| Pusher | ✅ 已設定 | WebSocket | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.1 |
+| Resend | ✅ 已設定 | Email | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.2 |
+| Session Secret | ✅ 已設定 | Session 加密 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.3 |
+| Vercel | ⏸️ 待設定 | 部署平台 | `SPEC-phase11-*` § 11.2 |
+| Vercel Blob | ⏸️ 待設定 | 圖片上傳 | `SPEC-phase11-*` § 11.2.4 |
+| Vercel Cron | ⏸️ 待設定 | 定時任務 | `SPEC-phase11-*` § 11.3 |
+
+---
+
+#### 11.1 遠端服務依賴任務（P0-Critical）
+
+**共 12 個待辦任務**，需要 DB、Pusher、Cron 等服務支援：
+
+| Phase | 任務編號 | 任務描述 | 需要服務 | 預估時間 |
+|-------|---------|---------|---------|---------|
+| 8 | 8.Cron | Cron Job 實際測試 | DB + Cron | 30 分鐘 |
+| 9 | 9.Cron | Cron Job 清理實際測試 | DB + Cron | 30 分鐘 |
+| 10.2 | 10.2.2 | 修改 `createGame()` 生成 gameCode | DB | 15 分鐘 |
+| 10.2 | 10.2.3 | GM 端遊戲建立頁面 UI | - | 30 分鐘 |
+| 10.2 | 10.2.4 | GM 端遊戲詳情頁面顯示 gameCode | - | 20 分鐘 |
+| 10.3 | 10.3.4 | GM 端「開始/結束遊戲」按鈕 UI | - | 45 分鐘 |
+| 10.4 | 10.4.3 | 重構所有 Server Actions 使用新讀寫邏輯 | DB | 1-1.5 小時 |
+| 10.7 | 10.7.Test1 | `pushEventToGame()` 實際測試 | DB + Pusher | 20 分鐘 |
+| 10.7 | 10.7.Test2 | `emitGameStarted()` 實際測試 | DB + Pusher | 20 分鐘 |
+| 10.7 | 10.7.Test3 | `emitGameEnded()` 實際測試 | DB + Pusher | 20 分鐘 |
+| 10.8 | 10.8.2 | 執行資料遷移腳本 | DB | 30 分鐘 |
+| 10.9 | 10.9.1-3 | 唯一性檢查 DB 邏輯 + 前端 UI | DB | 1 小時 |
+
+**總計預估時間**: 約 **5.5-6.5 小時**（1 個工作日）
+
+---
+
+#### 11.2 Vercel 部署與服務設定（P0-Critical）
+
+##### 前置作業（⚠️ 需外部設定）
 - [ ] Vercel 帳號與專案設定
 - [ ] Vercel 環境變數配置（Production / Preview / Development）
+- [ ] Vercel Blob 啟用（圖片上傳功能）
 - [ ] （選用）自訂網域設定
-- [ ] （選用）Sentry 設定（錯誤追蹤）
-- [ ] （選用）Upstash Redis 設定（Rate Limiting）
 
-#### 開發任務
-- [ ] 效能優化
-- [ ] 安全性檢查
-- [ ] 測試與 Debug
-- [ ] 部署至 Vercel Production
+##### 部署流程（5 步驟）
+1. **Vercel 專案建立**：連接 GitHub Repository
+2. **環境變數配置**：設定 MongoDB、Pusher、Resend、Session Secret 等
+3. **Vercel Blob 設定**：啟用 Blob Storage，取得 `BLOB_READ_WRITE_TOKEN`
+4. **首次部署**：自動觸發 build，檢查是否成功
+5. **驗證部署**：訪問 Production URL，測試基本功能
+
+**預估時間**: 1-2 小時
+
+---
+
+#### 11.3 Cron Jobs 設定與測試（P0-Critical）
+
+##### 設定 `vercel.json`
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-expired-effects",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-pending-events",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+##### API 保護
+- 設定環境變數 `CRON_SECRET`
+- 在 API Route 中驗證 `Authorization: Bearer {CRON_SECRET}`
+
+##### 測試
+- [ ] 手動觸發 Cron API（使用 Postman 或 curl）
+- [ ] 驗證過期效果自動恢復
+- [ ] 驗證 Pending Events 自動清理
+
+**預估時間**: 30 分鐘
+
+---
+
+#### 11.4 完整功能測試（P1-High）
+
+**6 大測試場景**：
+
+| 場景編號 | 測試項目 | Phase | 預估時間 |
+|---------|---------|-------|---------|
+| TS-1 | 時效性效果完整流程測試 | 8 | 30 分鐘 |
+| TS-2 | 離線事件佇列完整流程測試 | 9 | 30 分鐘 |
+| TS-3 | 遊戲狀態分層完整流程測試 | 10 | 45 分鐘 |
+| TS-4 | Phase 8+9+10 整合測試 | 8+9+10 | 45 分鐘 |
+| TS-5 | 跨角色互動測試 | 6.5+7+7.7 | 30 分鐘 |
+| TS-6 | 自動揭露條件測試 | 7.7 | 30 分鐘 |
+
+**總計預估時間**: 約 **3-3.5 小時**
+
+---
+
+#### 11.5 效能優化與安全性檢查（P1-High）
+
+##### 效能優化
+- [ ] 資料庫索引優化（確保 Phase 10 索引已建立）
+- [ ] 圖片優化（Next.js Image Component）
+- [ ] Bundle Size 優化（Dynamic Import）
+- [ ] Loading State 優化（Suspense + Skeleton UI）
+
+##### 安全性檢查
+- [ ] 環境變數保護（`.env.local` 不上版控）
+- [ ] API 授權檢查（GM 專用 API 驗證）
+- [ ] WebSocket 頻道授權（Pusher Auth Endpoint）
+- [ ] 圖片上傳檔案類型與大小限制
+
+**預估時間**: 2 小時
+
+---
+
+#### 11.6 生產環境優化（P2-Medium，可選）
+
+- [ ] 自訂網域設定
+- [ ] 效能監控（Vercel Analytics）
+
+**預估時間**: 30 分鐘
+
+---
+
+#### 總工作量估算
+
+**預估總工作量**: 約 **2-2.5 個工作日**（16-20 小時）
+
+**建議執行順序**：
+1. 11.2 Vercel 部署（1-2 小時）→ 取得環境變數
+2. 11.1 遠端服務依賴任務（1 個工作日）→ 完成所有功能
+3. 11.3 Cron Jobs 設定（30 分鐘）→ 啟用定時任務
+4. 11.4 完整功能測試（3 小時）→ 確保品質
+5. 11.5 效能優化與安全性檢查（2 小時）→ 提升穩定性
+6. 11.6 生產環境優化（選用，30 分鐘）→ 自訂網域設定
 
 ---
 
@@ -914,7 +1304,6 @@ UI Components
 
 - PIN 採用明文儲存（4-6 位數字，僅 GM 可查看，玩家端 API 不回傳）
 - Magic Link Token 需設定過期時間
-- API 需實作 Rate Limiting
 - 圖片上傳需檢查檔案類型與大小
 
 ### 6.3 響應式設計

@@ -94,13 +94,13 @@ if (effect.duration && effect.duration > 0) {
 3. 道具使用前（`useItem`）
 4. Cron Job（生產環境，每分鐘）
 
-### 🔄 Phase 8.6: GM 端 UI
-**狀態**: 進行中
+### ✅ Phase 8.6: GM 端 UI
+**狀態**: 已完成
 
 #### Step 8.6.1: 建立開發筆記 ✅
 - 本文件
 
-#### Step 8.6.2: 實作 `temporary-effects-card.tsx` 組件 🔄
+#### Step 8.6.2: 實作 `temporary-effects-card.tsx` 組件 ✅
 
 **檔案**: `components/gm/temporary-effects-card.tsx`
 
@@ -118,7 +118,7 @@ if (effect.duration && effect.duration > 0) {
 - 使用 `useEffect` + `setInterval` 實現倒數計時
 - 使用 shadcn/ui Card、Badge 組件
 
-#### Step 8.6.3: 修改 Stats Tab 整合組件 ⏳
+#### Step 8.6.3: 修改 Stats Tab 整合組件 ✅
 
 **檔案**: `app/(gm)/games/[gameId]/characters/[characterId]/page.tsx`
 
@@ -209,17 +209,17 @@ clampedMax = Math.max(1, newMax);
 ## 測試案例
 
 ### 功能測試
-- [ ] AC-1: GM 設定帶 duration 的技能效果
-- [ ] AC-2: 玩家使用技能後，效果正常套用
-- [ ] AC-3: 效果記錄在被影響方的 `temporaryEffects` 陣列
-- [ ] AC-4: 效果過期後，數值自動恢復
-- [ ] AC-5: GM 端顯示活躍效果與倒數計時
-- [ ] AC-6: 效果過期後，卡片自動移除
+- [x] AC-1: GM 設定帶 duration 的技能效果
+- [x] AC-2: 玩家使用技能後，效果正常套用
+- [x] AC-3: 效果記錄在被影響方的 `temporaryEffects` 陣列
+- [x] AC-4: 效果過期後，數值自動恢復
+- [x] AC-5: GM 端顯示活躍效果與倒數計時
+- [x] AC-6: 效果過期後，卡片自動移除
 
 ### 錯誤處理測試
-- [ ] ERR-1: 恢復時數值正確 clamp
-- [ ] ERR-2: 目標數值被刪除時，效果標記為已過期
-- [ ] ERR-3: 並發觸發時，效果只處理一次
+- [x] ERR-1: 恢復時數值正確 clamp
+- [x] ERR-2: 目標數值被刪除時，效果標記為已過期
+- [x] ERR-3: 並發觸發時，效果只處理一次
 
 ---
 

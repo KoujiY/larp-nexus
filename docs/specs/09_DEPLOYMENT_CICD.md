@@ -329,29 +329,7 @@ export default function RootLayout({ children }) {
 
 ---
 
-### 7.2 錯誤追蹤（Sentry）
-
-**安裝**
-```bash
-pnpm add @sentry/nextjs
-npx @sentry/wizard -i nextjs
-```
-
-**配置**
-```typescript
-// sentry.client.config.ts
-import * as Sentry from '@sentry/nextjs';
-
-Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  tracesSampleRate: 1.0,
-  environment: process.env.NODE_ENV,
-});
-```
-
----
-
-### 7.3 日誌管理
+### 7.2 日誌管理
 
 使用 Vercel 內建日誌系統：
 
@@ -532,7 +510,7 @@ vercel rollback <deployment-url>
 - [ ] Merge 至 main
 - [ ] 監控 Vercel Deployment 狀態
 - [ ] 驗證 Production 功能正常
-- [ ] 檢查錯誤日誌（Sentry）
+- [ ] 檢查錯誤日誌（Vercel Logs）
 
 ---
 

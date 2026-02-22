@@ -127,7 +127,6 @@
 |------|------|
 | **Vercel** | 部署平台（自動 CI/CD） |
 | **Vercel Analytics** | 效能分析 |
-| **Sentry** | 錯誤追蹤（選用） |
 
 ---
 
@@ -207,24 +206,12 @@ pnpm add -D tailwindcss postcss autoprefixer
 
 ### 3.4 選用套件
 
-#### Rate Limiting（使用 Upstash Redis）
-
-```bash
-pnpm add @upstash/ratelimit @upstash/redis
-```
-
 #### 測試框架
 
 ```bash
 pnpm add -D vitest @vitest/ui
 pnpm add -D @testing-library/react @testing-library/jest-dom
 pnpm add -D @playwright/test
-```
-
-#### 錯誤追蹤
-
-```bash
-pnpm add @sentry/nextjs
 ```
 
 ---

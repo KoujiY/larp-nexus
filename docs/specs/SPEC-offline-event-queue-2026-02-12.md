@@ -247,41 +247,41 @@ pendingEventSchema.index({ targetCharacterId: 1, isDelivered: 1, expiresAt: 1 })
 ## 5. 實作步驟
 
 ### Phase 9.1：資料模型與 Schema
-- [ ] 在 `types/event.ts` 新增 `PendingEvent` 介面
-- [ ] 建立 `lib/db/models/PendingEvent.ts` Mongoose model
-- [ ] 建立複合索引：`targetCharacterId + isDelivered + expiresAt`
-- [ ] 新增 `targetGameId` 可選欄位（用於 game.broadcast）
+- [x] 在 `types/event.ts` 新增 `PendingEvent` 介面
+- [x] 建立 `lib/db/models/PendingEvent.ts` Mongoose model
+- [x] 建立複合索引：`targetCharacterId + isDelivered + expiresAt`
+- [x] 新增 `targetGameId` 可選欄位（用於 game.broadcast）
 
 ### Phase 9.2：事件寫入層
-- [ ] 建立 `lib/websocket/pending-events.ts`：
+- [x] 建立 `lib/websocket/pending-events.ts`：
   - `writePendingEvent(targetCharacterId, eventType, eventPayload)` — 單一角色寫入
   - `writePendingEvents(targets: Array<{characterId, eventType, payload}>)` — 批次寫入
   - `writePendingGameEvent(gameId, eventType, eventPayload)` — game-level 事件寫入
-- [ ] 修改 `lib/websocket/events.ts` 的 `trigger()` 函式：推送同時呼叫 pending events 寫入
-- [ ] 處理雙頻道事件（`emitSkillContest`, `emitItemTransferred`, `emitItemShowcased`）：為每個 target 各寫一筆
-- [ ] 處理 `emitGameBroadcast`：使用 `writePendingGameEvent()`
-- [ ] 排除不需要佇列的事件：`role.updated`, `skill.cooldown`, `skill.used`
+- [x] 修改 `lib/websocket/events.ts` 的 `trigger()` 函式：推送同時呼叫 pending events 寫入
+- [x] 處理雙頻道事件（`emitSkillContest`, `emitItemTransferred`, `emitItemShowcased`）：為每個 target 各寫一筆
+- [x] 處理 `emitGameBroadcast`：使用 `writePendingGameEvent()`
+- [x] 排除不需要佇列的事件：`role.updated`, `skill.cooldown`, `skill.used`
 
 ### Phase 9.3：事件拉取 Server Action
-- [ ] 建立 `app/actions/pending-events.ts`：
+- [x] 建立 `app/actions/pending-events.ts`：
   - `fetchPendingEvents(characterId, gameId?)` — 查詢未送達事件 + 標記已送達
   - 查詢條件：`(targetCharacterId === id || targetGameId === gameId) && !isDelivered && expiresAt > now`
   - 使用原子操作避免重複拉取
   - 按 `createdAt` 排序回傳
-- [ ] 修改 `app/actions/public.ts` 的 `getPublicCharacter()`：
+- [x] 修改 `app/actions/public.ts` 的 `getPublicCharacter()`：
   - 呼叫 `fetchPendingEvents()` 並在回傳中附帶 `pendingEvents` 欄位
 
 ### Phase 9.4：前端整合
-- [ ] 建立 `hooks/use-pending-events.ts`：
+- [x] 建立 `hooks/use-pending-events.ts`：
   - 接收 pending events 列表
   - 與現有的 WebSocket handler 整合，復用 `handleWebSocketEvent()` 逐一處理
   - 以 event `id` 進行去重（避免與即時 WebSocket 事件重複）
-- [ ] 修改 `components/player/character-card-view.tsx`（或上層容器）：
+- [x] 修改 `components/player/character-card-view.tsx`（或上層容器）：
   - 頁面載入後，將 pending events 傳入 `usePendingEvents` hook
   - 逐一觸發事件處理（通知、Toast、Dialog）
 
 ### Phase 9.5：定期清理
-- [ ] 修改 Cron Job `app/api/cron/check-expired-effects/route.ts`（或新建獨立 route）：
+- [x] 修改 Cron Job `app/api/cron/check-expired-effects/route.ts`（或新建獨立 route）：
   - 新增清理 pending events 邏輯
   - 刪除 `expiresAt < now` 的記錄
   - 刪除 `isDelivered && deliveredAt < now - 1h` 的記錄
@@ -343,31 +343,31 @@ async function writePendingEvents(
 
 ### 7.1 功能驗收
 
-- [ ] AC-1：玩家 A 對離線的玩家 B 使用技能（`skill.contest` request），玩家 B 上線後自動收到通知並開啟 ContestResponseDialog
-- [ ] AC-2：玩家 A 對離線的玩家 B 使用跨角色數值影響（`character.affected`），玩家 B 上線後收到 Toast 通知
-- [ ] AC-3：道具轉移（`item.transferred`）、道具展示（`item.showcased`）等事件，離線方上線後收到通知
-- [ ] AC-4：GM 廣播（`game.broadcast`）時離線的玩家，上線後收到廣播通知
-- [ ] AC-5：秘密揭露（`secret.revealed`）、目標揭露（`task.revealed`）離線時發生，上線後收到通知
-- [ ] AC-6：Phase 8 的效果過期事件（`effect.expired`）離線時發生，上線後收到通知
-- [ ] AC-7：pending events 按時間排序逐一顯示，不會一次全部彈出
-- [ ] AC-8：玩家在線收到 WebSocket 即時事件後，上線拉取時不會重複顯示同一事件
-- [ ] AC-9：多次快速刷新頁面不會重複拉取同一批 pending events
-- [ ] AC-10：pending events 超過 24 小時後自動被 Cron Job 清理
-- [ ] AC-11：`role.updated`、`skill.cooldown`、`skill.used` 不寫入 pending events（自己操作時一定在線）
+- [x] AC-1：玩家 A 對離線的玩家 B 使用技能（`skill.contest` request），玩家 B 上線後自動收到通知並開啟 ContestResponseDialog
+- [x] AC-2：玩家 A 對離線的玩家 B 使用跨角色數值影響（`character.affected`），玩家 B 上線後收到 Toast 通知
+- [x] AC-3：道具轉移（`item.transferred`）、道具展示（`item.showcased`）等事件，離線方上線後收到通知
+- [x] AC-4：GM 廣播（`game.broadcast`）時離線的玩家，上線後收到廣播通知
+- [x] AC-5：秘密揭露（`secret.revealed`）、目標揭露（`task.revealed`）離線時發生，上線後收到通知
+- [x] AC-6：Phase 8 的效果過期事件（`effect.expired`）離線時發生，上線後收到通知
+- [x] AC-7：pending events 按時間排序逐一顯示，不會一次全部彈出
+- [x] AC-8：玩家在線收到 WebSocket 即時事件後，上線拉取時不會重複顯示同一事件
+- [x] AC-9：多次快速刷新頁面不會重複拉取同一批 pending events
+- [x] AC-10：pending events 超過 24 小時後自動被 Cron Job 清理
+- [x] AC-11：`role.updated`、`skill.cooldown`、`skill.used` 不寫入 pending events（自己操作時一定在線）
 
 ### 7.2 錯誤處理驗收
 
-- [ ] ERR-1：`fetchPendingEvents` 失敗時不影響 `getPublicCharacter` 正常回傳（graceful degradation）
-- [ ] ERR-2：`writePendingEvent` 失敗時不影響 WebSocket 推送（pending event 寫入是 best-effort）
-- [ ] ERR-3：pending event 的 `eventPayload` 格式異常時，前端跳過該事件不崩潰
-- [ ] ERR-4：Cron Job 清理失敗時記錄 log 但不影響系統運行
+- [x] ERR-1：`fetchPendingEvents` 失敗時不影響 `getPublicCharacter` 正常回傳（graceful degradation）
+- [x] ERR-2：`writePendingEvent` 失敗時不影響 WebSocket 推送（pending event 寫入是 best-effort）
+- [x] ERR-3：pending event 的 `eventPayload` 格式異常時，前端跳過該事件不崩潰
+- [x] ERR-4：Cron Job 清理失敗時記錄 log 但不影響系統運行
 
 ### 7.3 使用者體驗驗收
 
-- [ ] UX-1：玩家上線後，pending events 逐一顯示通知（如 Toast、Dialog），間隔適當不會干擾操作
-- [ ] UX-2：對抗檢定 pending event 自動開啟 ContestResponseDialog，玩家可立即回應
-- [ ] UX-3：道具展示 pending event 自動開啟唯讀 Dialog
-- [ ] UX-4：pending events 的通知文字與即時 WebSocket 通知一致（復用 event-mappers）
+- [x] UX-1：玩家上線後，pending events 逐一顯示通知（如 Toast、Dialog），間隔適當不會干擾操作
+- [x] UX-2：對抗檢定 pending event 自動開啟 ContestResponseDialog，玩家可立即回應
+- [x] UX-3：道具展示 pending event 自動開啟唯讀 Dialog
+- [x] UX-4：pending events 的通知文字與即時 WebSocket 通知一致（復用 event-mappers）
 
 ---
 

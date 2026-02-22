@@ -1,0 +1,978 @@
+# SPEC-phase11-remote-services-deployment
+
+## 版本：v1.0
+## 更新日期：2026-02-18
+## 適用範圍：Phase 11 - 遠端服務整合、部署與優化
+
+---
+
+## 1. 功能概述
+
+### 1.1 背景
+
+Phase 1-10 的功能開發已完成 **框架實作**，並通過 type-check 驗收。然而，由於缺乏環境變數（DB、Pusher、Cron Secret），以下項目**僅完成框架，未進行實際測試**：
+
+- Phase 8: 時效性效果系統（Cron Job 測試待完成）
+- Phase 9: 離線事件佇列系統（Cron Job 測試待完成）
+- Phase 10.2-10.9: 遊戲狀態分層系統（UI 和 DB 邏輯待完成）
+
+### 1.2 Phase 11 目標
+
+Phase 11 的核心目標是：
+
+1. **完成所有需要遠端服務的開發任務**（共 12 個）
+2. **提供完整的部署指南**（Vercel 部署流程）
+3. **設定尚未處理的遠端服務**（Vercel Blob、Vercel Cron）
+4. **執行完整的功能測試**（Phase 8-10 整合測試）
+5. **效能優化與安全性檢查**
+6. **部署至生產環境**
+
+### 1.3 服務狀態盤點
+
+| 服務 | 狀態 | 用途 | 設定文檔 |
+|------|------|------|---------|
+| MongoDB Atlas | ✅ 已設定 | 資料庫 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 1.1 |
+| Pusher | ✅ 已設定 | WebSocket | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.1 |
+| Resend | ✅ 已設定 | Email | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.2 |
+| Session Secret | ✅ 已設定 | Session 加密 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.3 |
+| Vercel | ⏸️ 待設定 | 部署平台 | 本文件 § 11.2 |
+| Vercel Blob | ⏸️ 待設定 | 圖片上傳 | 本文件 § 11.2.4 |
+| Vercel Cron | ⏸️ 待設定 | 定時任務 | 本文件 § 11.3 |
+
+---
+
+## 2. Phase 11 任務分類與架構
+
+```mermaid
+graph TD
+    A[Phase 11 開始] --> B[11.1 遠端服務依賴任務]
+    B --> C[11.2 Vercel 部署與服務設定]
+    C --> D[11.3 Cron Jobs 設定與測試]
+    D --> E[11.4 完整功能測試]
+    E --> F[11.5 效能優化與安全性檢查]
+    F --> G{需要生產環境優化?}
+    G -->|是| H[11.6 生產環境優化]
+    G -->|否| I[Phase 11 完成]
+    H --> I
+```
+
+### 2.1 任務優先級
+
+| 優先級 | 分類 | 任務數 | 預估時間 | 前置條件 |
+|--------|------|--------|---------|---------|
+| **P0-Critical** | 11.1 遠端服務依賴任務 | 12 個 | 1-1.5 天 | 環境變數設定完成 |
+| **P0-Critical** | 11.2 Vercel 部署與服務設定 | 4 個 | 1-2 小時 | - |
+| **P0-Critical** | 11.3 Cron Jobs 設定與測試 | 2 個 | 30 分鐘 | Vercel 部署完成 |
+| **P1-High** | 11.4 完整功能測試 | 6 個測試場景 | 2-3 小時 | 所有功能實作完成 |
+| **P1-High** | 11.5 效能優化與安全性檢查 | 4 個 | 1-2 小時 | 功能測試通過 |
+| **P2-Medium** | 11.6 生產環境優化（選用） | 1 個 | 30 分鐘 | 基礎部署完成 |
+
+---
+
+## 3. 11.1 遠端服務依賴任務（P0-Critical）
+
+### 3.1 任務清單總覽
+
+根據 `phase8-10-remote-dependency-analysis.md`，共 **12 個待辦任務**：
+
+| Phase | 任務編號 | 任務描述 | 需要服務 | 預估時間 |
+|-------|---------|---------|---------|---------|
+| 8 | 8.Cron | Cron Job 實際測試 | DB + Cron | 30 分鐘 |
+| 9 | 9.Cron | Cron Job 清理實際測試 | DB + Cron | 30 分鐘 |
+| 10.2 | 10.2.2 | 修改 `createGame()` 生成 gameCode | DB | 15 分鐘 |
+| 10.2 | 10.2.3 | GM 端遊戲建立頁面 UI | - | 30 分鐘 |
+| 10.2 | 10.2.4 | GM 端遊戲詳情頁面顯示 gameCode | - | 20 分鐘 |
+| 10.3 | 10.3.4 | GM 端「開始/結束遊戲」按鈕 UI | - | 45 分鐘 |
+| 10.4 | 10.4.3 | 重構所有 Server Actions 使用新讀寫邏輯 | DB | 1-1.5 小時 |
+| 10.7 | 10.7.Test1 | `pushEventToGame()` 實際測試 | DB + Pusher | 20 分鐘 |
+| 10.7 | 10.7.Test2 | `emitGameStarted()` 實際測試 | DB + Pusher | 20 分鐘 |
+| 10.7 | 10.7.Test3 | `emitGameEnded()` 實際測試 | DB + Pusher | 20 分鐘 |
+| 10.8 | 10.8.2 | 執行資料遷移腳本 | DB | 30 分鐘 |
+| 10.9 | 10.9.1-3 | 唯一性檢查 DB 邏輯 + 前端 UI | DB | 1 小時 |
+
+**總計預估時間**: 約 **5.5-6.5 小時**（1 個工作日）
+
+### 3.2 實作步驟
+
+#### Step 1: Phase 10.2 - Game Code UI（3 個任務，約 1 小時）
+
+**10.2.2 - 修改 `app/actions/games.ts`**
+
+修改 `createGame()` Server Action，確保自動生成 `gameCode`：
+
+```typescript
+// 已實作的邏輯（確認是否正確）
+export async function createGame(data: CreateGameInput) {
+  // ... 驗證邏輯
+
+  await dbConnect();
+
+  // Phase 10: 處理 Game Code
+  let gameCode: string;
+  if (data.gameCode) {
+    // 使用者提供了 Game Code，需要驗證唯一性
+    const isUnique = await isGameCodeUnique(data.gameCode);
+    if (!isUnique) {
+      return {
+        success: false,
+        error: 'GAME_CODE_TAKEN',
+        message: '此遊戲代碼已被使用，請選擇其他代碼',
+      };
+    }
+    gameCode = data.gameCode.toUpperCase();
+  } else {
+    // 自動生成唯一 Game Code
+    gameCode = await generateUniqueGameCode();
+  }
+
+  // 儲存劇本（包含 gameCode）
+  const game = await Game.create({
+    ...data,
+    gameCode,
+    gmUserId,
+  });
+
+  return { success: true, gameId: game._id.toString(), gameCode };
+}
+```
+
+**10.2.3 - GM 端遊戲建立頁面 UI**
+
+修改 `app/(gm)/games/new/page.tsx` 或相關表單元件：
+
+- 新增「遊戲代碼」欄位（可選輸入，6 位英數字）
+- 顯示自動生成的 Game Code 預覽
+- 即時檢查唯一性（防抖 500ms）
+
+**10.2.4 - GM 端遊戲詳情頁面顯示 gameCode**
+
+修改 `app/(gm)/games/[gameId]/page.tsx`：
+
+- 在顯著位置顯示 Game Code（如標題旁邊）
+- 提供「複製 Game Code」按鈕
+- GM 可點擊編輯 Game Code（檢查唯一性）
+
+---
+
+#### Step 2: Phase 10.3 - 遊戲狀態管理 UI（1 個任務，約 45 分鐘）
+
+**10.3.4 - GM 端「開始/結束遊戲」按鈕 UI**
+
+修改 `app/(gm)/games/[gameId]/page.tsx`：
+
+```typescript
+// 示意代碼
+export default function GameDetailPage({ params }: { params: { gameId: string } }) {
+  const [game, setGame] = useState<GameData | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isEnding, setIsEnding] = useState(false);
+
+  // 開始遊戲
+  const handleStartGame = async () => {
+    setIsStarting(true);
+    const result = await startGameAction(params.gameId);
+    if (result.success) {
+      toast.success('遊戲已開始');
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+    setIsStarting(false);
+  };
+
+  // 結束遊戲
+  const handleEndGame = async () => {
+    const confirmed = confirm('確定要結束遊戲嗎？將會保存當前狀態的快照。');
+    if (!confirmed) return;
+
+    setIsEnding(true);
+    const snapshotName = prompt('輸入快照名稱（可選）:');
+    const result = await endGameAction(params.gameId, snapshotName);
+    if (result.success) {
+      toast.success('遊戲已結束');
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+    setIsEnding(false);
+  };
+
+  return (
+    <div>
+      {/* 遊戲狀態顯示 */}
+      <div className="flex items-center gap-4">
+        <Badge variant={game.isActive ? 'success' : 'secondary'}>
+          {game.isActive ? '進行中' : '待機'}
+        </Badge>
+
+        {!game.isActive && (
+          <Button onClick={handleStartGame} disabled={isStarting}>
+            {isStarting ? '啟動中...' : '開始遊戲'}
+          </Button>
+        )}
+
+        {game.isActive && (
+          <Button variant="destructive" onClick={handleEndGame} disabled={isEnding}>
+            {isEnding ? '結束中...' : '結束遊戲'}
+          </Button>
+        )}
+      </div>
+
+      {/* 其他遊戲資訊 */}
+    </div>
+  );
+}
+```
+
+---
+
+#### Step 3: Phase 10.4 - 讀寫邏輯重構（1 個任務，約 1-1.5 小時）
+
+**10.4.3 - 重構所有 Server Actions 使用新讀寫邏輯**
+
+需要重構的檔案：
+- `app/actions/character-update.ts`
+- `app/actions/item-use.ts`
+- `app/actions/skill-use.ts`
+- `app/actions/contest-*.ts`
+- `app/actions/public.ts` 的 `getPublicCharacter()`
+
+**重構原則**：
+- 讀取：使用 `getCharacterData(characterId)`
+- 更新：使用 `updateCharacterData(characterId, updates)`
+
+**示例**：
+
+```typescript
+// 修改前
+export async function useSkill(characterId: string, skillId: string, ...) {
+  const character = await Character.findById(characterId);
+  // ...
+  await character.save();
+}
+
+// 修改後
+export async function useSkill(characterId: string, skillId: string, ...) {
+  const character = await getCharacterData(characterId); // 自動判斷 Runtime/Baseline
+  // ...
+  await updateCharacterData(characterId, updates); // 自動判斷寫入 Runtime/Baseline
+}
+```
+
+---
+
+#### Step 4: Phase 10.8 - 資料遷移（1 個任務，約 30 分鐘）
+
+**10.8.2 - 執行資料遷移腳本**
+
+**前置條件**：已設定 Production MongoDB URI
+
+**執行步驟**：
+
+1. 備份資料庫（重要！）
+   ```bash
+   mongodump --uri="$MONGODB_URI" --out=./backup-$(date +%Y%m%d)
+   ```
+
+2. 執行遷移腳本
+   ```bash
+   npm run migrate:phase10
+   ```
+
+3. 檢查 `migration-report.json` 和 `migration-conflicts.json`
+   - 確認所有遊戲已生成 gameCode
+   - 檢查 PIN 衝突（如有）
+
+4. 手動解決衝突（如有）
+   - 修改重複的 PIN
+   - 重新執行遷移
+
+---
+
+#### Step 5: Phase 10.9 - 唯一性檢查（3 個任務，約 1 小時）
+
+**10.9.1 - 修改 `app/actions/games.ts`**
+
+實作 `checkGameCodeUniqueness()` 的 DB 查詢邏輯（移除 TODO Phase 11 標記）：
+
+```typescript
+// lib/validation/uniqueness.ts
+export async function checkGameCodeUniqueness(params: GameCodeUniquenessParams): Promise<UniquenessCheckResult> {
+  const { gameCode, excludeGameId } = params;
+
+  try {
+    await dbConnect();
+
+    const query: any = { gameCode: gameCode.toUpperCase() };
+
+    if (excludeGameId) {
+      query._id = { $ne: excludeGameId };
+    }
+
+    const existingGame = await Game.findOne(query).select('_id name');
+
+    if (existingGame) {
+      return {
+        isUnique: false,
+        message: '此遊戲代碼已被使用，請選擇其他代碼',
+        conflictId: existingGame._id.toString(),
+      };
+    }
+
+    return { isUnique: true };
+  } catch (error) {
+    console.error('[checkGameCodeUniqueness] Error:', error);
+    throw new Error('檢查遊戲代碼唯一性時發生錯誤');
+  }
+}
+```
+
+**10.9.2 - 修改 `app/actions/characters.ts`**
+
+實作 `checkPinUniqueness()` 的 DB 查詢邏輯：
+
+```typescript
+// lib/validation/uniqueness.ts
+export async function checkPinUniqueness(params: PinUniquenessParams): Promise<UniquenessCheckResult> {
+  const { gameId, pin, excludeCharacterId } = params;
+
+  try {
+    await dbConnect();
+
+    const query: any = { gameId, pin };
+
+    if (excludeCharacterId) {
+      query._id = { $ne: excludeCharacterId };
+    }
+
+    const existingCharacter = await Character.findOne(query).select('_id name');
+
+    if (existingCharacter) {
+      return {
+        isUnique: false,
+        message: '此 PIN 在本遊戲中已被使用，請選擇其他 PIN',
+        conflictId: existingCharacter._id.toString(),
+      };
+    }
+
+    return { isUnique: true };
+  } catch (error) {
+    console.error('[checkPinUniqueness] Error:', error);
+    throw new Error('檢查 PIN 唯一性時發生錯誤');
+  }
+}
+```
+
+**10.9.3 - 前端表單即時驗證**
+
+修改 GM 端遊戲表單和角色表單，加入即時驗證（防抖 500ms）。
+
+---
+
+#### Step 6: Phase 10.7 - WebSocket 遊戲狀態事件測試（3 個任務，約 1 小時）
+
+**前置條件**：Pusher 和 DB 環境變數已設定
+
+**測試步驟**：
+
+1. **10.7.Test1 - `pushEventToGame()` 測試**
+   - GM 開始遊戲
+   - 確認所有玩家收到 `game.started` 事件
+   - 確認 Pending Events 已寫入
+
+2. **10.7.Test2 - `emitGameStarted()` 測試**
+   - 玩家端收到事件後顯示 Toast
+   - 頁面自動刷新（`router.refresh()`）
+   - 確認 Runtime 資料已建立
+
+3. **10.7.Test3 - `emitGameEnded()` 測試**
+   - GM 結束遊戲
+   - 玩家端收到 `game.ended` 事件
+   - 確認 Snapshot 已儲存
+   - 確認 Runtime 已清除
+
+---
+
+#### Step 7: Phase 8+9 - Cron Jobs 測試（2 個任務，約 1 小時）
+
+**前置條件**：Vercel Cron Jobs 已設定（參考 § 11.3）
+
+**8.Cron - Phase 8 過期效果 Cron Job 測試**
+
+測試流程：
+1. 建立一個時效性效果（duration = 60 秒）
+2. 等待 Cron Job 執行（每分鐘）
+3. 確認效果過期後：
+   - 數值已恢復
+   - `effect.expired` 事件已推送
+   - 玩家端收到通知
+
+**9.Cron - Phase 9 離線事件清理 Cron Job 測試**
+
+測試流程：
+1. 建立一個 Pending Event（設定 24 小時前過期）
+2. 等待 Cron Job 執行
+3. 確認已過期的 Pending Events 已被清理
+
+---
+
+## 4. 11.2 Vercel 部署與服務設定（P0-Critical）
+
+### 4.1 部署流程總覽
+
+```mermaid
+sequenceDiagram
+    participant Dev as 開發環境
+    participant GitHub as GitHub Repository
+    participant Vercel as Vercel Platform
+    participant Prod as 生產環境
+
+    Dev->>GitHub: 推送程式碼到 main 分支
+    GitHub->>Vercel: 觸發自動部署
+    Vercel->>Vercel: 建置應用程式
+    Vercel->>Vercel: 設定環境變數
+    Vercel->>Vercel: 啟用 Vercel Blob
+    Vercel->>Prod: 部署至 Production
+    Prod->>Vercel: 回報部署狀態
+    Vercel->>GitHub: 更新部署狀態
+```
+
+### 4.2 實作步驟
+
+#### Step 1: Vercel 帳號與專案設定（約 15 分鐘）
+
+參考 `10_EXTERNAL_SETUP_CHECKLIST.md` § 3.1。
+
+**重點**：
+1. 使用 GitHub 帳號登入 Vercel
+2. 匯入 `larp-nexus` Repository
+3. Framework Preset：自動偵測為 `Next.js`
+
+#### Step 2: 環境變數配置（約 20 分鐘）
+
+在 Vercel Project Settings → Environment Variables 中設定：
+
+**Production 環境變數**：
+
+```bash
+# 資料庫
+MONGODB_URI=mongodb+srv://...
+
+# App URL
+NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
+
+# Session
+SESSION_SECRET=<生成新的 Secret，不要與本地環境相同>
+
+# Pusher
+PUSHER_APP_ID=xxx
+NEXT_PUBLIC_PUSHER_KEY=xxx
+PUSHER_SECRET=xxx
+NEXT_PUBLIC_PUSHER_CLUSTER=ap3
+
+# Resend
+RESEND_API_KEY=re_xxx
+EMAIL_FROM=noreply@your-domain.com
+
+# Cron Secret (用於保護 Cron API)
+CRON_SECRET=<生成新的 Secret>
+```
+
+**Preview 環境變數**：
+- 可與 Production 相同
+- 或使用獨立的 Staging MongoDB
+
+**Development 環境變數**：
+- 使用本地開發的變數
+
+#### Step 3: 部署至 Production（約 5 分鐘）
+
+```bash
+# 推送至 main 分支觸發自動部署
+git checkout main
+git merge develop
+git push origin main
+```
+
+檢查部署狀態：
+- Vercel Dashboard → Deployments
+- 確認狀態為 ✅ Ready
+
+#### Step 4: 啟用 Vercel Blob（約 5 分鐘）
+
+1. Vercel Project Settings → Storage
+2. 點擊「Create Database」→ 選擇「Blob」
+3. 建立後，Token 會自動加入環境變數 `BLOB_READ_WRITE_TOKEN`
+4. 同步至本地：
+   ```bash
+   vercel env pull .env.local
+   ```
+
+#### Step 5: 驗證部署（約 10 分鐘）
+
+訪問 Production URL：`https://your-project.vercel.app`
+
+測試項目：
+- [ ] 首頁正常顯示
+- [ ] GM 登入功能正常（Magic Link Email 發送）
+- [ ] 圖片上傳功能正常（Vercel Blob）
+- [ ] WebSocket 連線正常（Pusher）
+
+---
+
+## 5. 11.3 Cron Jobs 設定與測試（P0-Critical）
+
+### 5.1 Cron Jobs 總覽
+
+本專案需要設定 **1 個 Cron Job**，整合 Phase 8 和 Phase 9 的定時任務：
+
+| 路徑 | 頻率 | 用途 | Phase |
+|------|------|------|-------|
+| `/api/cron/check-expired-effects` | 每分鐘 | 檢查過期效果 + 清理 Pending Events | 8 + 9 |
+
+### 5.2 設定步驟
+
+#### Step 1: 建立 `vercel.json` 設定檔
+
+在專案根目錄建立 `vercel.json`：
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-expired-effects",
+      "schedule": "* * * * *"
+    }
+  ]
+}
+```
+
+#### Step 2: 保護 Cron API（安全性）
+
+修改 `app/api/cron/check-expired-effects/route.ts`：
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { checkExpiredEffects } from '@/app/actions/temporary-effects';
+import { cleanExpiredPendingEvents } from '@/lib/websocket/clean-pending-events';
+
+export async function GET(request: NextRequest) {
+  // 驗證 Cron Secret
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    // Phase 8: 檢查過期效果
+    const effectsResult = await checkExpiredEffects();
+
+    // Phase 9: 清理過期的 Pending Events
+    const cleanResult = await cleanExpiredPendingEvents();
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        effects: effectsResult.data,
+        pendingEvents: cleanResult,
+      },
+    });
+  } catch (error) {
+    console.error('[Cron] Error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+```
+
+#### Step 3: 部署並啟用 Cron Jobs
+
+```bash
+# 提交 vercel.json
+git add vercel.json
+git commit -m "feat: add Vercel Cron Jobs configuration"
+git push origin main
+
+# 等待 Vercel 自動部署
+```
+
+在 Vercel Dashboard 確認 Cron Jobs 已啟用：
+- Settings → Crons
+- 確認 `/api/cron/check-expired-effects` 顯示為 Active
+
+#### Step 4: 測試 Cron Job（手動觸發）
+
+```bash
+# 使用 curl 手動觸發 Cron API
+curl -X GET https://your-project.vercel.app/api/cron/check-expired-effects \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+預期回應：
+```json
+{
+  "success": true,
+  "data": {
+    "effects": {
+      "processedCount": 0,
+      "restoredStats": []
+    },
+    "pendingEvents": {
+      "deletedCount": 0
+    }
+  }
+}
+```
+
+---
+
+## 6. 11.4 完整功能測試（P1-High）
+
+### 6.1 測試場景清單
+
+| 場景編號 | 測試項目 | Phase | 預估時間 |
+|---------|---------|-------|---------|
+| TS-1 | 時效性效果完整流程測試 | 8 | 30 分鐘 |
+| TS-2 | 離線事件佇列完整流程測試 | 9 | 30 分鐘 |
+| TS-3 | 遊戲狀態分層完整流程測試 | 10 | 45 分鐘 |
+| TS-4 | Phase 8+9+10 整合測試 | 8+9+10 | 45 分鐘 |
+| TS-5 | 跨角色互動測試 | 6.5+7+7.7 | 30 分鐘 |
+| TS-6 | 自動揭露條件測試 | 7.7 | 30 分鐘 |
+
+**總計預估時間**: 約 **3-3.5 小時**
+
+### 6.2 測試步驟
+
+#### TS-1: 時效性效果完整流程測試（Phase 8）
+
+**測試目標**：驗證時效性效果的應用、倒數、過期、恢復流程。
+
+**測試步驟**：
+1. GM 建立一個技能，設定 `stat_change` 效果，duration = 60 秒
+2. 玩家 A 使用技能，數值變化（如 HP +10）
+3. 確認 GM 端時效性效果卡片顯示剩餘時間倒數
+4. 等待 60 秒 + Cron Job 執行（最多 1 分鐘）
+5. 確認：
+   - [ ] 玩家 A 收到 `effect.expired` 事件
+   - [ ] 玩家 A 顯示 Toast：「效果已結束，HP 已恢復」
+   - [ ] 玩家 A 的 HP 恢復至原始值
+   - [ ] GM 端時效性效果卡片移除該效果
+
+**驗收標準**：所有確認項目皆通過。
+
+---
+
+#### TS-2: 離線事件佇列完整流程測試（Phase 9）
+
+**測試目標**：驗證玩家離線時錯過的事件能正確拉取並顯示。
+
+**測試步驟**：
+1. 玩家 A 關閉瀏覽器（模擬離線）
+2. GM 推送以下事件給玩家 A：
+   - 新增道具（`role.inventoryUpdated`）
+   - 新增任務（`role.taskUpdated`）
+   - 展示道具（`item.showcased`）
+   - 揭露隱藏資訊（`secret.revealed`）
+3. 玩家 A 重新開啟角色卡頁面
+4. 確認：
+   - [ ] 玩家 A 收到所有錯過的事件通知（逐一顯示）
+   - [ ] 道具和任務列表已更新
+   - [ ] 展示道具 Dialog 自動彈出
+   - [ ] 隱藏資訊已揭露
+   - [ ] Pending Events 已標記為已送達（DB 確認）
+
+**驗收標準**：所有確認項目皆通過。
+
+---
+
+#### TS-3: 遊戲狀態分層完整流程測試（Phase 10）
+
+**測試目標**：驗證 Baseline / Runtime / Snapshot 的建立、讀寫、清除流程。
+
+**測試步驟**：
+1. GM 建立一個遊戲和角色（Baseline）
+2. 玩家 A 使用 `gameCode + PIN` 解鎖角色（成功）
+3. GM 點擊「開始遊戲」
+4. 確認：
+   - [ ] `GameRuntime` 和 `CharacterRuntime` 已建立（DB 確認）
+   - [ ] 玩家 A 收到 `game.started` 事件並刷新
+   - [ ] 遊戲狀態顯示為「進行中」
+5. 玩家 A 使用道具/技能，修改數值
+6. 確認：
+   - [ ] 變更寫入 `CharacterRuntime`（DB 確認）
+   - [ ] Baseline 保持不變（DB 確認）
+7. GM 點擊「結束遊戲」（輸入 Snapshot 名稱）
+8. 確認：
+   - [ ] Snapshot 已建立（DB 確認，type = 'snapshot'）
+   - [ ] Runtime 已清除（DB 確認）
+   - [ ] 玩家 A 收到 `game.ended` 事件並刷新
+   - [ ] 遊戲狀態顯示為「待機」
+9. 玩家 A 重新解鎖角色
+10. 確認：
+    - [ ] 角色數值恢復至 Baseline 狀態（之前的變更已清除）
+
+**驗收標準**：所有確認項目皆通過。
+
+---
+
+#### TS-4: Phase 8+9+10 整合測試
+
+**測試目標**：驗證三個 Phase 的深度整合（時效性效果 + 離線佇列 + 遊戲狀態）。
+
+**測試步驟**：
+1. GM 開始遊戲（Phase 10）
+2. 玩家 A 使用時效性效果技能（Phase 8）
+3. 玩家 A 關閉瀏覽器（模擬離線）
+4. 等待效果過期，Cron Job 執行
+5. 確認：
+   - [ ] `effect.expired` 事件寫入 Pending Events（Phase 9）
+   - [ ] Runtime 中的數值已恢復（Phase 10）
+6. 玩家 A 重新開啟角色卡
+7. 確認：
+   - [ ] 玩家 A 收到過期效果通知（從 Pending Events 拉取）
+   - [ ] 數值顯示正確（已恢復）
+
+**驗收標準**：所有確認項目皆通過。
+
+---
+
+#### TS-5: 跨角色互動測試（Phase 6.5 + 7 + 7.7）
+
+**測試步驟**：
+1. 玩家 A 對玩家 B 使用帶隱匿標籤的技能
+2. 確認玩家 B 收到通知「你受到了影響」（不顯示攻擊方名稱）
+3. 玩家 A 對玩家 B 發起對抗檢定
+4. 確認玩家 B 收到對抗請求 Dialog
+5. 玩家 A 展示道具給玩家 B
+6. 確認玩家 B 收到展示 Dialog
+
+**驗收標準**：所有互動正常，通知訊息符合規格。
+
+---
+
+#### TS-6: 自動揭露條件測試（Phase 7.7）
+
+**測試步驟**：
+1. GM 設定隱藏資訊 A 的自動揭露條件：「檢視道具 X」
+2. GM 設定隱藏目標 B 的自動揭露條件：「隱藏資訊 A 已揭露」
+3. 玩家點開道具 X
+4. 確認：
+   - [ ] 隱藏資訊 A 自動揭露
+   - [ ] 隱藏目標 B 連鎖揭露
+   - [ ] 玩家收到兩個揭露通知
+
+**驗收標準**：連鎖揭露正常運作。
+
+---
+
+## 7. 11.5 效能優化與安全性檢查（P1-High）
+
+### 7.1 效能優化項目
+
+| 項目 | 描述 | 預估時間 |
+|------|------|---------|
+| 圖片優化 | 使用 Next.js Image Component，設定 placeholder | 20 分鐘 |
+| Bundle Size 分析 | 使用 `@next/bundle-analyzer` 檢查 | 15 分鐘 |
+| Loading State 優化 | 添加 Skeleton UI 和 Suspense | 30 分鐘 |
+| Database Query 優化 | 檢查 N+1 問題，添加索引 | 30 分鐘 |
+| Caching 策略 | 設定 Next.js Cache 策略（ISR/SWR） | 20 分鐘 |
+
+**總計預估時間**: 約 **2 小時**
+
+### 7.2 安全性檢查項目
+
+| 項目 | 檢查內容 | 預估時間 |
+|------|---------|---------|
+| 環境變數保護 | 確認所有 Secret 未洩露至客戶端 | 15 分鐘 |
+| API 授權驗證 | 確認所有 GM API 有權限檢查 | 20 分鐘 |
+| XSS 防護 | 檢查使用者輸入處理（如角色描述） | 20 分鐘 |
+| CSRF 保護 | 確認 Next.js 內建 CSRF Token 生效 | 10 分鐘 |
+
+**總計預估時間**: 約 **1 小時**
+
+### 7.3 實作步驟
+
+#### Step 1: 圖片優化
+
+修改所有使用圖片的地方，使用 Next.js Image Component：
+
+```typescript
+import Image from 'next/image';
+
+// 修改前
+<img src={character.avatar} alt={character.name} />
+
+// 修改後
+<Image
+  src={character.avatar}
+  alt={character.name}
+  width={200}
+  height={200}
+  placeholder="blur"
+  blurDataURL="/placeholder.png"
+/>
+```
+
+#### Step 2: Bundle Size 分析
+
+```bash
+# 安裝 bundle analyzer
+pnpm add -D @next/bundle-analyzer
+
+# 修改 next.config.ts
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
+module.exports = withBundleAnalyzer({
+  // ... 其他設定
+});
+
+# 執行分析
+ANALYZE=true pnpm build
+```
+
+檢查是否有過大的 bundle，考慮 Code Splitting。
+
+#### Step 3: 安全性檢查
+
+使用 ESLint 檢查潛在安全問題：
+
+```bash
+pnpm lint
+```
+
+手動檢查：
+- [ ] `.env.local` 在 `.gitignore` 中
+- [ ] 所有 Server Actions 有授權檢查
+- [ ] 玩家端 API 不回傳 GM 專用欄位
+
+---
+
+## 8. 11.6 生產環境優化（P2-Medium，選用）
+
+### 8.1 項目清單
+
+| 項目 | 描述 | 預估時間 | 參考文檔 |
+|------|------|---------|---------|
+| 自訂網域設定 | 使用自己的網域 | 30 分鐘 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 4.1 |
+
+**總計預估時間**: 約 **30 分鐘**
+
+---
+
+## 9. 驗收標準
+
+### 9.1 功能驗收
+
+- [ ] **AC-1**: 所有 Phase 8-10 功能在 Production 環境正常運作
+- [ ] **AC-2**: Cron Jobs 每分鐘正常執行，過期效果和 Pending Events 清理正確
+- [ ] **AC-3**: 遊戲狀態分層系統（Baseline / Runtime / Snapshot）運作正常
+- [ ] **AC-4**: Game Code 和 PIN 唯一性檢查生效
+- [ ] **AC-5**: 圖片上傳功能正常（Vercel Blob）
+- [ ] **AC-6**: WebSocket 連線穩定，所有事件正常推送
+
+### 9.2 效能驗收
+
+- [ ] **PERF-1**: 首頁 LCP < 2.5 秒
+- [ ] **PERF-2**: 角色卡頁面載入時間 < 3 秒
+- [ ] **PERF-3**: WebSocket 連線延遲 < 500ms
+- [ ] **PERF-4**: Bundle Size < 500KB（主要 chunk）
+
+### 9.3 安全性驗收
+
+- [ ] **SEC-1**: 所有環境變數正確設定，Secret 未洩露
+- [ ] **SEC-2**: GM API 有授權檢查，玩家無法存取
+- [ ] **SEC-3**: Cron API 有 Secret 保護
+- [ ] **SEC-4**: XSS 防護生效（使用者輸入已轉義）
+
+### 9.4 部署驗收
+
+- [ ] **DEPLOY-1**: Production 部署成功，訪問 URL 正常
+- [ ] **DEPLOY-2**: Vercel Blob 已啟用，圖片上傳測試通過
+- [ ] **DEPLOY-3**: Vercel Cron Jobs 已啟用，定時任務正常執行
+- [ ] **DEPLOY-4**: 環境變數在 Production / Preview / Development 都正確設定
+
+---
+
+## 10. 部署檢查清單
+
+### 10.1 部署前檢查
+
+- [ ] 所有待辦任務已完成（11.1 ~ 11.5）
+- [ ] 本地測試通過（`pnpm build` 成功）
+- [ ] Type-check 通過（`pnpm type-check`）
+- [ ] Lint 檢查通過（`pnpm lint`）
+- [ ] 環境變數已準備（Production 和 Preview）
+- [ ] 資料庫已備份（重要！）
+- [ ] GitHub main 分支已更新
+
+### 10.2 部署中檢查
+
+- [ ] Vercel 建置成功（無錯誤）
+- [ ] 環境變數已設定（Dashboard 確認）
+- [ ] Vercel Blob 已啟用
+- [ ] Vercel Cron Jobs 已啟用
+- [ ] Domain 設定正確（如有自訂網域）
+
+### 10.3 部署後檢查
+
+- [ ] Production URL 可正常存取
+- [ ] GM 登入功能正常（Magic Link）
+- [ ] 角色卡解鎖功能正常（Game Code + PIN）
+- [ ] 圖片上傳功能正常
+- [ ] WebSocket 連線正常
+- [ ] Cron Jobs 正常執行（手動觸發測試）
+- [ ] 執行完整功能測試（§ 6）
+
+---
+
+## 11. 潛在風險與對策
+
+| 風險 | 影響 | 對策 |
+|------|------|------|
+| Vercel 免費方案 Serverless 執行時間限制（10 秒） | 中 | 優化 DB 查詢，避免超時；或升級至 Pro 方案 |
+| MongoDB 免費方案儲存空間限制（512MB） | 中 | 定期清理過期 Logs 和 Snapshots；或升級至 Shared Cluster |
+| Pusher 免費方案訊息數限制（200k/天） | 低 | 監控使用量，必要時升級至 Sandbox ($5/月) |
+| Vercel Blob 免費方案儲存空間限制（1GB） | 低 | 壓縮圖片，限制檔案大小；或升級至 Pro 方案 |
+| Cron Job 執行失敗（如 DB 連線逾時） | 中 | 添加錯誤處理和重試機制；監控 Vercel Logs |
+| 資料遷移失敗（PIN 衝突） | 高 | 事前備份資料庫；提供衝突清單讓 GM 手動解決 |
+
+---
+
+## 12. 後續優化建議（Phase 12+）
+
+以下項目不在 Phase 11 範圍內，可延後至未來 Phase：
+
+1. **測試覆蓋率**：撰寫單元測試和整合測試（Phase 12）
+2. **效能監控**：整合 Vercel Analytics 和 Web Vitals（Phase 12）
+3. **CI/CD Pipeline**：設定 GitHub Actions 自動化測試和部署（Phase 12）
+4. **多語言支援**：i18n 國際化（Phase 13）
+5. **移動端 APP**：React Native 或 PWA（Phase 14）
+
+---
+
+## 13. 總結
+
+Phase 11 是專案從**開發階段**邁向**生產環境**的關鍵里程碑。完成 Phase 11 後，專案將具備：
+
+✅ **完整功能**：所有 Phase 1-10 功能實際運作，無 TODO 標記
+✅ **穩定部署**：部署至 Vercel Production，可對外提供服務
+✅ **自動化任務**：Cron Jobs 定時清理和檢查，無需手動介入
+✅ **效能優化**：圖片、Bundle 和 Loading State 優化
+✅ **安全保障**：授權檢查、環境變數保護、API 保護完善
+
+**預估總工作量**：約 **2-2.5 個工作日**（16-20 小時）
+
+**建議執行順序**：
+1. 11.2 Vercel 部署（1-2 小時）→ 取得環境變數
+2. 11.1 遠端服務依賴任務（1 個工作日）→ 完成所有功能
+3. 11.3 Cron Jobs 設定（30 分鐘）→ 啟用定時任務
+4. 11.4 完整功能測試（3 小時）→ 確保品質
+5. 11.5 效能優化與安全性檢查（2 小時）→ 提升穩定性
+6. 11.6 生產環境優化（選用，30 分鐘）→ 自訂網域設定
+
+---
+
+**祝 Phase 11 開發順利！🚀**

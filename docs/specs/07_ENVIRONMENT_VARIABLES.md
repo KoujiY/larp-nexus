@@ -150,33 +150,6 @@ NODE_ENV=development
 
 ---
 
-### 3.2 Rate Limiting（使用 Upstash Redis）
-
-```bash
-# Upstash Redis REST URL
-UPSTASH_REDIS_REST_URL=https://xxxxx.upstash.io
-UPSTASH_REDIS_REST_TOKEN=xxxxxxxxxx
-```
-
-**取得方式**
-1. 前往 [Upstash](https://upstash.com/)
-2. 建立免費資料庫（10k 命令/天）
-3. 於 Dashboard 取得 REST API 憑證
-
----
-
-### 3.3 日誌服務（選用）
-
-```bash
-# Sentry（錯誤追蹤）
-NEXT_PUBLIC_SENTRY_DSN=https://xxxxx@sentry.io/xxxxx
-
-# Vercel Analytics（分析）
-# Vercel 部署後自動啟用，無需額外設定
-```
-
----
-
 ## 4. .env.example 範本
 
 建立 `.env.example` 供團隊成員參考：
