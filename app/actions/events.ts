@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
+import { emitGameBroadcast } from '@/lib/websocket/events';
 import type { ApiResponse } from '@/types/api';
 
 type PushEventInput = {
@@ -36,16 +37,13 @@ export async function pushEvent(input: PushEventInput): Promise<ApiResponse<{ pu
     const { type, gameId, targetCharacterId, title, message, data } = input;
 
     if (type === 'broadcast') {
-      await pusher.trigger(`private-game-${gameId}`, 'game.broadcast', {
-        type: 'game.broadcast',
-        timestamp: Date.now(),
-        payload: {
-          gameId,
-          title,
-          message,
-          priority: 'normal',
-          data,
-        },
+      // Phase 9: 使用 emitGameBroadcast 確保同時寫入 pending events
+      await emitGameBroadcast(gameId, {
+        gameId,
+        title,
+        message,
+        priority: 'normal',
+        data,
       });
     } else if (type === 'character' && targetCharacterId) {
       await pusher.trigger(`private-character-${targetCharacterId}`, 'role.message', {

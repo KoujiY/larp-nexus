@@ -7,6 +7,8 @@
 
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 import type { SkillContestEvent } from '@/types/event';
+// Phase 9: 離線事件佇列寫入
+import { writePendingEvent, writePendingEvents } from '@/lib/websocket/pending-events';
 
 /**
  * 發送對抗檢定請求事件（攻擊方發起對抗）
@@ -35,7 +37,11 @@ export async function emitContestRequest(
   try {
     // 只發送給防守方（攻擊方不需要收到請求事件）
     const defenderChannelName = `private-character-${defenderId}`;
-    await pusher.trigger(defenderChannelName, 'skill.contest', event);
+    await Promise.all([
+      pusher.trigger(defenderChannelName, 'skill.contest', event),
+      // Phase 9: 寫入 pending events（僅防守方）
+      writePendingEvent(defenderId, 'skill.contest', event.payload as Record<string, unknown>),
+    ]);
   } catch (error) {
     console.error('[contest-event-emitter] Failed to emit contest request', error);
     throw error;
@@ -71,17 +77,29 @@ export async function emitContestResult(
   };
 
   try {
+    const pushPromises: Promise<unknown>[] = [];
+    const pendingTargets: Array<{ targetCharacterId: string; eventType: string; eventPayload: Record<string, unknown> }> = [];
+
     // 發送給攻擊方（除非需要選擇目標道具）
     if (!options?.skipAttacker) {
       const attackerChannelName = `private-character-${attackerId}`;
-      await pusher.trigger(attackerChannelName, 'skill.contest', event);
+      pushPromises.push(pusher.trigger(attackerChannelName, 'skill.contest', event));
+      pendingTargets.push({ targetCharacterId: attackerId, eventType: 'skill.contest', eventPayload: event.payload as Record<string, unknown> });
     }
 
     // 發送給防守方（除非防守方獲勝但無回應）
     if (!options?.skipDefender) {
       const defenderChannelName = `private-character-${defenderId}`;
-      await pusher.trigger(defenderChannelName, 'skill.contest', event);
+      pushPromises.push(pusher.trigger(defenderChannelName, 'skill.contest', event));
+      pendingTargets.push({ targetCharacterId: defenderId, eventType: 'skill.contest', eventPayload: event.payload as Record<string, unknown> });
     }
+
+    // Phase 9: 同步寫入 pending events
+    if (pendingTargets.length > 0) {
+      pushPromises.push(writePendingEvents(pendingTargets));
+    }
+
+    await Promise.all(pushPromises);
   } catch (error) {
     console.error('[contest-event-emitter] Failed to emit contest result', error);
     throw error;
@@ -113,7 +131,11 @@ export async function emitContestEffect(
   try {
     // 只發送給攻擊方
     const attackerChannelName = `private-character-${attackerId}`;
-    await pusher.trigger(attackerChannelName, 'skill.contest', event);
+    await Promise.all([
+      pusher.trigger(attackerChannelName, 'skill.contest', event),
+      // Phase 9: 寫入 pending events（僅攻擊方）
+      writePendingEvent(attackerId, 'skill.contest', event.payload as Record<string, unknown>),
+    ]);
   } catch (error) {
     console.error('[contest-event-emitter] Failed to emit contest effect', error);
     throw error;

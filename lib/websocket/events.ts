@@ -47,7 +47,11 @@ export async function emitSkillUsed(characterId: string, payload: SkillUsedEvent
 }
 
 export async function emitRoleUpdated(characterId: string, payload: RoleUpdatedEvent['payload']) {
-  await trigger(`private-character-${characterId}`, 'role.updated', payload);
+  // Phase 9: 推送 WebSocket + 寫入 pending events（離線時可補送數值變更通知）
+  await Promise.all([
+    trigger(`private-character-${characterId}`, 'role.updated', payload),
+    writePendingEvent(characterId, 'role.updated', payload as Record<string, unknown>),
+  ]);
 }
 
 export async function emitSkillCooldown(characterId: string, payload: SkillCooldownEvent['payload']) {

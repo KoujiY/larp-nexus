@@ -296,10 +296,61 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   // Phase 3.1: 使用 WebSocket 事件處理 Hook（已整合通知系統和事件映射）
   useCharacterWebSocket(character.id, handleWebSocketEvent);
 
-  // Phase 9: 處理離線事件佇列（復用 handleWebSocketEvent）
+  /**
+   * Phase 9: 離線事件的統一處理器
+   * 同時處理角色頻道事件和遊戲頻道事件（如 game.broadcast）
+   * 對於 role.updated，額外顯示 toast（離線期間的數值變更需要明確通知）
+   */
+  const handlePendingEvent = useCallback((event: BaseEvent) => {
+    if (event.type === 'game.broadcast') {
+      // game.broadcast 在即時模式下由 useGameWebSocket 處理，pending events 需要手動處理
+      const { title, message } = event.payload as { title?: string; message?: string };
+      toast.info(title || '系統廣播', { description: message });
+      addNotification([
+        {
+          id: `evt-${event.timestamp}`,
+          title: title || '系統廣播',
+          message: message || '收到廣播',
+          type: event.type,
+        },
+      ]);
+    } else if (event.type === 'role.updated') {
+      // role.updated 在即時模式下僅 router.refresh() 不顯示 toast
+      // 離線補送時需要明確通知用戶數值變更
+      handleWebSocketEvent(event);
+      const payload = event.payload as {
+        updates?: {
+          stats?: Array<{ name?: string; deltaValue?: number; deltaMax?: number }>;
+        };
+      };
+      const stats = payload?.updates?.stats;
+      if (stats && stats.length > 0) {
+        const changes = stats
+          .map((s) => {
+            const name = s.name ?? '數值';
+            if (s.deltaValue && s.deltaValue !== 0) {
+              return `${name} ${s.deltaValue > 0 ? '+' : ''}${s.deltaValue}`;
+            }
+            if (s.deltaMax && s.deltaMax !== 0) {
+              return `${name} 最大值 ${s.deltaMax > 0 ? '+' : ''}${s.deltaMax}`;
+            }
+            return null;
+          })
+          .filter(Boolean);
+        if (changes.length > 0) {
+          toast.info('離線期間數值變更', { description: changes.join('、') });
+        }
+      }
+    } else {
+      // 其他事件委託給角色事件處理器
+      handleWebSocketEvent(event);
+    }
+  }, [handleWebSocketEvent, addNotification]);
+
+  // Phase 9: 處理離線事件佇列（使用統一處理器）
   usePendingEvents({
     pendingEvents: character.pendingEvents,
-    handleWebSocketEvent,
+    handleWebSocketEvent: handlePendingEvent,
     delayBetweenEvents: 500, // 每個事件間隔 500ms
   });
 
