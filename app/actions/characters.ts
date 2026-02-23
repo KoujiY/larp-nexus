@@ -9,6 +9,7 @@ import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
+import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
 
 /**
  * Character 驗證 Schema
@@ -189,6 +190,17 @@ export async function getCharacterById(
         error: 'UNAUTHORIZED',
         message: '無權存取此角色',
       };
+    }
+
+    // Phase 8: 處理過期的時效性效果並恢復數值
+    await processExpiredEffects(characterId);
+    await cleanupOldExpiredEffects(characterId);
+
+    // Phase 8: 重新讀取角色以取得過期檢查後的最新資料
+    const updatedCharacter = await Character.findById(characterId).lean();
+    if (updatedCharacter) {
+      // 使用更新後的 stats（過期效果恢復後的值）
+      character.stats = updatedCharacter.stats;
     }
 
     // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component

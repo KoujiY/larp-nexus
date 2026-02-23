@@ -83,18 +83,37 @@ export async function getTemporaryEffects(
     }
 
     // 取得未過期的時效性效果
+    // 使用 .toObject() 轉換為純 JS 物件，避免 Mongoose 子文件序列化問題
+    const characterObj = character.toObject();
     const now = new Date();
-    const activeEffects = (character.temporaryEffects || []).filter(
-      (effect: TemporaryEffect) => !effect.isExpired && effect.expiresAt > now
+    const activeEffects = (characterObj.temporaryEffects || []).filter(
+      (effect: TemporaryEffect) => !effect.isExpired && new Date(effect.expiresAt) > now
     );
 
-    // 計算剩餘時間
+    // 計算剩餘時間，並轉換 Date 為可序列化格式
     const effectsWithRemaining = activeEffects.map((effect: TemporaryEffect) => {
-      const remainingMs = effect.expiresAt.getTime() - now.getTime();
+      const expiresAt = new Date(effect.expiresAt);
+      const appliedAt = new Date(effect.appliedAt);
+      const remainingMs = expiresAt.getTime() - now.getTime();
       const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
 
       return {
-        ...effect,
+        id: effect.id,
+        sourceType: effect.sourceType,
+        sourceId: effect.sourceId,
+        sourceCharacterId: effect.sourceCharacterId,
+        sourceCharacterName: effect.sourceCharacterName,
+        sourceName: effect.sourceName,
+        effectType: effect.effectType,
+        targetStat: effect.targetStat,
+        deltaValue: effect.deltaValue,
+        deltaMax: effect.deltaMax,
+        statChangeTarget: effect.statChangeTarget,
+        syncValue: effect.syncValue,
+        duration: effect.duration,
+        appliedAt: appliedAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        isExpired: effect.isExpired,
         remainingSeconds,
       };
     });

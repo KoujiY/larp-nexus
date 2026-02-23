@@ -63,6 +63,21 @@ export function CharacterWebSocketListener({ characterId }: CharacterWebSocketLi
         break;
       }
 
+      case 'effect.expired': {
+        // Phase 8: 時效性效果過期，刷新頁面以顯示恢復後的數值
+        console.log('[CharacterWebSocketListener] 時效性效果已過期，刷新頁面');
+        router.refresh();
+        break;
+      }
+
+      case 'character.affected':
+      case 'skill.used': {
+        // Phase 8: 角色受到技能/道具影響或技能被使用（含時效性效果），刷新頁面以顯示最新數值
+        console.log('[CharacterWebSocketListener] 角色數值已變更，刷新頁面', { eventType: event.type });
+        router.refresh();
+        break;
+      }
+
       default:
         // 其他事件不處理，由具體的編輯表單組件處理
         break;

@@ -128,6 +128,7 @@ interface MongoSkill {
     value?: number;
     statChangeTarget?: 'value' | 'maxValue';
     syncValue?: boolean;
+    duration?: number; // Phase 8: 時效性效果持續時間（秒）
     targetItemId?: string;
     targetTaskId?: string;
     targetCharacterId?: string;
@@ -166,6 +167,7 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
           value: effect.value,
           statChangeTarget: effect.statChangeTarget,
           syncValue: effect.syncValue,
+          duration: effect.duration, // Phase 8: 時效性效果持續時間（秒）
           targetItemId: effect.targetItemId,
           targetTaskId: effect.targetTaskId,
           targetCharacterId: effect.targetCharacterId,

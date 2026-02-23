@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Clock } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { SkillEffect, ItemEffect } from '@/types/character';
 import type { TransferTargetCharacter } from '@/app/actions/public';
@@ -20,24 +20,53 @@ export function EffectDisplay({
   className = "p-3 bg-muted rounded-lg space-y-2",
   disabled = false
 }: EffectDisplayProps) {
+  /**
+   * 格式化持續時間（秒 → 人類可讀）
+   */
+  const formatDuration = (seconds: number): string => {
+    if (seconds >= 3600) {
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      return mins > 0 ? `${hours} 小時 ${mins} 分鐘` : `${hours} 小時`;
+    }
+    if (seconds >= 60) {
+      const mins = Math.floor(seconds / 60);
+      return `${mins} 分鐘`;
+    }
+    return `${seconds} 秒`;
+  };
+
   const renderEffectDescription = () => {
     if (effect.type === 'stat_change') {
       const target = effect.statChangeTarget ?? 'value';
       const syncValue = effect.syncValue;
       const value = effect.value ?? 0;
       const targetStat = effect.targetStat ?? '數值';
+      const duration = effect.duration;
 
       if (target === 'maxValue') {
         return (
           <p>
             {targetStat} 最大值 {value > 0 ? '+' : ''}{value}
             {syncValue && '，目前值同步調整'}
+            {duration && duration > 0 && (
+              <span className="inline-flex items-center gap-0.5 ml-1.5 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                {formatDuration(duration)}
+              </span>
+            )}
           </p>
         );
       }
       return (
         <p>
           {targetStat} {value > 0 ? '+' : ''}{value}
+          {duration && duration > 0 && (
+            <span className="inline-flex items-center gap-0.5 ml-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {formatDuration(duration)}
+            </span>
+          )}
         </p>
       );
     }

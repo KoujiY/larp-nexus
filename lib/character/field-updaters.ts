@@ -169,6 +169,7 @@ export function updateCharacterSkills(skills: Array<{
     targetItemId?: string;
     targetTaskId?: string;
     targetCharacterId?: string;
+    duration?: number; // Phase 8: 時效性效果持續時間（秒）
     description?: string;
   }>;
 }>): Array<Record<string, unknown>> {
@@ -247,6 +248,13 @@ export function updateCharacterSkills(skills: Array<{
           effect.targetCharacterId !== null
         ) {
           effectData.targetCharacterId = String(effect.targetCharacterId);
+        }
+        // Phase 8: 時效性效果持續時間（秒）
+        if (
+          effect.duration !== undefined &&
+          effect.duration !== null
+        ) {
+          effectData.duration = Number(effect.duration);
         }
         if (
           effect.description !== undefined &&

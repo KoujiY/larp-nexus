@@ -17,6 +17,7 @@ import { ItemList } from './item-list';
 import { SkillList } from './skill-list';
 import { WorldInfoLink } from './world-info-link';
 import { useItem as consumeItemAction, transferItem as transferItemAction } from '@/app/actions/item-use';
+import { checkExpiredEffects } from '@/app/actions/temporary-effects';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import { useCharacterWebSocket, useGameWebSocket } from '@/hooks/use-websocket';
@@ -177,6 +178,14 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
     // 儲存解鎖狀態到 localStorage
     localStorage.setItem(`character-${character.id}-unlocked`, 'true');
   };
+
+  /**
+   * Phase 8: 效果倒數歸零時，主動觸發伺服器端過期檢查並刷新頁面
+   */
+  const handleEffectExpired = useCallback(async () => {
+    await checkExpiredEffects(character.id);
+    router.refresh();
+  }, [character.id, router]);
 
   // 道具使用 callback
   // Phase 8: 添加檢定結果參數，返回結果以便處理對抗檢定
@@ -458,7 +467,10 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
                 )}
 
                 {/* Phase 8.7: 活躍效果面板 */}
-                <ActiveEffectsPanel effects={character.temporaryEffects} />
+                <ActiveEffectsPanel
+                  effects={character.temporaryEffects}
+                  onEffectExpired={handleEffectExpired}
+                />
               </TabsContent>
 
               <TabsContent value="tasks" className="mt-0">

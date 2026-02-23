@@ -197,10 +197,7 @@ export function useCharacterWebSocketHandler(
         }
 
         case 'effect.expired': {
-          // Phase 8: 時效性效果過期通知
-          if (friendlyList.length > 0) {
-            toast.info(friendlyList[friendlyList.length - 1].message);
-          }
+          // Phase 8: 時效性效果過期 — 僅刷新數據，通知由通知面板顯示
           router.refresh();
           break;
         }

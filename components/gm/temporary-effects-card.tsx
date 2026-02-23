@@ -5,12 +5,14 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { getTemporaryEffects } from '@/app/actions/temporary-effects';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { getTemporaryEffects, checkExpiredEffects } from '@/app/actions/temporary-effects';
+import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Zap, Package } from 'lucide-react';
 import type { TemporaryEffect } from '@/types/character';
+import type { BaseEvent } from '@/types/event';
 
 interface TemporaryEffectsCardProps {
   characterId: string;
@@ -57,26 +59,56 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
   }, [loadEffects]);
 
   /**
+   * 監聽 WebSocket 事件，當角色受到技能/道具影響或效果過期時重新載入效果列表
+   */
+  useCharacterWebSocket(characterId, (event: BaseEvent) => {
+    if (event.type === 'character.affected' || event.type === 'skill.used' || event.type === 'effect.expired') {
+      console.log('[TemporaryEffectsCard] 收到相關事件，重新載入效果列表', { type: event.type });
+      loadEffects();
+    }
+  });
+
+  /**
+   * 防止重複觸發過期檢查
+   */
+  const isCheckingExpiredRef = useRef(false);
+
+  /**
    * 每秒更新倒數計時
+   * 當有效果倒數歸零時，主動觸發伺服器端過期檢查
    */
   useEffect(() => {
     if (effects.length === 0) return;
 
     const timer = setInterval(() => {
-      setEffects((prevEffects) =>
-        prevEffects
-          // 更新剩餘秒數
-          .map((effect) => ({
-            ...effect,
-            remainingSeconds: Math.max(0, effect.remainingSeconds - 1),
-          }))
-          // 移除已過期的效果（剩餘秒數 <= 0）
-          .filter((effect) => effect.remainingSeconds > 0)
-      );
+      setEffects((prevEffects) => {
+        const updated = prevEffects.map((effect) => ({
+          ...effect,
+          remainingSeconds: Math.max(0, effect.remainingSeconds - 1),
+        }));
+
+        // 檢查是否有效果剛好歸零
+        const hasNewlyExpired = updated.some((effect) => effect.remainingSeconds <= 0);
+
+        // 如果有效果歸零，主動觸發伺服器端過期檢查並重新載入
+        if (hasNewlyExpired && !isCheckingExpiredRef.current) {
+          isCheckingExpiredRef.current = true;
+          setTimeout(async () => {
+            try {
+              await checkExpiredEffects(characterId);
+              await loadEffects();
+            } finally {
+              isCheckingExpiredRef.current = false;
+            }
+          }, 0);
+        }
+
+        return updated.filter((effect) => effect.remainingSeconds > 0);
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [effects.length]);
+  }, [effects.length, characterId, loadEffects]);
 
   /**
    * 格式化剩餘時間（HH:MM:SS 或 MM:SS）

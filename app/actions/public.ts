@@ -70,9 +70,6 @@ export async function getPublicCharacter(
     // Phase 4.5: 清理道具的 _id
     const cleanItems = cleanItemData(character.items);
 
-    // Phase 4: 清理數值的 _id
-    const cleanStats = cleanStatData(character.stats);
-
     // Phase 5: 清理技能的 _id
     const cleanSkills = cleanSkillData(character.skills);
 
@@ -80,20 +77,36 @@ export async function getPublicCharacter(
     const game = await Game.findById(character.gameId).select('randomContestMaxValue').lean();
     const randomContestMaxValue = game?.randomContestMaxValue || 100;
 
-    // Phase 8: 重新載入角色以取得最新的 temporaryEffects（過期檢查後）
+    // Phase 8: 重新載入角色以取得過期檢查後的最新資料（stats + temporaryEffects）
     const updatedCharacter = await Character.findById(characterId).lean();
+
+    // Phase 8: 使用過期檢查後的最新 stats（確保恢復後的數值正確反映）
+    const cleanStats = cleanStatData(updatedCharacter?.stats || character.stats);
 
     // Phase 8: 過濾出未過期的 temporaryEffects
     const now = new Date();
-    const activeTemporaryEffects = (updatedCharacter?.temporaryEffects || [])
-      .filter((effect: TemporaryEffect) => !effect.isExpired && effect.expiresAt > now)
+    const allTemporaryEffects = updatedCharacter?.temporaryEffects || [];
+    const activeTemporaryEffects = allTemporaryEffects
+      .filter((effect: TemporaryEffect) => !effect.isExpired && new Date(effect.expiresAt) > now)
       .map((effect: TemporaryEffect) => ({
-        ...effect,
-        // 轉換 Date 為 ISO string 以便序列化
-        appliedAt: effect.appliedAt,
-        expiresAt: effect.expiresAt,
+        // 顯式映射欄位，避免 .lean() 子文件的 _id (ObjectId) 造成序列化失敗
+        id: effect.id,
+        sourceType: effect.sourceType,
+        sourceId: effect.sourceId,
+        sourceCharacterId: effect.sourceCharacterId,
+        sourceCharacterName: effect.sourceCharacterName,
+        sourceName: effect.sourceName,
+        effectType: effect.effectType,
+        targetStat: effect.targetStat,
+        deltaValue: effect.deltaValue,
+        deltaMax: effect.deltaMax,
+        statChangeTarget: effect.statChangeTarget,
+        syncValue: effect.syncValue,
+        duration: effect.duration,
+        appliedAt: new Date(effect.appliedAt).toISOString(),
+        expiresAt: new Date(effect.expiresAt).toISOString(),
+        isExpired: effect.isExpired,
       }));
-
     return {
       success: true,
       data: {

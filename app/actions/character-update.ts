@@ -478,6 +478,13 @@ export async function updateCharacter(
                   ) {
                     effectObj.description = String(effect.description);
                   }
+                  // Phase 8: 持續時間（秒）
+                  if (
+                    effect.duration !== undefined &&
+                    effect.duration !== null
+                  ) {
+                    effectObj.duration = Number(effect.duration);
+                  }
 
                   return effectObj;
                 });

@@ -21,6 +21,8 @@ const CHARACTER_EVENT_TYPES = [
   'secret.revealed',
   'task.revealed',
   'item.showcased',
+  // Phase 8: 時效性效果過期
+  'effect.expired',
 ] as const;
 
 const GAME_EVENT_TYPES = ['game.broadcast', 'game.started', 'game.reset', 'game.ended'] as const;

@@ -20,6 +20,15 @@ export function StatsEditForm({ characterId, initialStats }: StatsEditFormProps)
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stat[]>(initialStats);
+  const [prevInitialStats, setPrevInitialStats] = useState(initialStats);
+
+  /**
+   * 當 initialStats props 變化時（例如 router.refresh() 後），同步更新本地 state
+   */
+  if (initialStats !== prevInitialStats) {
+    setPrevInitialStats(initialStats);
+    setStats(initialStats);
+  }
 
   // 新增數值欄位
   const handleAddStat = () => {

@@ -12,6 +12,26 @@ import type { TemporaryEffect } from '@/types/character';
 
 interface ActiveEffectsPanelProps {
   effects?: TemporaryEffect[];
+  /** 當有效果倒數歸零時觸發，用於主動執行伺服器端過期檢查 */
+  onEffectExpired?: () => void;
+}
+
+/**
+ * 從 effects props 計算帶剩餘時間的活躍效果列表
+ */
+function computeActiveEffects(
+  effects?: TemporaryEffect[]
+): Array<TemporaryEffect & { remainingSeconds: number }> {
+  if (!effects || effects.length === 0) return [];
+
+  const now = new Date();
+  return effects
+    .filter((effect) => !effect.isExpired && new Date(effect.expiresAt) > now)
+    .map((effect) => {
+      const remainingMs = new Date(effect.expiresAt).getTime() - now.getTime();
+      const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+      return { ...effect, remainingSeconds };
+    });
 }
 
 /**
@@ -19,58 +39,51 @@ interface ActiveEffectsPanelProps {
  *
  * @param effects - 時效性效果列表
  */
-export function ActiveEffectsPanel({ effects }: ActiveEffectsPanelProps) {
-  const [activeEffects, setActiveEffects] = useState<Array<TemporaryEffect & { remainingSeconds: number }>>([]);
+export function ActiveEffectsPanel({ effects, onEffectExpired }: ActiveEffectsPanelProps) {
+  // 使用 lazy initializer 確保首次掛載時就正確計算活躍效果
+  const [activeEffects, setActiveEffects] = useState<Array<TemporaryEffect & { remainingSeconds: number }>>(
+    () => computeActiveEffects(effects)
+  );
   const [prevEffects, setPrevEffects] = useState(effects);
 
   /**
-   * React 推薦模式：在 render 階段檢查 props 變化並更新 state
-   * 這避免了在 useEffect 中同步調用 setState 的問題
+   * 當 effects props 變化時重新計算
+   * （配合 lazy initializer，首次掛載和後續更新都能正確處理）
    */
   if (effects !== prevEffects) {
     setPrevEffects(effects);
-
-    if (!effects || effects.length === 0) {
-      setActiveEffects([]);
-    } else {
-      const now = new Date();
-      const effectsWithTime = effects
-        .filter((effect) => !effect.isExpired && new Date(effect.expiresAt) > now)
-        .map((effect) => {
-          const remainingMs = new Date(effect.expiresAt).getTime() - now.getTime();
-          const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
-
-          return {
-            ...effect,
-            remainingSeconds,
-          };
-        });
-
-      setActiveEffects(effectsWithTime);
-    }
+    setActiveEffects(computeActiveEffects(effects));
   }
 
   /**
    * 每秒更新倒數計時
+   * 當有效果倒數歸零時，觸發 onEffectExpired 回調以執行伺服器端過期檢查
    */
   useEffect(() => {
     if (activeEffects.length === 0) return;
 
     const timer = setInterval(() => {
-      setActiveEffects((prevEffects) =>
-        prevEffects
-          // 更新剩餘秒數
-          .map((effect) => ({
-            ...effect,
-            remainingSeconds: Math.max(0, effect.remainingSeconds - 1),
-          }))
-          // 移除已過期的效果（剩餘秒數 <= 0）
-          .filter((effect) => effect.remainingSeconds > 0)
-      );
+      setActiveEffects((prevEffects) => {
+        const updated = prevEffects.map((effect) => ({
+          ...effect,
+          remainingSeconds: Math.max(0, effect.remainingSeconds - 1),
+        }));
+
+        // 檢查是否有效果剛好歸零
+        const hasNewlyExpired = updated.some((effect) => effect.remainingSeconds <= 0);
+
+        // 如果有效果歸零，觸發伺服器端過期檢查
+        if (hasNewlyExpired) {
+          // 使用 setTimeout 避免在 setState 回調中直接執行副作用
+          setTimeout(() => onEffectExpired?.(), 0);
+        }
+
+        return updated.filter((effect) => effect.remainingSeconds > 0);
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [activeEffects.length]);
+  }, [activeEffects.length, onEffectExpired]);
 
   /**
    * 如果沒有活躍效果，不顯示
