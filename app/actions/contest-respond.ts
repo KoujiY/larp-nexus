@@ -6,7 +6,7 @@ import { validateContestRequest, validateContestSource, validateDefenderItems, v
 import { calculateAttackerValue, calculateDefenderValue, calculateContestResult } from '@/lib/contest/contest-calculator';
 import { executeContestEffects } from '@/lib/contest/contest-effect-executor';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
-import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
+import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
 import type { CharacterDocument } from '@/lib/db/models';
@@ -51,9 +51,9 @@ export async function respondToContest(
       };
     }
 
-    // 確保 ID 轉換為字符串，避免類型不匹配問題
-    const attackerIdStr = attacker!._id.toString();
-    const defenderIdStr = defender!._id.toString();
+    // Phase 10.4: 使用 Baseline ID（避免 Runtime _id 導致頻道、追蹤系統不匹配）
+    const attackerIdStr = getBaselineCharacterId(attacker!);
+    const defenderIdStr = getBaselineCharacterId(defender!);
 
     // Phase 3.2: 使用驗證模組驗證技能/道具
     const sourceValidation = validateContestSource(attacker!, sourceId);

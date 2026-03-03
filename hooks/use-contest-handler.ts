@@ -20,6 +20,8 @@ export interface UseContestHandlerOptions {
   onDefenderContestRequest?: (event: SkillContestEvent['payload']) => void;
   onDefenderContestResult?: (event: SkillContestEvent['payload']) => void;
   onAttackerContestResult?: (event: SkillContestEvent['payload']) => void;
+  /** Phase 10: 清除 Dialog 狀態的回調（確保對抗結算後 dialogState 不殘留） */
+  onClearDialogState?: () => void;
 }
 
 export interface UseContestHandlerReturn {
@@ -36,6 +38,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
     onDefenderContestRequest,
     onDefenderContestResult,
     onAttackerContestResult,
+    onClearDialogState,
   } = options;
 
   const { setDefenderContest, clearDefenderContest } = useDefenderContestState(characterId);
@@ -105,7 +108,9 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
           if (effectSourceId) {
             removePendingContest(effectSourceId);
           }
-          
+          // Phase 10: 清除 dialogState（localStorage），避免重新開啟技能時仍顯示等待狀態
+          onClearDialogState?.();
+
           toast.success('對抗檢定效果已執行', {
             description:
               payload.effectsApplied && payload.effectsApplied.length > 0
@@ -161,6 +166,8 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
               if (sourceId) {
                 removePendingContest(sourceId);
               }
+              // Phase 10: 清除 dialogState（localStorage），避免重新開啟道具時仍顯示等待狀態
+              onClearDialogState?.();
 
               // 修復：不顯示 toast，因為 event-mappers.ts 已經會生成更詳細的「道具使用結果」通知
               // 這樣可以避免重複通知，只保留 event-mappers 生成的詳細通知
@@ -211,6 +218,8 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
               if (sourceId) {
                 removePendingContest(sourceId);
               }
+              // Phase 10: 清除 dialogState（localStorage），避免重新開啟技能時仍顯示等待狀態
+              onClearDialogState?.();
 
               // 修復：不顯示 toast，因為 event-mappers.ts 已經會生成更詳細的「技能使用結果」通知
               // 這樣可以避免重複通知，只保留 event-mappers 生成的詳細通知
@@ -227,6 +236,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
       onDefenderContestRequest,
       onDefenderContestResult,
       onAttackerContestResult,
+      onClearDialogState,
       setDefenderContest,
       clearDefenderContest,
       pendingContests,

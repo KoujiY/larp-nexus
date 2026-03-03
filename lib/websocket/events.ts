@@ -24,9 +24,6 @@ import {
   writePendingEvents,
   writePendingGameEvent,
 } from './pending-events';
-// Phase 10.7: 遊戲級別事件推送
-import { pushEventToGame } from './push-event-to-game';
-
 type EventName = WebSocketEvent['type'];
 
 async function trigger(channel: string, eventName: EventName, payload: BaseEvent['payload']) {
@@ -167,12 +164,12 @@ export async function emitEffectExpired(characterId: string, payload: EffectExpi
  * 通知所有玩家遊戲已開始，觸發頁面重新載入。
  */
 export async function emitGameStarted(gameId: string, payload: GameStartedEvent['payload']) {
-  // Phase 10.7: 使用 pushEventToGame 推送到所有遊戲角色
-  await pushEventToGame(gameId, {
-    type: 'game.started',
-    timestamp: Date.now(),
-    payload,
-  });
+  // Phase 10.7: 推送到 game 頻道（玩家端透過 useGameWebSocket 監聽 private-game-${gameId}）
+  // 注意：不使用 pushEventToGame（它發送到 character 頻道），因為 game 事件需要發送到 game 頻道
+  await Promise.all([
+    trigger(`private-game-${gameId}`, 'game.started', payload),
+    writePendingGameEvent(gameId, 'game.started', payload as Record<string, unknown>),
+  ]);
 }
 
 /**
@@ -182,11 +179,11 @@ export async function emitGameStarted(gameId: string, payload: GameStartedEvent[
  * 通知所有玩家遊戲已結束，觸發頁面重新載入。
  */
 export async function emitGameEnded(gameId: string, payload: GameEndedEvent['payload']) {
-  // Phase 10.7: 使用 pushEventToGame 推送到所有遊戲角色
-  await pushEventToGame(gameId, {
-    type: 'game.ended',
-    timestamp: Date.now(),
-    payload,
-  });
+  // Phase 10.7: 推送到 game 頻道（玩家端透過 useGameWebSocket 監聽 private-game-${gameId}）
+  // 注意：不使用 pushEventToGame（它發送到 character 頻道），因為 game 事件需要發送到 game 頻道
+  await Promise.all([
+    trigger(`private-game-${gameId}`, 'game.ended', payload),
+    writePendingGameEvent(gameId, 'game.ended', payload as Record<string, unknown>),
+  ]);
 }
 

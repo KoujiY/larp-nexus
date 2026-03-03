@@ -6,10 +6,11 @@
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character, Game } from '@/lib/db/models';
+import { Game } from '@/lib/db/models';
 import { emitSkillUsed } from '@/lib/websocket/events';
 import { emitContestRequest } from '@/lib/contest/contest-event-emitter';
 import { addActiveContest } from '@/lib/contest-tracker';
+import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
 import type { SkillContestEvent } from '@/types/event';
 
@@ -75,8 +76,8 @@ export async function handleContestCheck(
     throw new Error('對抗檢定設定不完整');
   }
 
-  // 取得目標角色
-  const targetCharacter = await Character.findById(targetCharacterId);
+  // Phase 10.4: 使用統一讀取函數（自動判斷 Baseline/Runtime）
+  const targetCharacter = await getCharacterData(targetCharacterId);
   if (!targetCharacter) {
     throw new Error('找不到目標角色');
   }
@@ -86,9 +87,13 @@ export async function handleContestCheck(
     throw new Error('目標角色不在同一劇本內');
   }
 
-  // 生成對抗檢定 ID
+  // Phase 10.4: 取得 Baseline ID（避免使用 Runtime _id 作為外部識別碼）
+  const attackerBaselineId = getBaselineCharacterId(character);
+  const defenderBaselineId = getBaselineCharacterId(targetCharacter);
+
+  // 生成對抗檢定 ID（使用 Baseline ID，確保防守方回應時能正確解析）
   const { generateContestId } = await import('@/lib/contest/contest-id');
-  const contestId = generateContestId(character._id.toString(), source.id);
+  const contestId = generateContestId(attackerBaselineId, source.id);
 
   let attackerValue: number;
   let defenderBaseValue: number;
@@ -143,12 +148,12 @@ export async function handleContestCheck(
     }
   }
 
-  // 添加到對抗檢定追蹤系統
+  // 添加到對抗檢定追蹤系統（使用 Baseline ID）
   // 對於 random_contest，儲存攻擊方的隨機數
   addActiveContest(
     contestId,
-    character._id.toString(),
-    targetCharacterId,
+    attackerBaselineId,
+    defenderBaselineId,
     sourceType,
     source.id,
     checkType === 'random_contest' ? attackerValue : undefined, // 儲存攻擊方的隨機數
@@ -175,12 +180,12 @@ export async function handleContestCheck(
     ? (game?.randomContestMaxValue || 100) 
     : undefined;
 
-  // 構建事件 payload
+  // 構建事件 payload（使用 Baseline ID，確保 WebSocket 頻道與玩家端訂閱一致）
   // 注意：對於 random_contest，result 暫時設為 'attacker_wins'（佔位符），實際結果將在防守方回應時計算
   const eventPayload: Omit<SkillContestEvent['payload'], 'subType'> = {
-    attackerId: character._id.toString(),
+    attackerId: attackerBaselineId,
     attackerName: character.name,
-    defenderId: targetCharacterId,
+    defenderId: defenderBaselineId,
     defenderName: targetCharacter.name,
     attackerValue: 0, // 防守方不應該知道攻擊方數值，使用 0 作為佔位符
     defenderValue: checkType === 'random_contest' ? 0 : defenderBaseValue, // random_contest 時防守方基礎值為 0（佔位符）
@@ -213,18 +218,18 @@ export async function handleContestCheck(
   // 設定是否需要選擇目標道具
   eventPayload.needsTargetItemSelection = needsTargetItemSelection;
 
-  // Phase 2: 推送對抗檢定請求事件給防守方
+  // Phase 2: 推送對抗檢定請求事件給防守方（使用 Baseline ID 作為頻道名）
   // 防守方可以選擇使用道具/技能來增強防禦
   // Phase 7.6: 對於 random_contest，攻擊方隨機數已在選擇目標後決定，但防守方不應該知道
   // 對於 contest，防守方不應該知道攻擊方的數值，所以發送 0 作為佔位符
-  emitContestRequest(character._id.toString(), targetCharacterId, eventPayload).catch((error) => {
+  emitContestRequest(attackerBaselineId, defenderBaselineId, eventPayload).catch((error) => {
     console.error('Failed to emit contest request', error);
   });
 
   // 技能需要發送 skill.used 事件（道具不需要）
   if (sourceType === 'skill') {
-    emitSkillUsed(character._id.toString(), {
-      characterId: character._id.toString(),
+    emitSkillUsed(attackerBaselineId, {
+      characterId: attackerBaselineId,
       skillId: source.id,
       skillName: source.name,
       checkType: checkType === 'random_contest' ? 'random_contest' : checkType === 'contest' ? 'contest' : 'none',

@@ -161,10 +161,19 @@ export function useContestDialogState(characterId: string) {
 
   /**
    * 清除 Dialog 狀態
+   * Phase 10: 同步清除 localStorage，避免 useEffect 異步清除時 user 已 refresh 導致殘留
    */
   const clearDialogState = useCallback(() => {
     setDialogState(null);
-  }, []);
+    // 同步清除 localStorage，確保 refresh 前狀態已清除
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (error) {
+        console.error('[use-contest-dialog-state] 同步清除 localStorage 失敗:', error);
+      }
+    }
+  }, [storageKey]);
 
   /**
    * 檢查是否有特定類型的 Dialog 狀態

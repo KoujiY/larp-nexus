@@ -37,10 +37,7 @@ import { TargetItemSelectionDialog } from './target-item-selection-dialog';
 import type { SkillListProps } from '@/types/skill-list';
 
 export function SkillList({ skills, characterId, gameId, characterName, stats = [], randomContestMaxValue = 100, isReadOnly = false }: SkillListProps) {
-  // TODO (Phase 10.5.4): 未來優化 - 使用 isReadOnly 禁用互動功能
-  // 當 isReadOnly=true 時，應該禁用以下按鈕：
-  // 1. "使用技能" 按鈕 (handleUseSkill)
-  // 實作方式：在按鈕的 disabled 屬性中加入 `|| isReadOnly` 條件
+  // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用技能）
 
   const router = useRouter();
   const [localSkills, setLocalSkills] = useState<Skill[]>(skills || []);
@@ -947,6 +944,8 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
               >
                 關閉
               </Button>
+              {/* Phase 10.5.4: 唯讀模式下隱藏使用技能按鈕 */}
+              {!isReadOnly && (
               <Button
                 onClick={handleUseSkill}
                 disabled={(() => {
@@ -955,8 +954,8 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
                   // Phase 8: 如果有正在進行的對抗檢定，禁用按鈕
                   const isPendingContest = hasPendingContest(selectedSkill.id);
                   const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-                  const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                            dialogState.sourceType === 'skill' && 
+                  const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
+                                            dialogState.sourceType === 'skill' &&
                                             dialogState.sourceId === selectedSkill.id;
                   const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
                   if (isWaitingForContest) return true;
@@ -971,14 +970,14 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
                   return !canUse;
                 })()}
               >
-                {isUsing ? '使用中...' : 
+                {isUsing ? '使用中...' :
                  (() => {
                    if (!selectedSkill) return '使用技能';
                    // Phase 8: 如果有正在進行的對抗檢定
                    const isPendingContest = hasPendingContest(selectedSkill.id);
                    const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-                   const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                             dialogState.sourceType === 'skill' && 
+                   const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
+                                             dialogState.sourceType === 'skill' &&
                                              dialogState.sourceId === selectedSkill.id;
                    const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
                    if (isWaitingForContest) {
@@ -1009,6 +1008,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
                    return '使用技能';
                  })()}
               </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

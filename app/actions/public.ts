@@ -4,7 +4,7 @@ import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import type { ApiResponse } from '@/types/api';
-import type { CharacterData, TemporaryEffect } from '@/types/character';
+import type { CharacterData, CharacterBaselineSnapshot, TemporaryEffect } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
@@ -23,7 +23,9 @@ export async function getPublicCharacter(
     await dbConnect();
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
-    const character = await getCharacterData(characterId);
+    // Mongoose Document → 純物件，避免巢狀子文件的 toJSON 造成 Server→Client 序列化失敗
+    const characterDoc = await getCharacterData(characterId);
+    const character = JSON.parse(JSON.stringify(characterDoc));
 
     // Phase 8: 檢查並處理過期的時效性效果
     await checkExpiredEffects(characterId);
@@ -72,13 +74,14 @@ export async function getPublicCharacter(
     // Phase 5: 清理技能的 _id
     const cleanSkills = cleanSkillData(character.skills);
 
-    // Phase 7.6: 獲取劇本的 randomContestMaxValue
-    const game = await Game.findById(character.gameId).select('randomContestMaxValue').lean();
+    // Phase 7.6: 獲取劇本的 randomContestMaxValue 和 isActive
+    const game = await Game.findById(character.gameId).select('randomContestMaxValue isActive').lean();
     const randomContestMaxValue = game?.randomContestMaxValue || 100;
 
     // Phase 8: 重新載入角色以取得最新的 temporaryEffects（過期檢查後）
     // Phase 10.4: 使用統一的讀取函數
-    const updatedCharacter = await getCharacterData(characterId);
+    const updatedCharacterDoc = await getCharacterData(characterId);
+    const updatedCharacter = JSON.parse(JSON.stringify(updatedCharacterDoc));
 
     // Phase 8: 使用過期檢查後的最新 stats（確保恢復後的數值正確反映）
     const cleanStats = cleanStatData(updatedCharacter?.stats || character.stats);
@@ -107,10 +110,45 @@ export async function getPublicCharacter(
         expiresAt: new Date(effect.expiresAt).toISOString(),
         isExpired: effect.isExpired,
       }));
+    // Phase 10: 遊戲進行中時，額外讀取 Baseline 資料供唯讀預覽模式使用
+    // 唯讀模式（PIN-only）應顯示原始角色設定（Baseline），而非 Runtime 修改後的數值
+    let baselineData: CharacterData['baselineData'] = undefined;
+    if (game?.isActive) {
+      const baselineCharacter = await Character.findById(characterId).lean();
+      if (baselineCharacter) {
+        const bl = JSON.parse(JSON.stringify(baselineCharacter));
+
+        // 對 Baseline 資料套用與 Runtime 相同的清理和過濾邏輯
+        // 注意：bl 經過 JSON.parse(JSON.stringify(...)) 處理，所有 Date 已轉為 string
+        // 因此使用 as unknown as 進行安全的類型轉換
+        const blSecrets = cleanSecretData(bl.secretInfo?.secrets)
+          .filter((s: { isRevealed?: boolean }) => s.isRevealed === true);
+
+        const blVisibleTasks = cleanTaskData(bl.tasks)
+          .filter((t: { isHidden?: boolean; isRevealed?: boolean }) => {
+            if (t.isHidden !== true) return true;
+            return t.isRevealed === true;
+          });
+
+        baselineData = {
+          stats: cleanStatData(bl.stats) as unknown as CharacterBaselineSnapshot['stats'],
+          items: cleanItemData(bl.items) as unknown as CharacterBaselineSnapshot['items'],
+          skills: cleanSkillData(bl.skills) as unknown as CharacterBaselineSnapshot['skills'],
+          tasks: blVisibleTasks as unknown as CharacterBaselineSnapshot['tasks'],
+          secretInfo: blSecrets.length > 0
+            ? { secrets: blSecrets as unknown as NonNullable<CharacterBaselineSnapshot['secretInfo']>['secrets'] }
+            : undefined,
+        };
+      }
+    }
+
     return {
       success: true,
       data: {
-        id: character._id.toString(),
+        // Phase 10: 永遠使用 Baseline Character ID（傳入的 characterId）
+        // 當遊戲進行中時 getCharacterData 回傳 Runtime，其 _id 是 Runtime 的 ID
+        // 但玩家端 API（unlock、verify-game-code）使用 Baseline ID 查詢
+        id: characterId,
         gameId: character.gameId.toString(),
         name: character.name,
         description: character.description,
@@ -125,9 +163,11 @@ export async function getPublicCharacter(
         items: cleanItems,
         stats: cleanStats,
         skills: cleanSkills,
+        isGameActive: game?.isActive ?? false, // Phase 10: 遊戲是否進行中
         randomContestMaxValue, // Phase 7.6: 隨機對抗檢定上限值
         temporaryEffects: activeTemporaryEffects, // Phase 8: 時效性效果
         pendingEvents, // Phase 9: 離線事件佇列
+        baselineData, // Phase 10: 唯讀預覽模式用 Baseline 快照
         createdAt: character.createdAt,
         updatedAt: character.updatedAt,
       },

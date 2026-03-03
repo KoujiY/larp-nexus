@@ -6,6 +6,8 @@ import { put } from '@vercel/blob';
 import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
+import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10: 統一讀取
+import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10: 統一寫入
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
@@ -157,6 +159,8 @@ export async function getCharactersByGameId(
 
 /**
  * 根據 ID 取得角色
+ * Phase 10: 使用 getCharacterData() 自動判斷 Baseline/Runtime
+ * 遊戲進行中回傳 Runtime 資料，否則回傳 Baseline 資料
  */
 export async function getCharacterById(
   characterId: string
@@ -172,9 +176,10 @@ export async function getCharacterById(
     }
 
     await dbConnect();
-    const character = await Character.findById(characterId).lean();
 
-    if (!character) {
+    // 先驗證 Baseline Character 是否存在（用於權限檢查）
+    const baselineCharacter = await Character.findById(characterId).lean();
+    if (!baselineCharacter) {
       return {
         success: false,
         error: 'NOT_FOUND',
@@ -183,7 +188,7 @@ export async function getCharacterById(
     }
 
     // 驗證 Game 擁有權
-    const game = await Game.findOne({ _id: character.gameId, gmUserId });
+    const game = await Game.findOne({ _id: baselineCharacter.gameId, gmUserId });
     if (!game) {
       return {
         success: false,
@@ -192,14 +197,20 @@ export async function getCharacterById(
       };
     }
 
-    // Phase 8: 處理過期的時效性效果並恢復數值
-    await processExpiredEffects(characterId);
-    await cleanupOldExpiredEffects(characterId);
+    // Phase 10: 使用統一讀取函數（遊戲進行中自動回傳 Runtime）
+    const characterDoc = await getCharacterData(characterId);
+    const character = JSON.parse(JSON.stringify(characterDoc));
 
-    // Phase 8: 重新讀取角色以取得過期檢查後的最新資料
-    const updatedCharacter = await Character.findById(characterId).lean();
-    if (updatedCharacter) {
-      // 使用更新後的 stats（過期效果恢復後的值）
+    // Phase 8: 處理過期的時效性效果並恢復數值
+    // TODO: processExpiredEffects 目前只操作 Baseline Collection，
+    //       遊戲進行中應操作 Runtime Collection（待後續重構）
+    if (!game.isActive) {
+      await processExpiredEffects(characterId);
+      await cleanupOldExpiredEffects(characterId);
+
+      // 重新讀取以取得過期檢查後的最新資料
+      const updatedDoc = await getCharacterData(characterId);
+      const updatedCharacter = JSON.parse(JSON.stringify(updatedDoc));
       character.stats = updatedCharacter.stats;
     }
 
@@ -225,8 +236,9 @@ export async function getCharacterById(
     return {
       success: true,
       data: {
-        id: character._id.toString(),
-        gameId: character.gameId.toString(),
+        // Phase 10: 永遠回傳 Baseline Character ID（與玩家端一致）
+        id: characterId,
+        gameId: baselineCharacter.gameId.toString(),
         name: character.name,
         description: character.description,
         imageUrl: character.imageUrl,
@@ -557,6 +569,7 @@ export async function deleteCharacter(
 /**
  * Phase 4: 調整角色數值
  * 用於快速增減單一數值（不需要重新儲存整個 stats 陣列）
+ * Phase 10: 使用 getCharacterData/updateCharacterData 自動判斷 Baseline/Runtime
  */
 export async function adjustCharacterStat(
   characterId: string,
@@ -575,9 +588,9 @@ export async function adjustCharacterStat(
 
     await dbConnect();
 
-    // 驗證角色存在
-    const character = await Character.findById(characterId);
-    if (!character) {
+    // 驗證 Baseline Character 存在（用於權限檢查）
+    const baselineCharacter = await Character.findById(characterId).lean();
+    if (!baselineCharacter) {
       return {
         success: false,
         error: 'NOT_FOUND',
@@ -586,7 +599,7 @@ export async function adjustCharacterStat(
     }
 
     // 驗證 Game 擁有權
-    const game = await Game.findOne({ _id: character.gameId, gmUserId });
+    const game = await Game.findOne({ _id: baselineCharacter.gameId, gmUserId });
     if (!game) {
       return {
         success: false,
@@ -595,8 +608,12 @@ export async function adjustCharacterStat(
       };
     }
 
+    // Phase 10: 使用統一讀取（遊戲進行中讀取 Runtime）
+    const characterDoc = await getCharacterData(characterId);
+    const stats = characterDoc.stats || [];
+
     // 找到目標統計
-    const statIndex = character.stats.findIndex((s: { id: string }) => s.id === statId);
+    const statIndex = stats.findIndex((s: { id: string }) => s.id === statId);
     if (statIndex === -1) {
       return {
         success: false,
@@ -605,16 +622,16 @@ export async function adjustCharacterStat(
       };
     }
 
-    const stat = character.stats[statIndex];
+    const stat = stats[statIndex];
     const newValue = Math.max(0, stat.value + delta); // 確保不低於 0
 
-    // 更新數值
+    // Phase 10: 使用統一寫入（遊戲進行中寫入 Runtime）
     const updatePath = `stats.${statIndex}.value`;
-    await Character.findByIdAndUpdate(characterId, {
+    await updateCharacterData(characterId, {
       $set: { [updatePath]: newValue },
     });
 
-    revalidatePath(`/games/${character.gameId.toString()}`);
+    revalidatePath(`/games/${baselineCharacter.gameId.toString()}`);
 
     return {
       success: true,
@@ -633,6 +650,7 @@ export async function adjustCharacterStat(
 
 /**
  * Phase 4: 設定角色數值為特定值
+ * Phase 10: 使用 getCharacterData/updateCharacterData 自動判斷 Baseline/Runtime
  */
 export async function setCharacterStat(
   characterId: string,
@@ -651,9 +669,9 @@ export async function setCharacterStat(
 
     await dbConnect();
 
-    // 驗證角色存在
-    const character = await Character.findById(characterId);
-    if (!character) {
+    // 驗證 Baseline Character 存在（用於權限檢查）
+    const baselineCharacter = await Character.findById(characterId).lean();
+    if (!baselineCharacter) {
       return {
         success: false,
         error: 'NOT_FOUND',
@@ -662,7 +680,7 @@ export async function setCharacterStat(
     }
 
     // 驗證 Game 擁有權
-    const game = await Game.findOne({ _id: character.gameId, gmUserId });
+    const game = await Game.findOne({ _id: baselineCharacter.gameId, gmUserId });
     if (!game) {
       return {
         success: false,
@@ -671,8 +689,12 @@ export async function setCharacterStat(
       };
     }
 
+    // Phase 10: 使用統一讀取（遊戲進行中讀取 Runtime）
+    const characterDoc = await getCharacterData(characterId);
+    const stats = characterDoc.stats || [];
+
     // 找到目標統計
-    const statIndex = character.stats.findIndex((s: { id: string }) => s.id === statId);
+    const statIndex = stats.findIndex((s: { id: string }) => s.id === statId);
     if (statIndex === -1) {
       return {
         success: false,
@@ -681,7 +703,7 @@ export async function setCharacterStat(
       };
     }
 
-    const stat = character.stats[statIndex];
+    const stat = stats[statIndex];
 
     // 計算最終值
     let finalValue = Math.max(0, newValue); // 確保不低於 0
@@ -689,13 +711,13 @@ export async function setCharacterStat(
       finalValue = Math.min(finalValue, stat.maxValue); // 確保不超過最大值
     }
 
-    // 更新數值
+    // Phase 10: 使用統一寫入（遊戲進行中寫入 Runtime）
     const updatePath = `stats.${statIndex}.value`;
-    await Character.findByIdAndUpdate(characterId, {
+    await updateCharacterData(characterId, {
       $set: { [updatePath]: finalValue },
     });
 
-    revalidatePath(`/games/${character.gameId.toString()}`);
+    revalidatePath(`/games/${baselineCharacter.gameId.toString()}`);
 
     // WebSocket 事件
     const statUpdatePayload = [

@@ -12,6 +12,7 @@
 
 import { emitContestResult, emitContestEffect } from '@/lib/contest/contest-event-emitter';
 import { emitSkillUsed } from '@/lib/websocket/events';
+import { getBaselineCharacterId } from '@/lib/game/get-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
 import type { SkillContestEvent } from '@/types/event';
 
@@ -119,11 +120,12 @@ export class ContestNotificationManager {
       contestConfig,
     } = params;
 
-    const attackerIdStr = attacker._id.toString();
-    const defenderIdStr = defender._id.toString();
+    // Phase 10.4: 使用 Baseline ID（避免 Runtime _id 與玩家端頻道不匹配）
+    const attackerIdStr = getBaselineCharacterId(attacker);
+    const defenderIdStr = getBaselineCharacterId(defender);
     const hasDefenderResponse = (defenderItems && defenderItems.length > 0) || (defenderSkills && defenderSkills.length > 0);
 
-    // 構建 contestPayload
+    // 構建 contestPayload（使用 Baseline ID）
     const contestPayload: Omit<SkillContestEvent['payload'], 'subType'> = {
       attackerId: attackerIdStr,
       attackerName: attacker.name,
@@ -170,16 +172,20 @@ export class ContestNotificationManager {
 
       // Phase 4: 修復邏輯錯誤
       // 發送給攻擊方
-      // 攻擊方獲勝時：無論是否需要選擇目標道具，都發送給攻擊方（讓前端能夠開啟選擇道具 dialog）
-      // 防守方獲勝時：如果防守方需要選擇目標道具，不發送給攻擊方（避免提前顯示失敗通知）
+      // Phase 10: 攻擊方獲勝且需要選擇目標道具時，才發送初始結果給攻擊方（讓前端能夠開啟選擇道具 dialog）
+      // 如果不需要選擇目標道具，跳過初始結果（最終結果含效果會緊隨其後發送，初始結果是多餘的）
+      // 避免攻擊方收到兩次 skill.contest result 事件，導致重複通知
       if (isAttackerWins) {
-        // 攻擊方獲勝：發送無效果的結果給攻擊方（包含 needsTargetItemSelection 標記）
-        await emitContestResult(
-          attackerIdStr,
-          defenderIdStr,
-          { ...contestPayload, effectsApplied: undefined },
-          { skipAttacker: false, skipDefender: true }
-        );
+        if (needsTargetItemSelection) {
+          // 攻擊方獲勝且需要選擇目標道具：發送無效果的結果給攻擊方（包含 needsTargetItemSelection 標記）
+          await emitContestResult(
+            attackerIdStr,
+            defenderIdStr,
+            { ...contestPayload, effectsApplied: undefined },
+            { skipAttacker: false, skipDefender: true }
+          );
+        }
+        // 不需要選擇目標道具：跳過初始結果，最終結果會在 isSendingFinal 路徑發送
       } else if (isDefenderWins) {
         // 防守方獲勝：如果防守方需要選擇目標道具，不發送給攻擊方（避免提前顯示失敗通知）
         // 攻擊方的失敗通知將在防守方選擇道具後通過 sendContestEffectNotification 發送
@@ -395,12 +401,13 @@ export class ContestNotificationManager {
       contestConfig,
     } = params;
 
-    const attackerIdStr = attacker._id.toString();
-    const defenderIdStr = defender._id.toString();
+    // Phase 10.4: 使用 Baseline ID（避免 Runtime _id 與玩家端頻道不匹配）
+    const attackerIdStr = getBaselineCharacterId(attacker);
+    const defenderIdStr = getBaselineCharacterId(defender);
     const hasDefenderResponse = (defenderItems && defenderItems.length > 0) || (defenderSkills && defenderSkills.length > 0);
     const isDefenderWins = result === 'defender_wins';
 
-    // 構建 contestPayload
+    // 構建 contestPayload（使用 Baseline ID）
     const contestPayload: Omit<SkillContestEvent['payload'], 'subType'> = {
       attackerId: attackerIdStr,
       attackerName: attacker.name,

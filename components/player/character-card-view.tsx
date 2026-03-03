@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import Image from 'next/image';
 import { useCharacterWebSocket, useGameWebSocket } from '@/hooks/use-websocket';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ContestResponseDialog } from './contest-response-dialog';
 import { TargetItemSelectionDialog } from './target-item-selection-dialog';
 import { ItemShowcaseDialog } from './item-showcase-dialog';
@@ -39,9 +39,13 @@ interface CharacterCardViewProps {
   isReadOnly?: boolean; // Phase 10.5.4: 預覽模式標記
 }
 
-// Hook 用於安全地讀取 localStorage（避免 SSR/CSR hydration 問題）
+/**
+ * Hook 用於安全地讀取 localStorage 解鎖狀態（避免 SSR/CSR hydration 問題）
+ * Phase 10: 回傳 { isUnlocked, hasFullAccess }
+ */
 function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
-  const storageKey = `character-${characterId}-unlocked`;
+  const unlockedKey = `character-${characterId}-unlocked`;
+  const fullAccessKey = `character-${characterId}-fullAccess`;
 
   const subscribe = useCallback(
     (callback: () => void) => {
@@ -51,28 +55,51 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
     []
   );
 
-  const getSnapshot = useCallback(() => {
+  const getUnlockedSnapshot = useCallback(() => {
     if (!hasPinLock) return true;
-    return localStorage.getItem(storageKey) === 'true';
-  }, [hasPinLock, storageKey]);
+    return localStorage.getItem(unlockedKey) === 'true';
+  }, [hasPinLock, unlockedKey]);
 
-  // Server 端的快照：有 PIN 鎖時為 false
-  const getServerSnapshot = useCallback(() => {
-    return !hasPinLock;
-  }, [hasPinLock]);
+  const getFullAccessSnapshot = useCallback(() => {
+    if (!hasPinLock) return true;
+    return localStorage.getItem(fullAccessKey) === 'true';
+  }, [hasPinLock, fullAccessKey]);
 
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  // Server 端的快照
+  const getServerSnapshot = useCallback(() => !hasPinLock, [hasPinLock]);
+
+  const isUnlocked = useSyncExternalStore(subscribe, getUnlockedSnapshot, getServerSnapshot);
+  const hasFullAccess = useSyncExternalStore(subscribe, getFullAccessSnapshot, getServerSnapshot);
+
+  return { isUnlocked, hasFullAccess };
 }
 
-export function CharacterCardView({ character, isReadOnly = false }: CharacterCardViewProps) {
+export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = false }: CharacterCardViewProps) {
   const router = useRouter();
 
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
-  const isStorageUnlocked = useLocalStorageUnlock(character.id, character.hasPinLock);
+  const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id, character.hasPinLock);
   const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
+  // Phase 10: 唯讀模式（由 prop 或解鎖方式決定）
+  const [unlockReadOnly, setUnlockReadOnly] = useState<boolean | null>(null);
+  // 最終唯讀狀態：localStorage 有完整存取 → false，解鎖時決定 → unlockReadOnly，否則 → prop
+  const isReadOnly = storageFullAccess ? false : (unlockReadOnly !== null ? unlockReadOnly : isReadOnlyProp);
+
+  // Phase 10: 唯讀模式使用 Baseline 資料（顯示未被 Runtime 修改的原始值）
+  // full-access 模式使用 Runtime 資料（遊戲進行中的即時值）
+  const bl = isReadOnly ? character.baselineData : undefined;
+  const displayStats = bl?.stats ?? character.stats;
+  const displayItems = bl?.items ?? character.items;
+  const displaySkills = bl?.skills ?? character.skills;
+  const displayTasks = bl?.tasks ?? character.tasks;
+  const displaySecretInfo = bl?.secretInfo ?? character.secretInfo;
+
   // Phase 8: 分頁狀態管理（用於自動切換到對應分頁）
   const [activeTab, setActiveTab] = useState<string>('info');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+
+  // Phase 10: 遊戲結束 Dialog 狀態（即時收到 game.ended 時顯示）
+  const [gameEndedDialogOpen, setGameEndedDialogOpen] = useState(false);
 
   // Phase 7.7: 道具展示 Dialog 狀態（被展示方）
   const [showcaseDialogOpen, setShowcaseDialogOpen] = useState(false);
@@ -175,11 +202,40 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
   // 最終解鎖狀態：localStorage 或手動解鎖
   const isUnlocked = isStorageUnlocked || isManuallyUnlocked;
 
-  const handleUnlocked = () => {
+  /**
+   * Phase 10: 解鎖回調，根據解鎖方式設定互動模式
+   * @param readOnly - true: 僅 PIN 預覽（唯讀），false: Game Code + PIN（完整互動）
+   */
+  const handleUnlocked = (readOnly: boolean) => {
     setIsManuallyUnlocked(true);
-    // 儲存解鎖狀態到 localStorage
+    setUnlockReadOnly(readOnly);
+    // 儲存解鎖狀態到 localStorage（含模式）
     localStorage.setItem(`character-${character.id}-unlocked`, 'true');
+    if (!readOnly) {
+      localStorage.setItem(`character-${character.id}-fullAccess`, 'true');
+    }
   };
+
+  /**
+   * Phase 10: 重新鎖定角色卡，清除 localStorage 解鎖狀態並回到 PinUnlock 畫面
+   * 用途：玩家在唯讀預覽模式下想切換到完整互動模式，或想重新鎖定角色卡
+   */
+  const handleRelock = useCallback(() => {
+    localStorage.removeItem(`character-${character.id}-unlocked`);
+    localStorage.removeItem(`character-${character.id}-fullAccess`);
+    setIsManuallyUnlocked(false);
+    setUnlockReadOnly(null);
+    // 觸發 storage event，讓 useSyncExternalStore 重新讀取
+    window.dispatchEvent(new Event('storage'));
+  }, [character.id]);
+
+  // Phase 10: 重新整理後若遊戲已結束，自動清除 fullAccess 回到解鎖前畫面
+  // 這處理玩家在遊戲結束後重新整理的情況（即時路徑由 Dialog 處理）
+  useEffect(() => {
+    if (character.isGameActive === false && storageFullAccess) {
+      handleRelock();
+    }
+  }, [character.isGameActive, storageFullAccess, handleRelock]);
 
   /**
    * Phase 8: 效果倒數歸零時，主動觸發伺服器端過期檢查並刷新頁面
@@ -217,6 +273,8 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
     characterId: character.id,
     addNotification, // ✅ 傳入通知系統的 addNotification 函數
     onTabChange: setActiveTab,
+    // Phase 10: 對抗結算後主動清除 dialogState，避免重新開啟技能/道具時殘留等待狀態
+    onClearDialogState: clearDialogState,
     onContestRequest: async (payload) => {
       // 防守方收到對抗檢定請求時，設置 dialog 狀態
       const sourceId = payload.itemId || payload.skillId || '';
@@ -384,7 +442,12 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
           type: event.type,
         },
       ]);
-      router.refresh();
+      // Phase 10: 遊戲結束時顯示 Dialog，讓玩家確認後回到解鎖前畫面
+      if (event.type === 'game.ended') {
+        setGameEndedDialogOpen(true);
+      } else {
+        router.refresh();
+      }
     }
   });
 
@@ -402,6 +465,32 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
   // 已解鎖或無 PIN，顯示角色卡
   return (
     <div className="container max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
+      {/* Phase 10: 唯讀預覽模式提示（客戶端判定） */}
+      {isReadOnly && (
+        <div className="mb-6 p-4 rounded-lg border border-amber-500 bg-amber-50 text-amber-900">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium mb-1">👁 預覽模式{character.baselineData ? '（Baseline）' : ''}</p>
+              <p className="text-sm text-amber-800">
+                {character.baselineData
+                  ? '您正在查看角色的原始設定（Baseline）。遊戲進行中的修改不會顯示在此預覽中。'
+                  : '您正在以預覽模式查看此角色。所有互動功能（使用道具、技能、對抗檢定）均已禁用。'}
+              </p>
+            </div>
+            {character.hasPinLock && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-amber-500 text-amber-900 hover:bg-amber-100"
+                onClick={handleRelock}
+              >
+                🔑 重新解鎖
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8 text-center">
         <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
@@ -437,9 +526,19 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
                 </p>
               )}
               {character.hasPinLock && (
-                <Badge variant="secondary" className="mb-2">
-                  🔓 已解鎖
-                </Badge>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="secondary">
+                    🔓 已解鎖
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={handleRelock}
+                  >
+                    🔒 鎖定
+                  </Button>
+                </div>
               )}
             </div>
             {/* 通知紀錄入口 */}
@@ -512,14 +611,14 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
               <TabsContent value="info" className="mt-0 space-y-6">
                 <PublicInfoSection publicInfo={character.publicInfo} />
                 <SecretInfoSection
-                  secretInfo={character.secretInfo}
+                  secretInfo={displaySecretInfo}
                   characterId={character.id}
                 />
               </TabsContent>
 
               <TabsContent value="stats" className="mt-0">
-                <StatsDisplay stats={character.stats} />
-                {(!character.stats || character.stats.length === 0) && (
+                <StatsDisplay stats={displayStats} />
+                {(!displayStats || displayStats.length === 0) && (
                   <div className="text-center py-12 text-muted-foreground">
                     <div className="text-4xl mb-4">📊</div>
                     <p>尚無角色數值</p>
@@ -534,12 +633,12 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
               </TabsContent>
 
               <TabsContent value="tasks" className="mt-0">
-                <TaskList tasks={character.tasks} />
+                <TaskList tasks={displayTasks} />
               </TabsContent>
 
               <TabsContent value="items" className="mt-0">
                 <ItemList
-                  items={character.items}
+                  items={displayItems}
                   characterId={character.id}
                   gameId={character.gameId}
                   characterName={character.name}
@@ -552,11 +651,11 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
 
               <TabsContent value="skills" className="mt-0">
                 <SkillList
-                  skills={character.skills}
+                  skills={displaySkills}
                   characterId={character.id}
                   gameId={character.gameId}
                   characterName={character.name}
-                  stats={character.stats}
+                  stats={displayStats}
                   randomContestMaxValue={character.randomContestMaxValue}
                   isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
                 />
@@ -632,6 +731,29 @@ export function CharacterCardView({ character, isReadOnly = false }: CharacterCa
           }}
         />
       )}
+
+      {/* Phase 10: 遊戲結束 Dialog */}
+      <Dialog open={gameEndedDialogOpen} onOpenChange={() => { /* 不允許點擊外部關閉 */ }}>
+        <DialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>遊戲已結束</DialogTitle>
+            <DialogDescription>
+              GM 已結束本場遊戲。感謝您的參與！
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              className="w-full"
+              onClick={() => {
+                setGameEndedDialogOpen(false);
+                handleRelock();
+              }}
+            >
+              確認
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Phase 7.7: 道具展示 Dialog（被展示方） */}
       <ItemShowcaseDialog

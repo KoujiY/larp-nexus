@@ -106,8 +106,7 @@ const GameSchema = new Schema<GameDocument>(
 GameSchema.index({ gmUserId: 1 });
 GameSchema.index({ createdAt: -1 });
 
-// Phase 10: Game Code 唯一索引
-GameSchema.index({ gameCode: 1 }, { unique: true });
+// Phase 10: gameCode 唯一索引已由 field-level `unique: true` 自動建立，無需重複宣告
 
 export default mongoose.models.Game || mongoose.model<GameDocument>('Game', GameSchema);
 

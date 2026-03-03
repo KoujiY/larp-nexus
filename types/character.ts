@@ -20,8 +20,32 @@ export interface CharacterData {
   viewedItems?: ViewedItem[]; // Phase 7.7: 已檢視的道具記錄
   temporaryEffects?: TemporaryEffect[]; // Phase 8: 時效性效果記錄
   pendingEvents?: import('@/types/event').PendingEvent[]; // Phase 9: 離線事件佇列
-  createdAt: Date;
-  updatedAt: Date;
+  /**
+   * Phase 10: 遊戲是否進行中
+   * true = 遊戲正在進行（Runtime 模式），false = 遊戲未開始或已結束
+   * 用於前端判斷是否需要清除解鎖狀態、顯示遊戲結束提示
+   */
+  isGameActive?: boolean;
+  /**
+   * Phase 10: 遊戲進行中時，附帶 Baseline 原始資料
+   * 用於唯讀預覽模式（PIN-only）顯示未修改的角色設定
+   * 僅在 isActive=true 時由 getPublicCharacter 填充
+   */
+  baselineData?: CharacterBaselineSnapshot;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
+/**
+ * Phase 10: Baseline 快照（用於唯讀預覽模式）
+ * 只包含遊戲進行中可能改變的欄位
+ */
+export interface CharacterBaselineSnapshot {
+  stats?: Stat[];
+  items?: Item[];
+  skills?: Skill[];
+  tasks?: Task[];
+  secretInfo?: SecretInfo;
 }
 
 /**
@@ -125,8 +149,8 @@ export interface TemporaryEffect {
   statChangeTarget: 'value' | 'maxValue'; // 數值變化目標
   syncValue?: boolean;                  // 是否同步修改了 value（當 statChangeTarget='maxValue'）
   duration: number;                     // 持續時間（秒）
-  appliedAt: Date;                      // 效果套用時間
-  expiresAt: Date;                      // 效果過期時間
+  appliedAt: string | Date;              // 效果套用時間
+  expiresAt: string | Date;              // 效果過期時間
   isExpired: boolean;                   // 是否已過期
 }
 

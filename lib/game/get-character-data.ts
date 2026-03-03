@@ -21,6 +21,26 @@ import type { CharacterRuntimeDocument } from '@/lib/db/models/CharacterRuntime'
  * @param characterId - Baseline Character ID
  * @returns Baseline Character 或 Runtime Character
  */
+/**
+ * Phase 10.4.3: 從角色文件取得 Baseline Character ID
+ *
+ * 當角色文件可能是 Runtime 或 Baseline 時，此函數確保回傳的是 Baseline ID。
+ * - 如果是 CharacterRuntimeDocument（具有 refId），回傳 refId
+ * - 如果是 CharacterDocument（沒有 refId），回傳 _id
+ *
+ * 使用場景：WebSocket 頻道名稱、contestId 生成、外部 API 回傳等
+ * 需要穩定的 Baseline ID 而非 Runtime ID 的情境。
+ */
+export function getBaselineCharacterId(
+  doc: CharacterDocument | CharacterRuntimeDocument
+): string {
+  const runtimeDoc = doc as CharacterRuntimeDocument;
+  if (runtimeDoc.refId) {
+    return runtimeDoc.refId.toString();
+  }
+  return doc._id.toString();
+}
+
 export async function getCharacterData(
   characterId: string
 ): Promise<CharacterDocument | CharacterRuntimeDocument> {

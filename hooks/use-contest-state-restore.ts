@@ -110,16 +110,12 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
       
       // 只在對抗檢定實際完成時（從有 pendingContest 變為沒有 pendingContest）才關閉 dialog
       if (hadPending && !hasPending) {
-        // 檢查 dialogState 是否為 attacker_waiting，如果是，說明對抗檢定正在進行中
-        const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                  dialogState.sourceType === sourceType && 
-                                  dialogState.sourceId === selectedItem.id;
-        
-        // 如果 dialogState 為 attacker_waiting，說明對抗檢定正在進行中，不應該關閉 dialog
-        if (isAttackerWaiting) {
-          return; // 不關閉 dialog，等待 pendingContest 狀態更新
-        }
-        
+        // Phase 10: 移除 isAttackerWaiting 守衛
+        // 當 hadPending && !hasPending 時，代表 pendingContest 已被 removePendingContest 清除，
+        // 即對抗檢定已結束。此時應無條件清除 dialogState 並關閉 dialog。
+        // 之前的守衛誤將 dialogState === 'attacker_waiting' 視為「仍在進行中」而跳過清理，
+        // 導致結算後重新開啟技能/道具仍顯示等待狀態。
+
         // 如果已經在關閉這個 dialog，跳過
         if (isClosingDialogRef.current === selectedItem.id) {
           return;
@@ -276,17 +272,9 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
     // 只在對抗檢定實際完成時（從有 pendingContest 變為沒有 pendingContest）才關閉 dialog
     // 如果用戶手動打開 dialog（hadPending 為 false），不應該關閉
     if (hadPending && !hasPending) {
-      // 對抗檢定已完成，關閉 dialog
-      // 檢查 dialogState 是否為 attacker_waiting，如果是，說明對抗檢定正在進行中
-      const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                dialogState.sourceType === sourceType && 
-                                dialogState.sourceId === selectedItem.id;
-      
-      // 如果 dialogState 為 attacker_waiting，說明對抗檢定正在進行中，不應該關閉 dialog
-      if (isAttackerWaiting) {
-        return; // 不關閉 dialog，等待 pendingContest 狀態更新
-      }
-      
+      // Phase 10: 對抗檢定已完成（pendingContest 被清除），無條件關閉 dialog 並清理 dialogState。
+      // 移除 isAttackerWaiting 守衛，原因同上方 useEffect。
+
       // 如果已經在關閉這個 dialog，跳過
       if (isClosingDialogRef.current === selectedItem.id) {
         return;

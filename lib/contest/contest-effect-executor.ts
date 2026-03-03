@@ -6,10 +6,11 @@
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
+import { getBaselineCharacterId, getCharacterData } from '@/lib/game/get-character-data';
+import { updateCharacterData } from '@/lib/game/update-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
@@ -73,9 +74,9 @@ export async function executeContestEffects(
   const effectsApplied: string[] = [];
   const now = new Date();
 
-  // 確保 ID 轉換為字符串，避免類型不匹配問題
-  const attackerIdStr = attacker._id.toString();
-  const defenderIdStr = defender._id.toString();
+  // Phase 10.4: 使用 Baseline ID（避免 Runtime _id 與頻道、追蹤系統不匹配）
+  const attackerIdStr = getBaselineCharacterId(attacker);
+  const defenderIdStr = getBaselineCharacterId(defender);
 
   // Phase 7.6: 根據對抗結果決定執行攻擊方還是防守方的效果
   // Phase 9: 如果防守方獲勝且傳入了 defenderSources，優先使用傳入的 source（已經從防守方身上找到的正確對象）
@@ -120,9 +121,9 @@ export async function executeContestEffects(
 
   // 如果需要選擇目標道具，跳過所有效果的執行
   if (needsTargetItemSelection) {
-    // 重新載入角色資料以確保資料是最新的
-    const updatedAttacker = await Character.findById(attackerIdStr);
-    const updatedDefender = await Character.findById(defenderIdStr);
+    // Phase 10.4: 使用統一讀取函數（自動判斷 Baseline/Runtime）
+    const updatedAttacker = await getCharacterData(attackerIdStr);
+    const updatedDefender = await getCharacterData(defenderIdStr);
     
     if (!updatedAttacker || !updatedDefender) {
       throw new Error('找不到角色');
@@ -154,6 +155,9 @@ export async function executeContestEffects(
       ? defender
       : attacker;
   }
+
+  // Phase 10.4: 取得效果目標的 Baseline ID（用於 WebSocket 頻道和 DB 更新路由）
+  const effectTargetBaselineId = getBaselineCharacterId(effectTarget);
 
   const targetStats = effectTarget.stats || [];
   const targetTasks = effectTarget.tasks || [];
@@ -235,8 +239,8 @@ export async function executeContestEffects(
 
         // Phase 7.6: 判斷是否影響他人（根據對抗結果和效果目標）
         const isAffectingOthers = contestResult === 'defender_wins'
-          ? effectTarget._id.toString() !== defenderIdStr
-          : effectTarget._id.toString() !== attackerIdStr;
+          ? effectTargetBaselineId !== defenderIdStr
+          : effectTargetBaselineId !== attackerIdStr;
         if (isAffectingOthers) {
           crossCharacterChanges.push({
             name: effect.targetStat,
@@ -252,11 +256,11 @@ export async function executeContestEffects(
           // 決定來源角色（誰獲勝就是誰的效果）
           const sourceCharacter = contestResult === 'defender_wins' ? defender : attacker;
           await createTemporaryEffectRecord(
-            effectTarget._id.toString(),
+            effectTargetBaselineId,
             {
               sourceType: actualSourceType,
               sourceId: actualSource.id,
-              sourceCharacterId: sourceCharacter._id.toString(),
+              sourceCharacterId: getBaselineCharacterId(sourceCharacter),
               sourceCharacterName: sourceCharacter.name,
               sourceName: actualSource.name,
             },
@@ -312,10 +316,10 @@ export async function executeContestEffects(
 
       // Phase 4: 修復道具更新邏輯
       // 根據效果作用對象決定更新哪個角色
-      const targetIdStr = effectTarget._id.toString();
+      const targetIdStr = effectTargetBaselineId;
       
       // 準備更新：先移除舊的道具
-      await Character.findByIdAndUpdate(targetIdStr, {
+      await updateCharacterData(targetIdStr, {
         $pull: { items: { id: targetItemId } },
       });
 
@@ -330,7 +334,7 @@ export async function executeContestEffects(
         const cleanedItem = updatedItem as Record<string, unknown>;
         delete cleanedItem._id;
         delete cleanedItem.__v;
-        await Character.findByIdAndUpdate(targetIdStr, {
+        await updateCharacterData(targetIdStr, {
           $push: { items: cleanedItem },
         });
       }
@@ -342,7 +346,7 @@ export async function executeContestEffects(
         // 防守方獲勝：道具從攻擊方轉移到防守方
         const sourceIdStr = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
         
-        const updatedSource = await Character.findById(sourceIdStr);
+        const updatedSource = await getCharacterData(sourceIdStr);
         if (!updatedSource) {
           continue;
         }
@@ -355,19 +359,19 @@ export async function executeContestEffects(
           const currentItem = sourceItems[sourceItemIndex];
           const currentQuantity = currentItem.quantity || 1;
           
-          await Character.findByIdAndUpdate(sourceIdStr, {
+          await updateCharacterData(sourceIdStr, {
             $pull: { items: { id: targetItemId } },
           });
           
           const updatedSourceItem = {
-            ...(currentItem.toObject ? currentItem.toObject() : currentItem),
+            ...JSON.parse(JSON.stringify(currentItem)),
             quantity: currentQuantity + 1,
           };
           const cleanedSourceItem = updatedSourceItem as Record<string, unknown>;
           delete cleanedSourceItem._id;
           delete cleanedSourceItem.__v;
 
-          await Character.findByIdAndUpdate(sourceIdStr, {
+          await updateCharacterData(sourceIdStr, {
             $push: { items: cleanedSourceItem },
           });
         } else {
@@ -384,7 +388,7 @@ export async function executeContestEffects(
             usageCount: 0,
           };
 
-          await Character.findByIdAndUpdate(sourceIdStr, {
+          await updateCharacterData(sourceIdStr, {
             $push: { items: stolenItem },
           });
         }
@@ -437,9 +441,10 @@ export async function executeContestEffects(
       // Phase 4: 修復 role.updated 事件發送邏輯
       // 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
       // 需要重新載入兩個角色的最新資料（因為道具可能已經轉移）
+      // Phase 10.4: 使用統一讀取函數（自動判斷 Baseline/Runtime）
       const [updatedAttackerCharacter, updatedDefenderCharacter] = await Promise.all([
-        Character.findById(attackerIdStr).lean(),
-        Character.findById(defenderIdStr).lean(),
+        getCharacterData(attackerIdStr),
+        getCharacterData(defenderIdStr),
       ]);
 
       if (updatedAttackerCharacter && updatedDefenderCharacter) {
@@ -482,15 +487,16 @@ export async function executeContestEffects(
 
   // 應用統計變化
   if (Object.keys(targetStatUpdates).length > 0) {
-    const targetId = effectTarget._id.toString();
-    await Character.findByIdAndUpdate(targetId, {
+    const targetId = effectTargetBaselineId;
+    // Phase 10.4: 使用統一寫入函數（自動判斷 Baseline/Runtime）
+    await updateCharacterData(targetId, {
       $set: targetStatUpdates,
       $unset: { 'tasks.$[].gmNotes': 1 },
     });
 
     // Phase 7.6: 發送 character.affected 事件（根據對抗結果）
     if (crossCharacterChanges.length > 0) {
-      const targetId = effectTarget._id.toString();
+      const targetId = effectTargetBaselineId;
       const sourceId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
       const sourceName = contestResult === 'defender_wins' ? defender.name : attacker.name;
       
@@ -519,9 +525,9 @@ export async function executeContestEffects(
     }
   }
 
-  // 重新載入角色資料以確保資料是最新的
-  const updatedAttacker = await Character.findById(attackerIdStr);
-  const updatedDefender = await Character.findById(defenderIdStr);
+  // Phase 10.4: 使用統一讀取函數重新載入角色資料（自動判斷 Baseline/Runtime）
+  const updatedAttacker = await getCharacterData(attackerIdStr);
+  const updatedDefender = await getCharacterData(defenderIdStr);
 
   if (!updatedAttacker || !updatedDefender) {
     throw new Error('找不到角色');

@@ -1,5 +1,6 @@
 import { getCharacterById } from '@/app/actions/characters';
 import { getGameById } from '@/app/actions/games';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -72,6 +73,12 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
               {character.hasPinLock && (
                 <Badge variant="secondary" className="shrink-0">🔒 PIN 保護</Badge>
               )}
+              {/* Phase 10: Runtime 狀態標籤 */}
+              {game.isActive && (
+                <Badge variant="default" className="shrink-0 bg-green-600">
+                  Runtime
+                </Badge>
+              )}
             </div>
             <p className="text-muted-foreground text-sm line-clamp-1 mt-1">
               編輯角色資訊、管理道具與技能
@@ -90,7 +97,16 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
     >
       {/* WebSocket 事件監聽器：統一處理角色更新事件，確保無論在哪個分頁都能收到更新 */}
       <CharacterWebSocketListener characterId={character.id} />
-      
+
+      {/* Phase 10: Runtime 模式提示 Banner */}
+      {game.isActive && (
+        <Alert className="border-green-300 bg-green-50">
+          <AlertDescription className="text-green-800">
+            遊戲進行中 — 您正在編輯 <strong>Runtime</strong> 資料。所有修改僅影響本次遊戲，不會變更原始角色設定（Baseline）。
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="space-y-6">
 
         {/* Character Preview Card */}

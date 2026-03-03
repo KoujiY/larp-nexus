@@ -42,7 +42,7 @@ export function GameCodeSection({ gameId, gameCode, className = '' }: GameCodeSe
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [newGameCode, setNewGameCode] = useState(gameCode);
+  const [newGameCode, setNewGameCode] = useState(gameCode ?? '');
 
   // Phase 10: Game Code 即時檢查狀態
   const [gameCodeCheckStatus, setGameCodeCheckStatus] = useState<
@@ -52,7 +52,7 @@ export function GameCodeSection({ gameId, gameCode, className = '' }: GameCodeSe
   // 當對話框關閉時，重置狀態
   useEffect(() => {
     if (!open) {
-      setNewGameCode(gameCode);
+      setNewGameCode(gameCode ?? '');
       setGameCodeCheckStatus('idle');
     }
   }, [open, gameCode]);

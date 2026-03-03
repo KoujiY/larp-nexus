@@ -25,6 +25,8 @@ export interface UseCharacterWebSocketHandlerOptions {
   onContestResult?: (event: SkillContestEvent['payload']) => void;
   /** Phase 7.7: 被展示方收到道具展示事件時的回調（用於開啟唯讀 Dialog） */
   onItemShowcased?: (payload: ItemShowcasedEvent['payload']) => void;
+  /** Phase 10: 清除 Dialog 狀態的回調（確保對抗結算後 dialogState 不殘留） */
+  onClearDialogState?: () => void;
 }
 
 export interface UseCharacterWebSocketHandlerReturn {
@@ -37,7 +39,7 @@ export interface UseCharacterWebSocketHandlerReturn {
 export function useCharacterWebSocketHandler(
   options: UseCharacterWebSocketHandlerOptions
 ): UseCharacterWebSocketHandlerReturn {
-  const { characterId, addNotification, onTabChange, onContestRequest, onContestResult, onItemShowcased } = options;
+  const { characterId, addNotification, onTabChange, onContestRequest, onContestResult, onItemShowcased, onClearDialogState } = options;
   const router = useRouter();
 
   // 追蹤最近的轉移/偷竊事件，用於過濾 inventoryUpdated 通知
@@ -45,6 +47,10 @@ export function useCharacterWebSocketHandler(
   const recentTransferredItemsRef = useRef<
     Map<string, { timestamp: number; transferType: string; fromCharacterId?: string; toCharacterId?: string }>
   >(new Map());
+
+  // Phase 10: 追蹤已處理的對抗檢定事件，防止同一事件透過 Pusher 和 pending events 雙重處理
+  // key: `${contestId}::${subType}::${角色身份}` (e.g., "abc::result::attacker")
+  const processedContestEventsRef = useRef<Set<string>>(new Set());
 
   // 對抗檢定處理器
   const { handleContestEvent } = useContestHandler({
@@ -61,6 +67,8 @@ export function useCharacterWebSocketHandler(
       router.refresh();
       onContestResult?.(payload);
     },
+    // Phase 10: 對抗結算後清除 dialogState，避免重新開啟技能/道具時殘留等待狀態
+    onClearDialogState,
   });
 
   /**
@@ -68,6 +76,28 @@ export function useCharacterWebSocketHandler(
    */
   const handleWebSocketEvent = useCallback(
     (event: BaseEvent) => {
+      // Phase 10: 對抗檢定事件去重 — 防止同一事件透過 Pusher 和 pending events 雙重處理
+      // 只攔截 skill.contest 的 result / effect subType（request 不需要去重，因為只有防守方會收到）
+      if (event.type === 'skill.contest') {
+        const payload = event.payload as SkillContestEvent['payload'];
+        if (payload.subType === 'result' || payload.subType === 'effect') {
+          // 根據 contestId + subType + 角色身份（攻擊方/防守方）生成唯一 key
+          const role = payload.attackerId === characterId ? 'attacker' : 'defender';
+          const dedupKey = `${payload.contestId}::${payload.subType}::${role}`;
+
+          if (processedContestEventsRef.current.has(dedupKey)) {
+            // 已處理過，跳過整個事件（包括通知和 handler）
+            return;
+          }
+          processedContestEventsRef.current.add(dedupKey);
+
+          // 自動清理：60 秒後移除 key，防止 Set 無限增長
+          setTimeout(() => {
+            processedContestEventsRef.current.delete(dedupKey);
+          }, 60_000);
+        }
+      }
+
       // 創建事件映射器（在事件處理器內部創建，避免在 render 期間訪問 ref）
       const eventMappers = createEventMappers(characterId, {
         current: recentTransferredItemsRef.current,

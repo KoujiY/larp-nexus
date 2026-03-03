@@ -2,8 +2,6 @@ import { getPublicCharacter } from '@/app/actions/public';
 import { CharacterCardView } from '@/components/player/character-card-view';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Eye, Lock } from 'lucide-react';
 import Link from 'next/link';
 
 interface CharacterPageProps {
@@ -18,7 +16,7 @@ export default async function CharacterPage({
   const { characterId } = await params;
   const { readonly } = await searchParams;
 
-  // 判斷是否為預覽模式
+  // Phase 10: ?readonly=true 由 /unlock 頁面導入時使用（向後相容）
   const isReadOnly = readonly === 'true';
 
   const result = await getPublicCharacter(characterId);
@@ -49,31 +47,7 @@ export default async function CharacterPage({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
-      <div className="container max-w-4xl mx-auto p-4 md:p-8">
-        {/* Phase 10.5.3: 預覽模式提示 */}
-        {isReadOnly && (
-          <Alert className="mb-6 border-amber-500 bg-amber-50">
-            <Eye className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-900">預覽模式</AlertTitle>
-            <AlertDescription className="text-amber-800">
-              <p className="mb-2">
-                您正在以預覽模式查看此角色。在此模式下，所有互動功能（使用道具、技能、對抗檢定）均已禁用。
-              </p>
-              <p className="flex items-center gap-1">
-                <Lock className="h-3 w-3" />
-                若要進入遊戲並使用完整功能，請前往{' '}
-                <Link href="/unlock" className="underline font-medium">
-                  解鎖頁面
-                </Link>{' '}
-                輸入遊戲代碼和 PIN。
-              </p>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <CharacterCardView character={character} isReadOnly={isReadOnly} />
-      </div>
+      <CharacterCardView character={character} isReadOnly={isReadOnly} />
     </div>
   );
 }
-
