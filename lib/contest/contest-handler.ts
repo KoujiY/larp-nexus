@@ -13,6 +13,7 @@ import { addActiveContest } from '@/lib/contest-tracker';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
 import type { SkillContestEvent } from '@/types/event';
+import { getItemEffects } from '@/lib/item/get-item-effects';
 
 /**
  * 技能類型
@@ -163,7 +164,7 @@ export async function handleContestCheck(
   // 檢查是否需要選擇目標道具
   let needsTargetItemSelection = false;
   if (sourceType === 'item') {
-    const effects = (source as ItemType).effects || ((source as ItemType).effect ? [(source as ItemType).effect!] : []);
+    const effects = getItemEffects(source as ItemType);
     const hasItemTakeOrSteal = effects.some((e: { type?: string }) => e.type === 'item_take' || e.type === 'item_steal');
     needsTargetItemSelection = hasItemTakeOrSteal;
   } else if (sourceType === 'skill') {

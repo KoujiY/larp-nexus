@@ -10,6 +10,7 @@ import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-charact
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
 import type { CharacterDocument } from '@/lib/db/models';
+import { getItemEffects } from '@/lib/item/get-item-effects';
 
 /**
  * Phase 7: 防守方回應對抗檢定
@@ -260,7 +261,7 @@ export async function respondToContest(
         needsTargetItemSelection = true;
       }
     } else if (sourceType === 'item' && item) {
-      const effects = item.effects || (item.effect ? [item.effect] : []);
+      const effects = getItemEffects(item);
       const hasItemTakeOrSteal = effects.some((e: { type?: string }) => {
         return e.type === 'item_take' || e.type === 'item_steal';
       });
@@ -297,7 +298,7 @@ export async function respondToContest(
     if (hasDefenderResponse && defenderSourceObj) {
       const defenderEffects = defenderSourceType === 'skill' 
         ? (defenderSourceObj as SkillType).effects || []
-        : (defenderSourceObj as ItemType).effects || ((defenderSourceObj as ItemType).effect ? [(defenderSourceObj as ItemType).effect!] : []);
+        : getItemEffects(defenderSourceObj as ItemType);
       const defenderHasItemTakeOrSteal = defenderEffects.some((e: { type?: string }) => {
         return e.type === 'item_take' || e.type === 'item_steal';
       });

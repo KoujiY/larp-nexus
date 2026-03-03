@@ -18,6 +18,7 @@ import type { SkillContestEvent } from '@/types/event';
 import { respondToContest } from '@/app/actions/contest-respond';
 import { toast } from 'sonner';
 import type { Item, Skill } from '@/types/character';
+import { getItemEffects } from '@/lib/item/get-item-effects';
 
 interface ContestResponseDialogProps {
   open: boolean;
@@ -336,11 +337,14 @@ export function ContestResponseDialog({
                       <Checkbox checked={isSelected} onCheckedChange={() => canSelect && handleItemToggle(item.id)} />
                       <div className="flex-1">
                         <div className="font-medium">{item.name}</div>
-                        {item.effect?.type === 'stat_change' && item.effect.value && (
-                          <div className="text-sm text-muted-foreground">
-                            效果：{item.effect.targetStat} {item.effect.value > 0 ? '+' : ''}{item.effect.value}
-                          </div>
-                        )}
+                        {(() => {
+                          const firstEffect = getItemEffects(item)[0];
+                          return firstEffect?.type === 'stat_change' && firstEffect.value ? (
+                            <div className="text-sm text-muted-foreground">
+                              效果：{firstEffect.targetStat} {firstEffect.value > 0 ? '+' : ''}{firstEffect.value}
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                   );

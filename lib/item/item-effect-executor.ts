@@ -12,6 +12,7 @@ import { cleanItemData } from '@/lib/character-cleanup';
 import type { CharacterDocument } from '@/lib/db/models';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
+import { getItemEffects } from '@/lib/item/get-item-effects';
 
 /**
  * 道具類型
@@ -49,8 +50,8 @@ export async function executeItemEffects(
 ): Promise<ItemEffectExecutionResult> {
   await dbConnect();
 
-  // 重構：支援多個效果（優先使用 effects 陣列，向後兼容 effect）
-  const effects: ItemEffect[] = item.effects || (item.effect ? [item.effect] : []);
+  // 統一讀取效果列表（向後兼容已棄用的 effect 欄位）
+  const effects: ItemEffect[] = getItemEffects(item);
 
   if (effects.length === 0) {
     // 重新載入角色資料

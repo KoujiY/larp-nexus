@@ -4,6 +4,7 @@
  */
 
 import type { CharacterDocument } from '@/lib/db/models/Character';
+import { getItemEffects } from '@/lib/item/get-item-effects';
 
 export interface ContestCalculationResult {
   attackerValue: number;
@@ -41,8 +42,8 @@ export function calculateDefenderValue(
       const item = defenderItemsData.find((i: { id: string }) => i.id === itemRef.id);
       if (!item) continue;
 
-      // 重構：支援多個效果（優先使用 effects 陣列，向後兼容 effect）
-      const itemEffects = item.effects || (item.effect ? [item.effect] : []);
+      // 統一讀取效果列表（向後兼容已棄用的 effect 欄位）
+      const itemEffects = getItemEffects(item);
       
       // 計算道具加成（如果道具有效果且影響相關數值）
       for (const effect of itemEffects) {

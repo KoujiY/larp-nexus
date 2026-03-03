@@ -13,6 +13,7 @@ import { getBaselineCharacterId, getCharacterData } from '@/lib/game/get-charact
 import { updateCharacterData } from '@/lib/game/update-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
+import { getItemEffects } from '@/lib/item/get-item-effects';
 import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
 
 /**
@@ -113,7 +114,7 @@ export async function executeContestEffects(
   // 判斷來源類型並獲取效果列表
   const effects: Effect[] = actualSourceType === 'skill' 
     ? (actualSource as SkillType).effects || []
-    : (actualSource as ItemType).effects || ((actualSource as ItemType).effect ? [(actualSource as ItemType).effect!] : []);
+    : getItemEffects(actualSource as ItemType);
 
   // 檢查是否有 item_take/item_steal 效果且沒有 targetItemId
   const hasItemTakeOrSteal = effects.some((e) => e.type === 'item_take' || e.type === 'item_steal');

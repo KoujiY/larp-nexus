@@ -39,6 +39,7 @@ import { useItemUsage } from '@/hooks/use-item-usage';
 import { useContestableItemUsage } from '@/hooks/use-contestable-item-usage';
 import { CONTEST_TIMEOUT, STORAGE_KEYS } from '@/lib/constants/contest';
 import { canUseItem as canUseItemBase, getCooldownRemaining } from '@/lib/utils/item-validators';
+import { getItemEffects, hasItemEffects } from '@/lib/item/get-item-effects';
 import { UseResultDisplay } from './use-result-display';
 import { CheckInfoDisplay } from './check-info-display';
 import { TargetSelectionSection } from './target-selection-section';
@@ -85,7 +86,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   // Phase 3.3: 使用 useTargetSelection Hook 管理目標選擇
   // Phase 8: 使用道具時的目標選擇狀態（包含檢定類型）
   // 重構：支援多個效果
-  const effects = selectedItem?.effects || (selectedItem?.effect ? [selectedItem.effect] : []);
+  const effects = selectedItem ? getItemEffects(selectedItem) : [];
   const requiresTarget = Boolean(
     selectedItem?.checkType === 'contest' || 
     effects.some((effect) => effect.requiresTarget)
@@ -468,10 +469,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   // Phase 8: 當選擇目標角色時，檢查是否需要載入目標道具清單
   // 注意：對抗檢定時，不需要載入目標道具清單
   useEffect(() => {
-    const itemEffects = selectedItem?.effects || (selectedItem?.effect ? [selectedItem.effect] : []);
+    const itemEffects = selectedItem ? getItemEffects(selectedItem) : [];
     const needsTargetItem = itemEffects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
     const isContest = selectedItem?.checkType === 'contest';
-    
+
     // 如果效果需要目標道具，且已選擇目標角色，但尚未確認，則重置確認狀態
     // 對抗檢定時跳過此邏輯
     if (needsTargetItem && !isContest && selectedUseTargetId && !isTargetConfirmed) {
@@ -508,10 +509,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       return;
     }
     
-    const itemEffects = selectedItem?.effects || (selectedItem?.effect ? [selectedItem.effect] : []);
+    const itemEffects = selectedItem ? getItemEffects(selectedItem) : [];
     const needsTargetItem = itemEffects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
     const isContest = selectedItem?.checkType === 'contest';
-    
+
     // 對抗檢定時，不應該顯示此 UI，直接返回
     if (isContest) {
       return;
@@ -984,10 +985,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                   <Badge variant={selectedItem.type === 'consumable' ? 'secondary' : 'outline'}>
                     {selectedItem.type === 'consumable' ? '消耗品' : '裝備/道具'}
                   </Badge>
-                  {((selectedItem.effects && selectedItem.effects.length > 0) || selectedItem.effect) && (
+                  {hasItemEffects(selectedItem) && (
                     <Badge variant="default">
                       <Sparkles className="h-3 w-3 mr-1" />
-                      {(selectedItem.effects && selectedItem.effects.length > 0) ? `${selectedItem.effects.length} 個效果` : '有效果'}
+                      {selectedItem.effects && selectedItem.effects.length > 0 ? `${selectedItem.effects.length} 個效果` : '有效果'}
                     </Badge>
                   )}
                   {selectedItem.isTransferable && (
@@ -1076,14 +1077,14 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                     )}
 
                     {/* 使用效果 */}
-                    {((selectedItem.effects && selectedItem.effects.length > 0) || selectedItem.effect) && (
+                    {hasItemEffects(selectedItem) && (
                       <div className="p-3 bg-purple-50 rounded-lg space-y-3">
                         <div className="text-sm font-medium text-purple-800 mb-1 flex items-center gap-1">
                           <Sparkles className="h-4 w-4" />
                           使用效果
                         </div>
                         <div className="space-y-3">
-                          {(selectedItem.effects || (selectedItem.effect ? [selectedItem.effect] : [])).map((effect, index) => (
+                          {getItemEffects(selectedItem).map((effect, index) => (
                             <div key={index} className="text-purple-700">
                               {selectedItem.effects && selectedItem.effects.length > 1 && (
                                 <div className="text-xs font-medium mb-1 text-purple-600">
@@ -1182,7 +1183,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
               {!isReadOnly && (
               <DialogFooter className="flex-col sm:flex-row gap-2">
                         {/* 使用按鈕 */}
-                {((selectedItem.effects && selectedItem.effects.length > 0) || selectedItem.effect || onUseItem) && (() => {
+                {(hasItemEffects(selectedItem) || onUseItem) && (() => {
                   const { canUse, reason } = canUseItem(selectedItem);
                   const isPendingContest = hasPendingContest(selectedItem.id);
                   const isWaitingInRef = waitingContestRef.current.has(selectedItem.id);
@@ -1468,7 +1469,7 @@ function ItemCard({ item, cooldownRemaining, onClick, disabled = false, randomCo
         )}
 
         {/* 有效果標籤 */}
-        {((item.effects && item.effects.length > 0) || item.effect) && !isOnCooldown && (
+        {hasItemEffects(item) && !isOnCooldown && (
           <div className="absolute top-2 left-2">
             <Sparkles className="h-4 w-4 text-yellow-400 drop-shadow-lg" />
           </div>

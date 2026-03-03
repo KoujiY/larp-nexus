@@ -12,6 +12,7 @@ import { executeItemEffects } from '@/lib/item/item-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
+import { getItemEffects } from '@/lib/item/get-item-effects';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
 
@@ -152,7 +153,7 @@ export async function useItem(
 
     // Phase 8: 驗證目標角色（如果需要）
     // 重構：支援多個效果
-    const effects = item.effects || (item.effect ? [item.effect] : []);
+    const effects = getItemEffects(item);
     const requiresTarget = effects.some((e: { requiresTarget?: boolean }) => e.requiresTarget) || itemCheckType === 'contest' || itemCheckType === 'random_contest';
     
     // Phase 8: 對抗檢定時，如果有 item_take/item_steal 效果，不需要在初始使用時選擇目標道具

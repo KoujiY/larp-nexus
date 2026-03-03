@@ -54,14 +54,14 @@ const GameRuntimeSchema = new Schema<GameRuntimeDocument>(
       type: Schema.Types.ObjectId,
       ref: 'Game',
       required: true,
-      index: true,
+      // 單欄位索引由複合索引 { refId, type } 覆蓋
     },
     type: {
       type: String,
       enum: ['runtime', 'snapshot'],
       default: 'runtime',
       required: true,
-      index: true,
+      // 單欄位索引由複合索引 { refId, type } 和 { type, snapshotCreatedAt } 覆蓋
     },
 
     // 以下欄位與 GameSchema 完全一致（複製定義）

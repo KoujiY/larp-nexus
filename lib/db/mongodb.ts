@@ -34,7 +34,7 @@ async function connectDB() {
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((conn) => {
-      console.log('✅ MongoDB 連線成功');
+      console.info('[MongoDB] Connected successfully');
       return conn;
     });
   }

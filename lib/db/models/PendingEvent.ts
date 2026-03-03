@@ -40,18 +40,17 @@ const pendingEventSchema = new Schema<PendingEventDocument>(
     id: {
       type: String,
       required: true,
-      unique: true,
-      index: true,
+      unique: true, // unique 已自動建立索引，無需額外 index: true
     },
     targetCharacterId: {
       type: String,
-      index: true,
       required: false,
+      // 單欄位索引由複合索引 { targetCharacterId, isDelivered, expiresAt } 覆蓋
     },
     targetGameId: {
       type: String,
-      index: true,
       required: false,
+      // 單欄位索引由複合索引 { targetGameId, isDelivered, expiresAt } 覆蓋
     },
     eventType: {
       type: String,
@@ -65,12 +64,12 @@ const pendingEventSchema = new Schema<PendingEventDocument>(
       type: Date,
       required: true,
       default: Date.now,
-      index: true,
+      index: true, // 無複合索引覆蓋，保留供排序查詢使用
     },
     isDelivered: {
       type: Boolean,
       default: false,
-      index: true,
+      // 單欄位索引由複合索引 { isDelivered, expiresAt } 覆蓋
     },
     deliveredAt: {
       type: Date,
@@ -79,7 +78,7 @@ const pendingEventSchema = new Schema<PendingEventDocument>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
+      index: true, // 無複合索引以 expiresAt 為前綴，保留供 TTL/過期查詢使用
     },
   },
   {

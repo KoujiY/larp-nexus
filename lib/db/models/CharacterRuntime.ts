@@ -213,14 +213,14 @@ const CharacterRuntimeSchema = new Schema<CharacterRuntimeDocument>(
       type: Schema.Types.ObjectId,
       ref: 'Character',
       required: true,
-      index: true,
+      // 單欄位索引由複合索引 { refId, type } 覆蓋
     },
     type: {
       type: String,
       enum: ['runtime', 'snapshot'],
       default: 'runtime',
       required: true,
-      index: true,
+      // 單欄位索引由複合索引 { refId, type } 和 { gameId, type } 覆蓋
     },
 
     // 以下欄位與 CharacterSchema 完全一致（複製定義）
@@ -228,7 +228,7 @@ const CharacterRuntimeSchema = new Schema<CharacterRuntimeDocument>(
       type: Schema.Types.ObjectId,
       ref: 'Game',
       required: true,
-      index: true,
+      // 單欄位索引由複合索引 { gameId, type } 和 { gameId, pin } 覆蓋
     },
     name: {
       type: String,

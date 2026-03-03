@@ -10,6 +10,7 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { canUseItem } from '@/lib/utils/item-validators';
+import { getItemEffects } from '@/lib/item/get-item-effects';
 import type { Item } from '@/types/character';
 
 export interface UseItemUsageOptions {
@@ -89,7 +90,7 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
     
     // 檢查是否需要確認目標角色和選擇目標道具
     // 注意：對抗檢定時，不需要在初始使用時選擇目標道具
-    const itemEffects = selectedItem?.effects || (selectedItem?.effect ? [selectedItem.effect] : []);
+    const itemEffects = getItemEffects(selectedItem);
     const needsTargetItem = itemEffects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
     const isContest = selectedItem.checkType === 'contest';
     

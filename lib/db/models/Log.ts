@@ -48,18 +48,18 @@ const LogSchema = new Schema<LogDocument>(
       type: Date,
       required: true,
       default: Date.now,
-      index: true, // 單一索引：方便按時間查詢
+      index: true, // 保留：非複合索引前綴，供純時間排序查詢使用
     },
     gameId: {
       type: Schema.Types.ObjectId,
       ref: 'Game',
       required: true,
-      index: true, // 單一索引：方便按遊戲查詢
+      // 單欄位索引由複合索引 { gameId, timestamp } 和 { gameId, action, timestamp } 覆蓋
     },
     characterId: {
       type: Schema.Types.ObjectId,
       ref: 'Character',
-      index: true, // 單一索引：方便按角色查詢
+      // 單欄位索引由複合索引 { characterId, timestamp } 覆蓋
     },
     actorType: {
       type: String,

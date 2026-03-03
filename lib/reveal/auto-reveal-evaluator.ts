@@ -346,7 +346,7 @@ export async function executeAutoReveal(
     }
   }
 
-  console.log(
+  console.info(
     `[auto-reveal] Character ${characterIdStr}: revealed ${secretResults.length} secrets, ${taskResults.length} tasks (trigger: ${trigger.type})`
   );
 

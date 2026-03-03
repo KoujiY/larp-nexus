@@ -44,6 +44,9 @@ interface DefenderContestState {
 const STORAGE_KEY_PREFIX = 'contest-pending-';
 const DEFENDER_STORAGE_KEY_PREFIX = 'contest-defender-';
 
+/** 對抗檢定過期時間（3 分鐘） */
+const CONTEST_TIMEOUT_MS = 180_000;
+
 /**
  * Hook 用於管理對抗檢定狀態
  * 狀態會存儲到 localStorage，即使重新整理也會保留
@@ -70,7 +73,7 @@ export function useContestState(characterId: string) {
         if (stored) {
           const parsed = JSON.parse(stored) as Record<string, ContestState>;
           // 清理過期的對抗檢定（超過 3 分鐘）
-          const CONTEST_TIMEOUT = 180000; // 3 分鐘（180000 ms）
+          const CONTEST_TIMEOUT = CONTEST_TIMEOUT_MS;
           const now = Date.now();
           const filtered: Record<string, ContestState> = {};
           for (const [key, contest] of Object.entries(parsed)) {
@@ -90,7 +93,7 @@ export function useContestState(characterId: string) {
               }
               const latestParsed = JSON.parse(latestStored) as Record<string, ContestState>;
               // 清理過期的對抗檢定（超過 3 分鐘）
-              const CONTEST_TIMEOUT = 180000; // 3 分鐘（180000 ms）
+              const CONTEST_TIMEOUT = CONTEST_TIMEOUT_MS;
               const now = Date.now();
               const latestFiltered: Record<string, ContestState> = {};
               for (const [key, contest] of Object.entries(latestParsed)) {
@@ -320,7 +323,7 @@ export function useDefenderContestState(characterId: string) {
       if (stored) {
         const parsed = JSON.parse(stored) as DefenderContestState;
         // 清理過期的對抗檢定（超過 3 分鐘）
-        const CONTEST_TIMEOUT = 180000; // 3 分鐘（180000 ms）
+        const CONTEST_TIMEOUT = CONTEST_TIMEOUT_MS;
         const now = Date.now();
         if (now - parsed.timestamp < CONTEST_TIMEOUT) {
           // 使用 setTimeout 避免同步 setState

@@ -100,5 +100,5 @@ export async function pushEventToGame(
     )
   );
 
-  console.log(`[pushEventToGame] Event "${event.type}" sent to ${characterIds.length} characters`);
+  console.info(`[pushEventToGame] Event "${event.type}" sent to ${characterIds.length} characters`);
 }

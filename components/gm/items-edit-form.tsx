@@ -31,6 +31,7 @@ import type { Item, ItemEffect, Stat } from '@/types/character';
 import type { BaseEvent, RoleUpdatedEvent, InventoryUpdatedEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { EffectEditor } from './effect-editor';
+import { getItemEffects, hasItemEffects } from '@/lib/item/get-item-effects';
 import { EditFormCard } from './edit-form-card';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -147,15 +148,8 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     // 向後兼容：將舊的 effect 轉換為 effects 陣列
     const fixedItem = { ...item };
     
-    // 如果沒有 effects 但有 effect，轉換為 effects
-    if (!fixedItem.effects && fixedItem.effect) {
-      fixedItem.effects = [fixedItem.effect];
-    }
-    
-    // 如果 effects 為空陣列或 undefined，初始化為空陣列
-    if (!fixedItem.effects) {
-      fixedItem.effects = [];
-    }
+    // 統一讀取效果列表（向後兼容已棄用的 effect 欄位）
+    fixedItem.effects = getItemEffects(fixedItem);
     
     // 修復舊資料：如果是 stat_change 但沒有 statChangeTarget，自動補上
     fixedItem.effects = fixedItem.effects.map((effect) => {
@@ -222,17 +216,8 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     // 向後兼容：確保 effects 存在
     const finalItem = { ...editingItem };
     
-    // 如果沒有 effects 但有 effect，轉換為 effects
-    if (!finalItem.effects && finalItem.effect) {
-      finalItem.effects = [finalItem.effect];
-    }
-    
-    // 確保 effects 是陣列
-    if (!finalItem.effects) {
-      finalItem.effects = [];
-    }
-    
-    // 清理 effect 欄位（已棄用）
+    // 統一讀取效果列表並清理已棄用的 effect 欄位
+    finalItem.effects = getItemEffects(finalItem);
     delete finalItem.effect;
     
     if (finalItem.checkType === 'random') {
@@ -954,10 +939,10 @@ function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
         </div>
         {/* 第二行：標籤 */}
         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-          {(item.effects && item.effects.length > 0) || item.effect && (
+          {hasItemEffects(item) && (
             <Badge variant="secondary" className="text-xs">
               <Zap className="h-3 w-3 mr-1" />
-              {(item.effects?.length || 0) > 0 ? `${item.effects?.length || 0} 個效果` : '有效果'}
+              {getItemEffects(item).length} 個效果
             </Badge>
           )}
           {item.checkType && item.checkType !== 'none' && (
