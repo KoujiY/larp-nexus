@@ -1,7 +1,7 @@
 # GM 端頁面與元件架構
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v1.1
+## 更新日期：2026-03-04（Phase 10 遊戲狀態分層）
 
 ---
 
@@ -245,60 +245,10 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
 
 ---
 
-### 2.5 劇本詳情 Dashboard (`/games/[gameId]`)
+### 2.5 劇本詳情頁 (`/games/[gameId]`)（Phase 10 更新）
 
-**功能**
-- 劇本概覽（統計資料）
-- 快速存取角色管理、事件推送
-- 劇本狀態切換
-
-**元件組成**
-```tsx
-<GameDashboardPage>
-  <Header>
-    <Breadcrumb>
-      <BreadcrumbItem href="/dashboard">主控台</BreadcrumbItem>
-      <BreadcrumbItem>{game.title}</BreadcrumbItem>
-    </Breadcrumb>
-    <StatusBadge status={game.status} />
-  </Header>
-  
-  <StatsGrid>
-    <StatCard icon={Users} label="角色數" value={characterCount} />
-    <StatCard icon={Activity} label="進行中任務" value={activeTasksCount} />
-    <StatCard icon={Package} label="總道具數" value={itemsCount} />
-  </StatsGrid>
-  
-  <QuickActions>
-    <ActionCard
-      title="角色管理"
-      icon={Users}
-      href={`/games/${gameId}/characters`}
-    />
-    <ActionCard
-      title="推送事件"
-      icon={Send}
-      href={`/games/${gameId}/events`}
-    />
-    <ActionCard
-      title="劇本設定"
-      icon={Settings}
-      href={`/games/${gameId}/settings`}
-    />
-  </QuickActions>
-  
-  <RecentActivity>
-    <h3>最近活動</h3>
-    <ActivityList>
-      {activities.map(activity => (
-        <ActivityItem key={activity.id} {...activity} />
-      ))}
-    </ActivityList>
-  </RecentActivity>
-</GameDashboardPage>
-```
-
----
+> **Phase 10 重大變更**：劇本詳情頁整合了遊戲狀態控制功能，
+> GM 可在此頁面管理 Game Code、啟動/結束遊戲。
 
 ### 2.6 劇本詳情頁 - 角色列表 (`/games/[gameId]`)
 
@@ -315,8 +265,38 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
 - 快速建立新角色（Dialog）
 - 點擊角色卡片進入編輯頁面
 - 管理角色圖片、QR Code、PIN
+- **Phase 10 新增**：遊戲狀態徽章、Game Code 管理、遊戲啟動/結束控制
 
-**佈局結構（Phase 3 更新：統一佈局 + Tab 形式）**
+**佈局結構（Phase 10 更新：加入遊戲狀態控制）**
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Header                                              │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ Breadcrumb: 劇本列表 / {game.name}             │ │
+│  │ <h1>{game.name}</h1>                            │ │
+│  │ <p>{game.description}</p>                       │ │
+│  │ Badge: 🟢 進行中 | ⚪ 待機中   ← Phase 10 狀態 │ │
+│  │ [預覽公開頁面] [刪除劇本]                       │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                      │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ GameCodeSection              ← Phase 10 新增    │ │
+│  │ Game Code: [A B 3 X 7 K]  [📋 複製]  [✏️ 編輯] │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                      │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ GameLifecycleControls        ← Phase 10 新增    │ │
+│  │ [🚀 開始遊戲] or [⏹️ 結束遊戲]                 │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                      │
+│  Tabs: [📋 劇本資訊] [👥 角色列表]                   │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ Tab Content                                     │ │
+│  └─────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
+```
+
 ```tsx
 <PageLayout
   header={
@@ -324,7 +304,11 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
       <div>
         <Breadcrumb>劇本列表 / {game.name}</Breadcrumb>
         <h1>{game.name}</h1>
-        <Badge>{game.isActive ? '啟用中' : '已停用'}</Badge>
+        <p>{game.description}</p>
+        {/* Phase 10: 遊戲狀態徽章 */}
+        <Badge variant={game.isActive ? 'default' : 'secondary'}>
+          {game.isActive ? '🟢 進行中' : '⚪ 待機中'}
+        </Badge>
       </div>
       <Actions>
         <Button asChild><Link href={`/g/${game.id}`}>預覽公開頁面</Link></Button>
@@ -334,18 +318,24 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
   }
   maxWidth="lg"
 >
+  {/* Phase 10: Game Code 管理區塊 */}
+  <GameCodeSection gameId={game.id} gameCode={game.gameCode} />
+
+  {/* Phase 10: 遊戲生命週期控制 */}
+  <GameLifecycleControls gameId={game.id} isActive={game.isActive} />
+
   <Tabs defaultValue="info">
     {/* Tab 列表：寬度自動，靠左對齊 */}
     <TabsList className="w-auto">
       <TabsTrigger value="info">📋 劇本資訊</TabsTrigger>
       <TabsTrigger value="characters">👥 角色列表</TabsTrigger>
     </TabsList>
-    
+
     {/* 劇本資訊 Tab */}
     <TabsContent value="info">
       <GameEditForm game={game} />
     </TabsContent>
-    
+
     {/* 角色列表 Tab */}
     <TabsContent value="characters">
       <CharactersSection>
@@ -356,7 +346,7 @@ GM 端採用 **Desktop First** 設計，最小支援解析度 1024px。
           </div>
           <CreateCharacterButton gameId={game.id} />
         </SectionHeader>
-        
+
         {characters.length === 0 ? (
           <EmptyState>
             <Icon>👥</Icon>
@@ -957,6 +947,167 @@ const removeSecret = (index: number) => {
 
 ---
 
+## 2.10 Phase 10 GM 專屬元件
+
+### 2.10.1 GameCodeSection（`components/gm/game-code-section.tsx`）
+
+管理遊戲的 6 位英數字 Game Code，供玩家輸入以獲得 Full Access。
+
+**功能**
+- 以大字型等寬字體顯示目前 Game Code
+- 一鍵複製 Game Code 至剪貼簿（Toast 回饋）
+- 編輯 Game Code（Dialog 介面）
+
+**元件組成**
+```tsx
+<GameCodeSection gameId={gameId} gameCode={gameCode}>
+  {/* 顯示區 */}
+  <div className="font-mono text-2xl tracking-widest">
+    {gameCode}
+  </div>
+  <Button variant="ghost" onClick={copyToClipboard}>📋 複製</Button>
+  <Button variant="ghost" onClick={openEditDialog}>✏️ 編輯</Button>
+
+  {/* 編輯 Dialog */}
+  <Dialog>
+    <Input
+      value={newCode}
+      onChange={handleCodeChange}
+      maxLength={6}
+      pattern="[A-Z0-9]{6}"
+    />
+    {/* 即時驗證狀態 */}
+    {status === 'checking' && <Spinner />}
+    {status === 'available' && <span className="text-green-600">✓ 可使用</span>}
+    {status === 'unavailable' && <span className="text-red-600">✗ 已被使用</span>}
+    {status === 'invalid' && <span className="text-red-600">✗ 格式不正確</span>}
+
+    <Alert variant="warning">
+      變更 Game Code 後，玩家需使用新代碼才能獲得 Full Access
+    </Alert>
+  </Dialog>
+</GameCodeSection>
+```
+
+**驗證邏輯**
+- 格式：6 位英數字（`/^[A-Z0-9]{6}$/`）
+- 唯一性：500ms debounce 後即時查詢 DB
+- 狀態機：`idle` → `checking` → `available` | `unavailable` | `invalid`
+
+**Server Action**
+- `updateGameCode(gameId, newCode)` — 更新 Game Code
+- `GET /api/games/[gameId]/check-code?code=XXX` — 即時唯一性檢查
+
+---
+
+### 2.10.2 GameLifecycleControls（`components/gm/game-lifecycle-controls.tsx`）
+
+控制遊戲的啟動與結束，是 Phase 10 三層架構（Baseline → Runtime → Snapshot）的 GM 操作入口。
+
+**功能**
+- 遊戲待機時：顯示「開始遊戲」按鈕
+- 遊戲進行中：顯示「結束遊戲」按鈕
+- 操作需二次確認（Confirmation Dialog）
+- Loading 狀態防止重複點擊
+
+**元件組成**
+```tsx
+<GameLifecycleControls gameId={gameId} isActive={isActive}>
+  {!isActive ? (
+    // 待機狀態 → 開始遊戲
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="default">🚀 開始遊戲</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogTitle>確認開始遊戲？</AlertDialogTitle>
+        <AlertDialogDescription>
+          <ul>
+            <li>系統將複製 Baseline 設定為 Runtime 副本</li>
+            <li>開始後，Baseline 的編輯不會影響進行中的遊戲</li>
+            <li>若已有進行中的遊戲，將覆蓋現有進度</li>
+          </ul>
+        </AlertDialogDescription>
+        <AlertDialogAction onClick={handleStartGame} disabled={isLoading}>
+          {isLoading ? '啟動中...' : '確認開始'}
+        </AlertDialogAction>
+      </AlertDialogContent>
+    </AlertDialog>
+  ) : (
+    // 進行中 → 結束遊戲
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive">⏹️ 結束遊戲</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogTitle>確認結束遊戲？</AlertDialogTitle>
+        <Input
+          label="快照名稱（選填）"
+          placeholder="例：第一輪測試"
+          value={snapshotName}
+          onChange={setSnapshotName}
+        />
+        <AlertDialogDescription>
+          <ul>
+            <li>遊戲進度將儲存為歷史快照</li>
+            <li>Runtime 資料將被清除</li>
+            <li>玩家將收到遊戲結束通知</li>
+          </ul>
+        </AlertDialogDescription>
+        <AlertDialogAction onClick={handleEndGame} disabled={isLoading}>
+          {isLoading ? '結束中...' : '確認結束'}
+        </AlertDialogAction>
+      </AlertDialogContent>
+    </AlertDialog>
+  )}
+</GameLifecycleControls>
+```
+
+**後端流程**
+
+```mermaid
+sequenceDiagram
+    participant GM as GM 介面
+    participant SA as Server Action
+    participant DB as MongoDB
+    participant WS as WebSocket
+
+    Note over GM,WS: 開始遊戲流程
+    GM->>SA: startGameAction(gameId)
+    SA->>DB: 複製 Game → GameRuntime (type: 'runtime')
+    SA->>DB: 複製 Characters → CharacterRuntimes (type: 'runtime')
+    SA->>DB: Game.isActive = true
+    SA->>DB: writeLog('game_start')
+    SA->>WS: push 'game.started' event
+    SA-->>GM: { success: true }
+
+    Note over GM,WS: 結束遊戲流程
+    GM->>SA: endGameAction(gameId, snapshotName?)
+    SA->>DB: 複製 Runtime → Snapshot (type: 'snapshot')
+    SA->>DB: 刪除 Runtime 資料
+    SA->>DB: Game.isActive = false
+    SA->>DB: writeLog('game_end')
+    SA->>WS: push 'game.ended' event
+    SA-->>GM: { success: true, snapshotId }
+```
+
+**Server Action**
+- `startGameAction(gameId)` — 驗證 GM 身份 → 呼叫 `startGame()` → revalidate cache
+- `endGameAction(gameId, snapshotName?)` — 驗證 GM 身份 → 呼叫 `endGame()` → revalidate cache
+
+---
+
+### 2.10.3 遊戲狀態徽章
+
+在劇本詳情頁 Header 顯示目前遊戲狀態。
+
+| 狀態 | 徽章 | variant | 說明 |
+|------|------|---------|------|
+| 待機中 | ⚪ 待機中 | `secondary` | `isActive = false`，可編輯 Baseline |
+| 進行中 | 🟢 進行中 | `default` (green) | `isActive = true`，Runtime 運行中 |
+
+---
+
 ## 3. 共用元件設計
 
 ### 3.1 Header
@@ -1078,4 +1229,17 @@ xl: 1280px  - 標準桌面
 - 重要操作需記錄 audit log
 
 此文件將隨需求變更持續更新。
+
+---
+
+## 附錄 A：Phase 10 GM 元件檔案清單
+
+| 檔案 | 說明 |
+|------|------|
+| `components/gm/game-code-section.tsx` | Game Code 顯示、複製、編輯 |
+| `components/gm/game-lifecycle-controls.tsx` | 開始/結束遊戲按鈕與確認 Dialog |
+| `app/actions/game-lifecycle.ts` | `startGameAction`, `endGameAction` Server Actions |
+| `lib/game/start-game.ts` | 開始遊戲邏輯（Baseline → Runtime 複製） |
+| `lib/game/end-game.ts` | 結束遊戲邏輯（Runtime → Snapshot、清除 Runtime） |
+| `lib/game/generate-game-code.ts` | Game Code 產生與唯一性驗證 |
 

@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.7
-## 更新日期：2026-02-18（Phase 10 Game Code + 唯一性檢查）
+## 版本：v1.8
+## 更新日期：2026-03-04（Phase 10 Game Lifecycle + Unlock Actions）
 
 ---
 
@@ -1475,6 +1475,121 @@ validatePinFormat('123456');  // true
 validatePinFormat('123');     // false (長度不足)
 validatePinFormat('1234567'); // false (長度過長)
 validatePinFormat('12a4');    // false (包含非數字)
+```
+
+---
+
+### 2.9 遊戲生命週期 (app/actions/game-lifecycle.ts) - Phase 10
+
+#### `startGameAction(gameId: string)` ✅ Phase 10.3
+
+開始遊戲：從 Baseline 建立 Runtime，設定 `isActive = true`，推送 `game.started` 事件。
+
+**參數**
+```typescript
+{
+  gameId: string;  // 遊戲 ID
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+```
+
+**流程**：
+1. 驗證 GM 權限
+2. 查詢 Baseline Game + Characters
+3. 複製 Baseline → Runtime（GameRuntime + CharacterRuntime）
+4. 設定 `Game.isActive = true`
+5. 記錄 Log（action: `game_start`）
+6. 推送 `game.started` WebSocket 事件（含 PendingEvent）
+
+---
+
+#### `endGameAction(gameId: string, snapshotName?: string)` ✅ Phase 10.3
+
+結束遊戲：建立 Snapshot，清除 Runtime，設定 `isActive = false`。
+
+**參數**
+```typescript
+{
+  gameId: string;          // 遊戲 ID
+  snapshotName?: string;   // 快照名稱（可選，預設為時間戳）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+```
+
+---
+
+### 2.10 玩家解鎖 (app/actions/unlock.ts) - Phase 10
+
+#### `verifyGameCode(characterId, gameCode, pin)` ✅ Phase 10.5
+
+驗證 Game Code + PIN，返回解鎖結果。
+
+**API Route**: `POST /api/characters/[characterId]/verify-game-code`
+
+**Request Body**
+```typescript
+{
+  gameCode: string;  // 6 碼英數字
+  pin: string;       // 4-6 碼數字
+}
+```
+
+**Response**
+```typescript
+{
+  success: boolean;
+  gameNotStarted?: boolean;  // Game Code 正確但遊戲尚未開始
+  message?: string;
+}
+```
+
+**錯誤情境**：
+- Game Code 錯誤 → `{ success: false, message: '遊戲代碼不正確' }`
+- PIN 錯誤 → `{ success: false, message: 'PIN 碼錯誤' }`
+- 遊戲未開始 → `{ success: false, gameNotStarted: true, message: '遊戲尚未開始' }`
+
+---
+
+### 2.11 操作日誌 (app/actions/logs.ts) - Phase 10
+
+#### `getGameLogs(gameId: string, limit?: number)` ✅ Phase 10.6
+
+查詢遊戲操作日誌。
+
+**參數**
+```typescript
+{
+  gameId: string;
+  limit?: number;  // 預設 100
+}
+```
+
+**回傳**
+```typescript
+Array<{
+  timestamp: Date;
+  actorType: 'gm' | 'system' | 'character';
+  actorId: string;
+  action: string;
+  details: Record<string, any>;
+  characterId?: string;
+}>
 ```
 
 ---

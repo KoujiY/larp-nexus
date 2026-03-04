@@ -1,7 +1,7 @@
 # 資料庫 Schema 設計
 
-## 版本：v1.3
-## 更新日期：2025-01-XX（Phase 8 時效性效果）
+## 版本：v1.4
+## 更新日期：2026-03-04（Phase 10 遊戲狀態分層）
 ## 資料庫：MongoDB Atlas
 
 ---
@@ -11,9 +11,13 @@
 本專案使用 MongoDB 作為主要資料庫，採用以下 Collections：
 
 1. `gm_users` - GM 使用者資料
-2. `games` - 劇本資料
-3. `characters` - 角色卡資料
+2. `games` - 劇本資料（Baseline 層）
+3. `characters` - 角色卡資料（Baseline 層）
 4. `magic_links` - Magic Link Token（短期儲存）
+5. `game_runtimes` - 遊戲運行時/快照資料（Phase 10）
+6. `character_runtimes` - 角色運行時/快照資料（Phase 10）
+7. `logs` - 操作日誌（Phase 10）
+8. `pending_events` - 離線事件佇列（Phase 9）
 
 ---
 
@@ -65,7 +69,10 @@ interface Game {
   gmUserId: ObjectId;                // 關聯到 gm_users._id（Phase 2）
   name: string;                      // 劇本名稱（Phase 2）
   description: string;               // 劇本簡介（Phase 2）
-  isActive: boolean;                  // 是否啟用（Phase 2）
+  isActive: boolean;                  // 遊戲是否進行中（Phase 10：控制 Runtime 層讀寫）
+
+  // Phase 10：Game Code 系統
+  gameCode: string;                   // 唯一遊戲代碼（6 位英數字，自動生成）
   
   // Phase 3 擴展：公開資訊
   publicInfo?: {
@@ -91,6 +98,7 @@ interface Game {
 ```javascript
 db.games.createIndex({ gmUserId: 1 });
 db.games.createIndex({ createdAt: -1 });
+// Phase 10: gameCode 欄位層級 unique: true（Schema 定義中設定，無需額外 createIndex）
 ```
 
 #### 範例文件（Phase 3）
@@ -354,6 +362,8 @@ interface Character {
 db.characters.createIndex({ gameId: 1 });
 db.characters.createIndex({ wsChannelId: 1 });
 db.characters.createIndex({ "publicInfo.name": 1 });
+// Phase 10: 同遊戲內 PIN 唯一（允許 PIN 為 null 的角色）
+db.characters.createIndex({ gameId: 1, pin: 1 }, { unique: true, sparse: true, partialFilterExpression: { pin: { $exists: true, $ne: null, $ne: '' } } });
 ```
 
 #### 範例文件
@@ -452,18 +462,131 @@ db.magic_links.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL 
 
 ---
 
+### 2.5 game_runtimes（Phase 10）
+
+遊戲運行時和快照資料。Runtime 在遊戲開始時從 Baseline 完全複製，Snapshot 在遊戲結束時從 Runtime 轉換。
+
+```typescript
+interface GameRuntime {
+  _id: ObjectId;
+  refId: ObjectId;                   // 關聯到 games._id（Baseline 參照）
+  type: 'runtime' | 'snapshot';      // runtime = 進行中，snapshot = 歷史紀錄
+
+  // 以下欄位完全複製自 Game（Baseline）
+  gmUserId: ObjectId;
+  name: string;
+  description: string;
+  isActive: boolean;
+  gameCode: string;
+  publicInfo?: { /* 同 Game */ };
+  randomContestMaxValue?: number;
+
+  // Snapshot 專用欄位
+  snapshotName?: string;             // 快照名稱（GM 可自訂）
+  snapshotCreatedAt?: Date;          // 快照建立時間
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+#### 索引
+
+```javascript
+db.game_runtimes.createIndex({ refId: 1, type: 1 });
+db.game_runtimes.createIndex({ gameCode: 1 });
+db.game_runtimes.createIndex({ type: 1, snapshotCreatedAt: -1 });
+```
+
+---
+
+### 2.6 character_runtimes（Phase 10）
+
+角色運行時和快照資料。與 GameRuntime 對應，完全複製 Character 的所有欄位。
+
+```typescript
+interface CharacterRuntime {
+  _id: ObjectId;
+  refId: ObjectId;                   // 關聯到 characters._id（Baseline 參照）
+  type: 'runtime' | 'snapshot';      // runtime = 進行中，snapshot = 歷史紀錄
+  gameId: ObjectId;                  // 關聯到 games._id
+
+  // 以下欄位完全複製自 Character（Baseline）
+  name: string;
+  avatar?: string;
+  hasPinLock: boolean;
+  pin?: string;
+  publicInfo: { /* 同 Character */ };
+  secretInfo?: { /* 同 Character */ };
+  tasks: Array<{ /* 同 Character */ }>;
+  items: Array<{ /* 同 Character */ }>;
+  stats?: Array<{ /* 同 Character */ }>;
+  skills?: Array<{ /* 同 Character */ }>;
+  temporaryEffects?: Array<{ /* 同 Character */ }>;
+  wsChannelId?: string;
+
+  // Snapshot 專用欄位
+  snapshotGameRuntimeId?: ObjectId;  // 關聯到所屬的 GameRuntime snapshot
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+#### 索引
+
+```javascript
+db.character_runtimes.createIndex({ refId: 1, type: 1 });
+db.character_runtimes.createIndex({ gameId: 1, type: 1 });
+db.character_runtimes.createIndex({ gameId: 1, pin: 1 });
+```
+
+---
+
+### 2.7 logs（Phase 10）
+
+操作日誌，記錄遊戲進行中的所有變更操作。
+
+```typescript
+interface Log {
+  _id: ObjectId;
+  timestamp: Date;                   // 操作時間
+  gameId: ObjectId;                  // 關聯到 games._id
+  characterId?: ObjectId;            // 關聯到 characters._id（可選，系統層級操作無此欄位）
+  actorType: 'gm' | 'system' | 'character';  // 操作者類型
+  actorId: string;                   // 操作者 ID
+  action: string;                    // 操作類型（如 game_start、game_end、stat_change、item_use 等）
+  details: Record<string, any>;      // 操作詳情（彈性結構）
+}
+```
+
+#### 索引
+
+```javascript
+db.logs.createIndex({ gameId: 1, timestamp: -1 });
+db.logs.createIndex({ characterId: 1, timestamp: -1 });
+```
+
+---
+
 ## 3. 關聯圖
 
 ```
-gm_users (1) ──< (N) games
-                        │
-                        │ (1)
-                        │
-                        < (N) characters
+gm_users (1) ──< (N) games ──< (N) characters
+                   │                  │
+                   │ (Phase 10)       │ (Phase 10)
+                   │                  │
+                   < (1) game_runtimes < (N) character_runtimes
+                   │     (runtime/snapshot)    (runtime/snapshot)
+                   │
+                   < (N) logs
 ```
 
 - 一個 GM 可以有多個劇本
 - 一個劇本可以有多個角色
+- Phase 10：每個遊戲在進行中有 1 個 GameRuntime（type: runtime），結束後轉為 snapshot
+- Phase 10：每個角色有對應的 CharacterRuntime（跟隨 GameRuntime 生命週期）
+- Phase 10：所有操作記錄在 logs 中（以 gameId 為主索引）
 
 ---
 
@@ -512,7 +635,12 @@ lib/db/models/
 ├── GMUser.ts
 ├── Game.ts
 ├── Character.ts
-└── MagicLink.ts
+├── MagicLink.ts
+├── GameRuntime.ts        # Phase 10
+├── CharacterRuntime.ts   # Phase 10
+├── Log.ts                # Phase 10
+├── PendingEvent.ts       # Phase 9
+└── index.ts              # 統一匯出
 ```
 
 ### 5.3 Schema 實作範例（GMUser）

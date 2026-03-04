@@ -1,7 +1,7 @@
 # 專案結構規劃
 
-## 版本：v1.6
-## 更新日期：2026-02-18（Phase 11 規劃整合完成）
+## 版本：v1.7
+## 更新日期：2026-03-04（Phase 10 實作完成、整合測試通過）
 
 ---
 
@@ -38,6 +38,11 @@ larp-nexus/
 │   │   ├── events/               # 事件推送 API
 │   │   │   └── push/             # 推送事件
 │   │   ├── upload/               # 圖片上傳 API
+│   │   ├── characters/           # 角色 CRUD API
+│   │   │   └── [id]/
+│   │   │       ├── unlock/       # PIN 解鎖 API
+│   │   │       ├── verify-game-code/  # Phase 10: Game Code 驗證 API
+│   │   │       └── route.ts
 │   │   ├── webhook/              # Webhook (Pusher auth)
 │   │   └── cron/                 # Cron Jobs (Phase 8, 9)
 │   │       └── check-expired-effects/  # 定期檢查過期效果 & 清理 pending events
@@ -45,8 +50,18 @@ larp-nexus/
 │   │   ├── auth.ts               # 認證相關 Actions
 │   │   ├── games.ts              # 劇本管理 Actions
 │   │   ├── characters.ts         # 角色管理 Actions
+│   │   ├── character-update.ts   # 角色數值/道具/技能更新
 │   │   ├── events.ts             # 事件相關 Actions
-│   │   └── pending-events.ts     # Phase 9: 離線事件拉取
+│   │   ├── pending-events.ts     # Phase 9: 離線事件拉取
+│   │   ├── public.ts             # 玩家端公開資料查詢
+│   │   ├── game-lifecycle.ts     # Phase 10: 開始/結束遊戲 Actions
+│   │   ├── unlock.ts             # Phase 10: Game Code + PIN 解鎖 Actions
+│   │   ├── logs.ts               # Phase 10: 操作日誌查詢
+│   │   ├── item-use.ts           # 道具使用 Actions
+│   │   ├── skill-use.ts          # 技能使用 Actions
+│   │   ├── contest-respond.ts    # 對抗檢定回應
+│   │   ├── contest-cancel.ts     # 對抗檢定取消
+│   │   └── item-showcase.ts      # Phase 7.7: 道具展示
 │   ├── layout.tsx                # Root Layout
 │   ├── page.tsx                  # Landing Page
 │   └── globals.css               # 全域樣式
@@ -89,11 +104,15 @@ larp-nexus/
 │   ├── db/                       # 資料庫相關
 │   │   ├── mongodb.ts            # MongoDB 連線
 │   │   ├── models/               # Mongoose Models
-│   │   │   ├── Game.ts           # 劇本模型
-│   │   │   ├── Character.ts      # 角色模型
+│   │   │   ├── Game.ts           # 劇本模型（Phase 10: +gameCode）
+│   │   │   ├── Character.ts      # 角色模型（Phase 10: +PIN 複合唯一索引）
 │   │   │   ├── GMUser.ts         # GM 使用者模型
 │   │   │   ├── MagicLink.ts      # Magic Link 模型
-│   │   │   └── PendingEvent.ts   # Phase 9: 離線事件佇列模型
+│   │   │   ├── GameRuntime.ts    # Phase 10: 遊戲運行時/快照模型
+│   │   │   ├── CharacterRuntime.ts # Phase 10: 角色運行時/快照模型
+│   │   │   ├── Log.ts            # Phase 10: 操作日誌模型
+│   │   │   ├── PendingEvent.ts   # Phase 9: 離線事件佇列模型
+│   │   │   └── index.ts          # 統一匯出所有 Models
 │   │   └── queries/              # 資料查詢邏輯
 │   │       ├── games.ts          # 劇本查詢
 │   │       ├── characters.ts     # 角色查詢
@@ -105,11 +124,45 @@ larp-nexus/
 │   ├── storage/                  # 儲存相關
 │   │   ├── blob.ts               # Vercel Blob 設定
 │   │   └── image-processor.ts    # 圖片處理
+│   ├── game/                     # Phase 10: 遊戲狀態管理
+│   │   ├── start-game.ts         # 開始遊戲（Baseline → Runtime 複製）
+│   │   ├── end-game.ts           # 結束遊戲（Runtime → Snapshot + 清除）
+│   │   ├── get-character-data.ts # 取得角色資料（自動選擇 Runtime/Baseline）
+│   │   ├── update-character-data.ts # 更新角色資料（自動選擇 Runtime/Baseline）
+│   │   ├── get-character-by-game-code-pin.ts # Game Code + PIN 查詢角色
+│   │   ├── get-characters-by-pin.ts  # PIN-only 查詢角色列表
+│   │   ├── generate-game-code.ts     # Game Code 生成（Server 端）
+│   │   └── generate-game-code-client.ts # Game Code 生成（Client 端）
+│   ├── logs/                     # Phase 10: 操作日誌
+│   │   └── write-log.ts          # 寫入操作日誌
+│   ├── validation/               # Phase 10: 驗證邏輯
+│   │   └── uniqueness.ts         # Game Code/PIN 唯一性檢查（框架，DB 邏輯待 Phase 11）
+│   ├── item/                     # 道具系統
+│   │   ├── item-effect-executor.ts  # 道具效果執行
+│   │   ├── check-handler.ts      # 道具檢定處理
+│   │   └── get-item-effects.ts   # Phase 10: 統一取得道具效果（相容 effect/effects）
+│   ├── contest/                  # 對抗檢定系統
+│   │   ├── contest-calculator.ts # 對抗計算
+│   │   ├── contest-validator.ts  # 對抗驗證
+│   │   ├── contest-handler.ts    # 對抗處理
+│   │   ├── contest-effect-executor.ts # 對抗效果執行
+│   │   ├── contest-event-emitter.ts   # 對抗事件推送
+│   │   ├── contest-notification-manager.ts # 對抗通知管理
+│   │   └── contest-id.ts         # 對抗 ID 生成
+│   ├── skill/                    # 技能系統
+│   │   ├── skill-effect-executor.ts # 技能效果執行
+│   │   └── check-handler.ts      # 技能檢定處理
+│   ├── reveal/                   # Phase 7.7: 自動揭露系統
+│   │   ├── auto-reveal-evaluator.ts # 條件評估引擎
+│   │   ├── reveal-event-emitter.ts  # 揭露事件推送
+│   │   └── condition-cleaner.ts     # 條件健全性清理
 │   ├── websocket/                # WebSocket 相關
 │   │   ├── pusher-server.ts      # Pusher Server 設定
+│   │   ├── pusher-client.ts      # Pusher Client 設定
 │   │   ├── events.ts             # 事件推送函式（Phase 9: 整合 pending events 寫入）
 │   │   ├── pending-events.ts     # Phase 9: Pending events 寫入輔助函式
-│   │   └── clean-pending-events.ts  # Phase 9: Pending events 清理函式
+│   │   ├── clean-pending-events.ts  # Phase 9: Pending events 清理函式
+│   │   └── push-event-to-game.ts    # Phase 10: 遊戲級事件推送（所有角色）
 │   ├── utils/                    # 工具函式
 │   │   ├── cn.ts                 # className 合併
 │   │   ├── hash.ts               # Hash 工具（保留供未來使用）
@@ -121,10 +174,15 @@ larp-nexus/
 │       └── config.ts             # 配置常數
 │
 ├── types/                        # TypeScript 類型定義
-│   ├── game.ts                   # 劇本相關類型
+│   ├── game.ts                   # 劇本相關類型（Phase 10: +gameCode）
 │   ├── character.ts              # 角色相關類型
 │   ├── event.ts                  # 事件相關類型
 │   ├── api.ts                    # API 相關類型
+│   ├── runtime.ts                # Phase 10: Runtime/Snapshot 類型
+│   ├── log.ts                    # Phase 10: 操作日誌類型
+│   ├── validation.ts             # Phase 10: 驗證相關類型
+│   ├── item-list.ts              # 道具列表類型
+│   ├── skill-list.ts             # 技能列表類型
 │   └── index.ts                  # 匯出所有類型
 │
 ├── hooks/                        # Custom React Hooks
@@ -135,6 +193,15 @@ larp-nexus/
 │   ├── use-pending-events.ts     # Phase 9: 離線事件處理
 │   ├── use-contest-handler.ts    # 對抗檢定處理
 │   ├── use-contest-state.ts      # 對抗檢定狀態管理
+│   ├── use-contest-dialog-state.ts  # Phase 10: 對抗檢定 Dialog 狀態持久化
+│   ├── use-contest-state-restore.ts # Phase 10: 對抗檢定狀態恢復
+│   ├── use-item-usage.ts         # 道具使用邏輯
+│   ├── use-skill-usage.ts        # 技能使用邏輯
+│   ├── use-contestable-item-usage.ts # 對抗型道具使用
+│   ├── use-target-options.ts     # 目標角色選項
+│   ├── use-target-selection.ts   # 目標選擇
+│   ├── use-effect-target.ts      # 效果目標處理
+│   ├── use-target-item-selection.ts # 目標道具選擇
 │   └── use-toast.ts              # Toast 通知
 │
 ├── store/                        # Jotai 狀態管理
@@ -143,6 +210,8 @@ larp-nexus/
 │   ├── character.ts              # 角色狀態
 │   └── notification.ts           # 通知狀態
 │
+├── scripts/                      # 工具腳本
+│   └── migrate-phase10.ts        # Phase 10: 資料遷移腳本（框架，待 Phase 11）
 ├── middleware.ts                 # Next.js Middleware
 ├── docs/                         # 文件目錄
 │   ├── requirements/             # 需求文件
@@ -188,8 +257,8 @@ larp-nexus/
 | 路徑 | 說明 | 認證需求 |
 |------|------|----------|
 | `/g/[gameId]` | 世界觀公開頁（所有玩家可訪問） | 無 |
-| `/c/[characterId]` | 角色卡檢視頁 | 無（可能需 PIN） |
-| `/c/[characterId]?unlock=true` | 顯示 PIN 解鎖介面 | 無 |
+| `/c/[characterId]` | 角色卡主頁（Phase 10：統一入口，內建 PinUnlock） | 無（可能需 PIN / Game Code） |
+| `/unlock` | Legacy 解鎖頁面（Phase 10 後標記為 legacy） | 無 |
 
 ### 2.3 API 路由
 
@@ -854,7 +923,7 @@ UI Components
 
 ---
 
-### Phase 10：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 13-14）🔶 部分完成
+### Phase 10：遊戲狀態分層與歷史保留（Baseline / Runtime / Snapshot / Logs）（Week 13-14）🟢 功能完成 (89%)
 
 #### 目標
 - 將設定階段（baseline）與遊戲進行中的狀態（runtime）分離，開始遊戲後所有變更落在 runtime，不影響 baseline。
@@ -921,29 +990,29 @@ UI Components
 
 ---
 
-### Phase 10.2 - Game Code 系統 🔶 部分完成
+### Phase 10.2 - Game Code 系統 ✅ 已完成
 
 - [x] **10.2.1** 建立 `lib/game/generate-game-code.ts`
   - 實作 `generateGameCode()` 函數（生成隨機 6 位英數字）
   - 實作 `isGameCodeUnique()` 函數（檢查 Game Code 是否已存在）
   - 實作 `generateUniqueGameCode()` 函數（生成唯一 Game Code，最多重試 10 次）
 
-- [ ] **10.2.2** 修改 `app/actions/games.ts`
+- [x] **10.2.2** 修改 `app/actions/games.ts` ✅
   - 修改 `createGame()` Server Action：自動生成 `gameCode`
   - 新增 `updateGameCode()` Server Action：允許 GM 修改 Game Code（檢查唯一性）
 
-- [ ] **10.2.3** 修改 GM 端遊戲建立頁面
+- [x] **10.2.3** 修改 GM 端遊戲建立頁面 ✅
   - `app/(gm)/games/new/page.tsx`：顯示自動生成的 Game Code
   - 允許 GM 編輯 Game Code（即時檢查唯一性）
 
-- [ ] **10.2.4** 修改 GM 端遊戲詳情頁面
+- [x] **10.2.4** 修改 GM 端遊戲詳情頁面 ✅
   - `app/(gm)/games/[gameId]/page.tsx`：顯著位置顯示 Game Code
   - 提供「複製 Game Code」按鈕
   - GM 可點擊編輯 Game Code（檢查唯一性）
 
 ---
 
-### Phase 10.3 - 遊戲狀態管理 🔶 部分完成
+### Phase 10.3 - 遊戲狀態管理 ✅ 已完成
 
 - [x] **10.3.1** 建立 `lib/game/start-game.ts`
   - 實作 `startGame(gameId: string)` 函數
@@ -967,7 +1036,7 @@ UI Components
   - 實作 `startGameAction(gameId: string)` Server Action（調用 `startGame()`）
   - 實作 `endGameAction(gameId: string, snapshotName?: string)` Server Action（調用 `endGame()`）
 
-- [ ] **10.3.4** 修改 GM 端遊戲詳情頁面 UI
+- [x] **10.3.4** 修改 GM 端遊戲詳情頁面 UI ✅
   - 新增「開始遊戲」按鈕（`isActive === false` 時顯示）
   - 新增「結束遊戲」按鈕（`isActive === true` 時顯示）
   - 顯示當前遊戲狀態（待機 / 進行中 / 已結束）
@@ -976,7 +1045,7 @@ UI Components
 
 ---
 
-### Phase 10.4 - 讀寫邏輯重構 🔶 部分完成
+### Phase 10.4 - 讀寫邏輯重構 ✅ 已完成
 
 - [x] **10.4.1** 建立 `lib/game/get-character-data.ts`
   - 實作 `getCharacterData(characterId: string)` 函數
@@ -993,7 +1062,7 @@ UI Components
     - 如果 `isActive === true`，更新 `CharacterRuntime.findOneAndUpdate({ refId: characterId }, updates)`
     - 如果 `isActive === false`，更新 `Character.findByIdAndUpdate(characterId, updates)`
 
-- [ ] **10.4.3** 重構所有 Server Actions
+- [x] **10.4.3** 重構所有 Server Actions ✅
   - 修改 `app/actions/character-update.ts`：使用 `getCharacterData()` 和 `updateCharacterData()`
   - 修改 `app/actions/item-use.ts`：使用新的讀寫邏輯
   - 修改 `app/actions/skill-use.ts`：使用新的讀寫邏輯
@@ -1093,8 +1162,9 @@ UI Components
 
 - [x] **10.7.5** 修改前端 WebSocket 處理邏輯
   - `hooks/use-character-websocket-handler.ts`：新增 `game.started` 和 `game.ended` 處理
-  - 收到 `game.started`：顯示 Toast「遊戲已開始，正在重新載入...」，然後 `router.refresh()`
-  - 收到 `game.ended`：顯示 Toast「遊戲已結束」，然後 `router.refresh()`
+  - 收到 `game.started`：靜默 `router.refresh()`（不顯示通知，因此時玩家必定在唯讀模式）
+  - 收到 `game.ended`：顯示 Toast「感謝您的參與！」+ `router.refresh()`
+  - 收到 `game.reset`：顯示 Toast + `router.refresh()`
 
 ---
 
@@ -1131,11 +1201,11 @@ UI Components
 
 #### 背景說明
 
-Phase 1-10 的功能開發已完成**框架實作**，並通過 type-check 驗收。然而，由於缺乏環境變數（DB、Pusher、Cron Secret），以下項目**僅完成框架，未進行實際測試**：
+Phase 1-10 的功能開發已完成**實作與整合測試**。Phase 10 整合測試於 2026-03-03~04 通過（10 個場景中 9 個通過，1 個跳過待 Phase 11 UI）。剩餘待 Phase 11 完成的項目：
 
-- Phase 8: 時效性效果系統（Cron Job 測試待完成）
-- Phase 9: 離線事件佇列系統（Cron Job 測試待完成）
-- Phase 10.2-10.9: 遊戲狀態分層系統（UI 和 DB 邏輯待完成）
+- Phase 10.8.2: 執行資料遷移腳本（需 DB 環境）
+- Phase 10.9.1~10.9.3: 唯一性檢查 DB 邏輯 + 前端即時驗證
+- Phase 8/9: Cron Job 生產環境測試
 
 #### Phase 11 目標
 

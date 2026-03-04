@@ -1,7 +1,7 @@
 # 玩家端頁面與元件架構
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v2.0
+## 更新日期：2026-03-04（Phase 10 遊戲狀態分層）
 
 ---
 
@@ -13,13 +13,14 @@
 
 ```
 /g/[gameId]                   # 世界觀公開頁（所有玩家可訪問）
-/c/[characterId]               # 角色卡主頁
-/c/[characterId]?unlock=true   # 顯示 PIN 解鎖畫面
+/c/[characterId]               # 角色卡主頁（Phase 10：統一入口）
+/unlock                        # Legacy 解鎖頁面（Phase 10 後標記為 legacy）
 ```
 
-**注意**：
-- 世界觀資訊獨立於角色卡，所有玩家可訪問
-- 角色卡頁面提供連結至世界觀頁面
+**Phase 10 變更**：
+- `/c/[characterId]` 現為唯一的玩家端入口（QR Code / 直接連結）
+- 不再需要 `/unlock` 作為主要入口
+- 角色卡頁面內建 PinUnlock 組件，支援三種解鎖模式
 
 ---
 
@@ -40,14 +41,21 @@
 - 技能系統（延後至 Phase 5）
 - 世界觀資訊直接顯示（改為獨立頁面）
 
-### 2.2 頁面狀態
+### 2.2 頁面狀態（Phase 10 更新）
 
 | 狀態 | 條件 | 顯示內容 |
 |------|------|----------|
 | **Loading** | 初次載入 | Skeleton UI |
 | **Not Found** | characterId 不存在 | 404 錯誤頁 |
-| **Locked** | `hasPinLock=true` 且未解鎖 | PIN 解鎖介面 |
-| **Unlocked** | 無 PIN 或已解鎖 | 完整角色卡（PublicInfo、任務、道具） |
+| **Locked** | `hasPinLock=true` 且未解鎖 | PinUnlock 組件（Game Code + PIN / PIN-only） |
+| **Read-Only** | PIN-only 解鎖（無 `fullAccess`） | Baseline 資料預覽，互動功能禁用 |
+| **Full Access** | Game Code + PIN 解鎖且遊戲進行中 | Runtime 資料，完整互動模式 |
+| **No PIN Lock** | `hasPinLock=false` | 直接顯示角色卡（完整互動或 Baseline） |
+
+**Phase 10 關鍵概念**：
+- **Baseline**：設定階段的原始資料（遊戲未開始或唯讀模式時顯示）
+- **Runtime**：遊戲進行中的即時資料（Full Access 模式時顯示）
+- `localStorage` 使用 `character-{id}-unlocked` 和 `character-{id}-fullAccess` 管理解鎖狀態
 
 ---
 
@@ -100,14 +108,47 @@
 
 ### 4.1 PIN 解鎖畫面 (PinUnlockScreen)
 
-**功能（Phase 3）**
-- 輸入 4-6 位數 PIN 碼
-- 顯示錯誤提示
-- 解鎖成功後顯示 PublicInfo、任務、道具、世界觀
+> **Phase 10 重大變更**：PinUnlock 組件已重新設計，支援三種解鎖模式。以下為 Phase 10 版本。
+
+**功能（Phase 10）**
+- **模式 A — Game Code + PIN**：輸入 6 碼英數字 Game Code 和 4-6 碼 PIN → 進入完整互動模式（Full Access）
+- **模式 B — PIN Only**：僅輸入 PIN → 進入唯讀預覽模式（Read-Only，顯示 Baseline 資料）
+- **模式 C — 無 PIN Lock**：`hasPinLock=false` 的角色直接顯示角色卡
+
+**解鎖流程**
+```
+PinUnlock 組件
+├── Game Code 輸入欄位（自動轉大寫，限制 6 碼）
+├── PIN 輸入欄位（限制數字 4-6 碼）
+├── 「🔓 解鎖角色卡」按鈕 → Server Action: verify-game-code
+│   ├── 成功且遊戲已開始 → Full Access（localStorage 儲存 unlocked + fullAccess）
+│   ├── Game Code 錯誤 → 顯示「遊戲代碼不正確」
+│   ├── PIN 錯誤 → 顯示「PIN 碼錯誤」
+│   └── 遊戲尚未開始 → 顯示「遊戲尚未開始，請等待 GM 開始遊戲後再試」
+└── 「👁 僅使用 PIN 預覽（唯讀）」按鈕 → Server Action: verify-pin
+    ├── 成功 → Read-Only（localStorage 僅儲存 unlocked，無 fullAccess）
+    └── PIN 錯誤 → 顯示「PIN 碼錯誤」
+```
+
+**唯讀模式 UI**
+- 頂部顯示預覽模式 banner：「預覽模式（Baseline）」+「查看角色的原始設定」
+- Banner 內含「🔑 重新解鎖」按鈕，可回到 PinUnlock 重新輸入 Game Code
+- 所有互動功能禁用（道具使用、技能觸發、對抗檢定等按鈕呈 disabled 狀態）
+- 顯示 Baseline 資料（不受 Runtime 修改影響）
+
+**完整互動模式 UI**
+- 角色名稱旁有「🔓 已解鎖」Badge 和「🔒 鎖定」按鈕
+- 點擊「🔒 鎖定」→ 清除 localStorage → 回到 PinUnlock 畫面
+- 顯示 Runtime 資料（遊戲進行中的即時數值）
+
+**WebSocket 事件處理（Phase 10）**
+- `game.started`：靜默 `router.refresh()`（不顯示通知，因此時玩家在唯讀模式）
+- `game.ended`：顯示「遊戲已結束，感謝您的參與！」Dialog → 確認後回到 PinUnlock
+- `game.reset`：顯示通知 + `router.refresh()`
 
 **注意**：
-- Phase 3 不實作防暴力破解機制（採用明碼儲存）
-- SecretInfo 解鎖功能延後至 Phase 3.5
+- 唯讀模式的持久化完全依賴 `localStorage`（`isReadOnly = isReadOnlyProp || !storageFullAccess`）
+- 頁面重新整理後自動恢復解鎖狀態（無需重新輸入）
 
 **設計**
 ```tsx
