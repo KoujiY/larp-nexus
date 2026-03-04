@@ -338,12 +338,27 @@ export function ContestResponseDialog({
                       <div className="flex-1">
                         <div className="font-medium">{item.name}</div>
                         {(() => {
-                          const firstEffect = getItemEffects(item)[0];
-                          return firstEffect?.type === 'stat_change' && firstEffect.value ? (
+                          const effects = getItemEffects(item);
+                          if (effects.length === 0) return null;
+                          const descriptions = effects.map((eff) => {
+                            if (eff.type === 'stat_change' && eff.targetStat && eff.value !== undefined) {
+                              const target = eff.statChangeTarget || 'value';
+                              if (target === 'maxValue') {
+                                return `${eff.targetStat} 最大值 ${eff.value > 0 ? '+' : ''}${eff.value}${eff.syncValue ? '，目前值同步調整' : ''}`;
+                              }
+                              return `${eff.targetStat} ${eff.value > 0 ? '+' : ''}${eff.value}`;
+                            }
+                            if (eff.type === 'item_steal') return '偷竊目標角色的道具';
+                            if (eff.type === 'item_take') return '移除目標角色的道具';
+                            if (eff.type === 'custom' && eff.description) return eff.description;
+                            return eff.description || null;
+                          }).filter(Boolean);
+                          if (descriptions.length === 0) return null;
+                          return (
                             <div className="text-sm text-muted-foreground">
-                              效果：{firstEffect.targetStat} {firstEffect.value > 0 ? '+' : ''}{firstEffect.value}
+                              效果：{descriptions.join('、')}
                             </div>
-                          ) : null;
+                          );
                         })()}
                       </div>
                     </div>
@@ -395,11 +410,14 @@ export function ContestResponseDialog({
                               if (e.type === 'task_complete' && e.targetTaskId) {
                                 return `完成任務：${e.targetTaskId}`;
                               }
+                              if (e.type === 'item_steal') return '偷竊目標角色的道具';
+                              if (e.type === 'item_take') return '移除目標角色的道具';
+                              if (e.type === 'item_give') return '給予目標角色道具';
                               if (e.type === 'custom' && e.description) {
                                 return e.description;
                               }
-                              return e.description || '未知效果';
-                            }).join('、')}
+                              return e.description || null;
+                            }).filter(Boolean).join('、')}
                           </div>
                         )}
                       </div>

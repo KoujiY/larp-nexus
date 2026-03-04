@@ -80,10 +80,11 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
   const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id, character.hasPinLock);
   const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
-  // Phase 10: 唯讀模式（由 prop 或解鎖方式決定）
-  const [unlockReadOnly, setUnlockReadOnly] = useState<boolean | null>(null);
-  // 最終唯讀狀態：localStorage 有完整存取 → false，解鎖時決定 → unlockReadOnly，否則 → prop
-  const isReadOnly = storageFullAccess ? false : (unlockReadOnly !== null ? unlockReadOnly : isReadOnlyProp);
+  // Phase 10: 唯讀狀態完全由 localStorage 的 fullAccess 決定
+  // PIN-only 解鎖不會設 fullAccess → storageFullAccess=false → 唯讀
+  // Game Code + PIN 解鎖設 fullAccess=true → storageFullAccess=true → 完整互動
+  // 這樣即使頁面重新載入，唯讀狀態也不會遺失
+  const isReadOnly = isReadOnlyProp || !storageFullAccess;
 
   // Phase 10: 唯讀模式使用 Baseline 資料（顯示未被 Runtime 修改的原始值）
   // full-access 模式使用 Runtime 資料（遊戲進行中的即時值）
@@ -208,7 +209,6 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
    */
   const handleUnlocked = (readOnly: boolean) => {
     setIsManuallyUnlocked(true);
-    setUnlockReadOnly(readOnly);
     // 儲存解鎖狀態到 localStorage（含模式）
     localStorage.setItem(`character-${character.id}-unlocked`, 'true');
     if (!readOnly) {
@@ -224,7 +224,6 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     localStorage.removeItem(`character-${character.id}-unlocked`);
     localStorage.removeItem(`character-${character.id}-fullAccess`);
     setIsManuallyUnlocked(false);
-    setUnlockReadOnly(null);
     // 觸發 storage event，讓 useSyncExternalStore 重新讀取
     window.dispatchEvent(new Event('storage'));
   }, [character.id]);
@@ -427,9 +426,12 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
           type: event.type,
         },
       ]);
-    } else if (event.type === 'game.started' || event.type === 'game.reset' || event.type === 'game.ended') {
+    } else if (event.type === 'game.started') {
+      // Phase 10: 遊戲開始時靜默刷新（更新 isGameActive 和 baselineData）
+      // 此時玩家必定在唯讀模式，不需要通知
+      router.refresh();
+    } else if (event.type === 'game.reset' || event.type === 'game.ended') {
       const titles: Record<string, string> = {
-        'game.started': '遊戲開始',
         'game.reset': '遊戲重置',
         'game.ended': '遊戲結束',
       };
@@ -438,7 +440,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         {
           id: `evt-${event.timestamp}`,
           title: titles[event.type] || '遊戲狀態',
-          message: '請刷新以取得最新狀態',
+          message: event.type === 'game.ended' ? '感謝您的參與！' : '請刷新以取得最新狀態',
           type: event.type,
         },
       ]);

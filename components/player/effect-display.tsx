@@ -87,6 +87,10 @@ export function EffectDisplay({
       return <p>移除目標角色的道具</p>;
     }
 
+    if (effect.type === 'item_give') {
+      return <p>給予目標角色道具</p>;
+    }
+
     if (effect.type === 'custom' && effect.description) {
       return <p>{effect.description}</p>;
     }
