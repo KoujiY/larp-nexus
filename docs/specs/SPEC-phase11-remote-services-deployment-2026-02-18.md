@@ -1,7 +1,7 @@
 # SPEC-phase11-remote-services-deployment
 
-## 版本：v1.0
-## 更新日期：2026-02-18
+## 版本：v2.0
+## 更新日期：2026-03-04（Phase 10 整合測試完成後更新）
 ## 適用範圍：Phase 11 - 遠端服務整合、部署與優化
 
 ---
@@ -10,11 +10,14 @@
 
 ### 1.1 背景
 
-Phase 1-10 的功能開發已完成 **框架實作**，並通過 type-check 驗收。然而，由於缺乏環境變數（DB、Pusher、Cron Secret），以下項目**僅完成框架，未進行實際測試**：
+> **v2.0 更新**：Phase 10 整合測試已於 2026-03-03~04 完成（10 個場景中 9 個通過，1 個跳過待 Phase 11 UI）。
+> 原本規劃的 12 個待辦任務中，**8 個已在整合測試期間完成**，剩餘 4 個需要 DB 環境。
 
-- Phase 8: 時效性效果系統（Cron Job 測試待完成）
-- Phase 9: 離線事件佇列系統（Cron Job 測試待完成）
-- Phase 10.2-10.9: 遊戲狀態分層系統（UI 和 DB 邏輯待完成）
+Phase 1-10 的功能開發已完成**實作與整合測試**。剩餘待 Phase 11 完成的項目：
+
+- Phase 10.8.2: 執行資料遷移腳本（框架已建，需 Production DB 環境）
+- Phase 10.9.1~3: 唯一性檢查 DB 邏輯 + 前端即時驗證（框架已建，DB 查詢邏輯在註解中）
+- Phase 8 + 9: Cron Job 生產環境測試（需 Vercel Cron 環境）
 
 ### 1.2 Phase 11 目標
 
@@ -56,208 +59,71 @@ graph TD
     H --> I
 ```
 
-### 2.1 任務優先級
+### 2.1 任務優先級（v2.0 更新）
 
-| 優先級 | 分類 | 任務數 | 預估時間 | 前置條件 |
-|--------|------|--------|---------|---------|
-| **P0-Critical** | 11.1 遠端服務依賴任務 | 12 個 | 1-1.5 天 | 環境變數設定完成 |
-| **P0-Critical** | 11.2 Vercel 部署與服務設定 | 4 個 | 1-2 小時 | - |
-| **P0-Critical** | 11.3 Cron Jobs 設定與測試 | 2 個 | 30 分鐘 | Vercel 部署完成 |
-| **P1-High** | 11.4 完整功能測試 | 6 個測試場景 | 2-3 小時 | 所有功能實作完成 |
-| **P1-High** | 11.5 效能優化與安全性檢查 | 4 個 | 1-2 小時 | 功能測試通過 |
-| **P2-Medium** | 11.6 生產環境優化（選用） | 1 個 | 30 分鐘 | 基礎部署完成 |
+| 優先級 | 分類 | 任務數 | 預估時間 | 前置條件 | v2.0 狀態 |
+|--------|------|--------|---------|---------|----------|
+| **P0-Critical** | 11.1 遠端服務依賴任務 | ~~12 個~~ **4 個** | ~~1-1.5 天~~ **2 小時** | 環境變數設定完成 | 8/12 已完成 |
+| **P0-Critical** | 11.2 Vercel 部署與服務設定 | 4 個 | 1-2 小時 | - | 未開始 |
+| **P0-Critical** | 11.3 Cron Jobs 設定與測試 | 2 個 | 30 分鐘 | Vercel 部署完成 | 未開始 |
+| **P1-High** | 11.4 完整功能測試 | 6 個測試場景 | 2-3 小時 | 所有功能實作完成 | 未開始 |
+| **P1-High** | 11.5 效能優化與安全性檢查 | 4 個 | 1-2 小時 | 功能測試通過 | 未開始 |
+| **P2-Medium** | 11.6 生產環境優化（選用） | 1 個 | 30 分鐘 | 基礎部署完成 | 未開始 |
 
 ---
 
 ## 3. 11.1 遠端服務依賴任務（P0-Critical）
 
-### 3.1 任務清單總覽
+### 3.1 任務清單總覽（v2.0 更新）
 
-根據 `phase8-10-remote-dependency-analysis.md`，共 **12 個待辦任務**：
+根據 `phase8-10-remote-dependency-analysis.md`，原本 **12 個待辦任務**，其中 **8 個已在 Phase 10 整合測試期間完成**：
 
-| Phase | 任務編號 | 任務描述 | 需要服務 | 預估時間 |
-|-------|---------|---------|---------|---------|
-| 8 | 8.Cron | Cron Job 實際測試 | DB + Cron | 30 分鐘 |
-| 9 | 9.Cron | Cron Job 清理實際測試 | DB + Cron | 30 分鐘 |
-| 10.2 | 10.2.2 | 修改 `createGame()` 生成 gameCode | DB | 15 分鐘 |
-| 10.2 | 10.2.3 | GM 端遊戲建立頁面 UI | - | 30 分鐘 |
-| 10.2 | 10.2.4 | GM 端遊戲詳情頁面顯示 gameCode | - | 20 分鐘 |
-| 10.3 | 10.3.4 | GM 端「開始/結束遊戲」按鈕 UI | - | 45 分鐘 |
-| 10.4 | 10.4.3 | 重構所有 Server Actions 使用新讀寫邏輯 | DB | 1-1.5 小時 |
-| 10.7 | 10.7.Test1 | `pushEventToGame()` 實際測試 | DB + Pusher | 20 分鐘 |
-| 10.7 | 10.7.Test2 | `emitGameStarted()` 實際測試 | DB + Pusher | 20 分鐘 |
-| 10.7 | 10.7.Test3 | `emitGameEnded()` 實際測試 | DB + Pusher | 20 分鐘 |
-| 10.8 | 10.8.2 | 執行資料遷移腳本 | DB | 30 分鐘 |
-| 10.9 | 10.9.1-3 | 唯一性檢查 DB 邏輯 + 前端 UI | DB | 1 小時 |
+| Phase | 任務編號 | 任務描述 | 需要服務 | 預估時間 | v2.0 狀態 |
+|-------|---------|---------|---------|---------|----------|
+| 8 | 8.Cron | Cron Job 實際測試 | DB + Cron | 30 分鐘 | ⏳ 待測試 |
+| 9 | 9.Cron | Cron Job 清理實際測試 | DB + Cron | 30 分鐘 | ⏳ 待測試 |
+| 10.2 | 10.2.2 | 修改 `createGame()` 生成 gameCode | DB | 15 分鐘 | ✅ 已完成 |
+| 10.2 | 10.2.3 | GM 端遊戲建立頁面 UI | - | 30 分鐘 | ✅ 已完成 |
+| 10.2 | 10.2.4 | GM 端遊戲詳情頁面顯示 gameCode | - | 20 分鐘 | ✅ 已完成 |
+| 10.3 | 10.3.4 | GM 端「開始/結束遊戲」按鈕 UI | - | 45 分鐘 | ✅ 已完成 |
+| 10.4 | 10.4.3 | 重構所有 Server Actions 使用新讀寫邏輯 | DB | 1-1.5 小時 | ✅ 已完成 |
+| 10.7 | 10.7.Test1 | `pushEventToGame()` 實際測試 | DB + Pusher | 20 分鐘 | ✅ 已完成 |
+| 10.7 | 10.7.Test2 | `emitGameStarted()` 實際測試 | DB + Pusher | 20 分鐘 | ✅ 已完成 |
+| 10.7 | 10.7.Test3 | `emitGameEnded()` 實際測試 | DB + Pusher | 20 分鐘 | ✅ 已完成 |
+| 10.8 | 10.8.2 | 執行資料遷移腳本 | DB | 30 分鐘 | ⏳ 待執行 |
+| 10.9 | 10.9.1-3 | 唯一性檢查 DB 邏輯 + 前端 UI | DB | 1 小時 | ⏳ 待實作 |
 
-**總計預估時間**: 約 **5.5-6.5 小時**（1 個工作日）
+**剩餘任務預估時間**: 約 **2-2.5 小時**
+
+> **RD Agent 注意**：10.9.1~3 和 10.8.2 的程式碼框架已完成，DB 查詢邏輯完整地寫在註解中。
+> 實作方式為「取消註解 + 移除 placeholder」，而非從頭開發。
+> - `lib/validation/uniqueness.ts`：取消 DB import 註解、取消查詢邏輯註解、移除 placeholder return
+> - `scripts/migrate-phase10.ts`：取消 DB import 註解、取消 5 步驟邏輯註解
 
 ### 3.2 實作步驟
 
-#### Step 1: Phase 10.2 - Game Code UI（3 個任務，約 1 小時）
+#### ~~Step 1: Phase 10.2 - Game Code UI（3 個任務）~~ ✅ 已完成
 
-**10.2.2 - 修改 `app/actions/games.ts`**
-
-修改 `createGame()` Server Action，確保自動生成 `gameCode`：
-
-```typescript
-// 已實作的邏輯（確認是否正確）
-export async function createGame(data: CreateGameInput) {
-  // ... 驗證邏輯
-
-  await dbConnect();
-
-  // Phase 10: 處理 Game Code
-  let gameCode: string;
-  if (data.gameCode) {
-    // 使用者提供了 Game Code，需要驗證唯一性
-    const isUnique = await isGameCodeUnique(data.gameCode);
-    if (!isUnique) {
-      return {
-        success: false,
-        error: 'GAME_CODE_TAKEN',
-        message: '此遊戲代碼已被使用，請選擇其他代碼',
-      };
-    }
-    gameCode = data.gameCode.toUpperCase();
-  } else {
-    // 自動生成唯一 Game Code
-    gameCode = await generateUniqueGameCode();
-  }
-
-  // 儲存劇本（包含 gameCode）
-  const game = await Game.create({
-    ...data,
-    gameCode,
-    gmUserId,
-  });
-
-  return { success: true, gameId: game._id.toString(), gameCode };
-}
-```
-
-**10.2.3 - GM 端遊戲建立頁面 UI**
-
-修改 `app/(gm)/games/new/page.tsx` 或相關表單元件：
-
-- 新增「遊戲代碼」欄位（可選輸入，6 位英數字）
-- 顯示自動生成的 Game Code 預覽
-- 即時檢查唯一性（防抖 500ms）
-
-**10.2.4 - GM 端遊戲詳情頁面顯示 gameCode**
-
-修改 `app/(gm)/games/[gameId]/page.tsx`：
-
-- 在顯著位置顯示 Game Code（如標題旁邊）
-- 提供「複製 Game Code」按鈕
-- GM 可點擊編輯 Game Code（檢查唯一性）
+> **v2.0 狀態**：10.2.2、10.2.3、10.2.4 已在 Phase 10 整合測試期間完成。
+> - `GameCodeSection` 元件已實作（`components/gm/game-code-section.tsx`）
+> - `createGame()` 已整合 `generateUniqueGameCode()`
+> - 即時唯一性檢查 UI 已實作（500ms debounce）
 
 ---
 
-#### Step 2: Phase 10.3 - 遊戲狀態管理 UI（1 個任務，約 45 分鐘）
+#### ~~Step 2: Phase 10.3 - 遊戲狀態管理 UI（1 個任務）~~ ✅ 已完成
 
-**10.3.4 - GM 端「開始/結束遊戲」按鈕 UI**
-
-修改 `app/(gm)/games/[gameId]/page.tsx`：
-
-```typescript
-// 示意代碼
-export default function GameDetailPage({ params }: { params: { gameId: string } }) {
-  const [game, setGame] = useState<GameData | null>(null);
-  const [isStarting, setIsStarting] = useState(false);
-  const [isEnding, setIsEnding] = useState(false);
-
-  // 開始遊戲
-  const handleStartGame = async () => {
-    setIsStarting(true);
-    const result = await startGameAction(params.gameId);
-    if (result.success) {
-      toast.success('遊戲已開始');
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
-    setIsStarting(false);
-  };
-
-  // 結束遊戲
-  const handleEndGame = async () => {
-    const confirmed = confirm('確定要結束遊戲嗎？將會保存當前狀態的快照。');
-    if (!confirmed) return;
-
-    setIsEnding(true);
-    const snapshotName = prompt('輸入快照名稱（可選）:');
-    const result = await endGameAction(params.gameId, snapshotName);
-    if (result.success) {
-      toast.success('遊戲已結束');
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
-    setIsEnding(false);
-  };
-
-  return (
-    <div>
-      {/* 遊戲狀態顯示 */}
-      <div className="flex items-center gap-4">
-        <Badge variant={game.isActive ? 'success' : 'secondary'}>
-          {game.isActive ? '進行中' : '待機'}
-        </Badge>
-
-        {!game.isActive && (
-          <Button onClick={handleStartGame} disabled={isStarting}>
-            {isStarting ? '啟動中...' : '開始遊戲'}
-          </Button>
-        )}
-
-        {game.isActive && (
-          <Button variant="destructive" onClick={handleEndGame} disabled={isEnding}>
-            {isEnding ? '結束中...' : '結束遊戲'}
-          </Button>
-        )}
-      </div>
-
-      {/* 其他遊戲資訊 */}
-    </div>
-  );
-}
-```
+> **v2.0 狀態**：10.3.4 已在 Phase 10 整合測試期間完成。
+> - `GameLifecycleControls` 元件已實作（`components/gm/game-lifecycle-controls.tsx`）
+> - 使用 `AlertDialog` 二次確認，支援快照名稱輸入
 
 ---
 
-#### Step 3: Phase 10.4 - 讀寫邏輯重構（1 個任務，約 1-1.5 小時）
+#### ~~Step 3: Phase 10.4 - 讀寫邏輯重構（1 個任務）~~ ✅ 已完成
 
-**10.4.3 - 重構所有 Server Actions 使用新讀寫邏輯**
-
-需要重構的檔案：
-- `app/actions/character-update.ts`
-- `app/actions/item-use.ts`
-- `app/actions/skill-use.ts`
-- `app/actions/contest-*.ts`
-- `app/actions/public.ts` 的 `getPublicCharacter()`
-
-**重構原則**：
-- 讀取：使用 `getCharacterData(characterId)`
-- 更新：使用 `updateCharacterData(characterId, updates)`
-
-**示例**：
-
-```typescript
-// 修改前
-export async function useSkill(characterId: string, skillId: string, ...) {
-  const character = await Character.findById(characterId);
-  // ...
-  await character.save();
-}
-
-// 修改後
-export async function useSkill(characterId: string, skillId: string, ...) {
-  const character = await getCharacterData(characterId); // 自動判斷 Runtime/Baseline
-  // ...
-  await updateCharacterData(characterId, updates); // 自動判斷寫入 Runtime/Baseline
-}
-```
+> **v2.0 狀態**：10.4.3 已在 Phase 10 整合測試期間完成。
+> - 所有 Server Actions 已使用 `getCharacterData()` / `updateCharacterData()`
+> - 自動判斷 Runtime/Baseline 讀寫
 
 ---
 
@@ -369,27 +235,12 @@ export async function checkPinUniqueness(params: PinUniquenessParams): Promise<U
 
 ---
 
-#### Step 6: Phase 10.7 - WebSocket 遊戲狀態事件測試（3 個任務，約 1 小時）
+#### ~~Step 6: Phase 10.7 - WebSocket 遊戲狀態事件測試（3 個任務）~~ ✅ 已完成
 
-**前置條件**：Pusher 和 DB 環境變數已設定
-
-**測試步驟**：
-
-1. **10.7.Test1 - `pushEventToGame()` 測試**
-   - GM 開始遊戲
-   - 確認所有玩家收到 `game.started` 事件
-   - 確認 Pending Events 已寫入
-
-2. **10.7.Test2 - `emitGameStarted()` 測試**
-   - 玩家端收到事件後顯示 Toast
-   - 頁面自動刷新（`router.refresh()`）
-   - 確認 Runtime 資料已建立
-
-3. **10.7.Test3 - `emitGameEnded()` 測試**
-   - GM 結束遊戲
-   - 玩家端收到 `game.ended` 事件
-   - 確認 Snapshot 已儲存
-   - 確認 Runtime 已清除
+> **v2.0 狀態**：10.7.Test1~3 已在 Phase 10 整合測試期間通過（2026-03-04）。
+> - `game.started` 事件：玩家端靜默 `router.refresh()`（不顯示 Toast）
+> - `game.ended` 事件：玩家端顯示「感謝您的參與！」Toast 並刷新
+> - Pending Events 寫入與清除均正常
 
 ---
 
@@ -953,7 +804,7 @@ pnpm lint
 
 ---
 
-## 13. 總結
+## 13. 總結（v2.0 更新）
 
 Phase 11 是專案從**開發階段**邁向**生產環境**的關鍵里程碑。完成 Phase 11 後，專案將具備：
 
@@ -963,16 +814,23 @@ Phase 11 是專案從**開發階段**邁向**生產環境**的關鍵里程碑。
 ✅ **效能優化**：圖片、Bundle 和 Loading State 優化
 ✅ **安全保障**：授權檢查、環境變數保護、API 保護完善
 
-**預估總工作量**：約 **2-2.5 個工作日**（16-20 小時）
+### v2.0 進度更新
+
+Phase 10 整合測試（2026-03-03~04）已完成 8/12 個原定待辦任務，工作量大幅減少：
+
+| 項目 | 原預估 | v2.0 預估 | 說明 |
+|------|--------|----------|------|
+| 11.1 遠端服務依賴任務 | 1-1.5 天 | **2 小時** | 僅剩 10.8.2 + 10.9.1~3（解除註解級別） |
+| 11.2 Vercel 部署 | 1-2 小時 | 1-2 小時 | 不變 |
+| 11.3 Cron Jobs 設定 | 30 分鐘 | 30 分鐘 | 不變 |
+| 11.4 完整功能測試 | 3 小時 | **1-2 小時** | TS-3/4/5/6 已部分驗證 |
+| 11.5 效能優化與安全性 | 2 小時 | 2 小時 | 不變 |
+| **總計** | **2-2.5 天** | **約 1 天** | 減少約 50% |
 
 **建議執行順序**：
-1. 11.2 Vercel 部署（1-2 小時）→ 取得環境變數
-2. 11.1 遠端服務依賴任務（1 個工作日）→ 完成所有功能
+1. 11.1 遠端服務依賴任務（2 小時）→ 唯一性檢查 + 遷移腳本
+2. 11.2 Vercel 部署（1-2 小時）→ 取得環境變數
 3. 11.3 Cron Jobs 設定（30 分鐘）→ 啟用定時任務
-4. 11.4 完整功能測試（3 小時）→ 確保品質
+4. 11.4 完整功能測試（1-2 小時）→ 確保品質
 5. 11.5 效能優化與安全性檢查（2 小時）→ 提升穩定性
 6. 11.6 生產環境優化（選用，30 分鐘）→ 自訂網域設定
-
----
-
-**祝 Phase 11 開發順利！🚀**
