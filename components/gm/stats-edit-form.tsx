@@ -1,22 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { useFormGuard } from '@/hooks/use-form-guard';
+import { SaveButton } from '@/components/gm/save-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical } from 'lucide-react';
 import type { Stat } from '@/types/character';
 
 interface StatsEditFormProps {
   characterId: string;
   initialStats: Stat[];
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function StatsEditForm({ characterId, initialStats }: StatsEditFormProps) {
+export function StatsEditForm({ characterId, initialStats, onDirtyChange }: StatsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stat[]>(initialStats);
@@ -29,6 +32,14 @@ export function StatsEditForm({ characterId, initialStats }: StatsEditFormProps)
     setPrevInitialStats(initialStats);
     setStats(initialStats);
   }
+
+  const { isDirty, resetDirty } = useFormGuard({
+    initialData: initialStats,
+    currentData: stats,
+  });
+
+  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
   // 新增數值欄位
   const handleAddStat = () => {
@@ -81,6 +92,7 @@ export function StatsEditForm({ characterId, initialStats }: StatsEditFormProps)
 
       if (result.success) {
         toast.success('數值已儲存');
+        resetDirty();
         router.refresh();
       } else {
         toast.error(result.message || '儲存失敗');
@@ -102,10 +114,12 @@ export function StatsEditForm({ characterId, initialStats }: StatsEditFormProps)
               定義角色的屬性數值，如血量、魔力、力量等
             </CardDescription>
           </div>
-          <Button onClick={handleSave} disabled={isLoading}>
-            <Save className="mr-2 h-4 w-4" />
-            {isLoading ? '儲存中...' : '儲存變更'}
-          </Button>
+          <SaveButton
+            isDirty={isDirty}
+            isLoading={isLoading}
+            type="button"
+            onClick={handleSave}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

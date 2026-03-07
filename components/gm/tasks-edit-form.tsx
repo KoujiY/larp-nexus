@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
 import { getGameItems } from '@/app/actions/games';
+import { useFormGuard } from '@/hooks/use-form-guard';
+import { SaveButton } from '@/components/gm/save-button';
 import type { GameItemInfo } from '@/app/actions/games';
 import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
 import type { SecretOption } from '@/components/gm/auto-reveal-condition-editor';
@@ -31,7 +33,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, Eye, EyeOff, CheckCircle, XCircle, Clock, Pencil } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, CheckCircle, XCircle, Clock, Pencil } from 'lucide-react';
 import type { Task } from '@/types/character';
 
 interface TasksEditFormProps {
@@ -40,6 +42,7 @@ interface TasksEditFormProps {
   initialTasks: Task[];
   /** 該角色的隱藏資訊列表（用於 secrets_revealed 條件） */
   secrets: SecretOption[];
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'failed';
@@ -51,13 +54,30 @@ const statusConfig: Record<TaskStatus, { label: string; variant: 'default' | 'se
   failed: { label: '失敗', variant: 'destructive', icon: <XCircle className="h-3 w-3" /> },
 };
 
-export function TasksEditForm({ characterId, gameId, initialTasks, secrets }: TasksEditFormProps) {
+export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDirtyChange }: TasksEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [prevInitialTasks, setPrevInitialTasks] = useState(initialTasks);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
+
+  /**
+   * 當 initialTasks props 變化時（例如 router.refresh() 後），同步更新本地 state
+   */
+  if (initialTasks !== prevInitialTasks) {
+    setPrevInitialTasks(initialTasks);
+    setTasks(initialTasks);
+  }
+
+  const { isDirty, resetDirty } = useFormGuard({
+    initialData: initialTasks,
+    currentData: tasks,
+  });
+
+  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
   // Phase 7.7: 載入劇本中所有道具（用於自動揭露條件設定）
   useEffect(() => {
@@ -173,6 +193,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets }: Ta
 
       if (result.success) {
         toast.success('任務已儲存');
+        resetDirty();
         router.refresh();
       } else {
         toast.error(result.message || '儲存失敗');
@@ -198,10 +219,12 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets }: Ta
               管理角色的目標任務，支援隱藏目標機制
             </CardDescription>
           </div>
-          <Button onClick={handleSave} disabled={isLoading}>
-            <Save className="mr-2 h-4 w-4" />
-            {isLoading ? '儲存中...' : '儲存變更'}
-          </Button>
+          <SaveButton
+            isDirty={isDirty}
+            isLoading={isLoading}
+            type="button"
+            onClick={handleSave}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-6">

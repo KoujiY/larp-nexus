@@ -3,14 +3,13 @@ import { getCharactersByGameId } from '@/app/actions/characters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageLayout } from '@/components/gm/page-layout';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { DeleteGameButton } from '@/components/gm/delete-game-button';
 import { CreateCharacterButton } from '@/components/gm/create-character-button';
 import { CharacterCard } from '@/components/gm/character-card';
-import { GameEditForm } from '@/components/gm/game-edit-form';
+import { GameEditTabs } from '@/components/gm/game-edit-tabs';
 import { GenerateGamePublicQRCodeButton } from '@/components/gm/generate-game-public-qrcode-button';
 import { GameBroadcastPanel } from '@/components/gm/game-broadcast-panel';
 import { GameCodeSection } from '@/components/gm/game-code-section'; // Phase 10
@@ -94,23 +93,16 @@ export default async function GamePage({ params }: GamePageProps) {
       maxWidth="lg"
     >
       {/* Tabs */}
-      <Tabs defaultValue="info" className="space-y-6">
-        <TabsList className="w-auto">
-          <TabsTrigger value="info">📋 劇本資訊</TabsTrigger>
-          <TabsTrigger value="characters">👥 角色列表</TabsTrigger>
-        </TabsList>
-
-          {/* 劇本資訊 Tab */}
-          <TabsContent value="info" className="space-y-6">
-            <GameEditForm game={game} />
-            <GameBroadcastPanel
-              gameId={game.id}
-              characters={characters.map((c) => ({ id: c.id, name: c.name }))}
-            />
-          </TabsContent>
-
-          {/* 角色列表 Tab */}
-          <TabsContent value="characters" className="space-y-4">
+      <GameEditTabs
+        game={game}
+        broadcastPanel={
+          <GameBroadcastPanel
+            gameId={game.id}
+            characters={characters.map((c) => ({ id: c.id, name: c.name }))}
+          />
+        }
+        charactersTab={
+          <>
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold">角色列表</h2>
@@ -145,8 +137,9 @@ export default async function GamePage({ params }: GamePageProps) {
                 ))}
               </div>
             )}
-          </TabsContent>
-        </Tabs>
+          </>
+        }
+      />
     </PageLayout>
   );
 }

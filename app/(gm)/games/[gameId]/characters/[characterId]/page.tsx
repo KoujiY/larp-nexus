@@ -3,15 +3,9 @@ import { getGameById } from '@/app/actions/games';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLayout } from '@/components/gm/page-layout';
-import { CharacterEditForm } from '@/components/gm/character-edit-form';
-import { StatsEditForm } from '@/components/gm/stats-edit-form';
-import { TemporaryEffectsCard } from '@/components/gm/temporary-effects-card';
-import { TasksEditForm } from '@/components/gm/tasks-edit-form';
-import { ItemsEditForm } from '@/components/gm/items-edit-form';
-import { SkillsEditForm } from '@/components/gm/skills-edit-form';
+import { CharacterEditTabs } from '@/components/gm/character-edit-tabs';
 import { UploadCharacterImageButton } from '@/components/gm/upload-character-image-button';
 import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
 import { ViewPinButton } from '@/components/gm/view-pin-button';
@@ -160,67 +154,11 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
         </Card>
 
         {/* Tabs for Different Sections */}
-        <Tabs defaultValue="basic" className="space-y-6">
-          <TabsList className="w-auto">
-            <TabsTrigger value="basic">📝 基本資訊</TabsTrigger>
-            <TabsTrigger value="stats">📊 角色數值</TabsTrigger>
-            <TabsTrigger value="tasks">✅ 任務管理</TabsTrigger>
-            <TabsTrigger value="items">🎒 道具管理</TabsTrigger>
-            <TabsTrigger value="skills">
-              ⚡ 技能管理
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Basic Info Tab */}
-          <TabsContent value="basic" className="space-y-6">
-            <CharacterEditForm character={character} gameId={gameId} />
-          </TabsContent>
-
-          {/* Stats Tab (Phase 4) */}
-          <TabsContent value="stats" className="space-y-6">
-            <StatsEditForm
-              characterId={character.id}
-              initialStats={character.stats || []}
-            />
-
-            {/* Phase 8.6: 時效性效果卡片 */}
-            <TemporaryEffectsCard characterId={character.id} />
-          </TabsContent>
-
-          {/* Tasks Tab (Phase 4.5) */}
-          <TabsContent value="tasks">
-            <TasksEditForm
-              characterId={character.id}
-              gameId={gameId}
-              initialTasks={character.tasks || []}
-              secrets={(character.secretInfo?.secrets || []).map((s) => ({
-                id: s.id,
-                title: s.title,
-              }))}
-            />
-          </TabsContent>
-
-          {/* Items Tab (Phase 4.5) */}
-          <TabsContent value="items">
-            <ItemsEditForm
-              characterId={character.id}
-              initialItems={character.items || []}
-              stats={character.stats || []}
-              randomContestMaxValue={game.randomContestMaxValue}
-            />
-          </TabsContent>
-
-          {/* Skills Tab (Phase 5) */}
-          <TabsContent value="skills">
-            <SkillsEditForm
-              characterId={character.id}
-              initialSkills={character.skills || []}
-              stats={character.stats || []}
-              randomContestMaxValue={game.randomContestMaxValue}
-            />
-          </TabsContent>
-
-        </Tabs>
+        <CharacterEditTabs
+          character={character}
+          gameId={gameId}
+          randomContestMaxValue={game.randomContestMaxValue}
+        />
       </div>
     </PageLayout>
   );

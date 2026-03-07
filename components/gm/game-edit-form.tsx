@@ -1,26 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateGame } from '@/app/actions/games';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { X, Plus } from 'lucide-react';
+import { useFormGuard } from '@/hooks/use-form-guard';
+import { SaveButton } from '@/components/gm/save-button';
 import type { GameData } from '@/types/game';
 
 interface GameEditFormProps {
   game: GameData;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function GameEditForm({ game }: GameEditFormProps) {
+export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
+
+  // 保留原始資料用於 dirty state 比較
+  const initialData = useMemo(() => ({
     name: game.name,
     description: game.description || '',
     isActive: game.isActive,
@@ -30,7 +35,17 @@ export function GameEditForm({ game }: GameEditFormProps) {
       chapters: game.publicInfo?.chapters || [],
     },
     randomContestMaxValue: game.randomContestMaxValue || 100,
+  }), [game]);
+
+  const [formData, setFormData] = useState(initialData);
+
+  const { isDirty, resetDirty } = useFormGuard({
+    initialData,
+    currentData: formData,
   });
+
+  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +68,7 @@ export function GameEditForm({ game }: GameEditFormProps) {
 
       if (result.success) {
         toast.success('劇本更新成功！');
+        resetDirty();
         router.refresh();
       } else {
         toast.error(result.message || '更新失敗');
@@ -364,9 +380,7 @@ export function GameEditForm({ game }: GameEditFormProps) {
       </Card>
 
       <div className="flex justify-end space-x-2">
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? '儲存中...' : '💾 儲存變更'}
-        </Button>
+        <SaveButton isDirty={isDirty} isLoading={isLoading} />
       </div>
     </form>
   );

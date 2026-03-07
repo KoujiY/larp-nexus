@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { useFormGuard } from '@/hooks/use-form-guard';
+import { SaveButton } from '@/components/gm/save-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,7 +28,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, Package, Pencil, Zap, Clock } from 'lucide-react';
+import { Plus, Trash2, Package, Pencil, Zap, Clock } from 'lucide-react';
 import type { Item, ItemEffect, Stat } from '@/types/character';
 import type { BaseEvent, RoleUpdatedEvent, InventoryUpdatedEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
@@ -40,14 +42,32 @@ interface ItemsEditFormProps {
   initialItems: Item[];
   stats: Stat[]; // 用於效果選擇目標數值
   randomContestMaxValue?: number; // Phase 7.6: 劇本的隨機對抗檢定上限值
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function ItemsEditForm({ characterId, initialItems, stats, randomContestMaxValue = 100 }: ItemsEditFormProps) {
+export function ItemsEditForm({ characterId, initialItems, stats, randomContestMaxValue = 100, onDirtyChange }: ItemsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<Item[]>(initialItems);
+  const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  /**
+   * 當 initialItems props 變化時（例如 router.refresh() 後），同步更新本地 state
+   */
+  if (initialItems !== prevInitialItems) {
+    setPrevInitialItems(initialItems);
+    setItems(initialItems);
+  }
+
+  const { isDirty, resetDirty } = useFormGuard({
+    initialData: initialItems,
+    currentData: items,
+  });
+
+  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
   // Phase 9: 訂閱 WebSocket 事件，同步更新道具列表
   useCharacterWebSocket(characterId, (event: BaseEvent) => {
@@ -304,6 +324,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
 
       if (result.success) {
         toast.success('道具已儲存');
+        resetDirty();
         router.refresh();
       } else {
         toast.error(result.message || '儲存失敗');
@@ -329,10 +350,12 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
               管理角色的道具，設定效果與使用限制
             </CardDescription>
           </div>
-          <Button onClick={handleSave} disabled={isLoading}>
-            <Save className="mr-2 h-4 w-4" />
-            {isLoading ? '儲存中...' : '儲存變更'}
-          </Button>
+          <SaveButton
+            isDirty={isDirty}
+            isLoading={isLoading}
+            type="button"
+            onClick={handleSave}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-6">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
 import { getGameItems } from '@/app/actions/games';
@@ -8,6 +8,10 @@ import { checkPinAvailability } from '@/app/actions/characters'; // Phase 10.9.3
 import type { GameItemInfo } from '@/app/actions/games';
 import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
 import { cleanSecretConditions } from '@/lib/reveal/condition-cleaner';
+import { useFormGuard } from '@/hooks/use-form-guard';
+import { useGuardedNavigation } from '@/hooks/use-guarded-navigation';
+import { SaveButton } from '@/components/gm/save-button';
+import { NavigationGuardDialog } from '@/components/gm/navigation-guard-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,9 +25,10 @@ import type { CharacterData, Secret, AutoRevealCondition } from '@/types/charact
 interface CharacterEditFormProps {
   character: CharacterData;
   gameId: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function CharacterEditForm({ character, gameId }: CharacterEditFormProps) {
+export function CharacterEditForm({ character, gameId, onDirtyChange }: CharacterEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
@@ -34,7 +39,8 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
     'idle' | 'checking' | 'available' | 'unavailable' | 'invalid'
   >('idle');
 
-  const [formData, setFormData] = useState({
+  // 保留原始資料用於 dirty state 比較
+  const initialData = useMemo(() => ({
     name: character.name,
     description: character.description || '',
     hasPinLock: character.hasPinLock,
@@ -47,7 +53,20 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
     secretInfo: {
       secrets: (character.secretInfo?.secrets || []) as Secret[],
     },
+  }), [character]);
+
+  const [formData, setFormData] = useState(initialData);
+
+  const { isDirty, resetDirty } = useFormGuard({
+    initialData,
+    currentData: formData,
   });
+
+  const { guardedBack, showDialog, confirmNavigation, cancelNavigation } =
+    useGuardedNavigation(isDirty);
+
+  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
   // Phase 7.7: 載入劇本中所有道具（用於自動揭露條件設定）
   useEffect(() => {
@@ -179,6 +198,7 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
 
       if (result.success) {
         toast.success('角色更新成功！');
+        resetDirty();
         router.refresh();
         // 清空 PIN 輸入框
         setFormData((prev) => ({ ...prev, pin: '' }));
@@ -194,7 +214,8 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>基本資訊</CardTitle>
@@ -679,26 +700,31 @@ export function CharacterEditForm({ character, gameId }: CharacterEditFormProps)
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.back()}
+          onClick={guardedBack}
           disabled={isLoading}
         >
           取消
         </Button>
-        <Button
-          type="submit"
+        <SaveButton
+          isDirty={isDirty}
+          isLoading={isLoading}
           disabled={
-            isLoading ||
-            (formData.hasPinLock &&
-              formData.pin.length > 0 && // 只有在輸入了新 PIN 時才檢查狀態
-              (pinCheckStatus === 'checking' ||
-                pinCheckStatus === 'unavailable' ||
-                pinCheckStatus === 'invalid'))
+            formData.hasPinLock &&
+            formData.pin.length > 0 &&
+            (pinCheckStatus === 'checking' ||
+              pinCheckStatus === 'unavailable' ||
+              pinCheckStatus === 'invalid')
           }
-        >
-          {isLoading ? '儲存中...' : '💾 儲存變更'}
-        </Button>
+        />
       </div>
-    </form>
+      </form>
+
+      <NavigationGuardDialog
+        open={showDialog}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
+      />
+    </>
   );
 }
 

@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { useFormGuard } from '@/hooks/use-form-guard';
+import { SaveButton } from '@/components/gm/save-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +27,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, Zap, Pencil } from 'lucide-react';
+import { Plus, Trash2, Zap, Pencil } from 'lucide-react';
 import type { Skill, SkillEffect, Stat } from '@/types/character';
 import { EditFormCard } from './edit-form-card';
 import { EffectEditor } from './effect-editor';
@@ -36,15 +38,33 @@ interface SkillsEditFormProps {
   initialSkills: Skill[];
   stats: Stat[]; // 用於檢定選擇相關數值
   randomContestMaxValue?: number; // Phase 7.6: 劇本的隨機對抗檢定上限值
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function SkillsEditForm({ characterId, initialSkills, stats, randomContestMaxValue = 100 }: SkillsEditFormProps) {
+export function SkillsEditForm({ characterId, initialSkills, stats, randomContestMaxValue = 100, onDirtyChange }: SkillsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [skills, setSkills] = useState<Skill[]>(initialSkills);
+  const [prevInitialSkills, setPrevInitialSkills] = useState(initialSkills);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEffectIndex, setEditingEffectIndex] = useState<number | null>(null);
+
+  /**
+   * 當 initialSkills props 變化時（例如 router.refresh() 後），同步更新本地 state
+   */
+  if (initialSkills !== prevInitialSkills) {
+    setPrevInitialSkills(initialSkills);
+    setSkills(initialSkills);
+  }
+
+  const { isDirty, resetDirty } = useFormGuard({
+    initialData: initialSkills,
+    currentData: skills,
+  });
+
+  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
   // 新增技能
   const handleAddSkill = () => {
@@ -197,6 +217,7 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
       const result = await updateCharacter(characterId, { skills });
       if (result.success) {
         toast.success('技能儲存成功');
+        resetDirty();
         router.refresh();
       } else {
         toast.error(result.message || '儲存失敗');
@@ -253,10 +274,14 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
             <Plus className="h-4 w-4 mr-2" />
             新增技能
           </Button>
-          <Button onClick={handleSaveAll} disabled={isLoading} size="sm">
-            <Save className="h-4 w-4 mr-2" />
-            儲存所有變更
-          </Button>
+          <SaveButton
+            isDirty={isDirty}
+            isLoading={isLoading}
+            label="儲存所有變更"
+            type="button"
+            onClick={handleSaveAll}
+            className="h-9 text-sm"
+          />
         </div>
       </div>
 
