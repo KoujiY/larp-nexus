@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(pnpm *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Read(*)",
+      "Edit(*)",
+      "Write(docs/**/*)",
+      "Write(lib/**/*)",
+      "Write(components/**/*)",
+      "Write(types/**/*)",
+      "Write(hooks/**/*)",
+      "Write(app/**/*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push *)",
+      "Read(.env*)",
+      "Read(**/secrets/*)",
+      "Write(.env*)"
+    ]
+  },
+
+  "env": {
+    "NODE_ENV": "development"
+  },
+
+  "model": "claude-opus-4-6",
+
+  "effortLevel": "medium",
+
+  "outputStyle": "Explanatory",
+
+  "attribution": {
+    "commit": "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>",
+    "pr": "🤖 Generated with Claude Code"
+  }
+}
