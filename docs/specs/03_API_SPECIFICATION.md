@@ -58,7 +58,7 @@
 2. 檢查或建立 GMUser
 3. 生成 UUID token
 4. 儲存至 `magic_links` collection（15分鐘過期）
-5. 發送 Email（使用 Resend 或 Nodemailer）
+5. 發送 Email（使用 Nodemailer + Gmail SMTP）
 6. 回傳成功訊息
 
 ---

@@ -1,7 +1,7 @@
 # 外部設定檢查清單
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v2.0
+## 更新日期：2026-03-09
 
 ---
 
@@ -282,65 +282,41 @@
 
 ---
 
-### 2.2 Resend 設定（Email 服務）
+### 2.2 Email 服務設定（Nodemailer + Gmail SMTP）
 
-**用途**：Magic Link 登入郵件發送  
-**方案**：Free Tier (100 emails/day)  
-**預估時間**：15 分鐘  
+> **v2.0 更新**：已從 Resend 遷移至 Nodemailer + Gmail SMTP。
+> 詳見 [SPEC-nodemailer-migration-2026-03-09.md](./SPEC-nodemailer-migration-2026-03-09.md)
+
+**用途**：Magic Link 登入郵件發送
+**方案**：Gmail SMTP（免費 500 封/天）
+**預估時間**：10 分鐘
 **需要時機**：實作 GM 登入功能時
 
 #### 設定步驟
 
-1. **註冊帳號**
-   - 前往 [Resend](https://resend.com/signup)
-   - 使用 Email 或 GitHub 註冊
+1. **開啟 Gmail 兩步驟驗證**
+   - 前往 [Google 帳號安全性](https://myaccount.google.com/security)
+   - 啟用「兩步驟驗證」
 
-2. **取得 API Key**
-   - 進入 Dashboard → API Keys
-   - 點擊「Create API Key」
-   - Name：`larp-nexus-production`
-   - Permission：選擇 `Sending access`
-   - 點擊「Create」
-   - **立即複製 API Key**（僅顯示一次）
+2. **產生 App Password**
+   - 安全性 → 兩步驟驗證 → **應用程式密碼**
+   - 應用程式名稱：`LARP Nexus`
+   - 複製產生的 16 碼密碼（格式如 `abcd efgh ijkl mnop`）
 
-3. **驗證發送者網域**（生產環境）
-   - Dashboard → Domains → Add Domain
-   - 輸入您的網域（例：`larpnexus.com`）
-   - 按照指示設定 DNS 記錄：
-     - SPF 記錄
-     - DKIM 記錄
-   - 等待驗證完成（可能需要數小時）
-
-4. **使用測試網域**（開發環境）
-   - 若暫無網域，可使用 Resend 提供的測試地址：
-     ```
-     EMAIL_FROM=onboarding@resend.dev
-     ```
-   - 測試地址僅能發送至您註冊 Resend 的 Email
-
-5. **測試發送**
+3. **測試發送**
    ```bash
-   # 使用 curl 測試
-   curl -X POST https://api.resend.com/emails \
-     -H "Authorization: Bearer YOUR_API_KEY" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "from": "onboarding@resend.dev",
-       "to": "your-email@example.com",
-       "subject": "Test Email",
-       "html": "<p>Hello from LARP Nexus!</p>"
-     }'
+   pnpm test:sendmail your@email.com
    ```
 
 #### ✅ 完成檢查
-- [ ] Resend 帳號已註冊
-- [ ] API Key 已取得
-- [ ] 發送者網域已驗證（或使用測試網域）
+- [ ] Gmail 兩步驟驗證已開啟
+- [ ] App Password 已產生
 - [ ] 測試郵件發送成功
 - [ ] 憑證已記錄至 `.env.local`：
   ```
-  RESEND_API_KEY=re_xxxxxxxxxxxx
-  EMAIL_FROM=onboarding@resend.dev
+  SMTP_USER=your@gmail.com
+  SMTP_PASS=abcdefghijklmnop
+  EMAIL_FROM=your@gmail.com
   ```
 
 ---
@@ -401,9 +377,10 @@ SESSION_SECRET=Ab3dEf6gHi9jKl2mNo5pQr8sTu1vWx4yZ=
    # Vercel Blob（部署後才有）
    BLOB_READ_WRITE_TOKEN=
    
-   # Resend
-   RESEND_API_KEY=re_xxxxxxxxxxxx
-   EMAIL_FROM=onboarding@resend.dev
+   # Email (Nodemailer + Gmail SMTP)
+   SMTP_USER=your@gmail.com
+   SMTP_PASS=abcdefghijklmnop
+   EMAIL_FROM=your@gmail.com
    ```
 
 2. **驗證設定**
@@ -455,8 +432,9 @@ SESSION_SECRET=Ab3dEf6gHi9jKl2mNo5pQr8sTu1vWx4yZ=
    | `NEXT_PUBLIC_PUSHER_KEY` | `xxx` | Production |
    | `PUSHER_SECRET` | `xxx` | Production |
    | `NEXT_PUBLIC_PUSHER_CLUSTER` | `ap3` | Production |
-   | `RESEND_API_KEY` | `re_xxx` | Production |
-   | `EMAIL_FROM` | `noreply@your-domain.com` | Production |
+   | `SMTP_USER` | `your@gmail.com` | Production |
+   | `SMTP_PASS` | `Gmail App Password` | Production |
+   | `EMAIL_FROM` | `your@gmail.com` | Production |
 
 4. **重新部署**
    - Settings → Deployments
@@ -580,8 +558,9 @@ PUSHER_CLUSTER=ap3
 NEXT_PUBLIC_PUSHER_KEY=xxx
 NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 BLOB_READ_WRITE_TOKEN=xxx
-RESEND_API_KEY=xxx
-EMAIL_FROM=xxx
+SMTP_USER=your@gmail.com
+SMTP_PASS=xxx
+EMAIL_FROM=your@gmail.com
 ```
 
 ---

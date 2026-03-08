@@ -16,8 +16,8 @@ const requiredEnvVars = [
   'MONGODB_URI',
   'SESSION_SECRET',
   'NEXT_PUBLIC_APP_URL',
-  'RESEND_API_KEY',
-  'EMAIL_FROM',
+  'SMTP_USER',
+  'SMTP_PASS',
 ];
 
 const optionalEnvVars = ['BLOB_READ_WRITE_TOKEN'];
@@ -81,13 +81,14 @@ dbConnect()
           console.log('   ✅ QR Code');
           console.log('   ✅ Date\n');
 
-          // 6. 檢查 Resend 配置
-          console.log('6️⃣ 檢查 Resend 配置...');
-          if (process.env.RESEND_API_KEY) {
-            console.log('   ✅ Resend API Key 已設定');
-            console.log(`   ✅ Email From: ${process.env.EMAIL_FROM}\n`);
+          // 6. 檢查 SMTP（Nodemailer）配置
+          console.log('6️⃣ 檢查 SMTP 配置...');
+          if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+            console.log(`   ✅ SMTP_HOST: ${process.env.SMTP_HOST || 'smtp.gmail.com'}`);
+            console.log(`   ✅ SMTP_USER: ${process.env.SMTP_USER}`);
+            console.log(`   ✅ Email From: ${process.env.EMAIL_FROM || process.env.SMTP_USER}\n`);
           } else {
-            console.error('   ❌ Resend API Key 未設定\n');
+            console.error('   ❌ SMTP 配置不完整（需要 SMTP_USER 和 SMTP_PASS）\n');
             hasErrors = true;
           }
 

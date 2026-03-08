@@ -82,7 +82,7 @@
 
 | 技術 | 版本 | 用途 | 官方文件 | 外部設定 |
 |------|------|------|----------|----------|
-| **Resend** | latest | Email 發送服務（免費 100 封/天） | [resend.com](https://resend.com) | ⚠️ [需註冊](./10_EXTERNAL_SETUP_CHECKLIST.md#22-resend-設定email-服務) |
+| **Nodemailer** | 8.0+ | SMTP Email 發送（Gmail SMTP，免費 500 封/天） | [nodemailer.com](https://nodemailer.com) | ⚠️ [需設定 Gmail App Password](./10_EXTERNAL_SETUP_CHECKLIST.md#22-email-服務設定nodemailer--gmail-smtp) |
 
 ---
 
