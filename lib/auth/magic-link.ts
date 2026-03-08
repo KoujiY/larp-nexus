@@ -1,12 +1,23 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { MagicLink } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 
 /**
- * 初始化 Resend 客戶端
+ * 建立 Nodemailer SMTP transporter（Gmail SMTP）
+ * 使用環境變數 SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
  */
-const resend = new Resend(process.env.RESEND_API_KEY);
+function createTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT) || 465,
+    secure: true,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
 
 /**
  * 生成 Magic Link Token 並儲存至資料庫
@@ -72,9 +83,10 @@ export async function sendMagicLinkEmail(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const magicLink = `${appUrl}/auth/verify?token=${token}`;
 
-  const emailFrom = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+  const emailFrom = process.env.EMAIL_FROM || process.env.SMTP_USER || '';
 
-  await resend.emails.send({
+  const transporter = createTransporter();
+  await transporter.sendMail({
     from: emailFrom,
     to: email,
     subject: 'LARP Nexus - 登入連結',
@@ -123,6 +135,14 @@ export async function sendMagicLinkEmail(
       </html>
     `,
   });
+}
+
+/**
+ * 檢查 SMTP 是否已設定
+ * @returns 是否有完整的 SMTP 配置
+ */
+export function isSmtpConfigured(): boolean {
+  return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
 /**
