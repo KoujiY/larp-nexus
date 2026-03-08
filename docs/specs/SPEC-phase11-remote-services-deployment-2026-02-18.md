@@ -41,7 +41,7 @@ Phase 11 的核心目標是：
 |------|------|------|---------|
 | MongoDB Atlas | ✅ 已設定 | 資料庫 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 1.1 |
 | Pusher | ✅ 已設定 | WebSocket | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.1 |
-| Resend | ✅ 已設定 | Email | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.2 |
+| Nodemailer + Gmail SMTP | ✅ 已設定 | Email | `SPEC-nodemailer-migration-2026-03-09.md` |
 | Session Secret | ✅ 已設定 | Session 加密 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.3 |
 | Vercel | ⏸️ 待設定 | 部署平台 | 本文件 § 11.2 |
 | Vercel Blob | ⏸️ 待設定 | 圖片上傳 | 本文件 § 11.2.4 |
@@ -250,9 +250,10 @@ NEXT_PUBLIC_PUSHER_KEY=xxx
 PUSHER_SECRET=xxx
 NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 
-# Resend
-RESEND_API_KEY=re_xxx
-EMAIL_FROM=noreply@your-domain.com
+# Email (Nodemailer + Gmail SMTP)
+SMTP_USER=your@gmail.com
+SMTP_PASS=<Gmail App Password>
+EMAIL_FROM=your@gmail.com
 
 # Cron Secret (用於保護 Cron API)
 CRON_SECRET=<生成新的 Secret>

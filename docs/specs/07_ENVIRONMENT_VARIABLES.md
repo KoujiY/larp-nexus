@@ -1,7 +1,7 @@
 # 環境變數配置文件
 
-## 版本：v1.0
-## 更新日期：2025-11-29
+## 版本：v2.0
+## 更新日期：2026-03-09
 
 ---
 
@@ -108,31 +108,28 @@ vercel env pull .env.local
 
 ---
 
-### 2.6 Email 服務（Magic Link 發送）
+### 2.6 Email 服務（Magic Link 發送）— Nodemailer + Gmail SMTP
 
-#### 選項 A：使用 Resend（推薦）
-
-> ⚠️ **需外部設定**：請參考 [外部設定檢查清單 - Resend](./10_EXTERNAL_SETUP_CHECKLIST.md#22-resend-設定email-服務)
-
-```bash
-RESEND_API_KEY=re_xxxxxxxxxxxx
-
-# Email 發送者地址
-EMAIL_FROM=noreply@your-domain.com
-```
-
-**取得方式**：完整步驟請參考外部設定檢查清單
-
-#### 選項 B：使用 Nodemailer + SMTP
+> **v2.0 更新**：已從 Resend 遷移至 Nodemailer + Gmail SMTP。
+> 詳見 [SPEC-nodemailer-migration-2026-03-09.md](./SPEC-nodemailer-migration-2026-03-09.md)
 
 ```bash
+# SMTP 伺服器設定（選填，預設使用 Gmail SMTP）
 SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
+SMTP_PORT=465
 
-EMAIL_FROM=your-email@gmail.com
+# SMTP 認證（必填）
+SMTP_USER=your@gmail.com
+SMTP_PASS=abcdefghijklmnop    # Gmail App Password（16碼，無空格）
+
+# 寄件者地址（選填，預設使用 SMTP_USER）
+EMAIL_FROM=your@gmail.com
 ```
+
+**取得方式**：
+1. 開啟 Gmail 兩步驟驗證（Google 帳號 → 安全性）
+2. 產生 App Password（安全性 → 兩步驟驗證 → 應用程式密碼）
+3. 將 16 碼密碼（去掉空格）填入 `SMTP_PASS`
 
 ---
 
@@ -178,16 +175,12 @@ NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 # ---- Vercel Blob ----
 BLOB_READ_WRITE_TOKEN=
 
-# ---- Email (Resend) ----
-RESEND_API_KEY=
-EMAIL_FROM=noreply@your-domain.com
-
-# ---- Optional: Rate Limiting ----
-# UPSTASH_REDIS_REST_URL=
-# UPSTASH_REDIS_REST_TOKEN=
-
-# ---- Optional: Monitoring ----
-# NEXT_PUBLIC_SENTRY_DSN=
+# ---- Email (Nodemailer + Gmail SMTP) ----
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=your@gmail.com
+SMTP_PASS=                        # Gmail App Password
+EMAIL_FROM=your@gmail.com
 ```
 
 ---
@@ -268,8 +261,8 @@ const requiredEnvVars = [
   'NEXT_PUBLIC_PUSHER_KEY',
   'NEXT_PUBLIC_PUSHER_CLUSTER',
   'BLOB_READ_WRITE_TOKEN',
-  'RESEND_API_KEY',
-  'EMAIL_FROM',
+  'SMTP_USER',
+  'SMTP_PASS',
 ] as const;
 
 export function validateEnv() {
@@ -309,8 +302,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_PUSHER_KEY: z.string(),
   NEXT_PUBLIC_PUSHER_CLUSTER: z.string(),
   BLOB_READ_WRITE_TOKEN: z.string(),
-  RESEND_API_KEY: z.string(),
-  EMAIL_FROM: z.string().email(),
+  SMTP_USER: z.string().email(),
+  SMTP_PASS: z.string().min(1),
 });
 
 export const env = envSchema.parse(process.env);
@@ -390,7 +383,7 @@ pnpm dev
 - [ ] `NEXT_PUBLIC_APP_URL` 指向正式網域
 - [ ] `SESSION_SECRET` 已更換為強密碼
 - [ ] MongoDB 使用獨立的 Production 資料庫
-- [ ] Email 發送者網域已驗證
+- [ ] SMTP 配置已設定（SMTP_USER, SMTP_PASS）
 - [ ] Pusher 已升級至付費方案（若需要更高流量）
 - [ ] 敏感資料未暴露於前端（檢查 `NEXT_PUBLIC_*` 變數）
 
