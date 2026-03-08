@@ -1,7 +1,7 @@
 # SPEC-phase11-remote-services-deployment
 
-## 版本：v2.0
-## 更新日期：2026-03-04（Phase 10 整合測試完成後更新）
+## 版本：v3.0
+## 更新日期：2026-03-08（Phase 11.1 程式碼完成、死碼清理）
 ## 適用範圍：Phase 11 - 遠端服務整合、部署與優化
 
 ---
@@ -13,10 +13,15 @@
 > **v2.0 更新**：Phase 10 整合測試已於 2026-03-03~04 完成（10 個場景中 9 個通過，1 個跳過待 Phase 11 UI）。
 > 原本規劃的 12 個待辦任務中，**8 個已在整合測試期間完成**，剩餘 4 個需要 DB 環境。
 
+> **v3.0 更新（2026-03-08）**：Phase 11.1 程式碼工作已完成。
+> - 遷移腳本 DB 邏輯已全面啟用
+> - 唯一性檢查確認 Server Actions 已有完整 DB 邏輯（`lib/validation/uniqueness.ts` 為死碼，已移除）
+> - 剩餘 11.1 工作：遷移腳本實際執行（待 Production DB）、Cron Job 測試（待 Vercel Cron）
+
 Phase 1-10 的功能開發已完成**實作與整合測試**。剩餘待 Phase 11 完成的項目：
 
-- Phase 10.8.2: 執行資料遷移腳本（框架已建，需 Production DB 環境）
-- Phase 10.9.1~3: 唯一性檢查 DB 邏輯 + 前端即時驗證（框架已建，DB 查詢邏輯在註解中）
+- Phase 10.8.2: 執行資料遷移腳本（~~框架已建~~ ✅ 程式碼已啟用，需 Production DB 環境執行）
+- ~~Phase 10.9.1~3: 唯一性檢查 DB 邏輯~~ ✅ 已完成（Server Actions 已獨立實作）
 - Phase 8 + 9: Cron Job 生產環境測試（需 Vercel Cron 環境）
 
 ### 1.2 Phase 11 目標
@@ -63,7 +68,7 @@ graph TD
 
 | 優先級 | 分類 | 任務數 | 預估時間 | 前置條件 | v2.0 狀態 |
 |--------|------|--------|---------|---------|----------|
-| **P0-Critical** | 11.1 遠端服務依賴任務 | ~~12 個~~ **4 個** | ~~1-1.5 天~~ **2 小時** | 環境變數設定完成 | 8/12 已完成 |
+| **P0-Critical** | 11.1 遠端服務依賴任務 | ~~12 個~~ **4 個** | ~~1-1.5 天~~ **2 小時** | 環境變數設定完成 | ✅ 程式碼完成（10/12），待 Cron 環境測試（2/12） |
 | **P0-Critical** | 11.2 Vercel 部署與服務設定 | 4 個 | 1-2 小時 | - | 未開始 |
 | **P0-Critical** | 11.3 Cron Jobs 設定與測試 | 2 個 | 30 分鐘 | Vercel 部署完成 | 未開始 |
 | **P1-High** | 11.4 完整功能測試 | 6 個測試場景 | 2-3 小時 | 所有功能實作完成 | 未開始 |
@@ -90,15 +95,15 @@ graph TD
 | 10.7 | 10.7.Test1 | `pushEventToGame()` 實際測試 | DB + Pusher | 20 分鐘 | ✅ 已完成 |
 | 10.7 | 10.7.Test2 | `emitGameStarted()` 實際測試 | DB + Pusher | 20 分鐘 | ✅ 已完成 |
 | 10.7 | 10.7.Test3 | `emitGameEnded()` 實際測試 | DB + Pusher | 20 分鐘 | ✅ 已完成 |
-| 10.8 | 10.8.2 | 執行資料遷移腳本 | DB | 30 分鐘 | ⏳ 待執行 |
-| 10.9 | 10.9.1-3 | 唯一性檢查 DB 邏輯 + 前端 UI | DB | 1 小時 | ⏳ 待實作 |
+| 10.8 | 10.8.2 | 執行資料遷移腳本 | DB | 30 分鐘 | ✅ 程式碼啟用，待 Production DB 執行 |
+| 10.9 | 10.9.1-3 | 唯一性檢查 DB 邏輯 + 前端 UI | DB | 1 小時 | ✅ 已完成（Server Actions 已有完整 DB 邏輯） |
 
-**剩餘任務預估時間**: 約 **2-2.5 小時**
+**剩餘任務**: 8.Cron + 9.Cron（需 Vercel Cron 環境）、10.8.2 遷移腳本執行（需 Production DB）
 
-> **RD Agent 注意**：10.9.1~3 和 10.8.2 的程式碼框架已完成，DB 查詢邏輯完整地寫在註解中。
-> 實作方式為「取消註解 + 移除 placeholder」，而非從頭開發。
-> - `lib/validation/uniqueness.ts`：取消 DB import 註解、取消查詢邏輯註解、移除 placeholder return
-> - `scripts/migrate-phase10.ts`：取消 DB import 註解、取消 5 步驟邏輯註解
+> **v3.0 更新（2026-03-08）**：
+> - `scripts/migrate-phase10.ts`：DB 邏輯已全面啟用
+> - ~~`lib/validation/uniqueness.ts`~~：確認為死碼，已移除（唯一性檢查已在 Server Actions 中獨立實作）
+> - ~~`types/validation.ts`~~：隨上述檔案一併移除
 
 ### 3.2 實作步驟
 
@@ -127,11 +132,10 @@ graph TD
 
 ---
 
-#### Step 4: Phase 10.8 - 資料遷移（1 個任務，約 30 分鐘）
+#### ~~Step 4: Phase 10.8 - 資料遷移腳本啟用~~ ✅ 程式碼已完成
 
-**10.8.2 - 執行資料遷移腳本**
-
-**前置條件**：已設定 Production MongoDB URI
+> **v3.0 狀態（2026-03-08）**：`scripts/migrate-phase10.ts` DB 邏輯已全面啟用。
+> 待 Production DB 環境就緒後，按以下步驟執行：
 
 **執行步驟**：
 
@@ -145,93 +149,18 @@ graph TD
    npm run migrate:phase10
    ```
 
-3. 檢查 `migration-report.json` 和 `migration-conflicts.json`
-   - 確認所有遊戲已生成 gameCode
-   - 檢查 PIN 衝突（如有）
-
-4. 手動解決衝突（如有）
-   - 修改重複的 PIN
-   - 重新執行遷移
+3. 檢查 `migration-phase10-report.json` 和 `migration-conflicts.json`
 
 ---
 
-#### Step 5: Phase 10.9 - 唯一性檢查（3 個任務，約 1 小時）
+#### ~~Step 5: Phase 10.9 - 唯一性檢查~~ ✅ 已完成
 
-**10.9.1 - 修改 `app/actions/games.ts`**
-
-實作 `checkGameCodeUniqueness()` 的 DB 查詢邏輯（移除 TODO Phase 11 標記）：
-
-```typescript
-// lib/validation/uniqueness.ts
-export async function checkGameCodeUniqueness(params: GameCodeUniquenessParams): Promise<UniquenessCheckResult> {
-  const { gameCode, excludeGameId } = params;
-
-  try {
-    await dbConnect();
-
-    const query: any = { gameCode: gameCode.toUpperCase() };
-
-    if (excludeGameId) {
-      query._id = { $ne: excludeGameId };
-    }
-
-    const existingGame = await Game.findOne(query).select('_id name');
-
-    if (existingGame) {
-      return {
-        isUnique: false,
-        message: '此遊戲代碼已被使用，請選擇其他代碼',
-        conflictId: existingGame._id.toString(),
-      };
-    }
-
-    return { isUnique: true };
-  } catch (error) {
-    console.error('[checkGameCodeUniqueness] Error:', error);
-    throw new Error('檢查遊戲代碼唯一性時發生錯誤');
-  }
-}
-```
-
-**10.9.2 - 修改 `app/actions/characters.ts`**
-
-實作 `checkPinUniqueness()` 的 DB 查詢邏輯：
-
-```typescript
-// lib/validation/uniqueness.ts
-export async function checkPinUniqueness(params: PinUniquenessParams): Promise<UniquenessCheckResult> {
-  const { gameId, pin, excludeCharacterId } = params;
-
-  try {
-    await dbConnect();
-
-    const query: any = { gameId, pin };
-
-    if (excludeCharacterId) {
-      query._id = { $ne: excludeCharacterId };
-    }
-
-    const existingCharacter = await Character.findOne(query).select('_id name');
-
-    if (existingCharacter) {
-      return {
-        isUnique: false,
-        message: '此 PIN 在本遊戲中已被使用，請選擇其他 PIN',
-        conflictId: existingCharacter._id.toString(),
-      };
-    }
-
-    return { isUnique: true };
-  } catch (error) {
-    console.error('[checkPinUniqueness] Error:', error);
-    throw new Error('檢查 PIN 唯一性時發生錯誤');
-  }
-}
-```
-
-**10.9.3 - 前端表單即時驗證**
-
-修改 GM 端遊戲表單和角色表單，加入即時驗證（防抖 500ms）。
+> **v3.0 狀態（2026-03-08）**：
+> - 唯一性檢查 DB 邏輯已在 Server Actions 中獨立實作（非透過 `lib/validation/uniqueness.ts`）
+>   - `app/actions/games.ts` → `checkGameCodeAvailability()` 使用 `isGameCodeUnique()`
+>   - `app/actions/characters.ts` → `checkPinAvailability()` 直接查詢 `Character.findOne()`
+> - 前端即時驗證（500ms debounce）已實作於 `GameCodeSection` 和角色表單元件
+> - ~~`lib/validation/uniqueness.ts`~~ 和 ~~`types/validation.ts`~~ 確認為死碼，已移除
 
 ---
 

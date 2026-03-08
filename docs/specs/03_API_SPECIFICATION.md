@@ -1344,138 +1344,38 @@ interface PushEventInput {
 
 ---
 
-### 2.8 唯一性檢查 (lib/validation/uniqueness.ts) - Phase 10.9
+### 2.8 唯一性檢查 - Phase 10.9
 
-#### `checkGameCodeUniqueness(params: GameCodeUniquenessParams)` ✅ Phase 10.9
+> **Phase 11.1 更新**：原 `lib/validation/uniqueness.ts` 和 `types/validation.ts` 已移除（死碼）。
+> 唯一性檢查的實際邏輯已直接實作於 Server Actions 中：
+> - Game Code 唯一性：`app/actions/games.ts` → `checkGameCodeAvailability()`（使用 `lib/game/generate-game-code.ts` 的 `isGameCodeUnique()`）
+> - PIN 唯一性：`app/actions/characters.ts` → `checkPinAvailability()`（直接查詢 `Character.findOne()`）
 
-檢查 Game Code 是否唯一（全局唯一性檢查）。
+#### `checkGameCodeAvailability(gameCode, excludeGameId?)` ✅ Phase 10.9
 
-**參數**
-```typescript
-interface GameCodeUniquenessParams {
-  gameCode: string;        // 要檢查的 Game Code
-  excludeGameId?: string;  // 排除的遊戲 ID（編輯時使用，排除自己）
-}
-```
+Server Action：檢查 Game Code 是否可用（全局唯一性）。
 
-**回傳**
-```typescript
-interface UniquenessCheckResult {
-  isUnique: boolean;
-  message?: string;        // 錯誤訊息（若不唯一）
-  conflictId?: string;     // 衝突的資源 ID（若不唯一）
-}
-```
+**實作位置**：`app/actions/games.ts`
 
-**錯誤處理**
-- 若 Game Code 已被其他劇本使用，回傳 `isUnique: false` 和錯誤訊息
-- 若檢查過程發生錯誤，拋出異常
-
-**實作邏輯**
-1. 連接資料庫
-2. 查詢是否存在相同 Game Code 的劇本
-3. 若是編輯模式（`excludeGameId` 存在），排除自己
-4. 回傳檢查結果
-
-**注意**：此函數目前有 TODO Phase 11 標記，DB 查詢邏輯待實作，但框架已完成。
+**邏輯**：呼叫 `isGameCodeUnique(gameCode)` → 查詢 `Game.findOne({ gameCode })`
 
 ---
 
-#### `checkPinUniqueness(params: PinUniquenessParams)` ✅ Phase 10.9
+#### `checkPinAvailability(gameId, pin, excludeCharacterId?)` ✅ Phase 10.9
 
-檢查 PIN 是否在同遊戲內唯一（範圍內唯一性檢查）。
+Server Action：檢查 PIN 是否在同遊戲內可用。
 
-**參數**
-```typescript
-interface PinUniquenessParams {
-  gameId: string;              // 所屬遊戲 ID
-  pin: string;                 // 要檢查的 PIN
-  excludeCharacterId?: string; // 排除的角色 ID（編輯時使用，排除自己）
-}
-```
+**實作位置**：`app/actions/characters.ts`
 
-**回傳**
-```typescript
-interface UniquenessCheckResult {
-  isUnique: boolean;
-  message?: string;
-  conflictId?: string;
-}
-```
-
-**錯誤處理**
-- 若 PIN 在同遊戲中已被其他角色使用，回傳 `isUnique: false` 和錯誤訊息
-- 若檢查過程發生錯誤，拋出異常
-
-**實作邏輯**
-1. 連接資料庫
-2. 查詢同遊戲內是否存在相同 PIN 的角色
-3. 若是編輯模式（`excludeCharacterId` 存在），排除自己
-4. 回傳檢查結果
-
-**注意**：此函數目前有 TODO Phase 11 標記，DB 查詢邏輯待實作，但框架已完成。
+**邏輯**：查詢 `Character.findOne({ gameId, pin, _id: { $ne: excludeCharacterId } })`
 
 ---
 
-#### `validateGameCodeFormat(gameCode: string)` ✅ Phase 10.9
+#### 格式驗證（前端 inline）
 
-驗證 Game Code 格式（6 位英數字）。
-
-**參數**
-```typescript
-{
-  gameCode: string;  // 要驗證的 Game Code
-}
-```
-
-**回傳**
-```typescript
-boolean  // 是否符合格式
-```
-
-**驗證規則**
-- 長度：6 位
-- 字元：僅允許英文字母（A-Z）和數字（0-9）
-- 大小寫：不區分（會自動轉大寫）
-
-**範例**
-```typescript
-validateGameCodeFormat('ABC123'); // true
-validateGameCodeFormat('abc123'); // true (會自動轉大寫)
-validateGameCodeFormat('AB12');   // false (長度不足)
-validateGameCodeFormat('ABC-123'); // false (包含非法字元)
-```
-
----
-
-#### `validatePinFormat(pin: string)` ✅ Phase 10.9
-
-驗證 PIN 格式（4-6 位數字）。
-
-**參數**
-```typescript
-{
-  pin: string;  // 要驗證的 PIN
-}
-```
-
-**回傳**
-```typescript
-boolean  // 是否符合格式
-```
-
-**驗證規則**
-- 長度：4-6 位
-- 字元：僅允許數字（0-9）
-
-**範例**
-```typescript
-validatePinFormat('1234');    // true
-validatePinFormat('123456');  // true
-validatePinFormat('123');     // false (長度不足)
-validatePinFormat('1234567'); // false (長度過長)
-validatePinFormat('12a4');    // false (包含非數字)
-```
+Game Code 和 PIN 的格式驗證已在各表單元件中以 inline 正則實作：
+- Game Code：`/^[A-Z0-9]{6}$/i`（6 位英數字）
+- PIN：`/^[0-9]{4,6}$/`（4-6 位數字）
 
 ---
 

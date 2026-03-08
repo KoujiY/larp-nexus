@@ -135,8 +135,6 @@ larp-nexus/
 │   │   └── generate-game-code-client.ts # Game Code 生成（Client 端）
 │   ├── logs/                     # Phase 10: 操作日誌
 │   │   └── write-log.ts          # 寫入操作日誌
-│   ├── validation/               # Phase 10: 驗證邏輯
-│   │   └── uniqueness.ts         # Game Code/PIN 唯一性檢查（框架，DB 邏輯待 Phase 11）
 │   ├── item/                     # 道具系統
 │   │   ├── item-effect-executor.ts  # 道具效果執行
 │   │   ├── check-handler.ts      # 道具檢定處理
@@ -180,7 +178,6 @@ larp-nexus/
 │   ├── api.ts                    # API 相關類型
 │   ├── runtime.ts                # Phase 10: Runtime/Snapshot 類型
 │   ├── log.ts                    # Phase 10: 操作日誌類型
-│   ├── validation.ts             # Phase 10: 驗證相關類型
 │   ├── item-list.ts              # 道具列表類型
 │   ├── skill-list.ts             # 技能列表類型
 │   └── index.ts                  # 匯出所有類型

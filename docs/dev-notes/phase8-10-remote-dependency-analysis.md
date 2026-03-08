@@ -231,58 +231,35 @@
 **驗收方式**: type-check (框架已完成)
 
 #### 需要 Remote 服務 ⚠️ (4 tasks)
-- [x] ✅ **10.9.0 已實作框架**（TODO 標記 DB 邏輯）:
-  - 建立 `types/validation.ts` - **完整實作 ✅**
-    - UniquenessCheckResult 介面
-    - GameCodeUniquenessParams 介面
-    - PinUniquenessParams 介面
-    - ValidationErrorType 類型
-    - ValidationError 介面
-  - 建立 `lib/validation/uniqueness.ts` - **框架完成 ✅**
-    - `checkGameCodeUniqueness()` 函數框架（TODO Phase 11 DB 查詢）
-    - `checkPinUniqueness()` 函數框架（TODO Phase 11 DB 查詢）
-    - `validateGameCodeFormat()` - **完整實作 ✅**（正規表達式驗證）
-    - `validatePinFormat()` - **完整實作 ✅**（正規表達式驗證）
-
-- [ ] ⏸️ **10.9.1-10.9.3 待 Phase 11**:
-  - 修改 `app/actions/games.ts` 檢查 gameCode 唯一性 - **需要 DB**
-  - 修改 `app/actions/characters.ts` 檢查 PIN 唯一性 - **需要 DB**
-  - 前端表單即時驗證 - **需要 Server Actions (DB)**
+- [x] ✅ **10.9 唯一性檢查** — Phase 11.1 完成
+  - ~~`types/validation.ts`、`lib/validation/uniqueness.ts`~~ — 已移除（死碼）
+  - 唯一性檢查已直接實作於 Server Actions：
+    - `app/actions/games.ts` → `checkGameCodeAvailability()` ✅
+    - `app/actions/characters.ts` → `checkPinAvailability()` ✅
+  - 格式驗證以 inline 正則實作於表單元件 ✅
+  - 前端即時驗證（500ms debounce）已實作 ✅
 
 ---
 
 ## 重組建議
 
-### ✅ 已完成 - Phase 10.8-10.9 框架（2026-02-18）
+### ✅ 已完成 - Phase 10.8-10.9 框架 → Phase 11.1 啟用（2026-03-08）
 
-**目標**: 最大化不依賴 DB 的開發工作
+**Phase 11.1 完成項目**：
 
-已完成項目：
+1. ✅ **遷移腳本啟用** `scripts/migrate-phase10.ts`
+   - DB 邏輯全面啟用（dbConnect、Model imports、aggregation pipeline）
+   - 修正重複 `$ne` → `$nin` 語法問題
 
-1. ✅ **建立驗證邏輯模組框架** `lib/validation/uniqueness.ts`
-   - 定義函數簽名和類型
-   - `checkGameCodeUniqueness()` 和 `checkPinUniqueness()` 框架（TODO Phase 11 DB 查詢）
-   - `validateGameCodeFormat()` 和 `validatePinFormat()` 完整實作（正規表達式驗證）
+2. ✅ **死碼清理**
+   - ~~`lib/validation/uniqueness.ts`~~ — 移除（從未被 import，Server Actions 已獨立實作）
+   - ~~`types/validation.ts`~~ — 移除（唯一消費者為上述檔案）
 
-2. ✅ **建立類型定義** `types/validation.ts`
-   - UniquenessCheckResult 介面
-   - GameCodeUniquenessParams 介面
-   - PinUniquenessParams 介面
-   - ValidationErrorType 和 ValidationError 介面
-
-3. ✅ **遷移腳本框架** `scripts/migrate-phase10.ts`
-   - 建立檔案結構
-   - 定義 MigrationStats 和 PinConflict 介面
-   - 5 步驟遷移流程框架（TODO Phase 11 DB 邏輯）
-
-4. ✅ **更新 package.json**
-   - 新增 `migrate:phase10` 腳本命令
+3. ✅ **唯一性檢查確認**
+   - `app/actions/games.ts` → `checkGameCodeAvailability()` 已有完整 DB 邏輯
+   - `app/actions/characters.ts` → `checkPinAvailability()` 已有完整 DB 邏輯
 
 **驗收結果**: type-check + lint 通過 ✅
-
-**待 Phase 11 補充**:
-- 前端表單 UI 修改（需要 Server Actions，依賴 DB）
-- 所有 TODO Phase 11 標記的 DB 查詢邏輯
 
 ---
 
@@ -292,19 +269,12 @@
 
 #### 任務清單
 
-##### 11.1 - 資料遷移執行
-- [ ] 實作 `scripts/migrate-phase10.ts` DB 查詢和更新邏輯
-- [ ] 執行遷移腳本
-- [ ] 檢查 PIN 衝突報告
-
-##### 11.2 - 唯一性檢查實作
-- [ ] 實作 `lib/validation/uniqueness.ts` DB 查詢函數
-- [ ] 修改 `app/actions/games.ts` 整合驗證
-- [ ] 修改 `app/actions/characters.ts` 整合驗證
-
-##### 11.3 - 前端即時驗證整合
-- [ ] GM 端遊戲表單：替換 placeholder 為真實驗證
-- [ ] GM 端角色表單：替換 placeholder 為真實驗證
+##### ~~11.1 - 資料遷移與唯一性檢查~~ ✅ 已完成（2026-03-08）
+- [x] ✅ 啟用 `scripts/migrate-phase10.ts` DB 邏輯
+- [x] ✅ 確認 Server Actions 唯一性檢查已有完整 DB 邏輯
+- [x] ✅ 移除死碼（`lib/validation/uniqueness.ts`、`types/validation.ts`）
+- [ ] 執行遷移腳本（待 Production DB 環境）
+- [ ] 檢查 PIN 衝突報告（待 Production DB 環境）
 
 ##### 11.4 - GM 端 UI 整合測試
 - [ ] 遊戲建立/編輯頁面功能測試

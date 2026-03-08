@@ -368,33 +368,17 @@ Logs Layer (操作記錄)
 
 #### 🔧 10.9.0 建立驗證基礎設施
 
-**實作狀態**：✅ 框架完成（TODO 標記 DB 邏輯）
+**實作狀態**：✅ 完成
 
-**已完成**：
-1. ✅ 建立 `types/validation.ts`
-   - `UniquenessCheckResult` 介面
-   - `GameCodeUniquenessParams` 介面
-   - `PinUniquenessParams` 介面
-   - `ValidationErrorType` 類型
-   - `ValidationError` 介面
-
-2. ✅ 建立 `lib/validation/uniqueness.ts`
-   - `checkGameCodeUniqueness()` 函數框架
-   - `checkPinUniqueness()` 函數框架
-   - `validateGameCodeFormat()` 格式驗證（完整實作 ✅）
-   - `validatePinFormat()` 格式驗證（完整實作 ✅）
-   - 完整的 JSDoc 註解和使用範例
-   - 清晰的 TODO Phase 11 標記
-
-**Phase 11 待補充**：
-- TODO: 實作 `checkGameCodeUniqueness()` 的 DB 查詢邏輯
-- TODO: 實作 `checkPinUniqueness()` 的 DB 查詢邏輯
+> **Phase 11.1 更新**：原 `types/validation.ts` 和 `lib/validation/uniqueness.ts` 已於 Phase 11.1 確認為死碼並移除。
+> 唯一性檢查的實際邏輯已直接實作於 Server Actions：
+> - `app/actions/games.ts` → `checkGameCodeAvailability()`
+> - `app/actions/characters.ts` → `checkPinAvailability()`
+> 格式驗證（正則）已在各表單元件中以 inline 方式實作。
 
 **驗收標準**：
 - [x] TypeScript 編譯通過 ✅
-- [ ] 實際唯一性檢查正常運作（待 Phase 11 DB 環境）
-
-**暫停點**：✋ 框架完成，等待人類驗收
+- [x] 實際唯一性檢查正常運作（Server Actions 直接查詢 DB）✅
 
 ---
 
