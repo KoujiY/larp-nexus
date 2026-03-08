@@ -13,23 +13,17 @@
  * ```
  *
  * 注意：
- * - 此腳本使用 TypeScript 編寫，需透過 ts-node 執行
+ * - 此腳本使用 TypeScript 編寫，需透過 tsx 執行
  * - 執行前請確保已設定正確的 MongoDB 連線環境變數
  * - 建議先在測試環境執行，確認無誤後再於正式環境執行
- *
- * TODO Phase 11:
- * - 移除所有 TODO 標記
- * - 實作實際的 DB 連接和查詢邏輯
- * - 執行完整測試
  */
 
 import fs from 'fs';
 import path from 'path';
-// TODO Phase 11: 移除以下 import 的註解
-// import dbConnect from '@/lib/db/mongodb';
-// import Game from '@/lib/db/models/Game';
-// import Character from '@/lib/db/models/Character';
-// import { generateUniqueGameCode } from '@/lib/game/generate-game-code';
+import dbConnect from '@/lib/db/mongodb';
+import Game from '@/lib/db/models/Game';
+import Character from '@/lib/db/models/Character';
+import { generateUniqueGameCode } from '@/lib/game/generate-game-code';
 
 /**
  * 遷移統計資訊
@@ -73,26 +67,19 @@ async function migratePhase10(): Promise<MigrationStats> {
   try {
     // ========== 步驟 1：連接資料庫 ==========
     console.log('[1/5] 連接資料庫...');
-    // TODO Phase 11: 實作 DB 連接
-    // await dbConnect();
-    console.log('  ⚠️  TODO: 實作 DB 連接邏輯');
+    await dbConnect();
+    console.log('  ✅ 資料庫連接成功');
     console.log('');
 
     // ========== 步驟 2：查詢所有遊戲 ==========
     console.log('[2/5] 查詢所有遊戲...');
-    // TODO Phase 11: 實作遊戲查詢
-    /*
     const games = await Game.find({}).select('_id name gameCode');
     stats.totalGames = games.length;
     console.log(`  找到 ${games.length} 個遊戲`);
-    */
-    console.log('  ⚠️  TODO: 實作遊戲查詢邏輯');
     console.log('');
 
     // ========== 步驟 3：為缺少 Game Code 的遊戲生成 ==========
     console.log('[3/5] 為缺少 Game Code 的遊戲生成唯一代碼...');
-    // TODO Phase 11: 實作 Game Code 生成
-    /*
     const gamesWithoutCode = games.filter((game) => !game.gameCode);
     console.log(`  需要生成 Game Code 的遊戲：${gamesWithoutCode.length} 個`);
 
@@ -109,19 +96,15 @@ async function migratePhase10(): Promise<MigrationStats> {
         console.error(`  ❌ ${errorMsg}`);
       }
     }
-    */
-    console.log('  ⚠️  TODO: 實作 Game Code 生成邏輯');
     console.log('');
 
     // ========== 步驟 4：檢查 PIN 衝突 ==========
     console.log('[4/5] 檢查角色 PIN 衝突（同遊戲內重複）...');
-    // TODO Phase 11: 實作 PIN 衝突檢測
-    /*
     const duplicates = await Character.aggregate([
       {
         // 只檢查有 PIN 的角色
         $match: {
-          pin: { $exists: true, $ne: null, $ne: '' },
+          pin: { $exists: true, $nin: [null, ''] },
         },
       },
       {
@@ -152,7 +135,7 @@ async function migratePhase10(): Promise<MigrationStats> {
         gameId: dup._id.gameId.toString(),
         gameName: game?.name || '未知遊戲',
         pin: dup._id.pin,
-        characterIds: dup.characterIds.map((id: any) => id.toString()),
+        characterIds: dup.characterIds.map((id: unknown) => String(id)),
         characterNames: dup.characterNames,
       };
       conflicts.push(conflict);
@@ -160,9 +143,6 @@ async function migratePhase10(): Promise<MigrationStats> {
       console.log(`      PIN: ${conflict.pin} (重複 ${dup.count} 次)`);
       console.log(`      角色: ${conflict.characterNames.join(', ')}`);
     }
-    */
-    console.log('  ⚠️  TODO: 實作 PIN 衝突檢測邏輯');
-    const conflicts: PinConflict[] = [];
     console.log('');
 
     // ========== 步驟 5：輸出遷移報告 ==========
@@ -224,7 +204,7 @@ async function main() {
     console.log('');
     console.log('✅ 遷移成功完成');
     process.exit(0);
-  } catch (error) {
+  } catch {
     console.error('');
     console.error('❌ 遷移失敗');
     process.exit(1);
