@@ -56,6 +56,15 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
   }), [character]);
 
   const [formData, setFormData] = useState(initialData);
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+
+  /**
+   * 當 initialData props 變化時（例如 router.refresh() 後），同步更新本地 state
+   */
+  if (initialData !== prevInitialData) {
+    setPrevInitialData(initialData);
+    setFormData(initialData);
+  }
 
   const { isDirty, resetDirty } = useFormGuard({
     initialData,
