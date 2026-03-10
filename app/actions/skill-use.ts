@@ -1,7 +1,6 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleSkillCheck } from '@/lib/skill/check-handler';
@@ -257,11 +256,7 @@ export async function useSkill(
       try {
         const effectResult = await executeSkillEffects(skill, character, targetCharacterId, targetItemId);
         effectsApplied = effectResult.effectsApplied;
-        // 重新載入角色資料以確保資料是最新的
-        const updatedCharacter = await Character.findById(characterId);
-        if (updatedCharacter) {
-          // 角色資料已由 executeSkillEffects 更新
-        }
+        // 角色資料已由 executeSkillEffects 更新
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '效果執行失敗';
         // 將錯誤轉換為適當的錯誤代碼
@@ -316,7 +311,14 @@ export async function useSkill(
       });
     }
 
+    // 判斷是否影響他人
+    const isAffectingOthers = targetCharacterId && targetCharacterId !== characterId;
+
+    // 獲取目標角色名稱（targetCharacter 在前面已載入）
+    const targetCharacterName = isAffectingOthers ? targetCharacter?.name : undefined;
+
     // WebSocket 事件：技能使用（非阻斷，若未配置 Pusher 則安全跳過）
+    // 包含目標角色名稱，讓通知訊息能顯示完整資訊
     emitSkillUsed(characterId, {
       characterId,
       skillId: skill.id,
@@ -325,31 +327,21 @@ export async function useSkill(
       checkPassed,
       checkResult: finalCheckResult,
       effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+      targetCharacterId: isAffectingOthers ? targetCharacterId : undefined,
+      targetCharacterName,
     }).catch((error) => {
       console.error('Failed to emit skill.used event', error);
     });
 
-    // 判斷是否影響他人
-    const isAffectingOthers = targetCharacterId && targetCharacterId !== characterId;
-    
-    // 獲取目標角色名稱（如果需要）
-    let targetCharacterName: string | undefined;
-    if (isAffectingOthers && targetCharacterId) {
-      const targetChar = await Character.findById(targetCharacterId).lean();
-      targetCharacterName = targetChar?.name;
-    }
-
-    const messageParts: string[] = [];
-    if (!checkPassed) {
-      messageParts.push('檢定失敗');
-    } else {
-      messageParts.push('技能使用成功');
-      if (isAffectingOthers && targetCharacterName) {
-        messageParts.push(`對象：${targetCharacterName}`);
-      }
+    // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
+    let toastMessage = '';
+    if (checkPassed) {
+      toastMessage = '技能使用成功';
       if (effectsApplied.length > 0) {
-        messageParts.push(`效果：${effectsApplied.join('、')}`);
+        toastMessage += `，效果：${effectsApplied.join('、')}`;
       }
+    } else {
+      toastMessage = '檢定失敗，技能未生效';
     }
 
     return {
@@ -361,7 +353,7 @@ export async function useSkill(
         effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
         targetCharacterName,
       },
-      message: messageParts.join('，'),
+      message: toastMessage,
     };
   } catch (error) {
     console.error('Error using skill:', error);

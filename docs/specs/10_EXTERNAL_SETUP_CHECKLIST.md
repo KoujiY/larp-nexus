@@ -435,6 +435,7 @@ SESSION_SECRET=Ab3dEf6gHi9jKl2mNo5pQr8sTu1vWx4yZ=
    | `SMTP_USER` | `your@gmail.com` | Production |
    | `SMTP_PASS` | `Gmail App Password` | Production |
    | `EMAIL_FROM` | `your@gmail.com` | Production |
+   | `CRON_SECRET` | `openssl rand -base64 32` | Production |
 
 4. **重新部署**
    - Settings → Deployments
@@ -561,6 +562,9 @@ BLOB_READ_WRITE_TOKEN=xxx
 SMTP_USER=your@gmail.com
 SMTP_PASS=xxx
 EMAIL_FROM=your@gmail.com
+
+# ===== 僅 Production（Vercel）=====
+CRON_SECRET=xxx
 ```
 
 ---

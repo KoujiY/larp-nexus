@@ -6,10 +6,11 @@
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import type { CharacterDocument } from '@/lib/db/models';
+import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
+import { updateCharacterData } from '@/lib/game/update-character-data';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
 import { getItemEffects } from '@/lib/item/get-item-effects';
@@ -54,27 +55,23 @@ export async function executeItemEffects(
   const effects: ItemEffect[] = getItemEffects(item);
 
   if (effects.length === 0) {
-    // 重新載入角色資料
-    const updatedCharacter = await Character.findById(character._id);
-    if (!updatedCharacter) {
-      throw new Error('找不到角色');
-    }
+    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
+    const updatedCharacter = await getCharacterData(getBaselineCharacterId(character));
     return {
       effectsApplied: [],
       updatedCharacter,
     };
   }
 
-  const characterId = character._id.toString();
+  // Phase 10.4: 使用 Baseline ID 確保 DB 操作和 WebSocket 頻道一致
+  const characterId = getBaselineCharacterId(character);
   const checkType = item.checkType || 'none';
 
   // 決定效果作用對象
   let targetCharacter: CharacterDocument | null = null;
   if (targetCharacterId) {
-    targetCharacter = await Character.findById(targetCharacterId);
-    if (!targetCharacter) {
-      throw new Error('找不到目標角色');
-    }
+    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
+    targetCharacter = await getCharacterData(targetCharacterId) as CharacterDocument;
     // 驗證在同一劇本內
     if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
       throw new Error('目標角色不在同一劇本內');
@@ -197,7 +194,7 @@ export async function executeItemEffects(
       // Phase 8: 如果效果有 duration，建立時效性效果記錄
       if (effectWithTarget.duration && effectWithTarget.duration > 0) {
         await createTemporaryEffectRecord(
-          effectTarget._id.toString(),
+          getBaselineCharacterId(effectTarget),
           {
             sourceType: 'item',
             sourceId: item.id,
@@ -235,8 +232,8 @@ export async function executeItemEffects(
 
       // 驗證目標角色
       if (!targetCharacter) {
-        targetCharacter = await Character.findById(targetCharacterId);
-        if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+        targetCharacter = await getCharacterData(targetCharacterId!) as CharacterDocument;
+        if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
           throw new Error('目標角色不存在或不在同一劇本內');
         }
       }
@@ -266,13 +263,13 @@ export async function executeItemEffects(
         targetUpdates[`items.${targetItemIndex}.quantity`] = newQuantity;
       }
 
-      // 更新目標角色（移除道具）
+      // Phase 10.4: 更新目標角色（自動判斷 Baseline/Runtime）
       if (targetUpdates.$pull) {
-        await Character.findByIdAndUpdate(targetCharacterId, {
+        await updateCharacterData(targetCharacterId!, {
           $pull: targetUpdates.$pull as { items: { id: string } },
         });
       } else {
-        await Character.findByIdAndUpdate(targetCharacterId, {
+        await updateCharacterData(targetCharacterId!, {
           $set: targetUpdates,
         });
       }
@@ -297,13 +294,13 @@ export async function executeItemEffects(
           sourceUpdates.$push = { items: stolenItem };
         }
 
-        // 更新施放者（添加道具）
+        // Phase 10.4: 更新施放者（自動判斷 Baseline/Runtime）
         if (sourceUpdates.$push) {
-          await Character.findByIdAndUpdate(characterId, {
+          await updateCharacterData(characterId, {
             $push: sourceUpdates.$push as { items: unknown },
           });
         } else {
-          await Character.findByIdAndUpdate(characterId, {
+          await updateCharacterData(characterId, {
             $set: sourceUpdates,
           });
         }
@@ -346,8 +343,8 @@ export async function executeItemEffects(
 
       // 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
       const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
-        Character.findById(characterId).lean(),
-        Character.findById(targetCharacterId).lean(),
+        getCharacterData(characterId),
+        getCharacterData(targetCharacterId!),
       ]);
 
       if (updatedSourceCharacter && updatedTargetCharacter) {
@@ -379,13 +376,13 @@ export async function executeItemEffects(
   // 應用統計變化
   if (Object.keys(targetStatUpdates).length > 0) {
     if (isAffectingOthers && targetCharacter) {
-      // 更新目標角色
-      await Character.findByIdAndUpdate(targetCharacterId!, {
+      // Phase 10.4: 更新目標角色（自動判斷 Baseline/Runtime）
+      await updateCharacterData(targetCharacterId!, {
         $set: targetStatUpdates,
       });
     } else {
-      // 更新自己
-      await Character.findByIdAndUpdate(characterId, {
+      // Phase 10.4: 更新自己（自動判斷 Baseline/Runtime）
+      await updateCharacterData(characterId, {
         $set: targetStatUpdates,
       });
     }
@@ -428,23 +425,18 @@ export async function executeItemEffects(
         },
       }).catch((error) => console.error('Failed to emit role.updated (item target)', error));
     } else {
-      // 自己使用道具：只發送 role.updated
+      // 自己使用道具：發送 role.updated 觸發頁面刷新
+      // 不附帶 stats 資料，避免與道具使用結果的通知重複
       emitRoleUpdated(targetId, {
         characterId: targetId,
-        updates: {
-          stats: statUpdatePayload,
-        },
+        updates: {},
       }).catch((error) => console.error('Failed to emit role.updated (item stat)', error));
     }
   }
 
-  // 重新載入角色資料以確保資料是最新的
-  const updatedCharacter = await Character.findById(characterId);
-  const updatedTarget = targetCharacterId ? await Character.findById(targetCharacterId) : undefined;
-
-  if (!updatedCharacter) {
-    throw new Error('找不到角色');
-  }
+  // Phase 10.4: 重新載入角色資料（自動判斷 Baseline/Runtime）
+  const updatedCharacter = await getCharacterData(characterId);
+  const updatedTarget = targetCharacterId ? await getCharacterData(targetCharacterId) : undefined;
 
   // Phase 10.6: 記錄道具使用日誌
   await writeLog({

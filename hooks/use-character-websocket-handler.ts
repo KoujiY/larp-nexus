@@ -226,6 +226,12 @@ export function useCharacterWebSocketHandler(
           break;
         }
 
+        case 'item.used': {
+          // 道具使用通知 — 通知由 mapItemUsed 處理，此處僅刷新數據
+          router.refresh();
+          break;
+        }
+
         case 'effect.expired': {
           // Phase 8: 時效性效果過期 — 僅刷新數據，通知由通知面板顯示
           router.refresh();

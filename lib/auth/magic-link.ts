@@ -80,7 +80,7 @@ export async function sendMagicLinkEmail(
   email: string,
   token: string
 ): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
   const magicLink = `${appUrl}/auth/verify?token=${token}`;
 
   const emailFrom = process.env.EMAIL_FROM || process.env.SMTP_USER || '';

@@ -13,6 +13,7 @@ const CHARACTER_EVENT_TYPES = [
   'role.taskUpdated',
   'role.inventoryUpdated',
   'skill.used',
+  'item.used',
   'skill.cooldown',
   'skill.contest',
   'character.affected',

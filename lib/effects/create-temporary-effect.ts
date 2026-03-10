@@ -4,7 +4,7 @@
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
+import { getCharacterData } from '@/lib/game/get-character-data';
 import type { TemporaryEffect } from '@/types/character';
 
 /**
@@ -73,11 +73,8 @@ export async function createTemporaryEffectRecord(
     isExpired: false,
   };
 
-  // 寫入目標角色的 temporaryEffects 陣列
-  const targetCharacter = await Character.findById(targetCharacterId);
-  if (!targetCharacter) {
-    throw new Error('找不到目標角色');
-  }
+  // 寫入目標角色的 temporaryEffects 陣列（自動判斷 Baseline/Runtime）
+  const targetCharacter = await getCharacterData(targetCharacterId);
 
   // 初始化 temporaryEffects 陣列（向後兼容）
   if (!targetCharacter.temporaryEffects) {
@@ -85,7 +82,8 @@ export async function createTemporaryEffectRecord(
   }
 
   // 新增效果記錄
-  targetCharacter.temporaryEffects.push(temporaryEffect);
+  // Type assertion: CharacterDocument 和 CharacterRuntimeDocument 的 temporaryEffects schema 相同
+  targetCharacter.temporaryEffects.push(temporaryEffect as typeof targetCharacter.temporaryEffects[number]);
   await targetCharacter.save();
 
   return temporaryEffect;

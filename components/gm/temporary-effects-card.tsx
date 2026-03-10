@@ -30,10 +30,10 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
 
   /**
    * 載入時效性效果
+   * 初次載入顯示 loading 狀態，後續刷新保持顯示舊資料以避免閃爍
    */
   const loadEffects = useCallback(async () => {
     try {
-      setIsLoading(true);
       setError(null);
 
       const result = await getTemporaryEffects(characterId);
@@ -47,6 +47,7 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
       console.error('[TemporaryEffectsCard] loadEffects error:', err);
       setError('載入時發生錯誤');
     } finally {
+      // 無論初次或後續載入，完成後都關閉 loading
       setIsLoading(false);
     }
   }, [characterId]);
@@ -90,13 +91,14 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
         // 檢查是否有效果剛好歸零
         const hasNewlyExpired = updated.some((effect) => effect.remainingSeconds <= 0);
 
-        // 如果有效果歸零，主動觸發伺服器端過期檢查並重新載入
+        // 如果有效果歸零，主動觸發伺服器端過期檢查
+        // 不在此處呼叫 loadEffects，避免因客戶端/伺服器時間差導致已移除的效果重新出現
+        // 伺服器處理完成後會透過 WebSocket effect.expired 事件觸發 loadEffects
         if (hasNewlyExpired && !isCheckingExpiredRef.current) {
           isCheckingExpiredRef.current = true;
           setTimeout(async () => {
             try {
               await checkExpiredEffects(characterId);
-              await loadEffects();
             } finally {
               isCheckingExpiredRef.current = false;
             }
@@ -108,7 +110,7 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [effects.length, characterId, loadEffects]);
+  }, [effects.length, characterId]);
 
   /**
    * 格式化剩餘時間（HH:MM:SS 或 MM:SS）

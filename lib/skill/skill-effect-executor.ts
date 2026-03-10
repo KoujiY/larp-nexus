@@ -6,10 +6,11 @@
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import type { CharacterDocument } from '@/lib/db/models';
+import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
+import { updateCharacterData } from '@/lib/game/update-character-data';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
 
@@ -45,11 +46,8 @@ export async function executeSkillEffects(
   await dbConnect();
 
   if (!skill.effects || skill.effects.length === 0) {
-    // 重新載入角色資料
-    const updatedCharacter = await Character.findById(character._id);
-    if (!updatedCharacter) {
-      throw new Error('找不到角色');
-    }
+    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
+    const updatedCharacter = await getCharacterData(getBaselineCharacterId(character));
     return {
       effectsApplied: [],
       updatedCharacter,
@@ -57,15 +55,14 @@ export async function executeSkillEffects(
   }
 
   const now = new Date();
-  const characterId = character._id.toString();
+  // Phase 10.4: 使用 Baseline ID 確保 DB 操作和 WebSocket 頻道一致
+  const characterId = getBaselineCharacterId(character);
 
   // 決定效果作用對象（根據效果的 targetType）
   let targetCharacter: CharacterDocument | null = null;
   if (targetCharacterId) {
-    targetCharacter = await Character.findById(targetCharacterId);
-    if (!targetCharacter) {
-      throw new Error('找不到目標角色');
-    }
+    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
+    targetCharacter = await getCharacterData(targetCharacterId) as CharacterDocument;
     // 驗證在同一劇本內
     if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
       throw new Error('目標角色不在同一劇本內');
@@ -172,7 +169,7 @@ export async function executeSkillEffects(
         // Phase 8: 如果效果有 duration，建立時效性效果記錄
         if (effect.duration && effect.duration > 0) {
           await createTemporaryEffectRecord(
-            effectTarget._id.toString(),
+            getBaselineCharacterId(effectTarget),
             {
               sourceType: 'skill',
               sourceId: skill.id,
@@ -227,8 +224,8 @@ export async function executeSkillEffects(
 
       // 驗證目標角色
       if (!targetCharacter) {
-        targetCharacter = await Character.findById(targetCharacterId);
-        if (!targetCharacter || targetCharacter.gameId.toString() !== character.gameId.toString()) {
+        targetCharacter = await getCharacterData(targetCharacterId!) as CharacterDocument;
+        if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
           throw new Error('目標角色不存在或不在同一劇本內');
         }
       }
@@ -246,34 +243,28 @@ export async function executeSkillEffects(
       const targetItemQuantity = targetItem.quantity || 1;
       const newQuantity = targetItemQuantity - 1;
 
-      // 準備更新：先移除舊的道具
-      await Character.findByIdAndUpdate(targetCharacterId, {
+      // Phase 10.4: 使用統一寫入（自動判斷 Baseline/Runtime）
+      await updateCharacterData(targetCharacterId!, {
         $pull: { items: { id: targetItemId } },
       });
 
       // 如果數量 > 0，添加更新後的道具
       if (newQuantity > 0) {
-        // targetItem 已經是普通的 JavaScript 對象，不需要調用 toObject()
         const updatedItem = {
           ...targetItem,
           quantity: newQuantity,
         };
-        // 移除可能的 Mongoose 特定欄位（防禦性編程）
         const cleanedItem = updatedItem as Record<string, unknown>;
         delete cleanedItem._id;
         delete cleanedItem.__v;
-        await Character.findByIdAndUpdate(targetCharacterId, {
+        await updateCharacterData(targetCharacterId!, {
           $push: { items: cleanedItem },
         });
       }
 
       if (effect.type === 'item_steal') {
         // 偷竊：將道具轉移到施放者身上
-        // 重新載入角色資料以確保資料是最新的
-        const updatedCharacter = await Character.findById(characterId);
-        if (!updatedCharacter) {
-          throw new Error('找不到角色');
-        }
+        const updatedCharacter = await getCharacterData(characterId);
 
         const sourceItems = updatedCharacter.items || [];
         const sourceItemIndex = sourceItems.findIndex((i: { id: string }) => i.id === targetItemId);
@@ -283,7 +274,7 @@ export async function executeSkillEffects(
           const currentItem = sourceItems[sourceItemIndex];
           const currentQuantity = currentItem.quantity || 1;
 
-          await Character.findByIdAndUpdate(characterId, {
+          await updateCharacterData(characterId, {
             $pull: { items: { id: targetItemId } },
           });
 
@@ -294,7 +285,7 @@ export async function executeSkillEffects(
           delete (updatedSourceItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
           delete (updatedSourceItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
 
-          await Character.findByIdAndUpdate(characterId, {
+          await updateCharacterData(characterId, {
             $push: { items: updatedSourceItem },
           });
         } else {
@@ -311,7 +302,7 @@ export async function executeSkillEffects(
             usageCount: 0,
           };
 
-          await Character.findByIdAndUpdate(characterId, {
+          await updateCharacterData(characterId, {
             $push: { items: stolenItem },
           });
         }
@@ -354,8 +345,8 @@ export async function executeSkillEffects(
 
       // 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
       const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
-        Character.findById(characterId).lean(),
-        Character.findById(targetCharacterId).lean(),
+        getCharacterData(characterId),
+        getCharacterData(targetCharacterId!),
       ]);
 
       if (updatedSourceCharacter && updatedTargetCharacter) {
@@ -390,10 +381,10 @@ export async function executeSkillEffects(
   // 應用跨角色統計變化
   if (Object.keys(targetStatUpdates).length > 0) {
     if (isAffectingOthers && targetCharacter) {
-      // 更新目標角色
-      await Character.findByIdAndUpdate(targetCharacterId, {
+      // Phase 10.4: 更新目標角色（自動判斷 Baseline/Runtime）
+      await updateCharacterData(targetCharacterId!, {
         $set: targetStatUpdates,
-        $unset: { 'tasks.$[].gmNotes': 1 }, // 移除 gmNotes（若有）
+        $unset: { 'tasks.$[].gmNotes': 1 },
       });
 
       // 發送 WebSocket 事件給目標角色
@@ -432,31 +423,27 @@ export async function executeSkillEffects(
         }).catch((error) => console.error('Failed to emit role.updated (skill target)', error));
       }
     } else {
-      // 更新自己
-      await Character.findByIdAndUpdate(characterId, {
+      // Phase 10.4: 更新自己（自動判斷 Baseline/Runtime）
+      await updateCharacterData(characterId, {
         $set: targetStatUpdates,
-        $unset: { 'tasks.$[].gmNotes': 1 }, // 移除 gmNotes（若有）
+        $unset: { 'tasks.$[].gmNotes': 1 },
       });
     }
   }
 
   // 發送 role.updated 給施放者（如果有統計變化且不是跨角色）
+  // 不附帶 stats 資料，避免與 skill.used 事件的通知重複
+  // 玩家端已透過 Server Action 回傳取得效果結果，此處僅觸發頁面刷新
   if (statUpdates.length > 0 && !isAffectingOthers) {
     emitRoleUpdated(characterId, {
       characterId,
-      updates: {
-        stats: statUpdates,
-      },
+      updates: {},
     }).catch((error) => console.error('Failed to emit role.updated (skill stat)', error));
   }
 
-  // 重新載入角色資料以確保資料是最新的
-  const updatedCharacter = await Character.findById(characterId);
-  const updatedTarget = targetCharacterId ? await Character.findById(targetCharacterId) : undefined;
-
-  if (!updatedCharacter) {
-    throw new Error('找不到角色');
-  }
+  // Phase 10.4: 重新載入角色資料（自動判斷 Baseline/Runtime）
+  const updatedCharacter = await getCharacterData(characterId);
+  const updatedTarget = targetCharacterId ? await getCharacterData(targetCharacterId) : undefined;
 
   // Phase 10.6: 記錄技能使用日誌
   await writeLog({

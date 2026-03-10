@@ -38,6 +38,15 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
   }), [game]);
 
   const [formData, setFormData] = useState(initialData);
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+
+  /**
+   * 當 initialData props 變化時（例如結束遊戲後 router.refresh()），同步更新本地 state
+   */
+  if (initialData !== prevInitialData) {
+    setPrevInitialData(initialData);
+    setFormData(initialData);
+  }
 
   const { isDirty, resetDirty } = useFormGuard({
     initialData,

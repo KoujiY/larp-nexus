@@ -6,9 +6,10 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character, Game } from '@/lib/db/models';
+import { Game } from '@/lib/db/models';
 import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
 import { getCurrentGMUserId } from '@/lib/auth/session';
+import { getCharacterData } from '@/lib/game/get-character-data';
 import type { TemporaryEffect } from '@/types/character';
 import type { ApiResponse } from '@/types/api';
 
@@ -62,9 +63,11 @@ export async function getTemporaryEffects(
 
     await dbConnect();
 
-    // 查詢角色並驗證 GM 權限
-    const character = await Character.findById(characterId);
-    if (!character) {
+    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
+    let character;
+    try {
+      character = await getCharacterData(characterId);
+    } catch {
       return {
         success: false,
         error: 'NOT_FOUND',

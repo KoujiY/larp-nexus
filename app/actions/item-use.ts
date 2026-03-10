@@ -2,9 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
 import type { CharacterDocument } from '@/lib/db/models';
-import { emitItemTransferred, emitRoleUpdated } from '@/lib/websocket/events';
+import { emitItemTransferred, emitItemUsed, emitRoleUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleItemCheck } from '@/lib/item/check-handler';
@@ -323,11 +322,7 @@ export async function useItem(
       try {
         const effectResult = await executeItemEffects(item, character, targetCharacterId, targetItemId);
         effectMessages = effectResult.effectsApplied;
-        // 重新載入角色資料以確保資料是最新的
-        const updatedCharacter = await Character.findById(characterId);
-        if (updatedCharacter) {
-          // 角色資料已由 executeItemEffects 更新
-        }
+        // 角色資料已由 executeItemEffects 更新
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '效果執行失敗';
         // 將錯誤轉換為適當的錯誤代碼
@@ -381,7 +376,32 @@ export async function useItem(
 
     // 合併所有效果訊息
     const finalEffectMessage = effectMessages.length > 0 ? effectMessages.join('、') : undefined;
-    
+
+    // WebSocket 事件：道具使用通知（非阻斷）
+    emitItemUsed(characterId, {
+      characterId,
+      itemId: item.id,
+      itemName: item.name,
+      checkPassed,
+      checkResult: finalCheckResult,
+      effectsApplied: effectMessages.length > 0 ? effectMessages : undefined,
+      targetCharacterId: isAffectingOthers ? targetCharacterId : undefined,
+      targetCharacterName: isAffectingOthers ? targetCharacter?.name : undefined,
+    }).catch((error) => {
+      console.error('Failed to emit item.used event', error);
+    });
+
+    // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
+    let toastMessage = '';
+    if (checkPassed) {
+      toastMessage = '道具使用成功';
+      if (finalEffectMessage) {
+        toastMessage += `，效果：${finalEffectMessage}`;
+      }
+    } else {
+      toastMessage = '檢定未通過，道具未生效';
+    }
+
     return {
       success: true,
       data: {
@@ -391,7 +411,7 @@ export async function useItem(
         checkPassed,
         checkResult: finalCheckResult,
       },
-      message: checkPassed ? '道具使用成功' : '道具使用失敗（檢定未通過）',
+      message: toastMessage,
     };
   } catch (error) {
     console.error('Error using item:', error);
@@ -542,9 +562,10 @@ export async function transferItem(
 
     // Phase 9: 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
     // 重新載入兩個角色的最新資料
+    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
     const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
-      Character.findById(characterId).lean(),
-      Character.findById(targetCharacterId).lean(),
+      getCharacterData(characterId),
+      getCharacterData(targetCharacterId),
     ]);
 
     if (updatedSourceCharacter && updatedTargetCharacter) {
