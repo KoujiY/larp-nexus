@@ -108,7 +108,21 @@ vercel env pull .env.local
 
 ---
 
-### 2.6 Email 服務（Magic Link 發送）— Nodemailer + Gmail SMTP
+### 2.6 Cron Job 保護
+
+```bash
+# Cron API 認證金鑰（用於保護 /api/cron/* 端點）
+CRON_SECRET=your-cron-secret-key
+
+# 生成方式：
+# openssl rand -base64 32
+```
+
+**注意**：此金鑰用於驗證 Vercel Cron Jobs 的請求來源。僅需設定於 Vercel Production 環境。
+
+---
+
+### 2.7 Email 服務（Magic Link 發送）— Nodemailer + Gmail SMTP
 
 > **v2.0 更新**：已從 Resend 遷移至 Nodemailer + Gmail SMTP。
 > 詳見 [SPEC-nodemailer-migration-2026-03-09.md](./SPEC-nodemailer-migration-2026-03-09.md)
@@ -174,6 +188,9 @@ NEXT_PUBLIC_PUSHER_CLUSTER=ap3
 
 # ---- Vercel Blob ----
 BLOB_READ_WRITE_TOKEN=
+
+# ---- Cron Job ----
+CRON_SECRET=                          # openssl rand -base64 32
 
 # ---- Email (Nodemailer + Gmail SMTP) ----
 SMTP_HOST=smtp.gmail.com

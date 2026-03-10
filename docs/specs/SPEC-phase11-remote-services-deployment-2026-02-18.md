@@ -1,7 +1,7 @@
 # SPEC-phase11-remote-services-deployment
 
-## 版本：v3.0
-## 更新日期：2026-03-08（Phase 11.1 程式碼完成、死碼清理）
+## 版本：v4.0
+## 更新日期：2026-03-09（Phase 11.1~11.3 完成，進入功能測試階段）
 ## 適用範圍：Phase 11 - 遠端服務整合、部署與優化
 
 ---
@@ -18,11 +18,21 @@
 > - 唯一性檢查確認 Server Actions 已有完整 DB 邏輯（`lib/validation/uniqueness.ts` 為死碼，已移除）
 > - 剩餘 11.1 工作：遷移腳本實際執行（待 Production DB）、Cron Job 測試（待 Vercel Cron）
 
+> **v4.0 更新（2026-03-09）**：Phase 11.1~11.3 全部完成。
+> - 11.1 遠端服務依賴任務 ✅ 全部完成
+> - 11.2 Vercel 部署 ✅ 完成（含 Nodemailer + Gmail SMTP 遷移，Magic Link 驗證通過）
+> - 11.3 Cron Jobs ✅ 完成（改為每日一次兜底清理，核心過期處理靠 Lazy Evaluation）
+> - 10.8.2 遷移腳本：Production DB 為全新環境，無需執行
+> - **Cron Job 架構決策**：Vercel Hobby 方案不支援每分鐘排程，改採 Lazy Evaluation 架構。
+>   過期效果在玩家/GM 載入角色資料時即時處理（`processExpiredEffects()`），
+>   Cron Job 退化為每日 DB 清潔工（清理 `isExpired: true` 超過 24 小時的舊記錄）。
+> - 進入 11.4 完整功能測試階段
+
 Phase 1-10 的功能開發已完成**實作與整合測試**。剩餘待 Phase 11 完成的項目：
 
-- Phase 10.8.2: 執行資料遷移腳本（~~框架已建~~ ✅ 程式碼已啟用，需 Production DB 環境執行）
+- ~~Phase 10.8.2: 執行資料遷移腳本~~ ✅ Production DB 為全新環境，無需執行
 - ~~Phase 10.9.1~3: 唯一性檢查 DB 邏輯~~ ✅ 已完成（Server Actions 已獨立實作）
-- Phase 8 + 9: Cron Job 生產環境測試（需 Vercel Cron 環境）
+- ~~Phase 8 + 9: Cron Job 生產環境測試~~ ✅ 已完成（curl 手動測試通過）
 
 ### 1.2 Phase 11 目標
 
@@ -43,9 +53,9 @@ Phase 11 的核心目標是：
 | Pusher | ✅ 已設定 | WebSocket | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.1 |
 | Nodemailer + Gmail SMTP | ✅ 已設定 | Email | `SPEC-nodemailer-migration-2026-03-09.md` |
 | Session Secret | ✅ 已設定 | Session 加密 | `10_EXTERNAL_SETUP_CHECKLIST.md` § 2.3 |
-| Vercel | ⏸️ 待設定 | 部署平台 | 本文件 § 11.2 |
-| Vercel Blob | ⏸️ 待設定 | 圖片上傳 | 本文件 § 11.2.4 |
-| Vercel Cron | ⏸️ 待設定 | 定時任務 | 本文件 § 11.3 |
+| Vercel | ✅ 已設定 | 部署平台 | 本文件 § 11.2 |
+| Vercel Blob | ✅ 已設定 | 圖片上傳 | 本文件 § 11.2.4 |
+| Vercel Cron | ✅ 已設定 | 定時任務（每日兜底清理） | 本文件 § 11.3 |
 
 ---
 
@@ -68,10 +78,10 @@ graph TD
 
 | 優先級 | 分類 | 任務數 | 預估時間 | 前置條件 | v2.0 狀態 |
 |--------|------|--------|---------|---------|----------|
-| **P0-Critical** | 11.1 遠端服務依賴任務 | ~~12 個~~ **4 個** | ~~1-1.5 天~~ **2 小時** | 環境變數設定完成 | ✅ 程式碼完成（10/12），待 Cron 環境測試（2/12） |
-| **P0-Critical** | 11.2 Vercel 部署與服務設定 | 4 個 | 1-2 小時 | - | 未開始 |
-| **P0-Critical** | 11.3 Cron Jobs 設定與測試 | 2 個 | 30 分鐘 | Vercel 部署完成 | 未開始 |
-| **P1-High** | 11.4 完整功能測試 | 6 個測試場景 | 2-3 小時 | 所有功能實作完成 | 未開始 |
+| **P0-Critical** | 11.1 遠端服務依賴任務 | ~~12 個~~ **4 個** | ~~1-1.5 天~~ **2 小時** | 環境變數設定完成 | ✅ 完成 |
+| **P0-Critical** | 11.2 Vercel 部署與服務設定 | 4 個 | 1-2 小時 | - | ✅ 完成 |
+| **P0-Critical** | 11.3 Cron Jobs 設定與測試 | 2 個 | 30 分鐘 | Vercel 部署完成 | ✅ 完成（每日排程 + Lazy Evaluation） |
+| **P1-High** | 11.4 完整功能測試 | 6 個測試場景 | 2-3 小時 | 所有功能實作完成 | 🔄 進行中 |
 | **P1-High** | 11.5 效能優化與安全性檢查 | 4 個 | 1-2 小時 | 功能測試通過 | 未開始 |
 | **P2-Medium** | 11.6 生產環境優化（選用） | 1 個 | 30 分鐘 | 基礎部署完成 | 未開始 |
 
@@ -301,110 +311,38 @@ git push origin main
 
 ---
 
-## 5. 11.3 Cron Jobs 設定與測試（P0-Critical）
+## 5. 11.3 Cron Jobs 設定與測試（P0-Critical）✅ 已完成
 
 ### 5.1 Cron Jobs 總覽
 
-本專案需要設定 **1 個 Cron Job**，整合 Phase 8 和 Phase 9 的定時任務：
+> **v4.0 架構決策**：Vercel Hobby（免費）方案 Cron Jobs 最短間隔為每日一次。
+> 經分析，系統已內建 **Lazy Evaluation** 機制（玩家/GM 載入角色資料時自動檢查過期效果），
+> 因此 Cron Job 角色退化為「DB 清潔工」，每日兜底清理舊記錄即可。
+
+本專案設定 **1 個 Cron Job**，整合 Phase 8 和 Phase 9 的定時清理任務：
 
 | 路徑 | 頻率 | 用途 | Phase |
 |------|------|------|-------|
-| `/api/cron/check-expired-effects` | 每分鐘 | 檢查過期效果 + 清理 Pending Events | 8 + 9 |
+| `/api/cron/check-expired-effects` | 每日 00:00 UTC | 兜底清理過期效果 + 清理 Pending Events | 8 + 9 |
 
-### 5.2 設定步驟
+### 5.2 過期效果處理架構（v4.0）
 
-#### Step 1: 建立 `vercel.json` 設定檔
+```
+即時處理（主要）：
+  玩家載入角色卡 → getPublicCharacter() → processExpiredEffects() → 恢復數值
+  GM 載入角色資料 → getCharacterById() → processExpiredEffects() → 恢復數值
+  前端倒數歸零 → onEffectExpired() → 呼叫 Server Action 確認
 
-在專案根目錄建立 `vercel.json`：
-
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/check-expired-effects",
-      "schedule": "* * * * *"
-    }
-  ]
-}
+每日兜底清理（輔助）：
+  Vercel Cron（每日 00:00 UTC）→ processExpiredEffects() + cleanupPendingEvents()
 ```
 
-#### Step 2: 保護 Cron API（安全性）
+### 5.3 已完成的設定
 
-修改 `app/api/cron/check-expired-effects/route.ts`：
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { checkExpiredEffects } from '@/app/actions/temporary-effects';
-import { cleanExpiredPendingEvents } from '@/lib/websocket/clean-pending-events';
-
-export async function GET(request: NextRequest) {
-  // 驗證 Cron Secret
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    // Phase 8: 檢查過期效果
-    const effectsResult = await checkExpiredEffects();
-
-    // Phase 9: 清理過期的 Pending Events
-    const cleanResult = await cleanExpiredPendingEvents();
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        effects: effectsResult.data,
-        pendingEvents: cleanResult,
-      },
-    });
-  } catch (error) {
-    console.error('[Cron] Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
-```
-
-#### Step 3: 部署並啟用 Cron Jobs
-
-```bash
-# 提交 vercel.json
-git add vercel.json
-git commit -m "feat: add Vercel Cron Jobs configuration"
-git push origin main
-
-# 等待 Vercel 自動部署
-```
-
-在 Vercel Dashboard 確認 Cron Jobs 已啟用：
-- Settings → Crons
-- 確認 `/api/cron/check-expired-effects` 顯示為 Active
-
-#### Step 4: 測試 Cron Job（手動觸發）
-
-```bash
-# 使用 curl 手動觸發 Cron API
-curl -X GET https://your-project.vercel.app/api/cron/check-expired-effects \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
-
-預期回應：
-```json
-{
-  "success": true,
-  "data": {
-    "effects": {
-      "processedCount": 0,
-      "restoredStats": []
-    },
-    "pendingEvents": {
-      "deletedCount": 0
-    }
-  }
-}
-```
+- ✅ `vercel.json` 已建立（`"schedule": "0 0 * * *"`）
+- ✅ `app/api/cron/check-expired-effects/route.ts` 已實作（含 CRON_SECRET 驗證）
+- ✅ Vercel 環境變數 `CRON_SECRET` 已設定
+- ✅ curl 手動觸發測試通過
 
 ---
 
@@ -433,12 +371,11 @@ curl -X GET https://your-project.vercel.app/api/cron/check-expired-effects \
 1. GM 建立一個技能，設定 `stat_change` 效果，duration = 60 秒
 2. 玩家 A 使用技能，數值變化（如 HP +10）
 3. 確認 GM 端時效性效果卡片顯示剩餘時間倒數
-4. 等待 60 秒 + Cron Job 執行（最多 1 分鐘）
+4. 等待 60 秒，前端倒數歸零後觸發 `onEffectExpired()` 呼叫後端處理
 5. 確認：
-   - [ ] 玩家 A 收到 `effect.expired` 事件
-   - [ ] 玩家 A 顯示 Toast：「效果已結束，HP 已恢復」
    - [ ] 玩家 A 的 HP 恢復至原始值
    - [ ] GM 端時效性效果卡片移除該效果
+6. （附加測試）重新整理頁面，確認數值仍然正確（Lazy Evaluation 驗證）
 
 **驗收標準**：所有確認項目皆通過。
 
@@ -505,13 +442,11 @@ curl -X GET https://your-project.vercel.app/api/cron/check-expired-effects \
 1. GM 開始遊戲（Phase 10）
 2. 玩家 A 使用時效性效果技能（Phase 8）
 3. 玩家 A 關閉瀏覽器（模擬離線）
-4. 等待效果過期，Cron Job 執行
-5. 確認：
-   - [ ] `effect.expired` 事件寫入 Pending Events（Phase 9）
+4. 等待效果過期時間到達（無需 Cron，Lazy Evaluation 會在下次讀取時處理）
+5. 玩家 A 重新開啟角色卡
+6. 確認：
+   - [ ] 載入時自動處理過期效果（processExpiredEffects 觸發）
    - [ ] Runtime 中的數值已恢復（Phase 10）
-6. 玩家 A 重新開啟角色卡
-7. 確認：
-   - [ ] 玩家 A 收到過期效果通知（從 Pending Events 拉取）
    - [ ] 數值顯示正確（已恢復）
 
 **驗收標準**：所有確認項目皆通過。
@@ -648,7 +583,7 @@ pnpm lint
 ### 9.1 功能驗收
 
 - [ ] **AC-1**: 所有 Phase 8-10 功能在 Production 環境正常運作
-- [ ] **AC-2**: Cron Jobs 每分鐘正常執行，過期效果和 Pending Events 清理正確
+- [ ] **AC-2**: 過期效果透過 Lazy Evaluation 即時處理；Cron Job 每日兜底清理正常
 - [ ] **AC-3**: 遊戲狀態分層系統（Baseline / Runtime / Snapshot）運作正常
 - [ ] **AC-4**: Game Code 和 PIN 唯一性檢查生效
 - [ ] **AC-5**: 圖片上傳功能正常（Vercel Blob）
@@ -734,33 +669,28 @@ pnpm lint
 
 ---
 
-## 13. 總結（v2.0 更新）
+## 13. 總結（v4.0 更新）
 
 Phase 11 是專案從**開發階段**邁向**生產環境**的關鍵里程碑。完成 Phase 11 後，專案將具備：
 
 ✅ **完整功能**：所有 Phase 1-10 功能實際運作，無 TODO 標記
 ✅ **穩定部署**：部署至 Vercel Production，可對外提供服務
-✅ **自動化任務**：Cron Jobs 定時清理和檢查，無需手動介入
+✅ **自動化任務**：Lazy Evaluation 即時處理 + Cron Job 每日兜底清理
 ✅ **效能優化**：圖片、Bundle 和 Loading State 優化
 ✅ **安全保障**：授權檢查、環境變數保護、API 保護完善
 
-### v2.0 進度更新
+### v4.0 進度更新（2026-03-09）
 
-Phase 10 整合測試（2026-03-03~04）已完成 8/12 個原定待辦任務，工作量大幅減少：
+| 項目 | 狀態 | 說明 |
+|------|------|------|
+| 11.1 遠端服務依賴任務 | ✅ 完成 | 程式碼全部完成，遷移腳本無需執行（全新 DB） |
+| 11.2 Vercel 部署 | ✅ 完成 | 含 Nodemailer + Gmail SMTP 遷移、Magic Link 驗證通過 |
+| 11.3 Cron Jobs 設定 | ✅ 完成 | 每日排程 + Lazy Evaluation 架構 |
+| 11.4 完整功能測試 | 🔄 進行中 | 使用者手動測試中 |
+| 11.5 效能優化與安全性 | 未開始 | 待功能測試通過 |
+| 11.6 生產環境優化（選用） | 未開始 | 自訂網域設定 |
 
-| 項目 | 原預估 | v2.0 預估 | 說明 |
-|------|--------|----------|------|
-| 11.1 遠端服務依賴任務 | 1-1.5 天 | **2 小時** | 僅剩 10.8.2 + 10.9.1~3（解除註解級別） |
-| 11.2 Vercel 部署 | 1-2 小時 | 1-2 小時 | 不變 |
-| 11.3 Cron Jobs 設定 | 30 分鐘 | 30 分鐘 | 不變 |
-| 11.4 完整功能測試 | 3 小時 | **1-2 小時** | TS-3/4/5/6 已部分驗證 |
-| 11.5 效能優化與安全性 | 2 小時 | 2 小時 | 不變 |
-| **總計** | **2-2.5 天** | **約 1 天** | 減少約 50% |
-
-**建議執行順序**：
-1. 11.1 遠端服務依賴任務（2 小時）→ 唯一性檢查 + 遷移腳本
-2. 11.2 Vercel 部署（1-2 小時）→ 取得環境變數
-3. 11.3 Cron Jobs 設定（30 分鐘）→ 啟用定時任務
-4. 11.4 完整功能測試（1-2 小時）→ 確保品質
-5. 11.5 效能優化與安全性檢查（2 小時）→ 提升穩定性
-6. 11.6 生產環境優化（選用，30 分鐘）→ 自訂網域設定
+**剩餘工作**：
+1. 11.4 完整功能測試（1-2 小時）→ 6 個測試場景
+2. 11.5 效能優化與安全性檢查（2 小時）→ 提升穩定性
+3. 11.6 生產環境優化（選用，30 分鐘）→ 自訂網域設定
