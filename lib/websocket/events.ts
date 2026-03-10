@@ -2,6 +2,7 @@ import type {
   BaseEvent,
   WebSocketEvent,
   SkillUsedEvent,
+  ItemUsedEvent,
   RoleUpdatedEvent,
   SkillCooldownEvent,
   SkillContestEvent,
@@ -45,6 +46,10 @@ async function trigger(channel: string, eventName: EventName, payload: BaseEvent
 
 export async function emitSkillUsed(characterId: string, payload: SkillUsedEvent['payload']) {
   await trigger(`private-character-${characterId}`, 'skill.used', payload);
+}
+
+export async function emitItemUsed(characterId: string, payload: ItemUsedEvent['payload']) {
+  await trigger(`private-character-${characterId}`, 'item.used', payload);
 }
 
 export async function emitRoleUpdated(characterId: string, payload: RoleUpdatedEvent['payload']) {

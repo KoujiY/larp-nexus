@@ -1,11 +1,16 @@
 /**
  * Phase 8: 時效性效果過期檢查與數值恢復
  * 處理已過期的 temporaryEffects 並恢復受影響的數值
+ *
+ * Phase 10.4: 同時查詢 Character（Baseline）和 CharacterRuntime 兩個 collection，
+ * 使用原子性 updateOne 操作避免 VersionError（併發安全）。
  */
 
 import dbConnect from '@/lib/db/mongodb';
 import { Character } from '@/lib/db/models';
-import { emitEffectExpired } from '@/lib/websocket/events';
+import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
+import { emitEffectExpired, emitRoleUpdated } from '@/lib/websocket/events';
+import { getBaselineCharacterId } from '@/lib/game/get-character-data';
 import type { TemporaryEffect } from '@/types/character';
 import type { CharacterDocument } from '@/lib/db/models/Character';
 
@@ -24,7 +29,10 @@ export interface ExpiredEffectResult {
 /**
  * 處理過期的時效性效果並恢復數值
  *
- * @param characterId - 可選，指定角色 ID；若未提供則檢查所有角色
+ * Phase 10.4: 同時查詢 Character 和 CharacterRuntime，
+ * 確保 active game 期間的 Runtime 效果也能被正確處理。
+ *
+ * @param characterId - 可選，指定角色 ID（Baseline ID）；若未提供則檢查所有角色
  * @returns 處理結果：成功處理的效果數量和詳細資訊
  */
 export async function processExpiredEffects(characterId?: string): Promise<{
@@ -37,7 +45,7 @@ export async function processExpiredEffects(characterId?: string): Promise<{
   const results: ExpiredEffectResult[] = [];
 
   // 建立查詢條件
-  const query: Record<string, unknown> = {
+  const expiredMatch = {
     temporaryEffects: {
       $elemMatch: {
         expiresAt: { $lte: now },
@@ -46,12 +54,29 @@ export async function processExpiredEffects(characterId?: string): Promise<{
     },
   };
 
+  // Baseline 查詢
+  const baselineQuery: Record<string, unknown> = { ...expiredMatch };
   if (characterId) {
-    query._id = characterId;
+    baselineQuery._id = characterId;
   }
 
-  // 查詢有過期效果的角色
-  const characters = await Character.find(query);
+  // Runtime 查詢（active game 期間效果存在 Runtime collection）
+  const runtimeQuery: Record<string, unknown> = { ...expiredMatch, type: 'runtime' };
+  if (characterId) {
+    runtimeQuery.refId = characterId;
+  }
+
+  // 同時查詢兩個 collection
+  const [baselineCharacters, runtimeCharacters] = await Promise.all([
+    Character.find(baselineQuery),
+    CharacterRuntime.find(runtimeQuery),
+  ]);
+
+  // 合併結果（CharacterRuntimeDocument 與 CharacterDocument schema 相容）
+  const characters = [
+    ...baselineCharacters,
+    ...runtimeCharacters as unknown as CharacterDocument[],
+  ];
 
   // 處理每個角色的過期效果
   for (const character of characters) {
@@ -82,25 +107,43 @@ export async function processExpiredEffects(characterId?: string): Promise<{
 /**
  * 處理單一過期效果：恢復數值並標記為已過期
  *
- * @param character - 被影響的角色文檔
+ * 使用原子性 Model.updateOne() 操作，透過 document.constructor 自動
+ * 寫入正確的 collection（Character 或 CharacterRuntime）。
+ * 以 $elemMatch + isExpired:false 作為冪等性保護，避免併發重複處理。
+ *
+ * @param character - 被影響的角色文檔（用於讀取當前數值和確定 Model）
  * @param effect - 過期的效果記錄
- * @returns 處理結果，若目標數值已被移除則回傳 null
+ * @returns 處理結果，若已被處理或目標數值已移除則回傳 null
  */
 async function processExpiredEffect(
   character: CharacterDocument,
   effect: TemporaryEffect
 ): Promise<ExpiredEffectResult | null> {
+  // 取得文件所屬的 Model（Character 或 CharacterRuntime），用於原子性更新
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const CharacterModel = (character as any).constructor as typeof Character;
+
+  // 冪等性查詢條件：只匹配尚未過期的效果
+  const idempotentQuery = {
+    _id: character._id,
+    temporaryEffects: { $elemMatch: { id: effect.id, isExpired: false } },
+  };
+
   // 尋找目標數值
   const targetStat = character.stats?.find((s) => s.name === effect.targetStat);
+  const statIndex = character.stats?.findIndex((s) => s.name === effect.targetStat) ?? -1;
 
-  if (!targetStat) {
+  if (!targetStat || statIndex < 0) {
     // 目標數值已被 GM 移除，直接標記效果為已過期
-    await markEffectAsExpired(character._id.toString(), effect.id);
+    await CharacterModel.updateOne(idempotentQuery, {
+      $set: { 'temporaryEffects.$.isExpired': true },
+    });
     return null;
   }
 
   let restoredValue: number | undefined;
   let restoredMax: number | undefined;
+  const setOps: Record<string, unknown> = {};
 
   // 恢復數值
   if (effect.statChangeTarget === 'value') {
@@ -111,16 +154,7 @@ async function processExpiredEffect(
     // Clamp：確保 value 在 [0, maxValue] 範圍內
     const maxValue = targetStat.maxValue ?? Number.MAX_SAFE_INTEGER;
     restoredValue = Math.max(0, Math.min(maxValue, newValue));
-
-    // 更新資料庫
-    await Character.updateOne(
-      { _id: character._id, 'stats.id': targetStat.id },
-      {
-        $set: {
-          'stats.$.value': restoredValue,
-        },
-      }
-    );
+    setOps[`stats.${statIndex}.value`] = restoredValue;
   } else if (effect.statChangeTarget === 'maxValue') {
     // 恢復 maxValue：反向 delta
     const deltaMax = effect.deltaMax ?? 0;
@@ -128,54 +162,39 @@ async function processExpiredEffect(
 
     // Clamp：確保 maxValue >= 1
     restoredMax = Math.max(1, newMax);
-
-    // 更新 maxValue
-    await Character.updateOne(
-      { _id: character._id, 'stats.id': targetStat.id },
-      {
-        $set: {
-          'stats.$.maxValue': restoredMax,
-        },
-      }
-    );
+    setOps[`stats.${statIndex}.maxValue`] = restoredMax;
 
     // 如果當初有 syncValue，恢復時也需要同步
     if (effect.syncValue) {
-      // value 需要 clamp 到新的 maxValue
       const clampedValue = Math.min(targetStat.value, restoredMax);
       restoredValue = clampedValue;
-
-      await Character.updateOne(
-        { _id: character._id, 'stats.id': targetStat.id },
-        {
-          $set: {
-            'stats.$.value': clampedValue,
-          },
-        }
-      );
+      setOps[`stats.${statIndex}.value`] = clampedValue;
     } else {
       // 即使沒有 syncValue，也需確保 value 不超過新的 maxValue
       if (targetStat.value > restoredMax) {
         restoredValue = restoredMax;
-
-        await Character.updateOne(
-          { _id: character._id, 'stats.id': targetStat.id },
-          {
-            $set: {
-              'stats.$.value': restoredMax,
-            },
-          }
-        );
+        setOps[`stats.${statIndex}.value`] = restoredMax;
       }
     }
   }
 
   // 標記效果為已過期
-  await markEffectAsExpired(character._id.toString(), effect.id);
+  setOps['temporaryEffects.$.isExpired'] = true;
+
+  // 原子性更新（不使用 .save()，避免 VersionError）
+  const updateResult = await CharacterModel.updateOne(idempotentQuery, { $set: setOps });
+
+  // 若 modifiedCount === 0，表示已被另一個併發請求處理，跳過
+  if (updateResult.modifiedCount === 0) {
+    return null;
+  }
+
+  // Phase 10.4: 使用 Baseline ID 作為 WebSocket 頻道，確保玩家端能收到事件
+  const channelId = getBaselineCharacterId(character);
 
   // 推送 WebSocket 事件
-  await emitEffectExpired(character._id.toString(), {
-    targetCharacterId: character._id.toString(),
+  await emitEffectExpired(channelId, {
+    targetCharacterId: channelId,
     effectId: effect.id,
     sourceType: effect.sourceType,
     sourceId: effect.sourceId,
@@ -192,9 +211,15 @@ async function processExpiredEffect(
     duration: effect.duration,
   });
 
+  // 額外發送 role.updated 事件確保頁面刷新（belt-and-suspenders）
+  emitRoleUpdated(channelId, {
+    characterId: channelId,
+    updates: {},
+  }).catch((error) => console.error('Failed to emit role.updated (effect expired)', error));
+
   return {
     effectId: effect.id,
-    characterId: character._id.toString(),
+    characterId: channelId,
     characterName: character.name,
     targetStat: effect.targetStat,
     restoredValue,
@@ -203,30 +228,12 @@ async function processExpiredEffect(
 }
 
 /**
- * 標記效果為已過期（當目標數值已被移除時使用）
- *
- * @param characterId - 角色 ID
- * @param effectId - 效果 ID
- */
-async function markEffectAsExpired(
-  characterId: string,
-  effectId: string
-): Promise<void> {
-  await Character.updateOne(
-    { _id: characterId, 'temporaryEffects.id': effectId },
-    {
-      $set: {
-        'temporaryEffects.$.isExpired': true,
-      },
-    }
-  );
-}
-
-/**
  * 清理超過 24 小時的已過期效果記錄
  * 避免 temporaryEffects 陣列無限增長
  *
- * @param characterId - 可選，指定角色 ID；若未提供則清理所有角色
+ * Phase 10.4: 同時清理 Character 和 CharacterRuntime 兩個 collection。
+ *
+ * @param characterId - 可選，指定角色 ID（Baseline ID）；若未提供則清理所有角色
  * @returns 清理的記錄數量
  */
 export async function cleanupOldExpiredEffects(characterId?: string): Promise<number> {
@@ -234,19 +241,31 @@ export async function cleanupOldExpiredEffects(characterId?: string): Promise<nu
 
   const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 小時前
 
-  const query: Record<string, unknown> = {};
-  if (characterId) {
-    query._id = characterId;
-  }
-
-  const result = await Character.updateMany(query, {
+  const pullOperation = {
     $pull: {
       temporaryEffects: {
         isExpired: true,
         expiresAt: { $lt: cutoffTime },
       },
     },
-  });
+  };
 
-  return result.modifiedCount;
+  // Baseline 查詢
+  const baselineQuery: Record<string, unknown> = {};
+  if (characterId) {
+    baselineQuery._id = characterId;
+  }
+
+  // Runtime 查詢
+  const runtimeQuery: Record<string, unknown> = {};
+  if (characterId) {
+    runtimeQuery.refId = characterId;
+  }
+
+  const [baselineResult, runtimeResult] = await Promise.all([
+    Character.updateMany(baselineQuery, pullOperation),
+    CharacterRuntime.updateMany(runtimeQuery, pullOperation),
+  ]);
+
+  return baselineResult.modifiedCount + runtimeResult.modifiedCount;
 }

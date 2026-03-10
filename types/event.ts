@@ -95,6 +95,22 @@ export interface SkillUsedEvent extends BaseEvent<{
   type: 'skill.used';
 }
 
+/**
+ * 道具使用事件（攻擊方通知）
+ */
+export interface ItemUsedEvent extends BaseEvent<{
+  characterId: string;
+  itemId: string;
+  itemName: string;
+  checkPassed: boolean;
+  checkResult?: number;
+  effectsApplied?: string[];
+  targetCharacterId?: string;
+  targetCharacterName?: string;
+}> {
+  type: 'item.used';
+}
+
 export interface SkillCooldownEvent extends BaseEvent<{
   characterId: string;
   skillId: string;
@@ -344,6 +360,7 @@ export type WebSocketEvent =
   | TaskUpdatedEvent
   | InventoryUpdatedEvent
   | SkillUsedEvent
+  | ItemUsedEvent
   | SkillCooldownEvent
   | SkillContestEvent
   | CharacterAffectedEvent

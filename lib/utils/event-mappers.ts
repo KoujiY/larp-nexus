@@ -6,7 +6,7 @@
  */
 
 import type { BaseEvent } from '@/types/event';
-import type { SkillContestEvent, SkillUsedEvent, SecretRevealedEvent, TaskRevealedEvent, ItemShowcasedEvent, EffectExpiredEvent } from '@/types/event';
+import type { SkillContestEvent, SkillUsedEvent, ItemUsedEvent, SecretRevealedEvent, TaskRevealedEvent, ItemShowcasedEvent, EffectExpiredEvent } from '@/types/event';
 
 export interface Notification {
   id: string;
@@ -539,21 +539,74 @@ export function createEventMappers(
     
     // 根據來源類型決定標題和名稱（非對抗檢定類型）
     const title = '技能使用結果';
-    const actionType = '技能';
-    
-    let message = '';
+    const skillName = payload.skillName || '技能';
+
+    // 組合通知訊息：包含目標、技能名稱、效果
+    const messageParts: string[] = [];
+    if (payload.targetCharacterName) {
+      messageParts.push(`對 ${payload.targetCharacterName} 使用 ${skillName}`);
+    } else {
+      messageParts.push(`使用 ${skillName}`);
+    }
     if (payload.checkPassed) {
-      message = `${actionType}使用成功`;
+      messageParts.push('技能使用成功');
       if (payload.effectsApplied && payload.effectsApplied.length > 0) {
-        message += `，效果：${payload.effectsApplied.join('、')}`;
+        messageParts.push(`效果：${payload.effectsApplied.join('、')}`);
       }
     } else {
-      message = `${actionType}使用失敗`;
+      messageParts.push('技能使用失敗');
       if (payload.checkResult !== undefined) {
-        message += `（檢定結果：${payload.checkResult}）`;
+        messageParts.push(`檢定結果：${payload.checkResult}`);
       }
     }
+    const message = messageParts.join('，');
     
+    return [
+      {
+        id: `evt-${event.timestamp}`,
+        title,
+        message,
+        type: event.type,
+      },
+    ];
+  };
+
+  /**
+   * 映射道具使用事件
+   */
+  const mapItemUsed = (event: BaseEvent): Notification[] => {
+    const payload = event.payload as ItemUsedEvent['payload'];
+
+    // 只處理當前角色的通知
+    const characterIdStr = String(characterId);
+    const payloadCharacterIdStr = String(payload.characterId);
+    if (payloadCharacterIdStr !== characterIdStr) {
+      return [];
+    }
+
+    const title = '道具使用結果';
+    const itemName = payload.itemName || '道具';
+
+    // 組合通知訊息：包含目標、道具名稱、效果
+    const messageParts: string[] = [];
+    if (payload.targetCharacterName) {
+      messageParts.push(`對 ${payload.targetCharacterName} 使用 ${itemName}`);
+    } else {
+      messageParts.push(`使用 ${itemName}`);
+    }
+    if (payload.checkPassed) {
+      messageParts.push('道具使用成功');
+      if (payload.effectsApplied && payload.effectsApplied.length > 0) {
+        messageParts.push(`效果：${payload.effectsApplied.join('、')}`);
+      }
+    } else {
+      messageParts.push('道具使用失敗');
+      if (payload.checkResult !== undefined) {
+        messageParts.push(`檢定結果：${payload.checkResult}`);
+      }
+    }
+    const message = messageParts.join('，');
+
     return [
       {
         id: `evt-${event.timestamp}`,
@@ -666,6 +719,8 @@ export function createEventMappers(
         return mapSkillContest(event);
       case 'skill.used':
         return mapSkillUsed(event);
+      case 'item.used':
+        return mapItemUsed(event);
       case 'character.affected':
         return mapCharacterAffected(event);
       case 'secret.revealed':
@@ -688,6 +743,7 @@ export function createEventMappers(
     mapItemTransferred,
     mapSkillContest,
     mapSkillUsed,
+    mapItemUsed,
     mapCharacterAffected,
     mapRoleMessage,
     mapSecretRevealed,
