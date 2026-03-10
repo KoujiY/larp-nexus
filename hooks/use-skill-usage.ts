@@ -75,24 +75,24 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     }
 
     // 檢查是否需要選擇目標角色
-    const requiresTarget = selectedSkill.checkType === 'contest' || selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
+    const requiresTarget = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest' || selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
     if (requiresTarget && !selectedTargetId) {
       toast.error('請先選擇目標角色');
       return;
     }
-    
+
     // 檢查是否需要確認目標角色和選擇目標道具
     // 注意：對抗檢定時，不需要在初始使用時選擇目標道具
     const effect = selectedSkill.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
-    const isContest = selectedSkill.checkType === 'contest';
-    
+    const isContest = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest';
+
     // 非對抗檢定時，才需要確認目標角色和選擇目標道具
     if (effect && !isContest) {
       if (selectedTargetId && !isTargetConfirmed) {
         toast.error('請先確認目標角色');
         return;
       }
-      
+
       if (!selectedTargetItemId) {
         toast.error('請選擇目標道具');
         return;
@@ -109,7 +109,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     }
 
     // 對抗檢定必須有目標角色
-    if (selectedSkill.checkType === 'contest') {
+    if (selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest') {
       if (!selectedTargetId) {
         toast.error('對抗檢定需要選擇目標角色');
         return;

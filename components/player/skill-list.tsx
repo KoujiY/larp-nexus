@@ -55,10 +55,11 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   // Phase 6.5: 目標選擇相關邏輯
   // Phase 7: 對抗檢定類型自動需要目標角色
   const requiresTarget = Boolean(
-    selectedSkill?.checkType === 'contest' || 
+    selectedSkill?.checkType === 'contest' ||
+    selectedSkill?.checkType === 'random_contest' ||
     selectedSkill?.effects?.some((effect: SkillEffect) => effect.requiresTarget)
   );
-  const targetType = selectedSkill?.checkType === 'contest' 
+  const targetType = (selectedSkill?.checkType === 'contest' || selectedSkill?.checkType === 'random_contest')
     ? 'other' // 對抗檢定只能對其他角色使用
     : selectedSkill?.effects?.find((e: SkillEffect) => e.requiresTarget)?.targetType;
 
@@ -959,13 +960,13 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
                                             dialogState.sourceId === selectedSkill.id;
                   const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
                   if (isWaitingForContest) return true;
-                  // Phase 7: 對抗檢定需要目標角色
-                  if (selectedSkill.checkType === 'contest' && !selectedTargetId) return true;
+                  // Phase 7: 需要目標角色但未選擇時禁用
+                  if (requiresTarget && !selectedTargetId) return true;
                   // Phase 8: 檢查是否需要確認目標角色和選擇目標道具
                   // 注意：對抗檢定時，不需要在初始使用時選擇目標道具
                   const effect = selectedSkill.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
-                  const isContest = selectedSkill.checkType === 'contest';
-                  if (effect && !isContest && selectedTargetId && (!isTargetConfirmed || !selectedTargetItemId)) return true;
+                  const isContest = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest';
+                  if (effect && !isContest && (!selectedTargetId || !isTargetConfirmed || !selectedTargetItemId)) return true;
                   const { canUse } = canUseSkill(selectedSkill);
                   return !canUse;
                 })()}
@@ -983,13 +984,13 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
                    if (isWaitingForContest) {
                      return '等待對抗檢定結果...';
                    }
-                   // Phase 7: 對抗檢定需要目標角色時的提示
-                   if (selectedSkill.checkType === 'contest' && !selectedTargetId) {
+                   // Phase 7: 需要目標角色但未選擇時的提示
+                   if (requiresTarget && !selectedTargetId) {
                      return '請選擇目標角色';
                    }
                    // Phase 8: 檢查目標道具選擇（非對抗檢定時才需要）
                    const effect = selectedSkill.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
-                   const isContest = selectedSkill.checkType === 'contest';
+                   const isContest = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest';
                    if (effect && !isContest) {
                      if (!selectedTargetId) {
                        return '請選擇目標角色';
