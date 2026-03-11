@@ -3,7 +3,6 @@
 import { useState, useSyncExternalStore, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CharacterData } from '@/types/character';
 import type { BaseEvent } from '@/types/event';
@@ -467,8 +466,8 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   // 已解鎖或無 PIN，顯示角色卡
   return (
     <div className="container max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
-      {/* Phase 10: 唯讀預覽模式提示（客戶端判定） */}
-      {isReadOnly && (
+      {/* Phase 11.5: 模式提示 Banner（預覽模式 / Runtime 模式） */}
+      {isReadOnly ? (
         <div className="mb-6 p-4 rounded-lg border border-amber-500 bg-amber-50 text-amber-900">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -489,6 +488,27 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
                 🔑 重新解鎖
               </Button>
             )}
+          </div>
+        </div>
+      ) : character.hasPinLock && (
+        <div className="mb-6 p-4 rounded-lg border border-emerald-500 bg-emerald-50 text-emerald-900">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium mb-1">🎮 遊戲進行中</p>
+              <p className="text-sm text-emerald-800">
+                {character.gameCode
+                  ? <>遊戲代碼：<span className="font-mono font-bold tracking-widest">{character.gameCode}</span></>
+                  : '所有互動功能已啟用。'}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-emerald-500 text-emerald-900 hover:bg-emerald-100"
+              onClick={handleRelock}
+            >
+              🔑 重新解鎖
+            </Button>
           </div>
         </div>
       )}
@@ -526,21 +546,6 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
                 <p className="text-muted-foreground mb-2">
                   {character.publicInfo.personality}
                 </p>
-              )}
-              {character.hasPinLock && (
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="secondary">
-                    🔓 已解鎖
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={handleRelock}
-                  >
-                    🔒 鎖定
-                  </Button>
-                </div>
               )}
             </div>
             {/* 通知紀錄入口 */}

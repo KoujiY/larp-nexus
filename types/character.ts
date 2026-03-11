@@ -27,6 +27,11 @@ export interface CharacterData {
    */
   isGameActive?: boolean;
   /**
+   * Phase 11.5: 遊戲進行中時，附帶 Game Code 供玩家端 Runtime Banner 顯示
+   * 僅在 isGameActive=true 且玩家已完整解鎖時才有值
+   */
+  gameCode?: string;
+  /**
    * Phase 10: 遊戲進行中時，附帶 Baseline 原始資料
    * 用於唯讀預覽模式（PIN-only）顯示未修改的角色設定
    * 僅在 isActive=true 時由 getPublicCharacter 填充

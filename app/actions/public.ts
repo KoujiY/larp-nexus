@@ -75,7 +75,7 @@ export async function getPublicCharacter(
     const cleanSkills = cleanSkillData(character.skills);
 
     // Phase 7.6: 獲取劇本的 randomContestMaxValue 和 isActive
-    const game = await Game.findById(character.gameId).select('randomContestMaxValue isActive').lean();
+    const game = await Game.findById(character.gameId).select('randomContestMaxValue isActive gameCode').lean();
     const randomContestMaxValue = game?.randomContestMaxValue || 100;
 
     // Phase 8: 重新載入角色以取得最新的 temporaryEffects（過期檢查後）
@@ -164,6 +164,7 @@ export async function getPublicCharacter(
         stats: cleanStats,
         skills: cleanSkills,
         isGameActive: game?.isActive ?? false, // Phase 10: 遊戲是否進行中
+        gameCode: game?.isActive ? game.gameCode : undefined, // Phase 11.5: Runtime Banner 用
         randomContestMaxValue, // Phase 7.6: 隨機對抗檢定上限值
         temporaryEffects: activeTemporaryEffects, // Phase 8: 時效性效果
         pendingEvents, // Phase 9: 離線事件佇列
