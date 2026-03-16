@@ -260,32 +260,39 @@ export function AutoRevealConditionEditor({
               disabled={disabled || !selectedItemId}
               className="shrink-0"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 mr-1" />
+              添加
             </Button>
           </div>
 
-          {/* 已選道具標籤列表 */}
-          {currentItemIds.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {currentItemIds.map((itemId) => (
-                <Badge
-                  key={itemId}
-                  variant="secondary"
-                  className="flex items-center gap-1 pr-1"
-                >
-                  <span className="text-xs">{getItemDisplayName(itemId)}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(itemId)}
-                    disabled={disabled}
-                    className="ml-0.5 hover:text-destructive"
+          {/* 已選道具標籤展示區 */}
+          <div className="min-h-[48px] rounded-md border-2 border-dashed border-muted-foreground/25 p-2">
+            {currentItemIds.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {currentItemIds.map((itemId) => (
+                  <Badge
+                    key={itemId}
+                    variant="secondary"
+                    className="flex items-center gap-1 pr-1"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
+                    <span className="text-xs">{getItemDisplayName(itemId)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(itemId)}
+                      disabled={disabled}
+                      className="ml-0.5 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-1">
+                尚無匹配道具，請點選添加按鈕新增
+              </p>
+            )}
+          </div>
         </div>
       )}
 

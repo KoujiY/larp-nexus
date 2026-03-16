@@ -297,6 +297,7 @@ export async function updateCharacter(
     if (data.secretInfo !== undefined) {
       const currentSecrets = character.secretInfo?.secrets || [];
       const secretsResult = updateCharacterSecrets(data.secretInfo.secrets, currentSecrets);
+
       updateData.secretInfo = { secrets: secretsResult };
 
       // Phase 7.7: 檢查是否有隱藏資訊從未揭露變為已揭露（GM 手動揭露）
@@ -396,12 +397,17 @@ export async function updateCharacter(
         characterDoc.markModified(key);
         characterDoc.set(key, cleanData);
         characterDoc.markModified(key);
+      } else if (NESTED_FIELDS.has(key)) {
+        // 巢狀物件內含陣列子文檔（如 secretInfo.secrets）：
+        // 同樣需要 JSON 深拷貝 + 先清空再設定，
+        // 避免 Mongoose 合併舊的巢狀陣列資料導致欄位遺失（如 autoRevealCondition）
+        const cleanData = JSON.parse(JSON.stringify(updateData[key]));
+        (characterDoc as unknown as Record<string, unknown>)[key] = {};
+        characterDoc.markModified(key);
+        characterDoc.set(key, cleanData);
+        characterDoc.markModified(key);
       } else {
         characterDoc.set(key, updateData[key]);
-        // 複雜巢狀結構需要 markModified 觸發 Mongoose change detection
-        if (NESTED_FIELDS.has(key)) {
-          characterDoc.markModified(key);
-        }
       }
     });
 

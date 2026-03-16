@@ -546,12 +546,11 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      const newSecrets = formData.secretInfo.secrets.filter(
-                        (_, i) => i !== index
-                      );
                       setFormData((prev) => ({
                         ...prev,
-                        secretInfo: { secrets: newSecrets },
+                        secretInfo: {
+                          secrets: prev.secretInfo.secrets.filter((_, i) => i !== index),
+                        },
                       }));
                     }}
                     disabled={isLoading}
@@ -567,12 +566,12 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                     placeholder="隱藏資訊標題"
                     value={secret.title}
                     onChange={(e) => {
-                      const newSecrets = [...formData.secretInfo.secrets];
-                      newSecrets[index] = { ...newSecrets[index], title: e.target.value };
-                      setFormData((prev) => ({
-                        ...prev,
-                        secretInfo: { secrets: newSecrets },
-                      }));
+                      const value = e.target.value;
+                      setFormData((prev) => {
+                        const newSecrets = [...prev.secretInfo.secrets];
+                        newSecrets[index] = { ...newSecrets[index], title: value };
+                        return { ...prev, secretInfo: { secrets: newSecrets } };
+                      });
                     }}
                     disabled={isLoading}
                   />
@@ -584,12 +583,12 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                     placeholder="隱藏資訊內容"
                     value={secret.content}
                     onChange={(e) => {
-                      const newSecrets = [...formData.secretInfo.secrets];
-                      newSecrets[index] = { ...newSecrets[index], content: e.target.value };
-                      setFormData((prev) => ({
-                        ...prev,
-                        secretInfo: { secrets: newSecrets },
-                      }));
+                      const value = e.target.value;
+                      setFormData((prev) => {
+                        const newSecrets = [...prev.secretInfo.secrets];
+                        newSecrets[index] = { ...newSecrets[index], content: value };
+                        return { ...prev, secretInfo: { secrets: newSecrets } };
+                      });
                     }}
                     disabled={isLoading}
                     rows={6}
@@ -603,12 +602,12 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                     placeholder="例：完成任務 A 後揭露"
                     value={secret.revealCondition || ''}
                     onChange={(e) => {
-                      const newSecrets = [...formData.secretInfo.secrets];
-                      newSecrets[index] = { ...newSecrets[index], revealCondition: e.target.value };
-                      setFormData((prev) => ({
-                        ...prev,
-                        secretInfo: { secrets: newSecrets },
-                      }));
+                      const value = e.target.value;
+                      setFormData((prev) => {
+                        const newSecrets = [...prev.secretInfo.secrets];
+                        newSecrets[index] = { ...newSecrets[index], revealCondition: value };
+                        return { ...prev, secretInfo: { secrets: newSecrets } };
+                      });
                     }}
                     disabled={isLoading}
                   />
@@ -621,12 +620,11 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                 <AutoRevealConditionEditor
                   condition={secret.autoRevealCondition}
                   onChange={(newCondition) => {
-                    const newSecrets = [...formData.secretInfo.secrets];
-                    newSecrets[index] = { ...newSecrets[index], autoRevealCondition: newCondition };
-                    setFormData((prev) => ({
-                      ...prev,
-                      secretInfo: { secrets: newSecrets },
-                    }));
+                    setFormData((prev) => {
+                      const newSecrets = [...prev.secretInfo.secrets];
+                      newSecrets[index] = { ...newSecrets[index], autoRevealCondition: newCondition };
+                      return { ...prev, secretInfo: { secrets: newSecrets } };
+                    });
                   }}
                   availableItems={availableItems}
                   allowSecretsCondition={false}
@@ -655,12 +653,11 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                     <Switch
                       checked={secret.isRevealed}
                       onCheckedChange={(checked) => {
-                        const newSecrets = [...formData.secretInfo.secrets];
-                        newSecrets[index] = { ...newSecrets[index], isRevealed: checked };
-                        setFormData((prev) => ({
-                          ...prev,
-                          secretInfo: { secrets: newSecrets },
-                        }));
+                        setFormData((prev) => {
+                          const newSecrets = [...prev.secretInfo.secrets];
+                          newSecrets[index] = { ...newSecrets[index], isRevealed: checked as boolean };
+                          return { ...prev, secretInfo: { secrets: newSecrets } };
+                        });
                       }}
                       disabled={isLoading}
                     />

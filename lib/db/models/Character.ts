@@ -36,14 +36,15 @@ export interface CharacterDocument extends Document {
       revealCondition?: string;
       // Phase 7.7: 自動揭露條件
       autoRevealCondition?: {
-        type: 'none' | 'items_viewed' | 'items_acquired';
+        type: 'none' | 'items_viewed' | 'items_acquired' | 'secrets_revealed';
         itemIds?: string[];
+        secretIds?: string[];
         matchLogic?: 'and' | 'or';
       };
       revealedAt?: Date;
     }>;
   };
-  
+
   // Phase 4.5: 任務系統（擴展版）
   tasks?: Array<{
     id: string;
@@ -211,6 +212,31 @@ export interface CharacterDocument extends Document {
   updatedAt: Date;
 }
 
+/**
+ * Phase 7.7: 自動揭露條件子文檔 Schema
+ *
+ * 使用顯式 new Schema() 定義，避免 Mongoose 將 inline object 中的
+ * `type` 關鍵字誤判為 SchemaType 定義，導致 itemIds、secretIds、matchLogic
+ * 等欄位被當作 schema options 而非子文檔欄位。
+ */
+const autoRevealConditionSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed'],
+      default: 'none',
+    },
+    itemIds: [{ type: String }],
+    secretIds: [{ type: String }],
+    matchLogic: {
+      type: String,
+      enum: ['and', 'or'],
+      default: 'and',
+    },
+  },
+  { _id: false }
+);
+
 const CharacterSchema = new Schema<CharacterDocument>(
   {
     gameId: {
@@ -271,7 +297,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
             },
             content: {
               type: String,
-              required: true,
+              default: '',
             },
             isRevealed: {
               type: Boolean,
@@ -281,19 +307,10 @@ const CharacterSchema = new Schema<CharacterDocument>(
               type: String,
               default: '',
             },
-            // Phase 7.7: 自動揭露條件
+            // Phase 7.7: 自動揭露條件（使用顯式 Schema 避免 type 關鍵字歧義）
             autoRevealCondition: {
-              type: {
-                type: String,
-                enum: ['none', 'items_viewed', 'items_acquired'],
-                default: 'none',
-              },
-              itemIds: [{ type: String }],
-              matchLogic: {
-                type: String,
-                enum: ['and', 'or'],
-                default: 'and',
-              },
+              type: autoRevealConditionSchema,
+              default: undefined,
             },
             revealedAt: {
               type: Date,
@@ -349,20 +366,10 @@ const CharacterSchema = new Schema<CharacterDocument>(
           type: String,
           default: '',
         },
-        // Phase 7.7: 自動揭露條件
+        // Phase 7.7: 自動揭露條件（使用顯式 Schema 避免 type 關鍵字歧義）
         autoRevealCondition: {
-          type: {
-            type: String,
-            enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed'],
-            default: 'none',
-          },
-          itemIds: [{ type: String }],
-          secretIds: [{ type: String }],
-          matchLogic: {
-            type: String,
-            enum: ['and', 'or'],
-            default: 'and',
-          },
+          type: autoRevealConditionSchema,
+          default: undefined,
         },
         createdAt: {
           type: Date,
