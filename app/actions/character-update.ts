@@ -389,7 +389,9 @@ export async function updateCharacter(
     // （characterDoc 已於上方取得，此處直接使用）
     // field-updaters 已處理完所有資料轉換（tags 標準化、effects 處理、檢定配置等），
     // 這裡只負責 Mongoose 文件的寫入策略
-    const REPLACE_ARRAY_FIELDS = new Set(['skills', 'items']);
+    // tasks 也需要 REPLACE_ARRAY 策略，因為 tasks[].autoRevealCondition 是巢狀子文檔，
+    // 直接 set 可能導致 Mongoose 合併舊資料而遺失 autoRevealCondition 欄位
+    const REPLACE_ARRAY_FIELDS = new Set(['skills', 'items', 'tasks']);
     const NESTED_FIELDS = new Set(['secretInfo', 'publicInfo']);
 
     Object.keys(updateData).forEach((key) => {

@@ -640,7 +640,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
               </TabsContent>
 
               <TabsContent value="tasks" className="mt-0">
-                <TaskList tasks={displayTasks} />
+                <TaskList tasks={displayTasks} characterId={character.id} />
               </TabsContent>
 
               <TabsContent value="items" className="mt-0">

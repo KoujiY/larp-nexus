@@ -8,6 +8,9 @@
  * 使用迴圈而非遞迴，限制為 2 層（隱藏目標揭露不會再觸發其他揭露）
  */
 import Character from '@/lib/db/models/Character';
+import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
+import { getCharacterData } from '@/lib/game/get-character-data';
+import type { CharacterRuntimeDocument } from '@/lib/db/models/CharacterRuntime';
 import type { AutoRevealCondition } from '@/types/character';
 import { emitSecretRevealed, emitTaskRevealed } from './reveal-event-emitter';
 
@@ -97,8 +100,12 @@ function isConditionMet(
     const targetIds = condition.secretIds ?? [];
     if (targetIds.length === 0) return false;
 
-    // secrets_revealed 固定為 AND 邏輯
-    return targetIds.every((id) => revealedSecretIds.has(id));
+    const matchLogic = condition.matchLogic ?? 'and';
+    if (matchLogic === 'and') {
+      return targetIds.every((id) => revealedSecretIds.has(id));
+    } else {
+      return targetIds.some((id) => revealedSecretIds.has(id));
+    }
   }
 
   return false;
@@ -223,12 +230,19 @@ export async function executeAutoReveal(
   characterId: string,
   trigger: RevealTrigger
 ): Promise<RevealResult[]> {
-  // 1. 讀取最新角色資料
-  const character = await Character.findById(characterId);
-  if (!character) {
+  // 1. 讀取最新角色資料（Phase 11: 自動判斷 Baseline/Runtime）
+  let character;
+  try {
+    character = await getCharacterData(characterId);
+  } catch {
     console.warn(`[auto-reveal] Character not found: ${characterId}`);
     return [];
   }
+
+  // Phase 11: 判斷是 Runtime 還是 Baseline，決定更新時使用的 Model
+  const isRuntime = !!(character as CharacterRuntimeDocument).refId;
+  const UpdateModel = isRuntime ? CharacterRuntime : Character;
+  const documentId = character._id;
 
   const secrets: SecretEntry[] = (character.secretInfo?.secrets ?? []).map((s: {
     id: string; title: string; isRevealed: boolean;
@@ -317,7 +331,8 @@ export async function executeAutoReveal(
   }
 
   if (Object.keys(updateOps).length > 0) {
-    await Character.findByIdAndUpdate(characterId, { $set: updateOps });
+    // Phase 11: 使用正確的 Model（Baseline 或 Runtime）更新
+    await UpdateModel.findByIdAndUpdate(documentId, { $set: updateOps });
   }
 
   // 7. 批量發送揭露事件

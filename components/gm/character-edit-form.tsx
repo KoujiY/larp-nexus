@@ -544,7 +544,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
           {formData.secretInfo.secrets.map((secret, index) => (
             <div
               key={secret.id}
-              className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg"
+              className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border"
             >
               <div className="flex-1 min-w-0">
                 {/* 第一行：標題 + 揭露狀態 */}
@@ -562,21 +562,21 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                 {/* 第二行：標籤 */}
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   {secret.revealCondition && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs bg-muted">
                       條件：{secret.revealCondition}
                     </Badge>
                   )}
                   {secret.autoRevealCondition && secret.autoRevealCondition.type !== 'none' && (
                     <>
                       {/* 條件類型 */}
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs bg-muted">
                         {secret.autoRevealCondition.type === 'items_viewed' && '自動揭露條件：檢視道具'}
                         {secret.autoRevealCondition.type === 'items_acquired' && '自動揭露條件：取得道具'}
                         {secret.autoRevealCondition.type === 'secrets_revealed' && '自動揭露條件：隱藏資訊揭露'}
                       </Badge>
                       {/* 匹配邏輯 */}
                       {secret.autoRevealCondition.matchLogic && (
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="outline" className="text-xs bg-muted">
                           {secret.autoRevealCondition.matchLogic === 'and' ? '全部符合 (AND)' : '任一符合 (OR)'}
                         </Badge>
                       )}
@@ -584,7 +584,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                       {secret.autoRevealCondition.itemIds?.map((itemId) => {
                         const item = availableItems.find((i) => i.itemId === itemId);
                         return (
-                          <Badge key={itemId} variant="secondary" className="text-xs">
+                          <Badge key={itemId} variant="outline" className="text-xs bg-muted">
                             {item ? `${item.characterName}：${item.itemName}` : itemId}
                           </Badge>
                         );
@@ -593,7 +593,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                       {secret.autoRevealCondition.secretIds?.map((secretId) => {
                         const targetSecret = formData.secretInfo.secrets.find((s) => s.id === secretId);
                         return (
-                          <Badge key={secretId} variant="secondary" className="text-xs">
+                          <Badge key={secretId} variant="outline" className="text-xs bg-muted">
                             {targetSecret ? targetSecret.title : secretId}
                           </Badge>
                         );

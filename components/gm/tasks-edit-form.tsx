@@ -18,13 +18,6 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -33,7 +26,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Eye, EyeOff, CheckCircle, XCircle, Clock, Pencil } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
 import type { Task } from '@/types/character';
 
 interface TasksEditFormProps {
@@ -44,15 +37,6 @@ interface TasksEditFormProps {
   secrets: SecretOption[];
   onDirtyChange?: (dirty: boolean) => void;
 }
-
-type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'failed';
-
-const statusConfig: Record<TaskStatus, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; icon: React.ReactNode }> = {
-  pending: { label: '待處理', variant: 'outline', icon: <Clock className="h-3 w-3" /> },
-  'in-progress': { label: '進行中', variant: 'secondary', icon: <Clock className="h-3 w-3" /> },
-  completed: { label: '已完成', variant: 'default', icon: <CheckCircle className="h-3 w-3" /> },
-  failed: { label: '失敗', variant: 'destructive', icon: <XCircle className="h-3 w-3" /> },
-};
 
 export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDirtyChange }: TasksEditFormProps) {
   const router = useRouter();
@@ -161,29 +145,6 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
     setTasks(tasks.filter((t) => t.id !== taskId));
   };
 
-  // 快速切換揭露狀態
-  const handleToggleReveal = (taskId: string) => {
-    setTasks(tasks.map((t) => {
-      if (t.id !== taskId) return t;
-      return {
-        ...t,
-        isRevealed: !t.isRevealed,
-        revealedAt: !t.isRevealed ? new Date() : t.revealedAt,
-      };
-    }));
-  };
-
-  // 快速更新狀態
-  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    setTasks(tasks.map((t) => {
-      if (t.id !== taskId) return t;
-      return {
-        ...t,
-        status: newStatus,
-        completedAt: (newStatus === 'completed' || newStatus === 'failed') ? new Date() : undefined,
-      };
-    }));
-  };
 
   // 儲存所有變更
   const handleSave = async () => {
@@ -246,7 +207,8 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
                   task={task}
                   onEdit={() => handleEditTask(task)}
                   onRemove={() => handleRemoveTask(task.id)}
-                  onStatusChange={(status) => handleStatusChange(task.id, status)}
+                  availableItems={availableItems}
+                  secrets={secrets}
                 />
               ))}
             </div>
@@ -271,8 +233,8 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
                   task={task}
                   onEdit={() => handleEditTask(task)}
                   onRemove={() => handleRemoveTask(task.id)}
-                  onToggleReveal={() => handleToggleReveal(task.id)}
-                  onStatusChange={(status) => handleStatusChange(task.id, status)}
+                  availableItems={availableItems}
+                  secrets={secrets}
                 />
               ))}
             </div>
@@ -410,8 +372,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
           <ul className="list-disc list-inside space-y-1 text-blue-700">
             <li><strong>一般任務</strong>：玩家可直接看到</li>
             <li><strong>隱藏目標</strong>：需 GM 手動揭露或滿足自動揭露條件後玩家才能看到</li>
-            <li>點擊「👁️」按鈕可快速切換隱藏目標的揭露狀態</li>
-            <li>使用下拉選單可快速更新任務狀態</li>
+            <li>點擊編輯按鈕可設定揭露狀態與自動揭露條件</li>
             <li><strong>自動揭露</strong>：可設定檢視道具、取得道具、或隱藏資訊已揭露等條件</li>
           </ul>
         </div>
@@ -420,78 +381,88 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
   );
 }
 
-// 任務卡片元件
+// 任務卡片元件（嚴格比照隱藏資訊卡片排版）
 interface TaskCardProps {
   task: Task;
   onEdit: () => void;
   onRemove: () => void;
-  onToggleReveal?: () => void;
-  onStatusChange: (status: TaskStatus) => void;
+  availableItems: GameItemInfo[];
+  secrets: SecretOption[];
 }
 
-function TaskCard({ task, onEdit, onRemove, onToggleReveal, onStatusChange }: TaskCardProps) {
-  const config = statusConfig[task.status];
-
+function TaskCard({ task, onEdit, onRemove, availableItems, secrets }: TaskCardProps) {
   return (
-    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg group">
+    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        {/* 第一行：標題 + 揭露狀態（比照隱藏資訊卡片） */}
+        <div className="flex items-center gap-2">
           <span className="font-medium truncate">{task.title || '未命名任務'}</span>
           {task.isHidden && (
-            <Badge variant={task.isRevealed ? 'secondary' : 'outline'} className="text-xs">
+            <Badge
+              variant={task.isRevealed ? 'default' : 'secondary'}
+              className={`text-xs shrink-0 ${task.isRevealed ? 'bg-green-600' : ''}`}
+            >
               {task.isRevealed ? '已揭露' : '未揭露'}
             </Badge>
           )}
         </div>
-        {task.description && (
-          <p className="text-sm text-muted-foreground line-clamp-1">{task.description}</p>
-        )}
+        {/* 第二行：標籤（嚴格比照隱藏資訊的條件標籤，含道具名稱與隱藏資訊名稱） */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+          {task.revealCondition && (
+            <Badge variant="outline" className="text-xs bg-muted">
+              條件：{task.revealCondition}
+            </Badge>
+          )}
+          {task.autoRevealCondition && task.autoRevealCondition.type !== 'none' && (
+            <>
+              {/* 條件類型 */}
+              <Badge variant="outline" className="text-xs bg-muted">
+                {task.autoRevealCondition.type === 'items_viewed' && '自動揭露條件：檢視道具'}
+                {task.autoRevealCondition.type === 'items_acquired' && '自動揭露條件：取得道具'}
+                {task.autoRevealCondition.type === 'secrets_revealed' && '自動揭露條件：隱藏資訊揭露'}
+              </Badge>
+              {/* 匹配邏輯 */}
+              {task.autoRevealCondition.matchLogic && (
+                <Badge variant="outline" className="text-xs bg-muted">
+                  {task.autoRevealCondition.matchLogic === 'and' ? '全部符合 (AND)' : '任一符合 (OR)'}
+                </Badge>
+              )}
+              {/* 匹配道具（逐一列出名稱） */}
+              {task.autoRevealCondition.itemIds?.map((itemId) => {
+                const item = availableItems.find((i) => i.itemId === itemId);
+                return (
+                  <Badge key={itemId} variant="outline" className="text-xs bg-muted">
+                    {item ? `${item.characterName}：${item.itemName}` : itemId}
+                  </Badge>
+                );
+              })}
+              {/* 匹配隱藏資訊（逐一列出名稱） */}
+              {task.autoRevealCondition.secretIds?.map((secretId) => {
+                const targetSecret = secrets.find((s) => s.id === secretId);
+                return (
+                  <Badge key={secretId} variant="outline" className="text-xs bg-muted">
+                    {targetSecret ? targetSecret.title : secretId}
+                  </Badge>
+                );
+              })}
+            </>
+          )}
+        </div>
       </div>
 
-      <Select value={task.status} onValueChange={(value) => onStatusChange(value as TaskStatus)}>
-        <SelectTrigger className="w-[120px]">
-          <SelectValue>
-            <Badge variant={config.variant} className="flex items-center gap-1">
-              {config.icon}
-              {config.label}
-            </Badge>
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {Object.entries(statusConfig).map(([status, cfg]) => (
-            <SelectItem key={status} value={status}>
-              <div className="flex items-center gap-2">
-                {cfg.icon}
-                {cfg.label}
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {task.isHidden && onToggleReveal && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleReveal}
-          title={task.isRevealed ? '隱藏' : '揭露'}
-        >
-          {task.isRevealed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+      {/* 操作按鈕 */}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <Pencil className="h-4 w-4" />
         </Button>
-      )}
-
-      <Button variant="ghost" size="icon" onClick={onEdit}>
-        <Pencil className="h-4 w-4" />
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onRemove}
-        className="text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRemove}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
