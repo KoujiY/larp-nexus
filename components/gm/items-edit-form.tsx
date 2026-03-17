@@ -954,7 +954,7 @@ interface ItemCardProps {
 
 function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
   return (
-    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg group">
+    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
       <div className="flex-1 min-w-0">
         {/* 第一行：名稱 */}
         <div className="flex items-center gap-2">
@@ -997,18 +997,14 @@ function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
         )}
       </div>
 
-      <Button variant="ghost" size="icon" onClick={onEdit}>
-        <Pencil className="h-4 w-4" />
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onRemove}
-        className="text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={onRemove}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

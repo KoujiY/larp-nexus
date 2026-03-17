@@ -6,20 +6,21 @@ import { updateCharacter } from '@/app/actions/character-update';
 import { getGameItems } from '@/app/actions/games';
 import { checkPinAvailability } from '@/app/actions/characters'; // Phase 10.9.3
 import type { GameItemInfo } from '@/app/actions/games';
-import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
 import { cleanSecretConditions } from '@/lib/reveal/condition-cleaner';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { useGuardedNavigation } from '@/hooks/use-guarded-navigation';
 import { SaveButton } from '@/components/gm/save-button';
 import { NavigationGuardDialog } from '@/components/gm/navigation-guard-dialog';
+import { SecretEditDialog } from '@/components/gm/secret-edit-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { X, Plus, Lock } from 'lucide-react';
+import { X, Plus, Lock, Pencil, Trash2 } from 'lucide-react';
 import type { CharacterData, Secret, AutoRevealCondition } from '@/types/character';
 
 interface CharacterEditFormProps {
@@ -33,6 +34,10 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
   const [isLoading, setIsLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
+
+  // 隱藏資訊編輯 Dialog 狀態
+  const [editingSecretIndex, setEditingSecretIndex] = useState<number | null>(null);
+  const [isSecretDialogOpen, setIsSecretDialogOpen] = useState(false);
 
   // Phase 10.9.3: PIN 即時檢查狀態
   const [pinCheckStatus, setPinCheckStatus] = useState<
@@ -524,7 +529,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
         </CardContent>
       </Card>
 
-      {/* Phase 3.5: 隱藏資訊編輯 */}
+      {/* Phase 3.5: 隱藏資訊編輯（卡片 + Dialog 模式） */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
@@ -532,162 +537,127 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
             隱藏資訊
           </CardTitle>
           <CardDescription>
-            設定角色的隱藏資訊，每個隱藏資訊可獨立設定揭露條件與揭露狀態
+            設定角色的隱藏資訊，點擊編輯按鈕修改內容與揭露條件
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {formData.secretInfo.secrets.map((secret, index) => (
-            <Card key={secret.id} className="border-2">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-base">隱藏資訊 #{index + 1}</CardTitle>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        secretInfo: {
-                          secrets: prev.secretInfo.secrets.filter((_, i) => i !== index),
-                        },
-                      }));
-                    }}
-                    disabled={isLoading}
+            <div
+              key={secret.id}
+              className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg"
+            >
+              <div className="flex-1 min-w-0">
+                {/* 第一行：標題 + 揭露狀態 */}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium truncate">
+                    {secret.title || '未命名隱藏資訊'}
+                  </span>
+                  <Badge
+                    variant={secret.isRevealed ? 'default' : 'secondary'}
+                    className={`text-xs shrink-0 ${secret.isRevealed ? 'bg-green-600' : ''}`}
                   >
-                    <X className="h-4 w-4" />
-                  </Button>
+                    {secret.isRevealed ? '已揭露' : '未揭露'}
+                  </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>標題</Label>
-                  <Input
-                    placeholder="隱藏資訊標題"
-                    value={secret.title}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData((prev) => {
-                        const newSecrets = [...prev.secretInfo.secrets];
-                        newSecrets[index] = { ...newSecrets[index], title: value };
-                        return { ...prev, secretInfo: { secrets: newSecrets } };
-                      });
-                    }}
-                    disabled={isLoading}
-                  />
+                {/* 第二行：標籤 */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  {secret.revealCondition && (
+                    <Badge variant="outline" className="text-xs">
+                      條件：{secret.revealCondition}
+                    </Badge>
+                  )}
+                  {secret.autoRevealCondition && secret.autoRevealCondition.type !== 'none' && (
+                    <>
+                      {/* 條件類型 */}
+                      <Badge variant="outline" className="text-xs">
+                        {secret.autoRevealCondition.type === 'items_viewed' && '自動揭露條件：檢視道具'}
+                        {secret.autoRevealCondition.type === 'items_acquired' && '自動揭露條件：取得道具'}
+                        {secret.autoRevealCondition.type === 'secrets_revealed' && '自動揭露條件：隱藏資訊揭露'}
+                      </Badge>
+                      {/* 匹配邏輯 */}
+                      {secret.autoRevealCondition.matchLogic && (
+                        <Badge variant="secondary" className="text-xs">
+                          {secret.autoRevealCondition.matchLogic === 'and' ? '全部符合 (AND)' : '任一符合 (OR)'}
+                        </Badge>
+                      )}
+                      {/* 匹配道具（逐一列出） */}
+                      {secret.autoRevealCondition.itemIds?.map((itemId) => {
+                        const item = availableItems.find((i) => i.itemId === itemId);
+                        return (
+                          <Badge key={itemId} variant="secondary" className="text-xs">
+                            {item ? `${item.characterName}：${item.itemName}` : itemId}
+                          </Badge>
+                        );
+                      })}
+                      {/* 匹配隱藏資訊（逐一列出） */}
+                      {secret.autoRevealCondition.secretIds?.map((secretId) => {
+                        const targetSecret = formData.secretInfo.secrets.find((s) => s.id === secretId);
+                        return (
+                          <Badge key={secretId} variant="secondary" className="text-xs">
+                            {targetSecret ? targetSecret.title : secretId}
+                          </Badge>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label>內容</Label>
-                  <Textarea
-                    placeholder="隱藏資訊內容"
-                    value={secret.content}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData((prev) => {
-                        const newSecrets = [...prev.secretInfo.secrets];
-                        newSecrets[index] = { ...newSecrets[index], content: value };
-                        return { ...prev, secretInfo: { secrets: newSecrets } };
-                      });
-                    }}
-                    disabled={isLoading}
-                    rows={6}
-                    className="resize-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>揭露條件</Label>
-                  <Input
-                    placeholder="例：完成任務 A 後揭露"
-                    value={secret.revealCondition || ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData((prev) => {
-                        const newSecrets = [...prev.secretInfo.secrets];
-                        newSecrets[index] = { ...newSecrets[index], revealCondition: value };
-                        return { ...prev, secretInfo: { secrets: newSecrets } };
-                      });
-                    }}
-                    disabled={isLoading}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    描述此隱藏資訊的揭露條件（僅供 GM 參考，玩家可見）
-                  </p>
-                </div>
-
-                {/* Phase 7.7: 自動揭露條件編輯器 */}
-                <AutoRevealConditionEditor
-                  condition={secret.autoRevealCondition}
-                  onChange={(newCondition) => {
-                    setFormData((prev) => {
-                      const newSecrets = [...prev.secretInfo.secrets];
-                      newSecrets[index] = { ...newSecrets[index], autoRevealCondition: newCondition };
-                      return { ...prev, secretInfo: { secrets: newSecrets } };
-                    });
+              {/* 操作按鈕 */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingSecretIndex(index);
+                    setIsSecretDialogOpen(true);
                   }}
-                  availableItems={availableItems}
-                  allowSecretsCondition={false}
                   disabled={isLoading}
-                />
-
-                <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label className="text-base font-medium">
-                      {secret.isRevealed ? '已揭露' : '未揭露'}
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      {secret.isRevealed
-                        ? '玩家目前可以查看此隱藏資訊'
-                        : '玩家目前無法查看此隱藏資訊'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-sm font-medium ${
-                        secret.isRevealed ? 'text-green-600' : 'text-gray-500'
-                      }`}
-                    >
-                      {secret.isRevealed ? '✓ 已揭露' : '✗ 未揭露'}
-                    </span>
-                    <Switch
-                      checked={secret.isRevealed}
-                      onCheckedChange={(checked) => {
-                        setFormData((prev) => {
-                          const newSecrets = [...prev.secretInfo.secrets];
-                          newSecrets[index] = { ...newSecrets[index], isRevealed: checked as boolean };
-                          return { ...prev, secretInfo: { secrets: newSecrets } };
-                        });
-                      }}
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      secretInfo: {
+                        secrets: prev.secretInfo.secrets.filter((_, i) => i !== index),
+                      },
+                    }));
+                  }}
+                  disabled={isLoading}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           ))}
 
           <Button
             type="button"
             variant="outline"
             onClick={() => {
-              // 生成唯一 ID
               const newId = `secret-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+              const newSecret: Secret = {
+                id: newId,
+                title: '',
+                content: '',
+                isRevealed: false,
+                revealCondition: '',
+              };
               setFormData((prev) => ({
                 ...prev,
                 secretInfo: {
-                  secrets: [
-                    ...prev.secretInfo.secrets,
-                    {
-                      id: newId,
-                      title: '',
-                      content: '',
-                      isRevealed: false,
-                      revealCondition: '',
-                    },
-                  ],
+                  secrets: [...prev.secretInfo.secrets, newSecret],
                 },
               }));
+              // 新增後自動開啟編輯 Dialog
+              setEditingSecretIndex(formData.secretInfo.secrets.length);
+              setIsSecretDialogOpen(true);
             }}
             disabled={isLoading}
             className="w-full"
@@ -701,6 +671,26 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
           </p>
         </CardContent>
       </Card>
+
+      {/* 隱藏資訊編輯 Dialog */}
+      <SecretEditDialog
+        open={isSecretDialogOpen}
+        onOpenChange={(open) => {
+          setIsSecretDialogOpen(open);
+          if (!open) setEditingSecretIndex(null);
+        }}
+        secret={editingSecretIndex !== null ? formData.secretInfo.secrets[editingSecretIndex] ?? null : null}
+        onSave={(updatedSecret) => {
+          if (editingSecretIndex === null) return;
+          setFormData((prev) => {
+            const newSecrets = [...prev.secretInfo.secrets];
+            newSecrets[editingSecretIndex] = updatedSecret;
+            return { ...prev, secretInfo: { secrets: newSecrets } };
+          });
+        }}
+        availableItems={availableItems}
+        disabled={isLoading}
+      />
 
       <div className="flex justify-end space-x-2">
         <Button
