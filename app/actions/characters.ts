@@ -202,17 +202,16 @@ export async function getCharacterById(
     const character = JSON.parse(JSON.stringify(characterDoc));
 
     // Phase 8: 處理過期的時效性效果並恢復數值
-    // TODO: processExpiredEffects 目前只操作 Baseline Collection，
-    //       遊戲進行中應操作 Runtime Collection（待後續重構）
-    if (!game.isActive) {
-      await processExpiredEffects(characterId);
-      await cleanupOldExpiredEffects(characterId);
+    // processExpiredEffects 同時查詢 Character + CharacterRuntime，
+    // 並透過 document.constructor 自動寫入正確的 collection
+    await processExpiredEffects(characterId);
+    await cleanupOldExpiredEffects(characterId);
 
-      // 重新讀取以取得過期檢查後的最新資料
-      const updatedDoc = await getCharacterData(characterId);
-      const updatedCharacter = JSON.parse(JSON.stringify(updatedDoc));
-      character.stats = updatedCharacter.stats;
-    }
+    // 重新讀取以取得過期檢查後的最新資料
+    const updatedDoc = await getCharacterData(characterId);
+    const updatedCharacter = JSON.parse(JSON.stringify(updatedDoc));
+    character.stats = updatedCharacter.stats;
+    character.temporaryEffects = updatedCharacter.temporaryEffects;
 
     // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
     const cleanSecretInfo = character.secretInfo?.secrets

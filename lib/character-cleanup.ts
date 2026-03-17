@@ -293,12 +293,6 @@ export function cleanItemData(items: MongoItem[] | undefined): Array<{
         }
       }
 
-      // 向後兼容：如果沒有 effects 但有 effect，轉換為 effects
-      const singleEffect = processEffect(item.effect);
-      const finalEffects = effects !== undefined 
-        ? effects 
-        : (singleEffect ? [singleEffect] : undefined);
-
       return {
         id: item.id,
         name: item.name,
@@ -306,9 +300,7 @@ export function cleanItemData(items: MongoItem[] | undefined): Array<{
         imageUrl: item.imageUrl,
         type: item.type,
         quantity: item.quantity,
-        effects: finalEffects,
-        // 向後兼容：如果只有單一效果，也保留 effect 欄位
-        effect: finalEffects && finalEffects.length === 1 ? finalEffects[0] : undefined,
+        effects,
         // Phase 7.6: 標籤系統 - 使用統一的標準化函數
         tags: normalizeTags(item.tags),
         // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）

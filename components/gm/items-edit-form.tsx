@@ -236,9 +236,8 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     // 向後兼容：確保 effects 存在
     const finalItem = { ...editingItem };
     
-    // 統一讀取效果列表並清理已棄用的 effect 欄位
+    // 統一讀取效果列表
     finalItem.effects = getItemEffects(finalItem);
-    delete finalItem.effect;
     
     if (finalItem.checkType === 'random') {
       const maxValue = finalItem.randomConfig?.maxValue;

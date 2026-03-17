@@ -236,11 +236,8 @@ export interface Item {
   // 道具類型與數量
   type: 'consumable' | 'equipment';
   quantity: number;
-  // 使用效果（重構：改為陣列，支援多個效果）
+  // 使用效果（陣列，支援多個效果）
   effects?: ItemEffect[];
-  // 向後兼容：保留 effect 欄位（單一效果），但優先使用 effects
-  /** @deprecated 使用 effects 陣列代替 */
-  effect?: ItemEffect;
   // Phase 7.6: 標籤系統
   tags?: string[];
   // 檢定系統（Phase 8，Phase 7.6: 擴展為包含 random_contest）

@@ -91,19 +91,6 @@ export interface CharacterRuntimeDocument extends Document {
       duration?: number;
       description?: string;
     }>;
-    /** @deprecated 使用 effects 陣列代替 */
-    effect?: {
-      type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-      targetType?: 'self' | 'other' | 'any';
-      requiresTarget?: boolean;
-      targetStat?: string;
-      value?: number;
-      statChangeTarget?: 'value' | 'maxValue';
-      syncValue?: boolean;
-      targetItemId?: string;
-      duration?: number;
-      description?: string;
-    };
     tags?: string[];
     checkType?: 'none' | 'contest' | 'random' | 'random_contest';
     contestConfig?: {
@@ -443,27 +430,6 @@ const CharacterRuntimeSchema = new Schema<CharacterRuntimeDocument>(
             description: String,
           },
         ],
-        effect: {
-          type: {
-            type: String,
-            enum: ['stat_change', 'custom', 'item_take', 'item_steal'],
-          },
-          targetType: {
-            type: String,
-            enum: ['self', 'other', 'any'],
-          },
-          requiresTarget: Boolean,
-          targetStat: String,
-          value: Number,
-          statChangeTarget: {
-            type: String,
-            enum: ['value', 'maxValue'],
-          },
-          syncValue: Boolean,
-          targetItemId: String,
-          duration: Number,
-          description: String,
-        },
         tags: [String],
         checkType: {
           type: String,

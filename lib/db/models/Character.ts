@@ -92,20 +92,6 @@ export interface CharacterDocument extends Document {
       duration?: number;
       description?: string;
     }>;
-    // 向後兼容：保留單一 effect 欄位（已棄用）
-    /** @deprecated 使用 effects 陣列代替 */
-    effect?: {
-      type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-      targetType?: 'self' | 'other' | 'any';
-      requiresTarget?: boolean;
-      targetStat?: string;
-      value?: number;
-      statChangeTarget?: 'value' | 'maxValue';
-      syncValue?: boolean;
-      targetItemId?: string;
-      duration?: number;
-      description?: string;
-    };
     // Phase 7.6: 標籤系統
     tags?: string[];
     // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
@@ -433,28 +419,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
             description: String,
           },
         ],
-        // 向後兼容：保留單一 effect 欄位（已棄用）
-        effect: {
-          type: {
-            type: String,
-            enum: ['stat_change', 'custom', 'item_take', 'item_steal'],
-          },
-          targetType: {
-            type: String,
-            enum: ['self', 'other', 'any'],
-          },
-          requiresTarget: Boolean,
-          targetStat: String,
-          value: Number,
-          statChangeTarget: {
-            type: String,
-            enum: ['value', 'maxValue'],
-          },
-          syncValue: Boolean,
-          targetItemId: String, // Phase 7: 目標道具 ID
-          duration: Number,
-          description: String,
-        },
         // Phase 7.6: 標籤系統
         tags: [String],
         // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）

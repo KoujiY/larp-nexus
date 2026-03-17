@@ -23,7 +23,7 @@ type ItemType = NonNullable<CharacterDocument['items']>[number];
 /**
  * 道具效果類型
  */
-type ItemEffect = NonNullable<ItemType['effects']>[number] | NonNullable<ItemType['effect']>;
+type ItemEffect = NonNullable<ItemType['effects']>[number];
 
 /**
  * 執行道具效果的結果
