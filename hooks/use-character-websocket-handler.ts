@@ -48,7 +48,11 @@ export function useCharacterWebSocketHandler(
     Map<string, { timestamp: number; transferType: string; fromCharacterId?: string; toCharacterId?: string }>
   >(new Map());
 
-  // Phase 10: 追蹤已處理的對抗檢定事件，防止同一事件透過 Pusher 和 pending events 雙重處理
+  // Phase 11: 通用事件去重 — 追蹤已處理的 _eventId，防止 WebSocket 和 Pending Events 雙重處理
+  // 所有帶 _eventId 的事件（包括 contest 和非 contest）都會經過此 Set 去重
+  const processedEventIdsRef = useRef<Set<string>>(new Set());
+
+  // Phase 10: 追蹤已處理的對抗檢定事件（向後相容：處理沒有 _eventId 的舊事件）
   // key: `${contestId}::${subType}::${角色身份}` (e.g., "abc::result::attacker")
   const processedContestEventsRef = useRef<Set<string>>(new Set());
 
@@ -76,22 +80,35 @@ export function useCharacterWebSocketHandler(
    */
   const handleWebSocketEvent = useCallback(
     (event: BaseEvent) => {
-      // Phase 10: 對抗檢定事件去重 — 防止同一事件透過 Pusher 和 pending events 雙重處理
-      // 只攔截 skill.contest 的 result / effect subType（request 不需要去重，因為只有防守方會收到）
-      if (event.type === 'skill.contest') {
+      // Phase 11: 通用 _eventId 去重 — 防止同一事件透過 WebSocket 和 Pending Events 雙重處理
+      // _eventId 由伺服器端 emit 函數注入 payload，WebSocket 和 Pending Event 共用同一個 ID
+      const eventId = (event.payload as Record<string, unknown>)?._eventId as string | undefined;
+      if (eventId) {
+        if (processedEventIdsRef.current.has(eventId)) {
+          return; // 已處理過，跳過整個事件（包括通知和 handler）
+        }
+        processedEventIdsRef.current.add(eventId);
+
+        // 自動清理：30 秒後移除 key，防止 Set 無限增長
+        // 30 秒足夠覆蓋 WebSocket → router.refresh() → pending event 的完整週期
+        setTimeout(() => {
+          processedEventIdsRef.current.delete(eventId);
+        }, 30_000);
+      }
+
+      // Phase 10: 對抗檢定事件去重（向後相容：處理沒有 _eventId 的舊事件）
+      // 攔截所有 skill.contest subType（request / result / effect）
+      if (!eventId && event.type === 'skill.contest') {
         const payload = event.payload as SkillContestEvent['payload'];
-        if (payload.subType === 'result' || payload.subType === 'effect') {
-          // 根據 contestId + subType + 角色身份（攻擊方/防守方）生成唯一 key
+        if (payload.subType === 'request' || payload.subType === 'result' || payload.subType === 'effect') {
           const role = payload.attackerId === characterId ? 'attacker' : 'defender';
           const dedupKey = `${payload.contestId}::${payload.subType}::${role}`;
 
           if (processedContestEventsRef.current.has(dedupKey)) {
-            // 已處理過，跳過整個事件（包括通知和 handler）
             return;
           }
           processedContestEventsRef.current.add(dedupKey);
 
-          // 自動清理：60 秒後移除 key，防止 Set 無限增長
           setTimeout(() => {
             processedContestEventsRef.current.delete(dedupKey);
           }, 60_000);

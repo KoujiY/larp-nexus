@@ -981,7 +981,7 @@ function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
           {item.usageLimit != null && (
             <Badge variant="outline" className="text-xs">
               {item.usageLimit > 0
-                ? `${item.usageCount || 0} / ${item.usageLimit} 次`
+                ? `${(item.usageLimit || 0) - (item.usageCount || 0)} / ${item.usageLimit} 次`
                 : '無限次'}
             </Badge>
           )}

@@ -290,17 +290,14 @@ export async function executeSkillEffects(
           });
         } else {
           // 施放者沒有此道具，新增道具
+          // 完整複製原道具屬性（保留 usageCount、usageLimit、tags、effects 等）
           const stolenItem = {
-            id: targetItem.id,
-            name: targetItem.name,
-            description: targetItem.description || '',
-            imageUrl: targetItem.imageUrl,
-            type: targetItem.type,
+            ...JSON.parse(JSON.stringify(targetItem)),
             quantity: 1,
-            isTransferable: targetItem.isTransferable !== undefined ? targetItem.isTransferable : true,
             acquiredAt: new Date(),
-            usageCount: 0,
           };
+          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
+          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
 
           await updateCharacterData(characterId, {
             $push: { items: stolenItem },
