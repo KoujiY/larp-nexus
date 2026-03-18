@@ -36,6 +36,7 @@ import { useContestDialogState } from '@/hooks/use-contest-dialog-state';
 import { useContestStateRestore } from '@/hooks/use-contest-state-restore';
 import { useTargetItemSelection } from '@/hooks/use-target-item-selection';
 import { useItemUsage } from '@/hooks/use-item-usage';
+import { usePostUseTargetItemSelection } from '@/hooks/use-post-use-target-item-selection';
 import { useContestableItemUsage } from '@/hooks/use-contestable-item-usage';
 import { CONTEST_TIMEOUT, STORAGE_KEYS } from '@/lib/constants/contest';
 import { canUseItem as canUseItemBase, getCooldownRemaining } from '@/lib/utils/item-validators';
@@ -88,10 +89,11 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   // 重構：支援多個效果
   const effects = selectedItem ? getItemEffects(selectedItem) : [];
   const requiresTarget = Boolean(
-    selectedItem?.checkType === 'contest' || 
+    selectedItem?.checkType === 'contest' ||
+    selectedItem?.checkType === 'random_contest' ||
     effects.some((effect) => effect.requiresTarget)
   );
-  const targetType = selectedItem?.checkType === 'contest' 
+  const targetType = (selectedItem?.checkType === 'contest' || selectedItem?.checkType === 'random_contest')
     ? 'other' // 對抗檢定只能對其他角色使用
     : effects.find((e) => e.requiresTarget)?.targetType;
 
@@ -150,7 +152,9 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     setIsTargetConfirmed(false);
     setSelectedTargetItemId('');
     // Phase 3.3: targetItems 由 hook 管理，不需要手動清除
-  }, [setSelectedUseTargetId, setIsTargetConfirmed, setSelectedTargetItemId]);
+    // 同時清除 localStorage，避免下次開啟 dialog 時恢復舊狀態
+    clearTargetState();
+  }, [setSelectedUseTargetId, setIsTargetConfirmed, setSelectedTargetItemId, clearTargetState]);
 
   // 顯示 toast 的回調
   const handleToastShow = useCallback((message: string, options?: { duration?: number }) => {
@@ -159,22 +163,33 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     });
   }, []);
 
+  // 非對抗偷竊/移除：使用成功後的目標道具選擇
+  const postUseSelection = usePostUseTargetItemSelection({
+    onComplete: () => {
+      if (handleCloseDialogRef.current) {
+        handleCloseDialogRef.current();
+      }
+    },
+    onRouterRefresh: () => router.refresh(),
+  });
+
   // 包裝 setSelectedItem 以符合 hook 的類型要求
   const handleItemSelected = useCallback((item: Skill | Item | null) => {
     // 如果嘗試關閉 dialog（item 為 null），但正在進行對抗檢定，則不關閉
     if (!item && selectedItem) {
       const hasPending = hasPendingContest(selectedItem.id);
-      const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                dialogState.sourceType === 'item' && 
+      const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
+                                dialogState.sourceType === 'item' &&
                                 dialogState.sourceId === selectedItem.id;
       const isWaitingInRef = waitingContestRef.current.has(selectedItem.id);
-      
-      if (hasPending || isAttackerWaiting || isWaitingInRef) {
+      const isPostUseSelecting = postUseSelection.selectionState?.sourceId === selectedItem.id;
+
+      if (hasPending || isAttackerWaiting || isWaitingInRef || isPostUseSelecting) {
         return; // 不關閉 dialog
       }
     }
     setSelectedItem(item as Item | null);
-  }, [selectedItem, hasPendingContest, dialogState]);
+  }, [selectedItem, hasPendingContest, dialogState, postUseSelection.selectionState?.sourceId]);
 
   // Phase 8.3: 使用 ref 存儲 handleContestStarted，以便在 onSuccess 回調中使用
   const handleContestStartedRef = useRef<((contestId: string, message?: string) => void) | null>(null);
@@ -237,7 +252,6 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     selectedItem,
     selectedTargetId: selectedUseTargetId,
     selectedTargetItemId,
-    isTargetConfirmed,
     requiresTarget,
     onUseItem: onUseItem || (async () => ({ success: false, message: 'onUseItem 未定義' })),
     onSuccess: (result) => {
@@ -258,6 +272,14 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       if (handleCloseDialogRef.current) {
         handleCloseDialogRef.current();
       }
+    },
+    onNeedsTargetItemSelection: (info) => {
+      // 非對抗偷竊/移除：使用成功後觸發目標道具選擇流程
+      postUseSelection.startSelection({
+        ...info,
+        sourceType: 'item',
+        characterId,
+      });
     },
   });
 
@@ -291,6 +313,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         }
         return; // 不關閉 dialog
       }
+      // 非對抗偷竊/移除的後續目標道具選擇流程進行中，不關閉 dialog
+      if (postUseSelection.selectionState?.sourceId === selectedItem.id) {
+        return;
+      }
       // Phase 3: 清除統一的 Dialog 狀態
       if (isDialogForSource(selectedItem.id, 'item')) {
         clearDialogState();
@@ -305,7 +331,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     setSelectedTargetItemId('');
     // Phase 3.3: targetItems 由 hook 管理，不需要手動清除
     // Phase 5.3: 目標道具選擇狀態由 hook 管理，不需要手動清除
-  }, [selectedItem, hasPendingContest, updateContestDialog, setSelectedUseTargetId, setIsTargetConfirmed, setSelectedTargetItemId, isDialogForSource, clearDialogState, setCheckResult, setUseResult, dialogState]);
+  }, [selectedItem, hasPendingContest, updateContestDialog, setSelectedUseTargetId, setIsTargetConfirmed, setSelectedTargetItemId, isDialogForSource, clearDialogState, setCheckResult, setUseResult, dialogState, postUseSelection.selectionState?.sourceId]);
 
   // Phase 6.4: 更新 handleCloseDialogRef
   useEffect(() => {
@@ -471,7 +497,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   useEffect(() => {
     const itemEffects = selectedItem ? getItemEffects(selectedItem) : [];
     const needsTargetItem = itemEffects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
-    const isContest = selectedItem?.checkType === 'contest';
+    const isContest = selectedItem?.checkType === 'contest' || selectedItem?.checkType === 'random_contest';
 
     // 如果效果需要目標道具，且已選擇目標角色，但尚未確認，則重置確認狀態
     // 對抗檢定時跳過此邏輯
@@ -511,7 +537,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     
     const itemEffects = selectedItem ? getItemEffects(selectedItem) : [];
     const needsTargetItem = itemEffects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
-    const isContest = selectedItem?.checkType === 'contest';
+    const isContest = selectedItem?.checkType === 'contest' || selectedItem?.checkType === 'random_contest';
 
     // 對抗檢定時，不應該顯示此 UI，直接返回
     if (isContest) {
@@ -945,10 +971,11 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         if (!open && selectedItem) {
           const hasPending = hasPendingContest(selectedItem.id);
           const isWaitingInRef = waitingContestRef.current.has(selectedItem.id);
-          const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                    dialogState.sourceType === 'item' && 
+          const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
+                                    dialogState.sourceType === 'item' &&
                                     dialogState.sourceId === selectedItem.id;
-          if (!hasPending && !isWaitingInRef && !isAttackerWaiting) {
+          const isPostUseSelecting = postUseSelection.selectionState?.sourceId === selectedItem.id;
+          if (!hasPending && !isWaitingInRef && !isAttackerWaiting && !isPostUseSelecting) {
             handleCloseDialog();
           }
         }
@@ -958,22 +985,23 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
             if (selectedItem) {
               const hasPending = hasPendingContest(selectedItem.id);
               const isWaitingInRef = waitingContestRef.current.has(selectedItem.id);
-              const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                        dialogState.sourceType === 'item' && 
+              const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
+                                        dialogState.sourceType === 'item' &&
                                         dialogState.sourceId === selectedItem.id;
-              return !hasPending && !isWaitingInRef && !isAttackerWaiting;
+              const isPostUseSelecting = postUseSelection.selectionState?.sourceId === selectedItem.id;
+              return !hasPending && !isWaitingInRef && !isAttackerWaiting && !isPostUseSelecting;
             }
             return true;
           })()}
           onInteractOutside={(e) => {
-            // Phase 8: 如果有正在進行的對抗檢定，不允許點擊外圍關閉
-            if (selectedItem && hasPendingContest(selectedItem.id)) {
+            // Phase 8: 如果有正在進行的對抗檢定或正在選擇目標道具，不允許點擊外圍關閉
+            if (selectedItem && (hasPendingContest(selectedItem.id) || postUseSelection.selectionState?.sourceId === selectedItem.id)) {
               e.preventDefault();
             }
           }}
           onEscapeKeyDown={(e) => {
-            // Phase 8: 如果有正在進行的對抗檢定，不允許按 ESC 關閉
-            if (selectedItem && hasPendingContest(selectedItem.id)) {
+            // Phase 8: 如果有正在進行的對抗檢定或正在選擇目標道具，不允許按 ESC 關閉
+            if (selectedItem && (hasPendingContest(selectedItem.id) || postUseSelection.selectionState?.sourceId === selectedItem.id)) {
               e.preventDefault();
             }
           }}
@@ -1144,7 +1172,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                                     isLoadingTargetItems={isLoadingTargetItems}
                                     onConfirmTarget={handleConfirmTarget}
                                     onCancelTarget={handleCancelTarget}
-                                    disabled={isTargetConfirmed || isWaitingForContest}
+                                    disabled={isWaitingForContest}
                                   />
                                 );
                               })()}
@@ -1171,6 +1199,56 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                       showIcon={true}
                     />
 
+                    {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 */}
+                    {postUseSelection.selectionState?.sourceId === selectedItem?.id && (
+                      <div className="p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                        <div className="space-y-3">
+                          <p className="font-medium text-green-800">
+                            使用成功！請選擇目標道具
+                          </p>
+                          {postUseSelection.isLoadingTargetItems ? (
+                            <p className="text-sm text-green-700">載入目標道具清單中...</p>
+                          ) : postUseSelection.targetItems.length > 0 ? (
+                            <div className="space-y-2">
+                              <Select
+                                value={postUseSelection.selectedTargetItemId}
+                                onValueChange={postUseSelection.setSelectedTargetItemId}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder={`選擇要${postUseSelection.selectionState.effectType === 'item_steal' ? '偷竊' : '移除'}的道具...`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {postUseSelection.targetItems.map((item) => (
+                                    <SelectItem key={item.id} value={item.id}>
+                                      {item.name} {item.quantity > 1 && `(x${item.quantity})`}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                onClick={postUseSelection.confirmSelection}
+                                disabled={!postUseSelection.selectedTargetItemId || postUseSelection.isSubmitting}
+                                className="w-full"
+                              >
+                                {postUseSelection.isSubmitting ? '處理中...' : '確認選擇'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-sm text-green-700">目標角色沒有道具</p>
+                              <Button
+                                onClick={postUseSelection.confirmSelection}
+                                disabled={postUseSelection.isSubmitting}
+                                className="w-full"
+                              >
+                                {postUseSelection.isSubmitting ? '處理中...' : '確認'}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* 獲得時間 */}
                     <div className="text-sm text-muted-foreground pt-2 border-t">
                       獲得於：{formatDate(selectedItem.acquiredAt)}
@@ -1191,12 +1269,9 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                                             dialogState.sourceType === 'item' && 
                                             dialogState.sourceId === selectedItem.id;
                   const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
-                  const hasItemTakeOrSteal = effects.some((e) => e.type === 'item_take' || e.type === 'item_steal');
-                  const isContest = selectedItem.checkType === 'contest';
-                  
-                  // Phase 8: 對抗檢定時，不要求選擇目標道具
-                  const needsTargetItemSelection = hasItemTakeOrSteal && !isContest;
-                  
+                  // 非對抗偷竊：不再需要前置選擇目標道具，改為使用後選擇
+                  const isPostUseSelectionActive = postUseSelection.selectionState?.sourceId === selectedItem.id;
+
                   return (
                     <Button
                       onClick={handleUseItem}
@@ -1205,27 +1280,17 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
                         isUsing ||
                         !onUseItem ||
                         (requiresTarget && !selectedUseTargetId) ||
-                        (needsTargetItemSelection && (!isTargetConfirmed || !selectedTargetItemId)) ||
-                        isWaitingForContest
+                        isWaitingForContest ||
+                        isPostUseSelectionActive
                       }
                       className="w-full sm:w-auto"
                     >
-                      {isUsing ? '使用中...' : 
+                      {isUsing ? '使用中...' :
                        isWaitingForContest ? '等待對抗檢定結果...' :
+                       isPostUseSelectionActive ? '請選擇目標道具...' :
                        (() => {
-                         if (selectedItem.checkType === 'contest' && !selectedUseTargetId) {
+                         if (requiresTarget && !selectedUseTargetId) {
                            return '請選擇目標角色';
-                         }
-                         if (needsTargetItemSelection) {
-                           if (!selectedUseTargetId) {
-                             return '請選擇目標角色';
-                           }
-                           if (!isTargetConfirmed) {
-                             return '請確認目標角色';
-                           }
-                           if (!selectedTargetItemId) {
-                             return '請選擇目標道具';
-                           }
                          }
                          if (!canUse && reason) {
                            return `使用道具 (${reason})`;

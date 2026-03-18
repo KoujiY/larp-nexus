@@ -209,17 +209,14 @@ export async function executeSkillEffects(
       // 跳過
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       // 移除道具或偷竊道具效果
-      // 注意：對抗檢定時，這個效果會在對抗檢定結束後才執行，這裡跳過
-      if (skill.checkType === 'contest') {
+      // 對抗檢定：效果會在對抗結束後由 selectTargetItemForContest 執行
+      // 非對抗但無 targetItemId：延遲執行，等用戶使用成功後再選擇目標道具
+      if (skill.checkType === 'contest' || skill.checkType === 'random_contest' || !targetItemId) {
         continue;
       }
 
       if (!targetCharacterId) {
         throw new Error('此效果需要選擇目標角色');
-      }
-
-      if (!targetItemId) {
-        throw new Error('請選擇目標道具');
       }
 
       // 驗證目標角色

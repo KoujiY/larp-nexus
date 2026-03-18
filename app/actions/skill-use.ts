@@ -19,17 +19,20 @@ export async function useSkill(
   checkResult?: number, // 檢定結果（由前端傳入，如果是 random 類型）
   targetCharacterId?: string, // Phase 6.5: 目標角色 ID（跨角色效果用）
   targetItemId?: string // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
-): Promise<ApiResponse<{ 
-  skillUsed: boolean; 
-  checkPassed?: boolean; 
-  checkResult?: number; 
-  effectsApplied?: string[]; 
+): Promise<ApiResponse<{
+  skillUsed: boolean;
+  checkPassed?: boolean;
+  checkResult?: number;
+  effectsApplied?: string[];
   targetCharacterName?: string;
   // Phase 7: 對抗檢定相關欄位
   contestId?: string;
   attackerValue?: number;
   defenderValue?: number;
   preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+  needsTargetItemSelection?: boolean;
+  targetCharacterId?: string;
 }>> {
   try {
     await dbConnect();
@@ -66,7 +69,8 @@ export async function useSkill(
 
     // Phase 6.5: 驗證目標角色（如果需要）
     let targetCharacter = null;
-    const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget);
+    const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
+    const hasItemTakeOrSteal = skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
 
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -332,6 +336,24 @@ export async function useSkill(
     }).catch((error) => {
       console.error('Failed to emit skill.used event', error);
     });
+
+    // 非對抗偷竊/移除：檢定通過但尚未選擇目標道具，回傳 needsTargetItemSelection
+    // 注意：對抗檢定已在上方提前返回，此處必定為非對抗類型
+    if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
+      return {
+        success: true,
+        data: {
+          skillUsed: true,
+          checkPassed: true,
+          checkResult: finalCheckResult,
+          effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+          targetCharacterName,
+          needsTargetItemSelection: true,
+          targetCharacterId,
+        },
+        message: `技能使用成功，請選擇要${skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+      };
+    }
 
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';

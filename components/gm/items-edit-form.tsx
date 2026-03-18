@@ -904,6 +904,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
                             setEditingItem({ ...editingItem, effects: newEffects });
                           }}
                           availableTypes={['stat_change', 'custom', 'item_take', 'item_steal']}
+                          checkType={editingItem.checkType}
                         />
                       ))}
                     </div>
