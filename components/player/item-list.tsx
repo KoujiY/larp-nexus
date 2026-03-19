@@ -166,9 +166,14 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   // 非對抗偷竊/移除：使用成功後的目標道具選擇
   const postUseSelection = usePostUseTargetItemSelection({
     onComplete: () => {
-      if (handleCloseDialogRef.current) {
-        handleCloseDialogRef.current();
-      }
+      // 直接關閉 dialog，不經過 handleCloseDialog（因為 React batched state 導致
+      // postUseSelection.selectionState 尚未清除，handleCloseDialog 的 protection check 會擋住關閉）
+      setSelectedItem(null);
+      setCheckResult(undefined);
+      setUseResult(null);
+      setSelectedUseTargetId(undefined);
+      setIsTargetConfirmed(false);
+      setSelectedTargetItemId('');
     },
     onRouterRefresh: () => router.refresh(),
   });

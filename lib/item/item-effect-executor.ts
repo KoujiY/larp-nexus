@@ -218,8 +218,12 @@ export async function executeItemEffects(
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       // 移除道具或偷竊道具效果
       // 對抗檢定：效果會在對抗結束後由 selectTargetItemForContest 執行
-      // 非對抗但無 targetItemId：延遲執行，等用戶使用成功後再選擇目標道具
-      if (checkType === 'contest' || checkType === 'random_contest' || !targetItemId) {
+      if (checkType === 'contest' || checkType === 'random_contest') {
+        continue;
+      }
+      // Step 9.1: 無 targetItemId（目標無道具時由 selectTargetItemAfterUse 呼叫）→ 記錄訊息並跳過
+      if (!targetItemId) {
+        effectMessages.push('目標角色沒有道具可互動');
         continue;
       }
 

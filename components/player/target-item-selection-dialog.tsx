@@ -26,7 +26,6 @@ import { CheckCircle2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { selectTargetItemForContest } from '@/app/actions/contest-select-item';
 import { getTargetCharacterItems, type TargetItemInfo } from '@/app/actions/public';
-import { cancelContestItemSelection } from '@/app/actions/contest-cancel';
 
 export interface TargetItemSelectionDialogProps {
   open: boolean;
@@ -93,18 +92,30 @@ export function TargetItemSelectionDialog({
   const handleConfirm = async () => {
     if (isSelecting) return;
 
-    // 如果沒有選擇道具，但目標也沒有道具，允許確認（結束流程）
+    // 如果沒有選擇道具，但目標也沒有道具，仍然執行效果（stat_change 等非偷竊效果需要執行）
     if (!selectedTargetItemId && targetItems.length === 0) {
       setIsSelecting(true);
       try {
-        // 取消對抗檢定（因為目標沒有道具）
-        await cancelContestItemSelection(contestId, characterId);
-        toast.success('目標角色沒有道具，對抗檢定已取消');
+        // Step 9.2: 呼叫 selectTargetItemForContest 而非 cancelContestItemSelection
+        // 即使目標沒有道具，仍需執行所有延遲效果（steal 會產生「無道具」訊息，stat_change 正常執行）
+        const result = await selectTargetItemForContest(
+          contestId,
+          characterId,
+          '', // 無目標道具
+          defenderId,
+          sourceId,
+          sourceType
+        );
+        if (result.success) {
+          toast.success(result.message || '對抗檢定效果已執行');
+        } else {
+          toast.error(result.message || '執行效果失敗');
+        }
         onSelectionComplete();
         onOpenChange(false);
       } catch (error) {
-        console.error('取消對抗檢定失敗:', error);
-        toast.error('取消對抗檢定時發生錯誤');
+        console.error('執行對抗檢定效果失敗:', error);
+        toast.error('執行對抗檢定效果時發生錯誤');
       } finally {
         setIsSelecting(false);
       }
@@ -148,12 +159,19 @@ export function TargetItemSelectionDialog({
       if (targetItems.length > 0) {
         return; // 阻止關閉
       }
-      
-      // 當目標沒有道具時，允許關閉並清除服務器端對抗檢定狀態
+
+      // Step 9.2: 當目標沒有道具時，允許關閉並執行所有延遲效果
       try {
-        await cancelContestItemSelection(contestId, characterId);
+        await selectTargetItemForContest(
+          contestId,
+          characterId,
+          '', // 無目標道具
+          defenderId,
+          sourceId,
+          sourceType
+        );
       } catch (error) {
-        console.error('取消對抗檢定失敗:', error);
+        console.error('執行對抗檢定效果失敗:', error);
       }
       // 調用完成回調
       onSelectionComplete();

@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * 對抗檢定 Dialog 狀態
@@ -59,40 +59,67 @@ export function useContestDialogState(characterId: string) {
     return null;
   });
 
-  // 監聽 storage 事件，當其他標籤頁或代碼修改 localStorage 時，重新載入狀態
+  // Step 9.1: 自定義事件名稱（同分頁跨實例同步用）
+  const customEventName = `contest-dialog-change:${storageKey}`;
+  // Step 9.1: 防止自定義事件觸發的 state 更新再次 dispatch 事件（無限迴圈防護）
+  const isSyncingRef = useRef(false);
+
+  // 監聽 storage 事件（跨分頁）和自定義事件（同分頁跨實例）
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === storageKey) {
-        try {
-          const stored = e.newValue;
-          if (stored) {
-            const parsed = JSON.parse(stored) as ContestDialogState;
-            // 檢查是否過期（3 分鐘）
-            if (Date.now() - parsed.timestamp < DIALOG_TIMEOUT) {
-              setDialogState(parsed);
-            } else {
-              // 過期，清除狀態
-              localStorage.removeItem(storageKey);
-              setDialogState(null);
-            }
+    /**
+     * 從 localStorage 載入並更新 state 的共用邏輯
+     */
+    const syncFromLocalStorage = () => {
+      try {
+        isSyncingRef.current = true;
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored) as ContestDialogState;
+          if (Date.now() - parsed.timestamp < DIALOG_TIMEOUT) {
+            setDialogState(parsed);
           } else {
+            localStorage.removeItem(storageKey);
             setDialogState(null);
           }
-        } catch (error) {
-          console.error('[use-contest-dialog-state] 處理 storage 事件失敗:', error);
+        } else {
+          setDialogState(null);
         }
+      } catch (error) {
+        console.error('[use-contest-dialog-state] 同步狀態失敗:', error);
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [storageKey]);
+    // 跨分頁同步：storage 事件
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === storageKey) {
+        syncFromLocalStorage();
+      }
+    };
 
-  // 保存狀態到 localStorage
+    // Step 9.1: 同分頁同步：自定義事件（由其他 useContestDialogState 實例觸發）
+    const handleCustomChange = () => {
+      syncFromLocalStorage();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener(customEventName, handleCustomChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(customEventName, handleCustomChange);
+    };
+  }, [storageKey, customEventName]);
+
+  // 保存狀態到 localStorage，並觸發同分頁自定義事件通知其他實例
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // Step 9.1: 如果是從自定義事件同步來的更新，不再 dispatch（防止無限迴圈）
+    if (isSyncingRef.current) {
+      isSyncingRef.current = false;
+      return;
+    }
 
     try {
       if (dialogState) {
@@ -100,10 +127,12 @@ export function useContestDialogState(characterId: string) {
       } else {
         localStorage.removeItem(storageKey);
       }
+      // Step 9.1: 通知同分頁其他實例（storage 事件不會在同分頁觸發）
+      window.dispatchEvent(new Event(customEventName));
     } catch (error) {
       console.error('[use-contest-dialog-state] 保存狀態失敗:', error);
     }
-  }, [dialogState, storageKey]);
+  }, [dialogState, storageKey, customEventName]);
 
   /**
    * 設置攻擊方等待 Dialog 狀態

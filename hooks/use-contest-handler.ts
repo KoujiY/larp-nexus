@@ -147,7 +147,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
                     contestId:
                       pendingContests[sourceId]?.contestId ||
                       `${String(characterId)}::${sourceId}::${Date.now()}`,
-                    itemId: sourceId,
+                    sourceId: sourceId, // Step 9.1: 統一使用 sourceId（與 use-target-item-selection.ts 的 parsed.sourceId 對應）
                     defenderId: String(payload.defenderId),
                     timestamp: Date.now(),
                   };
@@ -199,7 +199,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
                     contestId:
                       pendingContests[sourceId]?.contestId ||
                       `${String(characterId)}::${sourceId}::${Date.now()}`,
-                    skillId: sourceId,
+                    sourceId: sourceId, // Step 9.1: 統一使用 sourceId（與 use-target-item-selection.ts 的 parsed.sourceId 對應）
                     defenderId: String(payload.defenderId),
                     timestamp: Date.now(),
                   };

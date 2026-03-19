@@ -290,6 +290,39 @@ export async function useItem(
       };
     }
 
+    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標道具 → 延遲所有效果
+    // 所有效果（含 stat_change）都延遲到選擇目標道具後由 selectTargetItemAfterUse 一起執行
+    // 即使目標無道具，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無道具可互動」通知）
+    if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
+      // 仍然更新使用記錄
+      const earlyUsageUpdates: Record<string, unknown> = {};
+      earlyUsageUpdates[`items.${itemIndex}.lastUsedAt`] = now;
+      if (item.usageLimit && item.usageLimit > 0) {
+        const newUsageCount = (item.usageCount || 0) + 1;
+        earlyUsageUpdates[`items.${itemIndex}.usageCount`] = newUsageCount;
+      } else if (item.type === 'consumable') {
+        const newQuantity = Math.max(0, item.quantity - 1);
+        earlyUsageUpdates[`items.${itemIndex}.quantity`] = newQuantity;
+      }
+      if (Object.keys(earlyUsageUpdates).length > 0) {
+        await updateCharacterData(characterId, { $set: earlyUsageUpdates });
+      }
+
+      const targetCharacterName = targetCharacter?.name || '目標角色';
+      return {
+        success: true,
+        data: {
+          itemUsed: true,
+          checkPassed: true,
+          checkResult: finalCheckResult,
+          targetCharacterName: isAffectingOthers ? targetCharacterName : undefined,
+          needsTargetItemSelection: true,
+          targetCharacterId,
+        },
+        message: `道具使用成功，請選擇要${effects.some((e: { type?: string }) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+      };
+    }
+
     // 準備更新
     const usageUpdates: Record<string, unknown> = {};
 
@@ -386,24 +419,7 @@ export async function useItem(
       console.error('Failed to emit item.used event', error);
     });
 
-    // 非對抗偷竊/移除：檢定通過但尚未選擇目標道具，回傳 needsTargetItemSelection
-    // 注意：對抗檢定已在上方提前返回，此處必定為非對抗類型
-    if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
-      const targetCharacterName = targetCharacter?.name || '目標角色';
-      return {
-        success: true,
-        data: {
-          itemUsed: true,
-          checkPassed: true,
-          checkResult: finalCheckResult,
-          effectApplied: finalEffectMessage || undefined,
-          targetCharacterName: isAffectingOthers ? targetCharacterName : undefined,
-          needsTargetItemSelection: true,
-          targetCharacterId,
-        },
-        message: `道具使用成功，請選擇要${effects.some((e: { type?: string }) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
-      };
-    }
+    // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
 
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';

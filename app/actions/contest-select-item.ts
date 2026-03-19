@@ -202,7 +202,7 @@ export async function selectTargetItemForContest(
       defenderSources = [{ type: actualSourceType, id: source.id }];
     }
 
-    // Phase 8: 使用統一的效果執行器執行效果
+    // Step 9: 使用統一的效果執行器執行所有效果（不再拆分 — stat_change 等效果已在 contest-respond 跳過）
     const { executeContestEffects } = await import('@/lib/contest/contest-effect-executor');
     let effectsApplied: string[] = [];
     let updatedAttacker: CharacterDocument;

@@ -83,35 +83,28 @@ export function usePostUseTargetItemSelection(options?: {
 
   /**
    * 確認選擇並執行偷竊/移除效果
+   * Step 9.1: 無道具時也呼叫 server action 執行所有效果（steal 生成「無道具」訊息，stat_change 正常執行）
    */
   const confirmSelection = useCallback(async () => {
     if (!selectionState) return;
 
-    // 目標無道具時，直接結束流程
-    if (targetItems.length === 0) {
-      toast.info('目標角色沒有道具，流程結束');
-      setSelectionState(null);
-      setTargetItems([]);
-      setSelectedTargetItemId('');
-      if (onComplete) onComplete();
-      if (onRouterRefresh) onRouterRefresh();
-      return;
-    }
-
-    if (!selectedTargetItemId) {
+    // 有道具但未選擇時，提示用戶
+    if (targetItems.length > 0 && !selectedTargetItemId) {
       toast.error('請選擇目標道具');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // 無道具時傳空字串，server 端會處理（steal 跳過，其他效果正常執行）
+      const targetItemIdToSend = targetItems.length > 0 ? selectedTargetItemId : '';
       const result = await selectTargetItemAfterUse(
         selectionState.characterId,
         selectionState.sourceId,
         selectionState.sourceType,
         selectionState.effectType,
         selectionState.targetCharacterId,
-        selectedTargetItemId
+        targetItemIdToSend
       );
 
       if (result.success) {

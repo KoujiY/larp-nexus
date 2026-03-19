@@ -377,17 +377,22 @@ export function createEventMappers(
         if (!payload.effectsApplied || payload.effectsApplied.length === 0) {
           return [];
         }
-        message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用成功`;
-        // 攻擊方獲勝時，應該包含效果資訊（防守方受到的影響）
-        message += `，效果：${payload.effectsApplied.join('、')}`;
+        // Phase 12: 每個效果生成獨立通知
+        const attackerPrefix = `對 ${payload.defenderName} 使用 ${sourceName}，${actionType}使用成功`;
+        return payload.effectsApplied.map((effect, idx) => ({
+          id: `evt-${event.timestamp}-${idx}`,
+          title,
+          message: `${attackerPrefix}，效果：${effect}`,
+          type: event.type,
+        }));
       } else if (isDefenderWins) {
         // 攻擊方使用失敗（防守方獲勝）
         // 注意：攻擊方還會收到 character.affected 事件通知（受到防守方技能/道具的影響）
         // 這個通知應該在 skill.contest 之後顯示
-        message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用失敗`;
+        message = `對 ${payload.defenderName} 使用 ${sourceName}，${actionType}使用失敗`;
       } else {
         // 攻擊方使用失敗（both_fail 情況）
-        message = `你對 ${payload.defenderName} 使用了 ${sourceName}，${actionType}使用失敗`;
+        message = `對 ${payload.defenderName} 使用 ${sourceName}，${actionType}使用失敗`;
       }
     } else if (isDefender && isDefenderWins) {
       // 防守方獲勝時的通知
@@ -430,17 +435,23 @@ export function createEventMappers(
       // 判斷防守方使用的是技能還是道具（優先使用 payload 中的 skillName/itemName，這些應該已經在效果執行後更新為防守方的）
       // 但需要確保 sourceType 與防守方的回應類型一致
       if (payload.skillName && hasDefenderSkills && (payloadSourceType === 'skill' || defenderSourceType === 'skill')) {
-        // 防守方使用了技能，且 payload 中的 sourceType 與防守方的回應類型一致
-        message = `你對 ${targetName} 使用了 ${payload.skillName}，技能使用成功`;
-        if (payload.effectsApplied && payload.effectsApplied.length > 0) {
-          message += `，效果：${payload.effectsApplied.join('、')}`;
-        }
+        // 防守方使用了技能 — Phase 12: 每個效果生成獨立通知
+        const defSkillPrefix = `對 ${targetName} 使用 ${payload.skillName}，技能使用成功`;
+        return payload.effectsApplied.map((effect, idx) => ({
+          id: `evt-${event.timestamp}-${idx}`,
+          title,
+          message: `${defSkillPrefix}，效果：${effect}`,
+          type: event.type,
+        }));
       } else if (payload.itemName && hasDefenderItems && (payloadSourceType === 'item' || defenderSourceType === 'item')) {
-        // 防守方使用了道具，且 payload 中的 sourceType 與防守方的回應類型一致
-        message = `你對 ${targetName} 使用了 ${payload.itemName}，道具使用成功`;
-        if (payload.effectsApplied && payload.effectsApplied.length > 0) {
-          message += `，效果：${payload.effectsApplied.join('、')}`;
-        }
+        // 防守方使用了道具 — Phase 12: 每個效果生成獨立通知
+        const defItemPrefix = `對 ${targetName} 使用 ${payload.itemName}，道具使用成功`;
+        return payload.effectsApplied.map((effect, idx) => ({
+          id: `evt-${event.timestamp}-${idx}`,
+          title,
+          message: `${defItemPrefix}，效果：${effect}`,
+          type: event.type,
+        }));
       } else {
         // 如果 sourceType 與防守方的回應類型不一致，或者沒有 skillName/itemName，不顯示通知
         // 這可能是前一個對抗的殘留值，或者是事件發送時機問題
@@ -517,11 +528,11 @@ export function createEventMappers(
         let message: string;
         
         if (payload.targetCharacterName) {
-          // 有目標角色名稱：使用與攻擊方一致的格式
-          message = `你對 ${payload.targetCharacterName} 使用了 ${skillName}，技能使用失敗`;
+          // Phase 12: 統一文案格式，與 mapItemUsed/mapSkillUsed 非對抗格式一致
+          message = `對 ${payload.targetCharacterName} 使用 ${skillName}，技能使用失敗`;
         } else {
           // 沒有目標角色名稱：使用簡化格式（向後兼容）
-          message = `${skillName}使用失敗`;
+          message = `使用 ${skillName}，技能使用失敗`;
         }
         
         return [
@@ -540,35 +551,38 @@ export function createEventMappers(
     // 根據來源類型決定標題和名稱（非對抗檢定類型）
     const title = '技能使用結果';
     const skillName = payload.skillName || '技能';
+    const prefix = payload.targetCharacterName
+      ? `對 ${payload.targetCharacterName} 使用 ${skillName}`
+      : `使用 ${skillName}`;
 
-    // 組合通知訊息：包含目標、技能名稱、效果
-    const messageParts: string[] = [];
-    if (payload.targetCharacterName) {
-      messageParts.push(`對 ${payload.targetCharacterName} 使用 ${skillName}`);
-    } else {
-      messageParts.push(`使用 ${skillName}`);
-    }
+    // Phase 12: 每個效果生成獨立通知，確保複合效果（steal + stat_change）每個效果都有通知
     if (payload.checkPassed) {
-      messageParts.push('技能使用成功');
       if (payload.effectsApplied && payload.effectsApplied.length > 0) {
-        messageParts.push(`效果：${payload.effectsApplied.join('、')}`);
+        return payload.effectsApplied.map((effect, idx) => ({
+          id: `evt-${event.timestamp}-${idx}`,
+          title,
+          message: `${prefix}，技能使用成功，效果：${effect}`,
+          type: event.type,
+        }));
       }
-    } else {
-      messageParts.push('技能使用失敗');
-      if (payload.checkResult !== undefined) {
-        messageParts.push(`檢定結果：${payload.checkResult}`);
-      }
-    }
-    const message = messageParts.join('，');
-    
-    return [
-      {
+      return [{
         id: `evt-${event.timestamp}`,
         title,
-        message,
+        message: `${prefix}，技能使用成功`,
         type: event.type,
-      },
-    ];
+      }];
+    } else {
+      const failParts = [prefix, '技能使用失敗'];
+      if (payload.checkResult !== undefined) {
+        failParts.push(`檢定結果：${payload.checkResult}`);
+      }
+      return [{
+        id: `evt-${event.timestamp}`,
+        title,
+        message: failParts.join('，'),
+        type: event.type,
+      }];
+    }
   };
 
   /**
@@ -586,35 +600,38 @@ export function createEventMappers(
 
     const title = '道具使用結果';
     const itemName = payload.itemName || '道具';
+    const prefix = payload.targetCharacterName
+      ? `對 ${payload.targetCharacterName} 使用 ${itemName}`
+      : `使用 ${itemName}`;
 
-    // 組合通知訊息：包含目標、道具名稱、效果
-    const messageParts: string[] = [];
-    if (payload.targetCharacterName) {
-      messageParts.push(`對 ${payload.targetCharacterName} 使用 ${itemName}`);
-    } else {
-      messageParts.push(`使用 ${itemName}`);
-    }
+    // Phase 12: 每個效果生成獨立通知，確保複合效果（steal + stat_change）每個效果都有通知
     if (payload.checkPassed) {
-      messageParts.push('道具使用成功');
       if (payload.effectsApplied && payload.effectsApplied.length > 0) {
-        messageParts.push(`效果：${payload.effectsApplied.join('、')}`);
+        return payload.effectsApplied.map((effect, idx) => ({
+          id: `evt-${event.timestamp}-${idx}`,
+          title,
+          message: `${prefix}，道具使用成功，效果：${effect}`,
+          type: event.type,
+        }));
       }
-    } else {
-      messageParts.push('道具使用失敗');
-      if (payload.checkResult !== undefined) {
-        messageParts.push(`檢定結果：${payload.checkResult}`);
-      }
-    }
-    const message = messageParts.join('，');
-
-    return [
-      {
+      return [{
         id: `evt-${event.timestamp}`,
         title,
-        message,
+        message: `${prefix}，道具使用成功`,
         type: event.type,
-      },
-    ];
+      }];
+    } else {
+      const failParts = [prefix, '道具使用失敗'];
+      if (payload.checkResult !== undefined) {
+        failParts.push(`檢定結果：${payload.checkResult}`);
+      }
+      return [{
+        id: `evt-${event.timestamp}`,
+        title,
+        message: failParts.join('，'),
+        type: event.type,
+      }];
+    }
   };
 
   /**

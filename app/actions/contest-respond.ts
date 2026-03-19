@@ -249,8 +249,8 @@ export async function respondToContest(
       item = source as ItemType;
     }
 
-    // Phase 2: 使用統一的通知管理器
     // 檢查是否需要選擇目標道具（攻擊方獲勝時）
+    // 即使目標無道具，仍需走延遲流程 — 用戶點「確認」後觸發結算
     let needsTargetItemSelection = false;
     if (sourceType === 'skill' && skill) {
       const effects = skill.effects || [];
@@ -296,7 +296,7 @@ export async function respondToContest(
     // Phase 9: 檢查防守方獲勝時是否需要選擇目標道具
     let defenderNeedsTargetItemSelection = false;
     if (hasDefenderResponse && defenderSourceObj) {
-      const defenderEffects = defenderSourceType === 'skill' 
+      const defenderEffects = defenderSourceType === 'skill'
         ? (defenderSourceObj as SkillType).effects || []
         : getItemEffects(defenderSourceObj as ItemType);
       const defenderHasItemTakeOrSteal = defenderEffects.some((e: { type?: string }) => {
@@ -343,71 +343,60 @@ export async function respondToContest(
       console.error('[contest-respond] Failed to send initial contest notifications', error);
     }
 
-    // Phase 7.6: 現在執行效果（會發送 character.affected 事件，這會在 skill.contest 之後）
-    // Phase 9: 如果防守方獲勝且需要選擇目標道具，跳過效果執行（將在選擇道具後執行）
+    // Step 9: 效果執行 — 若需要選擇目標道具則完全跳過（所有效果延遲到 contest-select-item 一起執行）
     let effectsApplied: string[] = [];
 
-    if (result === 'attacker_wins') {
-      // 攻擊方獲勝：執行攻擊方的效果
-      // Phase 9: 如果攻擊方需要選擇目標道具，跳過效果執行（將在選擇道具後執行）
-      if (!needsTargetItemSelection) {
-        try {
-          const effectResult = await executeContestEffects(attacker!, defender!, source, targetItemId, 'attacker_wins');
-          effectsApplied = effectResult.effectsApplied;
-        } catch (error) {
-          console.error('[contest-respond] 執行攻擊方效果時發生錯誤:', error);
-          // 繼續執行，不中斷對抗檢定流程
-        }
+    if (result === 'attacker_wins' && !needsTargetItemSelection) {
+      // 攻擊方獲勝且不需要選擇目標道具：立即執行所有效果
+      try {
+        const effectResult = await executeContestEffects(attacker!, defender!, source, targetItemId, 'attacker_wins');
+        effectsApplied = effectResult.effectsApplied;
+      } catch (error) {
+        console.error('[contest-respond] 執行攻擊方效果時發生錯誤:', error);
       }
-    } else if (result === 'defender_wins') {
-      // Phase 7.6: 防守方獲勝：執行防守方的效果
-      // Phase 9: 如果防守方需要選擇目標道具，跳過效果執行（將在選擇道具後執行）
-      if (!defenderNeedsTargetItemSelection) {
-        const defenderSources: Array<{ type: 'skill' | 'item'; id: string }> = [];
-        if (defenderSkills && defenderSkills.length > 0) {
-          defenderSkills.forEach((skillId) => {
-            defenderSources.push({ type: 'skill', id: skillId });
-          });
-        }
-        if (defenderItems && defenderItems.length > 0) {
-          defenderItems.forEach((itemId) => {
-            defenderSources.push({ type: 'item', id: itemId });
-          });
-        }
+    } else if (result === 'defender_wins' && !defenderNeedsTargetItemSelection) {
+      // 防守方獲勝且不需要選擇目標道具：立即執行防守方效果
+      const defenderSources: Array<{ type: 'skill' | 'item'; id: string }> = [];
+      if (defenderSkills && defenderSkills.length > 0) {
+        defenderSkills.forEach((skillId) => {
+          defenderSources.push({ type: 'skill', id: skillId });
+        });
+      }
+      if (defenderItems && defenderItems.length > 0) {
+        defenderItems.forEach((itemId) => {
+          defenderSources.push({ type: 'item', id: itemId });
+        });
+      }
 
-        if (defenderSources.length > 0) {
-          try {
-            const defenderSource = defenderSources[0];
-            let defenderSourceObj: SkillType | ItemType | null = null;
-            
-            if (defenderSource.type === 'skill') {
-              const defenderSkillsData = defender!.skills || [];
-              const foundSkill = defenderSkillsData.find((s: { id: string }) => s.id === defenderSource.id);
-              if (foundSkill) {
-                defenderSourceObj = foundSkill as SkillType;
-              }
-            } else {
-              const defenderItemsData = defender!.items || [];
-              const foundItem = defenderItemsData.find((i: { id: string }) => i.id === defenderSource.id);
-              if (foundItem) {
-                defenderSourceObj = foundItem as ItemType;
-              }
-            }
+      if (defenderSources.length > 0) {
+        try {
+          const defenderSource = defenderSources[0];
+          let defenderSourceObj: SkillType | ItemType | null = null;
 
-            if (defenderSourceObj) {
-              const effectResult = await executeContestEffects(attacker!, defender!, defenderSourceObj, undefined, 'defender_wins', defenderSources);
-              effectsApplied = effectResult.effectsApplied;
-              
-              // 注意：不再發送 skill.used 事件，因為應該通過 skill.contest 事件處理
-              // 效果執行完成後會重新發送包含 effectsApplied 的 skill.contest 事件
+          if (defenderSource.type === 'skill') {
+            const defenderSkillsData = defender!.skills || [];
+            const foundSkill = defenderSkillsData.find((s: { id: string }) => s.id === defenderSource.id);
+            if (foundSkill) {
+              defenderSourceObj = foundSkill as SkillType;
             }
-          } catch (error) {
-            console.error('[contest-respond] 執行防守方效果時發生錯誤:', error);
+          } else {
+            const defenderItemsData = defender!.items || [];
+            const foundItem = defenderItemsData.find((i: { id: string }) => i.id === defenderSource.id);
+            if (foundItem) {
+              defenderSourceObj = foundItem as ItemType;
+            }
           }
+
+          if (defenderSourceObj) {
+            const effectResult = await executeContestEffects(attacker!, defender!, defenderSourceObj, undefined, 'defender_wins', defenderSources);
+            effectsApplied = effectResult.effectsApplied;
+          }
+        } catch (error) {
+          console.error('[contest-respond] 執行防守方效果時發生錯誤:', error);
         }
       }
     }
-    // result === 'both_fail' 時不執行任何效果
+    // result === 'both_fail' 或需要選擇目標道具時不執行任何效果
 
     // Phase 3.2: 舊的效果執行代碼已移除，改用 executeContestEffects
     // 以下代碼已移除（約 600+ 行）：
@@ -460,14 +449,13 @@ export async function respondToContest(
 
     // 注意：攻擊方技能/道具使用記錄已在 skill-use.ts/item-use.ts 中更新，這裡不需要再次更新
 
-    // Phase 2: 發送包含效果的完整通知（如果需要）
-    // 注意：如果需要選擇目標道具，則不發送最終通知（將在選擇道具後發送）
-    // Phase 9: 防守方獲勝時，如果防守方需要選擇目標道具，也不發送最終通知
-    const finalNeedsTargetItemSelection = result === 'attacker_wins' 
-      ? needsTargetItemSelection 
+    // Step 9: 若需要選擇目標道具，跳過最終通知（由 contest-select-item 在效果執行後發送）
+    const finalNeedsTargetItemSelection = result === 'attacker_wins'
+      ? needsTargetItemSelection
       : (result === 'defender_wins' ? defenderNeedsTargetItemSelection : false);
-    
+
     if (!finalNeedsTargetItemSelection) {
+      // 不需要選擇目標道具：發送包含 effectsApplied 的最終通知
       try {
         await ContestNotificationManager.sendContestResultNotifications(
           {
@@ -479,7 +467,7 @@ export async function respondToContest(
             defenderSource: defenderSourceObj,
             defenderSourceType,
             effectsApplied,
-            needsTargetItemSelection: false, // 效果已執行，不需要選擇目標道具
+            needsTargetItemSelection: false,
             contestId,
             attackerValue,
             defenderValue,

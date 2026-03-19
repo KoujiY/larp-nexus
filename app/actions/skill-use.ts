@@ -254,6 +254,36 @@ export async function useSkill(
       };
     }
 
+    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標道具 → 延遲所有效果
+    // 所有效果（含 stat_change）都延遲到選擇目標道具後由 selectTargetItemAfterUse 一起執行
+    // 即使目標無道具，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無道具可互動」通知）
+    if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
+      // 仍然更新使用記錄（usageCount, lastUsedAt）
+      const usageUpdates: Record<string, unknown> = {};
+      usageUpdates[`skills.${skillIndex}.lastUsedAt`] = now;
+      if (skill.usageLimit && skill.usageLimit > 0) {
+        const newUsageCount = (skill.usageCount || 0) + 1;
+        usageUpdates[`skills.${skillIndex}.usageCount`] = newUsageCount;
+      }
+      if (Object.keys(usageUpdates).length > 0) {
+        await updateCharacterData(characterId, { $set: usageUpdates });
+      }
+
+      const targetCharacterName = targetCharacter?.name || '目標角色';
+      return {
+        success: true,
+        data: {
+          skillUsed: true,
+          checkPassed: true,
+          checkResult: finalCheckResult,
+          targetCharacterName,
+          needsTargetItemSelection: true,
+          targetCharacterId,
+        },
+        message: `技能使用成功，請選擇要${skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+      };
+    }
+
     // 執行技能效果（只有在檢定成功時才執行）
     let effectsApplied: string[] = [];
     if (checkPassed && skill.effects && skill.effects.length > 0) {
@@ -337,23 +367,7 @@ export async function useSkill(
       console.error('Failed to emit skill.used event', error);
     });
 
-    // 非對抗偷竊/移除：檢定通過但尚未選擇目標道具，回傳 needsTargetItemSelection
-    // 注意：對抗檢定已在上方提前返回，此處必定為非對抗類型
-    if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
-      return {
-        success: true,
-        data: {
-          skillUsed: true,
-          checkPassed: true,
-          checkResult: finalCheckResult,
-          effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
-          targetCharacterName,
-          needsTargetItemSelection: true,
-          targetCharacterId,
-        },
-        message: `技能使用成功，請選擇要${skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
-      };
-    }
+    // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
 
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';

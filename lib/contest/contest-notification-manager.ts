@@ -290,13 +290,10 @@ export class ContestNotificationManager {
     if (isSendingFinal) {
       if (isAttackerWins) {
         // 攻擊方獲勝
-        // 發送包含效果的完整事件給攻擊方（如果不需要選擇目標道具）
-        if (!needsTargetItemSelection) {
-          // 修復：確保防守方沒有回應時，清除 defenderSkills 和 defenderItems
-          // 重要：即使 hasDefenderResponse 為 true，也要確保 defenderSkills 和 defenderItems 與當前對抗一致
-          // 因為 contestPayload 可能包含前一個對抗的殘留值
+        // Step 9: 此路徑只在不需要選擇目標道具時才會被呼叫（contest-respond 已守衛）
+        // 或在 contest-select-item 效果執行完成後呼叫（needsTargetItemSelection=false）
+        {
           const finalPayload = { ...contestPayload, effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined };
-          // 根據實際的 defenderSkills 和 defenderItems 參數來設置，而不是依賴 contestPayload 中的值
           finalPayload.defenderSkills = defenderSkills && defenderSkills.length > 0 ? defenderSkills : undefined;
           finalPayload.defenderItems = defenderItems && defenderItems.length > 0 ? defenderItems : undefined;
           await emitContestResult(

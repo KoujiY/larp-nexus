@@ -163,9 +163,14 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   // 非對抗偷竊/移除：使用成功後的目標道具選擇
   const postUseSelection = usePostUseTargetItemSelection({
     onComplete: () => {
-      if (handleCloseDialogRef.current) {
-        handleCloseDialogRef.current();
-      }
+      // 直接關閉 dialog，不經過 handleCloseDialog（因為 React batched state 導致
+      // postUseSelection.selectionState 尚未清除，handleCloseDialog 的 protection check 會擋住關閉）
+      setSelectedSkill(null);
+      setCheckResult(undefined);
+      setUseResult(null);
+      setSelectedTargetId(undefined);
+      setIsTargetConfirmed(false);
+      setSelectedTargetItemId('');
     },
     onRouterRefresh: () => router.refresh(),
   });
@@ -367,8 +372,8 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       ) {
         // Phase 9: 如果攻擊方獲勝且需要選擇目標道具，關閉原本的 dialog，開啟新的選擇道具 dialog
         if (payload.result === 'attacker_wins' && payload.needsTargetItemSelection && payload.skillId) {
-          const skillId = payload.skillId; // 確保 skillId 不是 undefined
-          
+          const skillId = payload.skillId;
+
           import('@/lib/contest/contest-id').then(({ generateContestId }) => {
             const pendingContest = pendingContests[skillId];
             const contestId = pendingContest?.contestId || generateContestId(attackerIdStr, skillId, event.timestamp);

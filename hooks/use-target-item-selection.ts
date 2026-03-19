@@ -75,9 +75,7 @@ export function useTargetItemSelection(options: UseTargetItemSelectionOptions): 
     clearDialogState,
     isDialogForSource,
     onItemSelected,
-    onUseResultSet,
     onClearTargetState,
-    onDismissToast,
     onRouterRefresh,
     onClearWaitingContest,
   } = options;
@@ -164,32 +162,8 @@ export function useTargetItemSelection(options: UseTargetItemSelectionOptions): 
             getTargetCharacterItems(parsed.defenderId)
               .then((result) => {
                 if (result.success && result.data) {
-                  // 如果道具清單為空，清除狀態並顯示通知
-                  if (result.data.length === 0) {
-                    // 清除 useResult 狀態（清除「等待回應」的 toast）
-                    onUseResultSet(null);
-                    if (onDismissToast) {
-                      onDismissToast();
-                    }
-                    
-                    // 調用 API 清除服務器端的對抗檢定追蹤並發送通知
-                    import('@/app/actions/contest-cancel').then(({ cancelContestItemSelection }) => {
-                      cancelContestItemSelection(parsed.contestId, characterId).catch((error) => {
-                        console.error('取消對抗檢定失敗:', error);
-                      });
-                    });
-                    
-                    localStorage.removeItem(storageKey);
-                    setNeedsTargetItemSelection(null);
-                    if (parsed.sourceId) {
-                      removePendingContest(parsed.sourceId);
-                    }
-                    // 關閉對話框
-                    setTimeout(() => {
-                      onItemSelected(null);
-                    }, 0);
-                    return;
-                  }
+                  // Step 9.1: 即使道具為空，也設置空列表（不取消）
+                  // 用戶點擊確認後，server 端會處理所有效果（steal 生成「無道具」訊息，stat_change 正常執行）
                   setTargetItemsForSelection(result.data);
                 } else {
                   localStorage.removeItem(storageKey);
@@ -215,8 +189,7 @@ export function useTargetItemSelection(options: UseTargetItemSelectionOptions): 
     } catch (error) {
       console.error(`[${sourceType}-list] 恢復需要選擇目標道具狀態失敗:`, error);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getNeedsTargetItemSelectionKey, characterId, sourceType]);
+  }, [getNeedsTargetItemSelectionKey, characterId, sourceType, removePendingContest]);
 
   // 載入目標角色的道具清單（當 needsTargetItemSelection 被設置時）
   // 使用 useRef 追蹤已經載入過的 defenderId，避免重複載入
@@ -450,19 +423,25 @@ export function useTargetItemSelection(options: UseTargetItemSelectionOptions): 
   const handleSelectTargetItem = useCallback(async () => {
     if (!needsTargetItemSelection) return;
     
-    // 如果沒有選擇道具，但目標也沒有道具，允許確認（結束流程）
+    // Step 9.1: 目標沒有道具時，仍呼叫 selectTargetItemForContest（傳空 targetItemId）
+    // 執行所有效果（steal 產生「無道具」訊息，stat_change 正常執行），不再取消對抗
     if (!selectedTargetItemForContest && targetItemsForSelection.length === 0) {
       setIsSelectingTargetItem(true);
       try {
-        // 取消對抗檢定（因為目標沒有道具）
-        const { cancelContestItemSelection } = await import('@/app/actions/contest-cancel');
-        const result = await cancelContestItemSelection(needsTargetItemSelection.contestId, characterId);
+        const result = await selectTargetItemForContest(
+          needsTargetItemSelection.contestId,
+          characterId,
+          '', // 空 targetItemId — 目標無道具
+          needsTargetItemSelection.defenderId,
+          needsTargetItemSelection.sourceId,
+          sourceType
+        );
         
         if (result.success) {
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/e2be6a65-9f5f-4db7-bf82-59842b3eed9f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-target-item-selection.ts:340',message:'cancelContestItemSelection 成功，準備清除狀態',data:{sourceIdToClear:needsTargetItemSelection.sourceId,hasPendingContestBefore:hasPendingContest(needsTargetItemSelection.sourceId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
           // #endregion
-          toast.success('目標角色沒有道具，對抗檢定已取消');
+          toast.success(result.message || '效果已執行');
           // 清除狀態
           loadedDefenderIdRef.current = null;
           setNeedsTargetItemSelection(null);
@@ -535,11 +514,11 @@ export function useTargetItemSelection(options: UseTargetItemSelectionOptions): 
             }
           }, 100);
         } else {
-          toast.error(result.message || '取消對抗檢定失敗');
+          toast.error(result.message || '效果執行失敗');
         }
       } catch (error) {
-        console.error(`[${sourceType}-list] 取消對抗檢定錯誤:`, error);
-        toast.error('取消對抗檢定時發生錯誤');
+        console.error(`[${sourceType}-list] 對抗效果執行錯誤:`, error);
+        toast.error('效果執行時發生錯誤');
       } finally {
         setIsSelectingTargetItem(false);
       }
