@@ -301,19 +301,30 @@ export async function updateCharacter(
     // Phase 3.3: 使用欄位更新模組處理 secretInfo 更新
     // Phase 7.7: 記錄手動揭露的隱藏資訊（用於連鎖揭露觸發）
     let hasManualSecretReveal = false;
+    // 修復：收集被重置為未揭露的 items_viewed 條件中的 itemIds，用於清除 viewedItems
+    const unrevealedViewedItemIds = new Set<string>();
     if (data.secretInfo !== undefined) {
       const currentSecrets = beforeState.secretInfo?.secrets || [];
       const secretsResult = updateCharacterSecrets(data.secretInfo.secrets, currentSecrets);
 
       updateData.secretInfo = { secrets: secretsResult };
 
-      // Phase 7.7: 檢查是否有隱藏資訊從未揭露變為已揭露（GM 手動揭露）
       for (const newSecret of data.secretInfo.secrets) {
-        if (newSecret.isRevealed) {
-          const oldSecret = currentSecrets.find((s: { id: string }) => s.id === newSecret.id);
-          if (oldSecret && !oldSecret.isRevealed) {
-            hasManualSecretReveal = true;
-            break;
+        const oldSecret = currentSecrets.find((s: { id: string }) => s.id === newSecret.id);
+        if (!oldSecret) continue;
+
+        // Phase 7.7: 檢查是否有隱藏資訊從未揭露變為已揭露（GM 手動揭露）
+        if (newSecret.isRevealed && !oldSecret.isRevealed) {
+          hasManualSecretReveal = true;
+        }
+
+        // 修復：檢查是否有隱藏資訊從已揭露變為未揭露（GM 重置揭露狀態）
+        // 收集其 items_viewed 條件中的 itemIds，稍後從 viewedItems 中移除
+        if (!newSecret.isRevealed && oldSecret.isRevealed) {
+          if (oldSecret.autoRevealCondition?.type === 'items_viewed' && oldSecret.autoRevealCondition.itemIds) {
+            for (const itemId of oldSecret.autoRevealCondition.itemIds) {
+              unrevealedViewedItemIds.add(itemId);
+            }
           }
         }
       }
@@ -344,6 +355,20 @@ export async function updateCharacter(
       }
       const currentTasks = beforeState.tasks || [];
       updateData.tasks = updateCharacterTasks(data.tasks, currentTasks);
+
+      // 修復：檢查是否有隱藏任務從已揭露變為未揭露（GM 重置揭露狀態）
+      // 收集其 items_viewed 條件中的 itemIds，稍後從 viewedItems 中移除
+      for (const newTask of data.tasks) {
+        const oldTask = currentTasks.find((t: { id: string }) => t.id === newTask.id);
+        if (!oldTask) continue;
+        if (!newTask.isRevealed && oldTask.isRevealed) {
+          if (oldTask.autoRevealCondition?.type === 'items_viewed' && oldTask.autoRevealCondition.itemIds) {
+            for (const itemId of oldTask.autoRevealCondition.itemIds) {
+              unrevealedViewedItemIds.add(itemId);
+            }
+          }
+        }
+      }
     }
 
     // Phase 3.3: 使用驗證和更新模組處理 items 更新
@@ -383,6 +408,18 @@ export async function updateCharacter(
         };
       }
       updateData.skills = updateCharacterSkills(data.skills);
+    }
+
+    // 修復：如果有隱藏資訊/任務被重置為未揭露，清除相關的 viewedItems 記錄
+    // 避免下次觸發 executeAutoReveal 時，殘留的 viewedItems 導致條件誤判為已滿足
+    if (unrevealedViewedItemIds.size > 0) {
+      const existingViewedItems: Array<{ itemId: string; sourceCharacterId: string; viewedAt: Date }> =
+        (characterDoc.get('viewedItems') as Array<{ itemId: string; sourceCharacterId: string; viewedAt: Date }>) || [];
+      const cleanedViewedItems = existingViewedItems.filter(
+        (v) => !unrevealedViewedItemIds.has(v.itemId)
+      );
+      characterDoc.set('viewedItems', cleanedViewedItems);
+      characterDoc.markModified('viewedItems');
     }
 
     // 將 field-updaters 產出的資料套用到 Mongoose 文件
