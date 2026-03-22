@@ -8,9 +8,6 @@ export const CONTEST_TIMEOUT = 180000;
 /** 對抗檢定查詢延遲時間（10 秒，毫秒） */
 export const CONTEST_QUERY_DELAY = 10000;
 
-/** 目標道具選擇狀態過期時間（1 小時，毫秒） */
-export const TARGET_ITEM_SELECTION_TIMEOUT = 3600000;
-
 /** Dialog 狀態過期時間（3 分鐘，毫秒） */
 export const DIALOG_TIMEOUT = 180000;
 
@@ -32,11 +29,5 @@ export const STORAGE_KEYS = {
   
   /** 道具目標選擇狀態 */
   ITEM_TARGET: (characterId: string, itemId: string) => `item-${characterId}-${itemId}-target`,
-  
-  /** 技能需要選擇目標道具的狀態 */
-  SKILL_NEEDS_TARGET_SELECTION: (characterId: string) => `skill-needs-target-selection-${characterId}`,
-  
-  /** 道具需要選擇目標道具的狀態 */
-  ITEM_NEEDS_TARGET_SELECTION: (characterId: string) => `item-needs-target-selection-${characterId}`,
 } as const;
 
