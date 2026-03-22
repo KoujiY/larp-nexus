@@ -1,7 +1,7 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
-import { Character } from '@/lib/db/models';
+import { getCharacterData } from '@/lib/game/get-character-data';
 import { emitItemShowcased, emitRoleUpdated } from '@/lib/websocket/events';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import type { ApiResponse } from '@/types/api';
@@ -12,9 +12,12 @@ import type { ApiResponse } from '@/types/api';
  * 展示方選擇道具和目標角色 → 被展示方收到唯讀道具 Dialog。
  * 同時記錄被展示方的 viewedItems，觸發自動揭露評估。
  *
- * @param characterId - 展示方角色 ID
+ * Phase 11: 使用 getCharacterData 自動判斷 Baseline/Runtime，
+ * 確保遊戲進行中讀取和寫入 Runtime 資料。
+ *
+ * @param characterId - 展示方角色 ID（Baseline ID）
  * @param itemId - 要展示的道具 ID
- * @param targetCharacterId - 被展示方角色 ID
+ * @param targetCharacterId - 被展示方角色 ID（Baseline ID）
  */
 export async function showcaseItem(
   characterId: string,
@@ -28,9 +31,11 @@ export async function showcaseItem(
   try {
     await dbConnect();
 
-    // 1. 驗證展示方角色存在
-    const character = await Character.findById(characterId);
-    if (!character) {
+    // 1. 驗證展示方角色存在（自動判斷 Baseline/Runtime）
+    let character;
+    try {
+      character = await getCharacterData(characterId);
+    } catch {
       return {
         success: false,
         error: 'NOT_FOUND',
@@ -38,7 +43,7 @@ export async function showcaseItem(
       };
     }
 
-    // 2. 找到要展示的道具
+    // 2. 找到要展示的道具（從 Runtime 道具清單中查找）
     const items = character.items || [];
     const item = items.find((i: { id: string }) => i.id === itemId);
     if (!item) {
@@ -58,9 +63,11 @@ export async function showcaseItem(
       };
     }
 
-    // 4. 驗證目標角色存在且在同一劇本
-    const targetCharacter = await Character.findById(targetCharacterId);
-    if (!targetCharacter) {
+    // 4. 驗證目標角色存在且在同一劇本（自動判斷 Baseline/Runtime）
+    let targetCharacter;
+    try {
+      targetCharacter = await getCharacterData(targetCharacterId);
+    } catch {
       return {
         success: false,
         error: 'INVALID_TARGET',
@@ -77,6 +84,7 @@ export async function showcaseItem(
     }
 
     // 5. 記錄被展示方的 viewedItems（去重：同一 itemId + sourceCharacterId 不重複）
+    // Phase 11: 直接修改 document 再 save，確保寫入正確的 collection（Baseline 或 Runtime）
     const existingViewedItems = targetCharacter.viewedItems || [];
     const alreadyViewed = existingViewedItems.some(
       (v: { itemId: string; sourceCharacterId: string }) =>
@@ -84,25 +92,17 @@ export async function showcaseItem(
     );
 
     if (!alreadyViewed) {
-      await Character.findByIdAndUpdate(targetCharacterId, {
-        $push: {
-          viewedItems: {
-            itemId,
-            sourceCharacterId: characterId,
-            viewedAt: new Date(),
-          },
-        },
-      });
+      const viewedItems = [...existingViewedItems, {
+        itemId,
+        sourceCharacterId: characterId,
+        viewedAt: new Date(),
+      }];
+      targetCharacter.set('viewedItems', viewedItems);
+      targetCharacter.markModified('viewedItems');
+      await targetCharacter.save();
     }
 
-    // 6. 無論是否已記錄，都重新評估自動揭露條件（針對被展示方）
-    //    （GM 可能已將揭露狀態重設為未揭露，需要重新觸發）
-    const revealResults = await executeAutoReveal(targetCharacterId, {
-      type: 'items_viewed',
-      itemIds: [itemId],
-    });
-
-    // 7. 發送 item.showcased 事件給雙方
+    // 6. 發送 item.showcased 事件給雙方（先於揭露通知，確保前端收到正確的通知順序）
     const showcasePayload = {
       fromCharacterId: characterId,
       fromCharacterName: character.name,
@@ -119,21 +119,26 @@ export async function showcaseItem(
       },
     };
 
-    emitItemShowcased(characterId, targetCharacterId, showcasePayload).catch(
+    await emitItemShowcased(characterId, targetCharacterId, showcasePayload).catch(
       (error) => console.error('[item-showcase] Failed to emit item.showcased', error)
     );
 
+    // 7. 展示通知發送完成後，評估自動揭露條件（針對被展示方）
+    //    （GM 可能已將揭露狀態重設為未揭露，需要重新觸發）
+    //    放在展示通知之後，確保揭露通知不會搶先於展示通知到達前端
+    const revealResults = await executeAutoReveal(targetCharacterId, {
+      type: 'items_viewed',
+      itemIds: [itemId],
+    });
+
     // 8. 若有觸發揭露，也發送 role.updated 事件讓前端刷新資料
     if (revealResults.length > 0) {
-      const updatedTarget = await Character.findById(targetCharacterId).lean();
-      if (updatedTarget) {
-        emitRoleUpdated(targetCharacterId, {
-          characterId: targetCharacterId,
-          updates: {},
-        }).catch((error) =>
-          console.error('[item-showcase] Failed to emit role.updated after reveal', error)
-        );
-      }
+      emitRoleUpdated(targetCharacterId, {
+        characterId: targetCharacterId,
+        updates: {},
+      }).catch((error) =>
+        console.error('[item-showcase] Failed to emit role.updated after reveal', error)
+      );
     }
 
     return {
@@ -161,7 +166,10 @@ export async function showcaseItem(
  * 玩家點開自己的道具詳情 Dialog 時呼叫（fire-and-forget，不阻塞 UI）。
  * 記錄 viewedItems 後觸發自動揭露評估。
  *
- * @param characterId - 檢視方角色 ID
+ * Phase 11: 使用 getCharacterData 自動判斷 Baseline/Runtime，
+ * 確保遊戲進行中讀取和寫入 Runtime 資料。
+ *
+ * @param characterId - 檢視方角色 ID（Baseline ID）
  * @param itemId - 被檢視的道具 ID
  */
 export async function recordItemView(
@@ -175,9 +183,11 @@ export async function recordItemView(
   try {
     await dbConnect();
 
-    // 1. 驗證角色存在
-    const character = await Character.findById(characterId);
-    if (!character) {
+    // 1. 驗證角色存在（自動判斷 Baseline/Runtime）
+    let character;
+    try {
+      character = await getCharacterData(characterId);
+    } catch {
       return {
         success: false,
         error: 'NOT_FOUND',
@@ -185,7 +195,7 @@ export async function recordItemView(
       };
     }
 
-    // 2. 驗證道具存在
+    // 2. 驗證道具存在（從 Runtime 道具清單中查找）
     const items = character.items || [];
     const item = items.find((i: { id: string }) => i.id === itemId);
     if (!item) {
@@ -203,16 +213,16 @@ export async function recordItemView(
     );
 
     // 4. 僅在首次檢視時記錄 viewedItems（避免重複寫入 DB）
+    // Phase 11: 直接修改 document 再 save，確保寫入正確的 collection
     if (!alreadyViewed) {
-      await Character.findByIdAndUpdate(characterId, {
-        $push: {
-          viewedItems: {
-            itemId,
-            sourceCharacterId: characterId,
-            viewedAt: new Date(),
-          },
-        },
-      });
+      const viewedItems = [...existingViewedItems, {
+        itemId,
+        sourceCharacterId: characterId,
+        viewedAt: new Date(),
+      }];
+      character.set('viewedItems', viewedItems);
+      character.markModified('viewedItems');
+      await character.save();
     }
 
     // 5. 無論是否已記錄，都重新評估自動揭露條件

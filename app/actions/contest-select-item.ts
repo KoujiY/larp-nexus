@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
 import { getContestInfo, removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
+import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import type { ApiResponse } from '@/types/api';
 import type { CharacterDocument } from '@/lib/db/models';
@@ -202,9 +203,10 @@ export async function selectTargetItemForContest(
       defenderSources = [{ type: actualSourceType, id: source.id }];
     }
 
-    // Phase 8: 使用統一的效果執行器執行效果
+    // Step 9: 使用統一的效果執行器執行所有效果（不再拆分 — stat_change 等效果已在 contest-respond 跳過）
     const { executeContestEffects } = await import('@/lib/contest/contest-effect-executor');
     let effectsApplied: string[] = [];
+    let pendingReveal: { receiverId: string } | undefined;
     let updatedAttacker: CharacterDocument;
     let updatedDefender: CharacterDocument;
     try {
@@ -219,6 +221,7 @@ export async function selectTargetItemForContest(
       effectsApplied = effectResult.effectsApplied;
       updatedAttacker = effectResult.updatedAttacker;
       updatedDefender = effectResult.updatedDefender;
+      pendingReveal = effectResult.pendingReveal;
     } catch (error) {
       console.error('[contest-select-item] 執行效果時發生錯誤:', error);
       return {
@@ -375,6 +378,13 @@ export async function selectTargetItemForContest(
       }
     } catch (error) {
       console.error('[contest-select-item] Failed to send contest effect notification', error);
+    }
+
+    // 修復：在所有對抗通知發送完成後，才觸發自動揭露評估
+    // 確保客戶端先收到對抗結果通知，再收到揭露通知
+    if (pendingReveal) {
+      executeAutoReveal(pendingReveal.receiverId, { type: 'items_acquired' })
+        .catch((error) => console.error('[contest-select-item] Failed to execute auto-reveal', error));
     }
 
     // Phase 8: 清除對抗檢定追蹤

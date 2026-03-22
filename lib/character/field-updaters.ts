@@ -476,55 +476,6 @@ export function updateCharacterItems(
       }
     }
 
-    // 向後兼容：如果沒有 effects 但有 effect，轉換為 effects
-    if ((!item.effects || item.effects.length === 0) && item.effect !== undefined) {
-      const effectAny = item.effect as Record<string, unknown>;
-      const defaultTargetType =
-        (item.effect.type === 'item_take' || item.effect.type === 'item_steal')
-          ? 'other'
-          : 'self';
-      const normalizedTargetType =
-        (effectAny.targetType as 'self' | 'other' | 'any' | undefined) ??
-        defaultTargetType;
-      const normalizedRequiresTarget =
-        effectAny.requiresTarget !== undefined &&
-        effectAny.requiresTarget !== null
-          ? Boolean(effectAny.requiresTarget)
-          : normalizedTargetType !== 'self';
-
-      const effectData: Record<string, unknown> = {
-        type: item.effect.type,
-        targetType: normalizedTargetType,
-        requiresTarget: normalizedRequiresTarget,
-      };
-
-      if (item.effect.targetStat !== undefined && item.effect.targetStat !== null) {
-        effectData.targetStat = String(item.effect.targetStat);
-      }
-      if (item.effect.value !== undefined && item.effect.value !== null) {
-        effectData.value = Number(item.effect.value);
-      }
-      if (item.effect.statChangeTarget !== undefined && item.effect.statChangeTarget !== null) {
-        effectData.statChangeTarget = String(item.effect.statChangeTarget);
-      }
-      if (item.effect.syncValue !== undefined && item.effect.syncValue !== null) {
-        effectData.syncValue = Boolean(item.effect.syncValue);
-      }
-      if (item.effect.targetItemId !== undefined && item.effect.targetItemId !== null) {
-        effectData.targetItemId = String(item.effect.targetItemId);
-      }
-      if (item.effect.duration !== undefined && item.effect.duration !== null) {
-        effectData.duration = Number(item.effect.duration);
-      }
-      if (item.effect.description !== undefined && item.effect.description !== null) {
-        effectData.description = String(item.effect.description);
-      }
-
-      itemData.effects = [effectData];
-    }
-
-    delete itemData.effect;
-
     if (item.usageLimit !== undefined) itemData.usageLimit = item.usageLimit;
     if (item.cooldown !== undefined) itemData.cooldown = item.cooldown;
     if (item.lastUsedAt !== undefined) itemData.lastUsedAt = item.lastUsedAt;

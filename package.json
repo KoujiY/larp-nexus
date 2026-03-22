@@ -13,10 +13,7 @@
     "format:check": "prettier --check .",
     "test:connection": "tsx scripts/test-connection.ts",
     "test:sendmail": "tsx scripts/test-sendmail.ts",
-    "verify:phase1": "tsx scripts/verify-phase1.ts",
-    "verify:phase2": "tsx scripts/verify-phase2.ts",
-    "verify:phase3": "tsx scripts/verify-phase3.ts",
-    "migrate:phase10": "tsx scripts/migrate-phase10.ts"
+        "migrate:phase10": "tsx scripts/migrate-phase10.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

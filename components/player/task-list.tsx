@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useSyncExternalStore, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,50 +10,60 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ClipboardList, CheckCircle, XCircle, Clock, Eye } from 'lucide-react';
+import { ClipboardList, Eye } from 'lucide-react';
 import type { Task } from '@/types/character';
 import { formatDate } from '@/lib/utils/date';
 
 interface TaskListProps {
   tasks?: Task[];
+  characterId: string;
 }
 
-type TaskStatus = Task['status'];
+/**
+ * Hook 用於安全地讀取 localStorage 中的已讀任務（避免 SSR/CSR hydration 問題）
+ * 比照 SecretInfoSection 的 useReadSecrets 實作
+ */
+function useReadTasks(characterId: string) {
+  const storageKey = `character-${characterId}-read-tasks`;
 
-const statusConfig: Record<TaskStatus, { 
-  label: string; 
-  variant: 'default' | 'secondary' | 'outline' | 'destructive'; 
-  icon: React.ReactNode;
-  bgColor: string;
-}> = {
-  pending: { 
-    label: '待處理', 
-    variant: 'outline', 
-    icon: <Clock className="h-4 w-4" />,
-    bgColor: 'bg-gray-50 hover:bg-gray-100',
-  },
-  'in-progress': { 
-    label: '進行中', 
-    variant: 'secondary', 
-    icon: <Clock className="h-4 w-4 text-blue-500" />,
-    bgColor: 'bg-blue-50 hover:bg-blue-100',
-  },
-  completed: { 
-    label: '已完成', 
-    variant: 'default', 
-    icon: <CheckCircle className="h-4 w-4 text-green-500" />,
-    bgColor: 'bg-green-50 hover:bg-green-100',
-  },
-  failed: { 
-    label: '失敗', 
-    variant: 'destructive', 
-    icon: <XCircle className="h-4 w-4 text-red-500" />,
-    bgColor: 'bg-red-50 hover:bg-red-100',
-  },
-};
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      window.addEventListener('storage', callback);
+      return () => window.removeEventListener('storage', callback);
+    },
+    []
+  );
 
-export function TaskList({ tasks }: TaskListProps) {
+  const getSnapshot = useCallback(() => {
+    const stored = localStorage.getItem(storageKey);
+    return stored || '[]';
+  }, [storageKey]);
+
+  const getServerSnapshot = useCallback(() => '[]', []);
+
+  const storedValue = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  return useMemo(() => {
+    try {
+      const readIds = JSON.parse(storedValue) as string[];
+      return new Set(readIds);
+    } catch {
+      return new Set<string>();
+    }
+  }, [storedValue]);
+}
+
+export function TaskList({ tasks, characterId }: TaskListProps) {
+  const readTasksFromStorage = useReadTasks(characterId);
+  const [localReadTasks, setLocalReadTasks] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // 合併 localStorage 和本地狀態
+  const readTasks = useMemo(() => {
+    const combined = new Set(readTasksFromStorage);
+    localReadTasks.forEach(id => combined.add(id));
+    return combined;
+  }, [readTasksFromStorage, localReadTasks]);
 
   // 過濾出可見的任務（一般任務 + 已揭露的隱藏目標）
   const visibleTasks = tasks?.filter((task) => {
@@ -79,6 +89,26 @@ export function TaskList({ tasks }: TaskListProps) {
     );
   }
 
+  /** 點擊隱藏任務時標記為已讀（比照 SecretInfoSection） */
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    if (task.isHidden) {
+      setLocalReadTasks(prev => {
+        const newSet = new Set(prev);
+        newSet.add(task.id);
+        return newSet;
+      });
+      if (typeof window !== 'undefined') {
+        const newReadTasks = new Set(readTasks);
+        newReadTasks.add(task.id);
+        localStorage.setItem(
+          `character-${characterId}-read-tasks`,
+          JSON.stringify(Array.from(newReadTasks))
+        );
+      }
+    }
+  };
+
   // 分類任務
   const normalTasks = visibleTasks.filter((t) => !t.isHidden);
   const revealedHiddenTasks = visibleTasks.filter((t) => t.isHidden && t.isRevealed);
@@ -95,10 +125,10 @@ export function TaskList({ tasks }: TaskListProps) {
             </h4>
             <div className="grid grid-cols-1 gap-3">
               {normalTasks.map((task) => (
-                <TaskCard 
-                  key={task.id} 
-                  task={task} 
-                  onClick={() => setSelectedTask(task)}
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onClick={() => handleTaskClick(task)}
                 />
               ))}
             </div>
@@ -115,11 +145,12 @@ export function TaskList({ tasks }: TaskListProps) {
             </h4>
             <div className="grid grid-cols-1 gap-3">
               {revealedHiddenTasks.map((task) => (
-                <TaskCard 
-                  key={task.id} 
-                  task={task} 
+                <TaskCard
+                  key={task.id}
+                  task={task}
                   isHidden
-                  onClick={() => setSelectedTask(task)}
+                  isRead={readTasks.has(task.id)}
+                  onClick={() => handleTaskClick(task)}
                 />
               ))}
             </div>
@@ -133,18 +164,14 @@ export function TaskList({ tasks }: TaskListProps) {
           {selectedTask && (
             <>
               <DialogHeader>
-                <div className="flex items-center gap-2">
-                  {selectedTask.isHidden && (
+                {selectedTask.isHidden && (
+                  <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       <Eye className="h-3 w-3 mr-1" />
                       隱藏目標
                     </Badge>
-                  )}
-                  <Badge variant={statusConfig[selectedTask.status].variant}>
-                    {statusConfig[selectedTask.status].icon}
-                    <span className="ml-1">{statusConfig[selectedTask.status].label}</span>
-                  </Badge>
-                </div>
+                  </div>
+                )}
                 <DialogTitle className="text-xl mt-2">
                   {selectedTask.title}
                 </DialogTitle>
@@ -155,7 +182,7 @@ export function TaskList({ tasks }: TaskListProps) {
                         {selectedTask.description}
                       </div>
                     )}
-                    
+
                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pt-4 border-t">
                       <div>
                         建立時間：{formatDate(selectedTask.createdAt)}
@@ -163,11 +190,6 @@ export function TaskList({ tasks }: TaskListProps) {
                       {selectedTask.isHidden && selectedTask.revealedAt && (
                         <div>
                           揭露時間：{formatDate(selectedTask.revealedAt)}
-                        </div>
-                      )}
-                      {selectedTask.completedAt && (
-                        <div>
-                          完成時間：{formatDate(selectedTask.completedAt)}
                         </div>
                       )}
                     </div>
@@ -182,49 +204,66 @@ export function TaskList({ tasks }: TaskListProps) {
   );
 }
 
-// 任務卡片元件
+/**
+ * 任務卡片元件（統一樣式）
+ * 隱藏目標比照 SecretInfoSection 的卡片設計：未讀 badge、揭露時間、視覺差異
+ */
 interface TaskCardProps {
   task: Task;
   isHidden?: boolean;
+  isRead?: boolean;
   onClick: () => void;
 }
 
-function TaskCard({ task, isHidden, onClick }: TaskCardProps) {
-  const config = statusConfig[task.status];
-  const isCompleted = task.status === 'completed';
-  const isFailed = task.status === 'failed';
-
+function TaskCard({ task, isHidden, isRead, onClick }: TaskCardProps) {
   return (
-    <Card 
-      className={`cursor-pointer transition-all ${config.bgColor} ${
-        isCompleted ? 'opacity-75' : ''
-      } ${isFailed ? 'opacity-60' : ''}`}
+    <Card
+      className={`cursor-pointer transition-all hover:shadow-md ${
+        isHidden
+          ? isRead
+            ? 'opacity-75'
+            : 'border-amber-400 bg-amber-100/50'
+          : 'hover:bg-muted/50'
+      }`}
       onClick={onClick}
     >
       <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5">
-            {config.icon}
+        <div className="flex items-start justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <h4 className="font-semibold">
+              {task.title}
+            </h4>
+            {isHidden && (
+              <Eye className="h-3 w-3 text-muted-foreground" />
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className={`font-semibold ${isCompleted ? 'line-through text-muted-foreground' : ''}`}>
-                {task.title}
-              </h4>
-              {isHidden && (
-                <Eye className="h-3 w-3 text-muted-foreground" />
-              )}
-            </div>
-            {task.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2">
-                {task.description}
+          {isHidden && !isRead && (
+            <Badge variant="secondary">
+              <Eye className="h-3 w-3 mr-1" />
+              未讀
+            </Badge>
+          )}
+        </div>
+        {task.description && (
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {task.description}
+          </p>
+        )}
+        {/* 隱藏目標額外資訊：揭露條件、揭露時間 */}
+        {isHidden && (
+          <div className="mt-2 space-y-0.5">
+            {task.revealCondition && (
+              <p className="text-xs text-muted-foreground">
+                揭露條件：{task.revealCondition}
+              </p>
+            )}
+            {task.revealedAt && (
+              <p className="text-xs text-muted-foreground">
+                揭露於：{formatDate(task.revealedAt)}
               </p>
             )}
           </div>
-          <Badge variant={config.variant} className="shrink-0">
-            {config.label}
-          </Badge>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

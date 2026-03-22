@@ -25,9 +25,9 @@ export async function useItem(
   targetCharacterId?: string,
   checkResult?: number, // Phase 8: 檢定結果（由前端傳入，如果是 random 類型）
   targetItemId?: string // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
-): Promise<ApiResponse<{ 
-  itemUsed: boolean; 
-  effectApplied?: string; 
+): Promise<ApiResponse<{
+  itemUsed: boolean;
+  effectApplied?: string;
   targetCharacterName?: string;
   // Phase 8: 檢定相關欄位
   checkPassed?: boolean;
@@ -36,6 +36,9 @@ export async function useItem(
   attackerValue?: number;
   defenderValue?: number;
   preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+  needsTargetItemSelection?: boolean;
+  targetCharacterId?: string;
 }>> {
   try {
     await dbConnect();
@@ -155,9 +158,7 @@ export async function useItem(
     const effects = getItemEffects(item);
     const requiresTarget = effects.some((e: { requiresTarget?: boolean }) => e.requiresTarget) || itemCheckType === 'contest' || itemCheckType === 'random_contest';
     
-    // Phase 8: 對抗檢定時，如果有 item_take/item_steal 效果，不需要在初始使用時選擇目標道具
     const hasItemTakeOrSteal = effects.some((e: { type?: string }) => e.type === 'item_take' || e.type === 'item_steal');
-    const needsTargetItemInContest = (itemCheckType === 'contest' || itemCheckType === 'random_contest') && hasItemTakeOrSteal;
     
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -199,15 +200,9 @@ export async function useItem(
       }
     }
 
-    // Phase 8: 對抗檢定時，如果有 item_take/item_steal 效果，不要求 targetItemId
-    // 非對抗檢定時，仍然需要 targetItemId
-    if (!needsTargetItemInContest && hasItemTakeOrSteal && !targetItemId) {
-      return {
-        success: false,
-        error: 'TARGET_ITEM_REQUIRED',
-        message: '請選擇目標道具',
-      };
-    }
+    // 偷竊/移除道具效果的 targetItemId 不再在此處驗證
+    // 對抗檢定：targetItemId 在對抗結束後由 selectTargetItemForContest 處理
+    // 非對抗檢定：targetItemId 在使用成功後由 select-target-item action 處理（延遲選擇）
 
     // Phase 8: 執行檢定
     let checkResultData;
@@ -292,6 +287,39 @@ export async function useItem(
           preliminaryResult: checkResultData.preliminaryResult,
         },
         message: `對抗檢定請求已發送給 ${targetCharacterName}，等待回應...`,
+      };
+    }
+
+    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標道具 → 延遲所有效果
+    // 所有效果（含 stat_change）都延遲到選擇目標道具後由 selectTargetItemAfterUse 一起執行
+    // 即使目標無道具，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無道具可互動」通知）
+    if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
+      // 仍然更新使用記錄
+      const earlyUsageUpdates: Record<string, unknown> = {};
+      earlyUsageUpdates[`items.${itemIndex}.lastUsedAt`] = now;
+      if (item.usageLimit && item.usageLimit > 0) {
+        const newUsageCount = (item.usageCount || 0) + 1;
+        earlyUsageUpdates[`items.${itemIndex}.usageCount`] = newUsageCount;
+      } else if (item.type === 'consumable') {
+        const newQuantity = Math.max(0, item.quantity - 1);
+        earlyUsageUpdates[`items.${itemIndex}.quantity`] = newQuantity;
+      }
+      if (Object.keys(earlyUsageUpdates).length > 0) {
+        await updateCharacterData(characterId, { $set: earlyUsageUpdates });
+      }
+
+      const targetCharacterName = targetCharacter?.name || '目標角色';
+      return {
+        success: true,
+        data: {
+          itemUsed: true,
+          checkPassed: true,
+          checkResult: finalCheckResult,
+          targetCharacterName: isAffectingOthers ? targetCharacterName : undefined,
+          needsTargetItemSelection: true,
+          targetCharacterId,
+        },
+        message: `道具使用成功，請選擇要${effects.some((e: { type?: string }) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
       };
     }
 
@@ -390,6 +418,8 @@ export async function useItem(
     }).catch((error) => {
       console.error('Failed to emit item.used event', error);
     });
+
+    // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
 
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';

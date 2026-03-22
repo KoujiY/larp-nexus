@@ -21,14 +21,19 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
 
-    if (cronSecret) {
-      // 若設定了 CRON_SECRET，則必須驗證
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        return NextResponse.json(
-          { success: false, message: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+    if (!cronSecret) {
+      console.error('[Cron] CRON_SECRET is not configured');
+      return NextResponse.json(
+        { success: false, message: 'CRON_SECRET not configured' },
+        { status: 500 }
+      );
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     // Phase 8: 處理所有角色的過期效果

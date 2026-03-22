@@ -61,23 +61,22 @@ export function useContestState(characterId: string) {
   // 從 localStorage 載入狀態
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     // 修復：只在首次掛載時從 localStorage 載入狀態，避免在 removePendingContest 清除狀態後重新恢復
     if (hasLoadedFromStorageRef.current) {
       return;
     }
-    
+
     const loadFromStorage = () => {
       try {
         const stored = localStorage.getItem(storageKey);
         if (stored) {
           const parsed = JSON.parse(stored) as Record<string, ContestState>;
           // 清理過期的對抗檢定（超過 3 分鐘）
-          const CONTEST_TIMEOUT = CONTEST_TIMEOUT_MS;
           const now = Date.now();
           const filtered: Record<string, ContestState> = {};
           for (const [key, contest] of Object.entries(parsed)) {
-            if (now - contest.timestamp < CONTEST_TIMEOUT) {
+            if (now - contest.timestamp < CONTEST_TIMEOUT_MS) {
               filtered[key] = contest;
             }
           }
@@ -88,32 +87,22 @@ export function useContestState(characterId: string) {
             try {
               const latestStored = localStorage.getItem(storageKey);
               if (!latestStored) {
-                // 如果 localStorage 中沒有記錄，確保狀態也是空的
                 return {};
               }
               const latestParsed = JSON.parse(latestStored) as Record<string, ContestState>;
-              // 清理過期的對抗檢定（超過 3 分鐘）
-              const CONTEST_TIMEOUT = CONTEST_TIMEOUT_MS;
               const now = Date.now();
               const latestFiltered: Record<string, ContestState> = {};
               for (const [key, contest] of Object.entries(latestParsed)) {
-                if (now - contest.timestamp < CONTEST_TIMEOUT) {
+                if (now - contest.timestamp < CONTEST_TIMEOUT_MS) {
                   latestFiltered[key] = contest;
                 }
               }
               // 修復：只在首次掛載時從 localStorage 恢復狀態
-              // 如果當前狀態是空的（可能是 removePendingContest 剛剛清除的），
-              // 且 localStorage 中還有記錄，則使用 localStorage 中的記錄
-              // 但是，如果 removePendingContest 已經清除了 localStorage，latestFiltered 應該是空的
-              // 所以這個邏輯應該不會導致問題
+              // 如果當前狀態是空的且 localStorage 中有記錄，則使用 localStorage 中的記錄
+              // 如果 removePendingContest 已經清除了 localStorage，latestFiltered 應該是空的
               if (Object.keys(currentState).length === 0 && Object.keys(latestFiltered).length > 0) {
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/e2be6a65-9f5f-4db7-bf82-59842b3eed9f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contest-state.ts:96',message:'loadFromStorage 從 localStorage 恢復狀態（首次載入）',data:{currentStateKeys:Object.keys(currentState),latestFilteredKeys:Object.keys(latestFiltered)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-                // #endregion
                 return latestFiltered;
               }
-              // 如果當前狀態不為空，保持當前狀態（可能是 removePendingContest 剛剛更新的）
-              // 如果當前狀態是空的且 localStorage 也是空的，返回空對象（正常情況）
               return currentState;
             } catch (error) {
               console.error('[use-contest-state] Failed to reload from localStorage in function update:', error);
@@ -124,49 +113,30 @@ export function useContestState(characterId: string) {
             localStorage.setItem(storageKey, JSON.stringify(filtered));
           }
         } else {
-          // 如果 localStorage 中沒有記錄，確保狀態也是空的
           setPendingContests({});
         }
-        // 標記為已載入
         hasLoadedFromStorageRef.current = true;
       } catch (error) {
         console.error('Failed to load contest state:', error);
         hasLoadedFromStorageRef.current = true;
       }
     };
-    
+
     loadFromStorage();
-    
+
     // 修復：移除 storage 事件監聽器，避免在 removePendingContest 清除狀態後重新恢復
-    // 監聽 storage 事件，當其他標籤頁或代碼修改 localStorage 時，重新載入狀態
-    // 但是，這可能導致在 removePendingContest 清除狀態後重新恢復狀態
-    // 所以我們只在首次掛載時載入狀態，之後不再監聽 storage 事件
-    // const handleStorageChange = (e: StorageEvent) => {
-    //   if (e.key === storageKey) {
-    //     loadFromStorage();
-    //   }
-    // };
-    // 
-    // window.addEventListener('storage', handleStorageChange);
-    // return () => window.removeEventListener('storage', handleStorageChange);
-  }, [storageKey]); // 當 storageKey 變化時重新載入
+    // 只在首次掛載時載入狀態，之後不再監聽 storage 事件
+  }, [storageKey]);
 
   // 保存狀態到 localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       if (Object.keys(pendingContests).length === 0) {
-        // 修復：確保 localStorage 被清除，避免 loadFromStorage 重新恢復狀態
         localStorage.removeItem(storageKey);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e2be6a65-9f5f-4db7-bf82-59842b3eed9f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contest-state.ts:138',message:'清除 localStorage（pendingContests 為空）',data:{storageKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
       } else {
         localStorage.setItem(storageKey, JSON.stringify(pendingContests));
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e2be6a65-9f5f-4db7-bf82-59842b3eed9f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contest-state.ts:142',message:'保存 pendingContests 到 localStorage',data:{storageKey,pendingContestsKeys:Object.keys(pendingContests)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
       }
     } catch (error) {
       console.error('Failed to save contest state:', error);
@@ -193,15 +163,8 @@ export function useContestState(characterId: string) {
   // 修復：即使記錄在狀態中不存在，也要從 localStorage 中清除，避免重新整理後記錄恢復
   const removePendingContest = useCallback((sourceId: string) => {
     setPendingContests((prev) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e2be6a65-9f5f-4db7-bf82-59842b3eed9f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contest-state.ts:165',message:'removePendingContest 開始（使用 prev）',data:{sourceId,pendingContestsKeysBefore:Object.keys(prev),hasPendingInContestsBefore:sourceId in prev},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e2be6a65-9f5f-4db7-bf82-59842b3eed9f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contest-state.ts:167',message:'removePendingContest setState 回調',data:{sourceId,hasPendingInPrev:sourceId in prev,pendingContestsKeysPrev:Object.keys(prev)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       if (!(sourceId in prev)) {
-        // 即使記錄在狀態中不存在，也要從 localStorage 中清除，避免重新整理後記錄恢復
-        // 同時直接更新 React 狀態，確保立即同步
+        // 即使記錄在狀態中不存在，也要從 localStorage 中清除
         if (typeof window !== 'undefined') {
           try {
             const stored = localStorage.getItem(storageKey);
@@ -215,9 +178,7 @@ export function useContestState(characterId: string) {
                 } else {
                   localStorage.setItem(storageKey, JSON.stringify(next));
                 }
-                // 直接更新 React 狀態，確保立即同步（不依賴 reloadTrigger）
-                // 重要：返回更新後的狀態，確保 React 狀態與 localStorage 同步
-                // 這樣可以避免 loadFromStorage 重新載入已刪除的記錄
+                // 直接返回更新後的狀態，確保 React 狀態與 localStorage 同步
                 return next;
               }
             }
@@ -255,9 +216,6 @@ export function useContestState(characterId: string) {
           console.error('[use-contest-state] Failed to remove from localStorage in delete branch:', error);
         }
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e2be6a65-9f5f-4db7-bf82-59842b3eed9f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contest-state.ts:202',message:'removePendingContest 刪除記錄後',data:{sourceId,hasPendingInNext:sourceId in next,pendingContestsKeysNext:Object.keys(next)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       return next;
     });
   }, [storageKey]);
@@ -317,15 +275,13 @@ export function useDefenderContestState(characterId: string) {
   // 從 localStorage 載入狀態
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored) as DefenderContestState;
-        // 清理過期的對抗檢定（超過 3 分鐘）
-        const CONTEST_TIMEOUT = CONTEST_TIMEOUT_MS;
         const now = Date.now();
-        if (now - parsed.timestamp < CONTEST_TIMEOUT) {
+        if (now - parsed.timestamp < CONTEST_TIMEOUT_MS) {
           // 使用 setTimeout 避免同步 setState
           const timeoutId = setTimeout(() => {
             setDefenderState(parsed);
@@ -343,7 +299,7 @@ export function useDefenderContestState(characterId: string) {
   // 保存狀態到 localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       if (!defenderState) {
         localStorage.removeItem(storageKey);
@@ -375,4 +331,3 @@ export function useDefenderContestState(characterId: string) {
     clearDefenderContest,
   };
 }
-

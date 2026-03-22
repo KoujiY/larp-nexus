@@ -81,7 +81,7 @@ export function AutoRevealConditionEditor({
       type,
       itemIds: type === 'items_viewed' || type === 'items_acquired' ? [] : undefined,
       secretIds: type === 'secrets_revealed' ? [] : undefined,
-      matchLogic: type === 'secrets_revealed' ? undefined : 'and',
+      matchLogic: 'and',
     });
   };
 
@@ -199,8 +199,8 @@ export function AutoRevealConditionEditor({
         </SelectContent>
       </Select>
 
-      {/* AND/OR 邏輯切換（僅 items_viewed 和 items_acquired） */}
-      {isItemsCondition && (
+      {/* AND/OR 邏輯切換（items_viewed、items_acquired、secrets_revealed） */}
+      {(isItemsCondition || isSecretsCondition) && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">匹配邏輯：</span>
           <div className="flex gap-1">
@@ -260,41 +260,45 @@ export function AutoRevealConditionEditor({
               disabled={disabled || !selectedItemId}
               className="shrink-0"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 mr-1" />
+              添加
             </Button>
           </div>
 
-          {/* 已選道具標籤列表 */}
-          {currentItemIds.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {currentItemIds.map((itemId) => (
-                <Badge
-                  key={itemId}
-                  variant="secondary"
-                  className="flex items-center gap-1 pr-1"
-                >
-                  <span className="text-xs">{getItemDisplayName(itemId)}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(itemId)}
-                    disabled={disabled}
-                    className="ml-0.5 hover:text-destructive"
+          {/* 已選道具標籤展示區 */}
+          <div className="min-h-[48px] rounded-md border-2 border-dashed border-muted-foreground/25 p-2">
+            {currentItemIds.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {currentItemIds.map((itemId) => (
+                  <Badge
+                    key={itemId}
+                    variant="secondary"
+                    className="flex items-center gap-1 pr-1"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
+                    <span className="text-xs">{getItemDisplayName(itemId)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(itemId)}
+                      disabled={disabled}
+                      className="ml-0.5 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-1">
+                尚無匹配道具，請點選添加按鈕新增
+              </p>
+            )}
+          </div>
         </div>
       )}
 
       {/* 隱藏資訊選擇器（secrets_revealed） */}
       {isSecretsCondition && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            所有指定的隱藏資訊都必須已揭露才會觸發（AND 邏輯）
-          </p>
           <div className="flex gap-2">
             <Select
               value={selectedSecretId}
@@ -324,32 +328,39 @@ export function AutoRevealConditionEditor({
               disabled={disabled || !selectedSecretId}
               className="shrink-0"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 mr-1" />
+              添加
             </Button>
           </div>
 
-          {/* 已選隱藏資訊標籤列表 */}
-          {currentSecretIds.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {currentSecretIds.map((secretId) => (
-                <Badge
-                  key={secretId}
-                  variant="secondary"
-                  className="flex items-center gap-1 pr-1"
-                >
-                  <span className="text-xs">{getSecretDisplayName(secretId)}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSecret(secretId)}
-                    disabled={disabled}
-                    className="ml-0.5 hover:text-destructive"
+          {/* 已選隱藏資訊標籤展示區 */}
+          <div className="min-h-[48px] rounded-md border-2 border-dashed border-muted-foreground/25 p-2">
+            {currentSecretIds.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {currentSecretIds.map((secretId) => (
+                  <Badge
+                    key={secretId}
+                    variant="secondary"
+                    className="flex items-center gap-1 pr-1"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
+                    <span className="text-xs">{getSecretDisplayName(secretId)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSecret(secretId)}
+                      disabled={disabled}
+                      className="ml-0.5 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-1">
+                尚無匹配隱藏資訊，請點選添加按鈕新增
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

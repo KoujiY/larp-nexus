@@ -238,6 +238,13 @@ export async function updateCharacter(
     }
     const character = accessValidation.character;
 
+    // Phase 11: 取得實際要修改的文件（自動判斷 Baseline/Runtime）
+    // 在修改前取得快照，作為變更偵測的比較基準
+    // 當遊戲進行中時，GM 編輯的是 Runtime 資料，比較基準也應是 Runtime
+    // 避免使用 Baseline（character）導致每次存檔都誤判 Baseline→Runtime 差異為「變動」
+    const characterDoc = await getCharacterData(characterId);
+    const beforeState = JSON.parse(JSON.stringify(characterDoc.toObject()));
+
     // Phase 3.3: 使用驗證模組驗證角色基本資料
     const characterDataValidation = validateCharacterData({
       name: data.name,
@@ -287,25 +294,37 @@ export async function updateCharacter(
 
     // Phase 3.3: 使用欄位更新模組處理 publicInfo 更新
     if (data.publicInfo !== undefined) {
-      const currentPublicInfo = character.publicInfo;
+      const currentPublicInfo = beforeState.publicInfo;
       updateData.publicInfo = updateCharacterPublicInfo(data.publicInfo, currentPublicInfo);
     }
 
     // Phase 3.3: 使用欄位更新模組處理 secretInfo 更新
     // Phase 7.7: 記錄手動揭露的隱藏資訊（用於連鎖揭露觸發）
     let hasManualSecretReveal = false;
+    // 修復：收集被重置為未揭露的 items_viewed 條件中的 itemIds，用於清除 viewedItems
+    const unrevealedViewedItemIds = new Set<string>();
     if (data.secretInfo !== undefined) {
-      const currentSecrets = character.secretInfo?.secrets || [];
+      const currentSecrets = beforeState.secretInfo?.secrets || [];
       const secretsResult = updateCharacterSecrets(data.secretInfo.secrets, currentSecrets);
+
       updateData.secretInfo = { secrets: secretsResult };
 
-      // Phase 7.7: 檢查是否有隱藏資訊從未揭露變為已揭露（GM 手動揭露）
       for (const newSecret of data.secretInfo.secrets) {
-        if (newSecret.isRevealed) {
-          const oldSecret = currentSecrets.find((s: { id: string }) => s.id === newSecret.id);
-          if (oldSecret && !oldSecret.isRevealed) {
-            hasManualSecretReveal = true;
-            break;
+        const oldSecret = currentSecrets.find((s: { id: string }) => s.id === newSecret.id);
+        if (!oldSecret) continue;
+
+        // Phase 7.7: 檢查是否有隱藏資訊從未揭露變為已揭露（GM 手動揭露）
+        if (newSecret.isRevealed && !oldSecret.isRevealed) {
+          hasManualSecretReveal = true;
+        }
+
+        // 修復：檢查是否有隱藏資訊從已揭露變為未揭露（GM 重置揭露狀態）
+        // 收集其 items_viewed 條件中的 itemIds，稍後從 viewedItems 中移除
+        if (!newSecret.isRevealed && oldSecret.isRevealed) {
+          if (oldSecret.autoRevealCondition?.type === 'items_viewed' && oldSecret.autoRevealCondition.itemIds) {
+            for (const itemId of oldSecret.autoRevealCondition.itemIds) {
+              unrevealedViewedItemIds.add(itemId);
+            }
           }
         }
       }
@@ -334,8 +353,22 @@ export async function updateCharacter(
           message: tasksValidation.message || 'Tasks 驗證失敗',
         };
       }
-      const currentTasks = character.tasks || [];
+      const currentTasks = beforeState.tasks || [];
       updateData.tasks = updateCharacterTasks(data.tasks, currentTasks);
+
+      // 修復：檢查是否有隱藏任務從已揭露變為未揭露（GM 重置揭露狀態）
+      // 收集其 items_viewed 條件中的 itemIds，稍後從 viewedItems 中移除
+      for (const newTask of data.tasks) {
+        const oldTask = currentTasks.find((t: { id: string }) => t.id === newTask.id);
+        if (!oldTask) continue;
+        if (!newTask.isRevealed && oldTask.isRevealed) {
+          if (oldTask.autoRevealCondition?.type === 'items_viewed' && oldTask.autoRevealCondition.itemIds) {
+            for (const itemId of oldTask.autoRevealCondition.itemIds) {
+              unrevealedViewedItemIds.add(itemId);
+            }
+          }
+        }
+      }
     }
 
     // Phase 3.3: 使用驗證和更新模組處理 items 更新
@@ -358,7 +391,7 @@ export async function updateCharacter(
           message: itemsValidation.message || 'Items 驗證失敗',
         };
       }
-      const currentItems: MongoItem[] = character.items || [];
+      const currentItems: MongoItem[] = beforeState.items || [];
       const itemsResult = updateCharacterItems(data.items, currentItems);
       updateData.items = itemsResult.items;
       inventoryDiffs = itemsResult.inventoryDiffs;
@@ -377,14 +410,25 @@ export async function updateCharacter(
       updateData.skills = updateCharacterSkills(data.skills);
     }
 
-    // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
-    // 取得文件，手動更新後再 save，Mongoose 會自動保存到正確的 collection
-    const characterDoc = await getCharacterData(characterId);
+    // 修復：如果有隱藏資訊/任務被重置為未揭露，清除相關的 viewedItems 記錄
+    // 避免下次觸發 executeAutoReveal 時，殘留的 viewedItems 導致條件誤判為已滿足
+    if (unrevealedViewedItemIds.size > 0) {
+      const existingViewedItems: Array<{ itemId: string; sourceCharacterId: string; viewedAt: Date }> =
+        (characterDoc.get('viewedItems') as Array<{ itemId: string; sourceCharacterId: string; viewedAt: Date }>) || [];
+      const cleanedViewedItems = existingViewedItems.filter(
+        (v) => !unrevealedViewedItemIds.has(v.itemId)
+      );
+      characterDoc.set('viewedItems', cleanedViewedItems);
+      characterDoc.markModified('viewedItems');
+    }
 
     // 將 field-updaters 產出的資料套用到 Mongoose 文件
+    // （characterDoc 已於上方取得，此處直接使用）
     // field-updaters 已處理完所有資料轉換（tags 標準化、effects 處理、檢定配置等），
     // 這裡只負責 Mongoose 文件的寫入策略
-    const REPLACE_ARRAY_FIELDS = new Set(['skills', 'items']);
+    // tasks 也需要 REPLACE_ARRAY 策略，因為 tasks[].autoRevealCondition 是巢狀子文檔，
+    // 直接 set 可能導致 Mongoose 合併舊資料而遺失 autoRevealCondition 欄位
+    const REPLACE_ARRAY_FIELDS = new Set(['skills', 'items', 'tasks']);
     const NESTED_FIELDS = new Set(['secretInfo', 'publicInfo']);
 
     Object.keys(updateData).forEach((key) => {
@@ -396,12 +440,17 @@ export async function updateCharacter(
         characterDoc.markModified(key);
         characterDoc.set(key, cleanData);
         characterDoc.markModified(key);
+      } else if (NESTED_FIELDS.has(key)) {
+        // 巢狀物件內含陣列子文檔（如 secretInfo.secrets）：
+        // 同樣需要 JSON 深拷貝 + 先清空再設定，
+        // 避免 Mongoose 合併舊的巢狀陣列資料導致欄位遺失（如 autoRevealCondition）
+        const cleanData = JSON.parse(JSON.stringify(updateData[key]));
+        (characterDoc as unknown as Record<string, unknown>)[key] = {};
+        characterDoc.markModified(key);
+        characterDoc.set(key, cleanData);
+        characterDoc.markModified(key);
       } else {
         characterDoc.set(key, updateData[key]);
-        // 複雜巢狀結構需要 markModified 觸發 Mongoose change detection
-        if (NESTED_FIELDS.has(key)) {
-          characterDoc.markModified(key);
-        }
       }
     });
 
@@ -449,7 +498,7 @@ export async function updateCharacter(
     // WebSocket 事件：角色更新（只推送有變動的數值）
     const changedStats = cleanStats
       .map((stat: MongoStat) => {
-        const before = (character.stats || []).find(
+        const before = (beforeState.stats || []).find(
           (s: { id: string }) => s.id === stat.id
         );
         const newValue = stat.value ?? before?.value;
@@ -492,25 +541,25 @@ export async function updateCharacter(
       );
 
     const basicChanged =
-      (data.name !== undefined && data.name !== character.name) ||
+      (data.name !== undefined && data.name !== beforeState.name) ||
       (data.description !== undefined &&
-        data.description !== character.description) ||
+        data.description !== beforeState.description) ||
       (data.hasPinLock !== undefined &&
-        data.hasPinLock !== character.hasPinLock) ||
+        data.hasPinLock !== beforeState.hasPinLock) ||
       (data.publicInfo !== undefined &&
         JSON.stringify(data.publicInfo) !==
-          JSON.stringify(character.publicInfo || {})) ||
+          JSON.stringify(beforeState.publicInfo || {})) ||
       (data.secretInfo !== undefined &&
         JSON.stringify(data.secretInfo) !==
-          JSON.stringify(character.secretInfo || {}));
+          JSON.stringify(beforeState.secretInfo || {}));
 
     const statsChanged = changedStats.length > 0;
     const skillsOrTasksChanged =
       (data.skills !== undefined &&
         JSON.stringify(data.skills) !==
-          JSON.stringify(character.skills || [])) ||
+          JSON.stringify(beforeState.skills || [])) ||
       (data.tasks !== undefined &&
-        JSON.stringify(data.tasks) !== JSON.stringify(character.tasks || []));
+        JSON.stringify(data.tasks) !== JSON.stringify(beforeState.tasks || []));
 
     // WebSocket：角色更新（不包含單純的道具變動）
     if (basicChanged || statsChanged || skillsOrTasksChanged) {

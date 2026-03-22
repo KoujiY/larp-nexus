@@ -36,14 +36,15 @@ export interface CharacterDocument extends Document {
       revealCondition?: string;
       // Phase 7.7: 自動揭露條件
       autoRevealCondition?: {
-        type: 'none' | 'items_viewed' | 'items_acquired';
+        type: 'none' | 'items_viewed' | 'items_acquired' | 'secrets_revealed';
         itemIds?: string[];
+        secretIds?: string[];
         matchLogic?: 'and' | 'or';
       };
       revealedAt?: Date;
     }>;
   };
-  
+
   // Phase 4.5: 任務系統（擴展版）
   tasks?: Array<{
     id: string;
@@ -91,20 +92,6 @@ export interface CharacterDocument extends Document {
       duration?: number;
       description?: string;
     }>;
-    // 向後兼容：保留單一 effect 欄位（已棄用）
-    /** @deprecated 使用 effects 陣列代替 */
-    effect?: {
-      type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-      targetType?: 'self' | 'other' | 'any';
-      requiresTarget?: boolean;
-      targetStat?: string;
-      value?: number;
-      statChangeTarget?: 'value' | 'maxValue';
-      syncValue?: boolean;
-      targetItemId?: string;
-      duration?: number;
-      description?: string;
-    };
     // Phase 7.6: 標籤系統
     tags?: string[];
     // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
@@ -211,6 +198,31 @@ export interface CharacterDocument extends Document {
   updatedAt: Date;
 }
 
+/**
+ * Phase 7.7: 自動揭露條件子文檔 Schema
+ *
+ * 使用顯式 new Schema() 定義，避免 Mongoose 將 inline object 中的
+ * `type` 關鍵字誤判為 SchemaType 定義，導致 itemIds、secretIds、matchLogic
+ * 等欄位被當作 schema options 而非子文檔欄位。
+ */
+const autoRevealConditionSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed'],
+      default: 'none',
+    },
+    itemIds: [{ type: String }],
+    secretIds: [{ type: String }],
+    matchLogic: {
+      type: String,
+      enum: ['and', 'or'],
+      default: 'and',
+    },
+  },
+  { _id: false }
+);
+
 const CharacterSchema = new Schema<CharacterDocument>(
   {
     gameId: {
@@ -271,7 +283,7 @@ const CharacterSchema = new Schema<CharacterDocument>(
             },
             content: {
               type: String,
-              required: true,
+              default: '',
             },
             isRevealed: {
               type: Boolean,
@@ -281,19 +293,10 @@ const CharacterSchema = new Schema<CharacterDocument>(
               type: String,
               default: '',
             },
-            // Phase 7.7: 自動揭露條件
+            // Phase 7.7: 自動揭露條件（使用顯式 Schema 避免 type 關鍵字歧義）
             autoRevealCondition: {
-              type: {
-                type: String,
-                enum: ['none', 'items_viewed', 'items_acquired'],
-                default: 'none',
-              },
-              itemIds: [{ type: String }],
-              matchLogic: {
-                type: String,
-                enum: ['and', 'or'],
-                default: 'and',
-              },
+              type: autoRevealConditionSchema,
+              default: undefined,
             },
             revealedAt: {
               type: Date,
@@ -349,20 +352,10 @@ const CharacterSchema = new Schema<CharacterDocument>(
           type: String,
           default: '',
         },
-        // Phase 7.7: 自動揭露條件
+        // Phase 7.7: 自動揭露條件（使用顯式 Schema 避免 type 關鍵字歧義）
         autoRevealCondition: {
-          type: {
-            type: String,
-            enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed'],
-            default: 'none',
-          },
-          itemIds: [{ type: String }],
-          secretIds: [{ type: String }],
-          matchLogic: {
-            type: String,
-            enum: ['and', 'or'],
-            default: 'and',
-          },
+          type: autoRevealConditionSchema,
+          default: undefined,
         },
         createdAt: {
           type: Date,
@@ -426,28 +419,6 @@ const CharacterSchema = new Schema<CharacterDocument>(
             description: String,
           },
         ],
-        // 向後兼容：保留單一 effect 欄位（已棄用）
-        effect: {
-          type: {
-            type: String,
-            enum: ['stat_change', 'custom', 'item_take', 'item_steal'],
-          },
-          targetType: {
-            type: String,
-            enum: ['self', 'other', 'any'],
-          },
-          requiresTarget: Boolean,
-          targetStat: String,
-          value: Number,
-          statChangeTarget: {
-            type: String,
-            enum: ['value', 'maxValue'],
-          },
-          syncValue: Boolean,
-          targetItemId: String, // Phase 7: 目標道具 ID
-          duration: Number,
-          description: String,
-        },
         // Phase 7.6: 標籤系統
         tags: [String],
         // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）

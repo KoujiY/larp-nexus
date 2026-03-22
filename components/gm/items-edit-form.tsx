@@ -236,9 +236,8 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     // 向後兼容：確保 effects 存在
     const finalItem = { ...editingItem };
     
-    // 統一讀取效果列表並清理已棄用的 effect 欄位
+    // 統一讀取效果列表
     finalItem.effects = getItemEffects(finalItem);
-    delete finalItem.effect;
     
     if (finalItem.checkType === 'random') {
       const maxValue = finalItem.randomConfig?.maxValue;
@@ -905,6 +904,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
                             setEditingItem({ ...editingItem, effects: newEffects });
                           }}
                           availableTypes={['stat_change', 'custom', 'item_take', 'item_steal']}
+                          checkType={editingItem.checkType}
                         />
                       ))}
                     </div>
@@ -954,7 +954,7 @@ interface ItemCardProps {
 
 function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
   return (
-    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg group">
+    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
       <div className="flex-1 min-w-0">
         {/* 第一行：名稱 */}
         <div className="flex items-center gap-2">
@@ -981,7 +981,7 @@ function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
           {item.usageLimit != null && (
             <Badge variant="outline" className="text-xs">
               {item.usageLimit > 0
-                ? `${item.usageCount || 0} / ${item.usageLimit} 次`
+                ? `${(item.usageLimit || 0) - (item.usageCount || 0)} / ${item.usageLimit} 次`
                 : '無限次'}
             </Badge>
           )}
@@ -997,18 +997,14 @@ function ItemCard({ item, onEdit, onRemove }: ItemCardProps) {
         )}
       </div>
 
-      <Button variant="ghost" size="icon" onClick={onEdit}>
-        <Pencil className="h-4 w-4" />
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onRemove}
-        className="text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={onRemove}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

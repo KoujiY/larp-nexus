@@ -1,7 +1,7 @@
 /**
  * 技能使用 Hook
  * 統一管理技能使用的核心邏輯
- * 
+ *
  * Phase 6: 提取技能/道具使用邏輯
  */
 
@@ -18,13 +18,14 @@ export interface UseSkillUsageOptions {
   selectedSkill: Skill | null;
   selectedTargetId: string | undefined;
   selectedTargetItemId: string;
-  isTargetConfirmed: boolean;
   onSuccess?: (result: {
     success: boolean;
     data?: {
       contestId?: string;
       checkPassed?: boolean;
       checkResult?: number;
+      needsTargetItemSelection?: boolean;
+      targetCharacterId?: string;
     };
     message?: string;
   }) => void;
@@ -33,6 +34,12 @@ export interface UseSkillUsageOptions {
   onUpdateSelectedSkill?: (updates: { lastUsedAt: Date; usageCount: number }) => void;
   onClearTargetState?: () => void;
   onRouterRefresh?: () => void;
+  /** 非對抗偷竊/移除：使用成功後需要選擇目標道具 */
+  onNeedsTargetItemSelection?: (info: {
+    sourceId: string;
+    effectType: 'item_steal' | 'item_take';
+    targetCharacterId: string;
+  }) => void;
 }
 
 export interface UseSkillUsageReturn {
@@ -53,13 +60,13 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     selectedSkill,
     selectedTargetId,
     selectedTargetItemId,
-    isTargetConfirmed,
     onSuccess,
     onError,
     onUpdateLocalSkills,
     onUpdateSelectedSkill,
     onClearTargetState,
     onRouterRefresh,
+    onNeedsTargetItemSelection,
   } = options;
 
   const [isUsing, setIsUsing] = useState(false);
@@ -68,48 +75,34 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
 
   const handleUseSkill = useCallback(async () => {
     if (!selectedSkill) return;
-    
+
     const { canUse } = canUseSkill(selectedSkill);
     if (!canUse) {
       return;
     }
 
     // 檢查是否需要選擇目標角色
-    const requiresTarget = selectedSkill.checkType === 'contest' || selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
+    const requiresTarget = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest' || selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
     if (requiresTarget && !selectedTargetId) {
       toast.error('請先選擇目標角色');
       return;
     }
-    
-    // 檢查是否需要確認目標角色和選擇目標道具
-    // 注意：對抗檢定時，不需要在初始使用時選擇目標道具
-    const effect = selectedSkill.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
-    const isContest = selectedSkill.checkType === 'contest';
-    
-    // 非對抗檢定時，才需要確認目標角色和選擇目標道具
-    if (effect && !isContest) {
-      if (selectedTargetId && !isTargetConfirmed) {
-        toast.error('請先確認目標角色');
-        return;
-      }
-      
-      if (!selectedTargetItemId) {
-        toast.error('請選擇目標道具');
-        return;
-      }
-    }
+
+    // 偷竊/移除道具：不再需要前置確認目標和選擇目標道具
+    // 對抗檢定：targetItemId 在對抗結束後選擇
+    // 非對抗檢定：targetItemId 在使用成功後選擇（server 回傳 needsTargetItemSelection）
+    const isContest = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest';
 
     // 如果是隨機檢定，自動骰骰子
     let finalCheckResult: number | undefined = undefined;
     if (selectedSkill.checkType === 'random' && selectedSkill.randomConfig) {
-      // 自動生成 1 到 maxValue 之間的隨機數
       finalCheckResult = Math.floor(Math.random() * selectedSkill.randomConfig.maxValue) + 1;
       setCheckResult(finalCheckResult);
       toast.info(`骰出結果：${finalCheckResult}`);
     }
 
     // 對抗檢定必須有目標角色
-    if (selectedSkill.checkType === 'contest') {
+    if (isContest) {
       if (!selectedTargetId) {
         toast.error('對抗檢定需要選擇目標角色');
         return;
@@ -118,8 +111,10 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
 
     setIsUsing(true);
     try {
-      const result = await executeSkillAction(characterId, selectedSkill.id, finalCheckResult, selectedTargetId, selectedTargetItemId || undefined);
-      
+      // 對抗檢定和偷竊/移除不傳遞 targetItemId（延遲選擇）
+      const targetItemIdForUse = isContest ? undefined : selectedTargetItemId || undefined;
+      const result = await executeSkillAction(characterId, selectedSkill.id, finalCheckResult, selectedTargetId, targetItemIdForUse);
+
       // 處理結果
       if (result.success) {
         // 更新本地技能狀態（反映冷卻時間和使用次數）
@@ -129,7 +124,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
             usageCount: (selectedSkill.usageCount || 0) + 1,
           });
         }
-        
+
         // 更新選中的技能狀態
         if (onUpdateSelectedSkill) {
           onUpdateSelectedSkill({
@@ -137,12 +132,38 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
             usageCount: (selectedSkill.usageCount || 0) + 1,
           });
         }
-        
+
+        // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+        if (result.data?.needsTargetItemSelection && result.data?.targetCharacterId) {
+          setUseResult({ success: true, message: result.message || '使用成功，請選擇目標道具' });
+          if (onClearTargetState) {
+            onClearTargetState();
+          }
+          if (onNeedsTargetItemSelection) {
+            const effects = selectedSkill.effects || [];
+            const effectType = effects.some((e: SkillEffect) => e.type === 'item_steal') ? 'item_steal' : 'item_take';
+            onNeedsTargetItemSelection({
+              sourceId: selectedSkill.id,
+              effectType: effectType as 'item_steal' | 'item_take',
+              targetCharacterId: result.data.targetCharacterId,
+            });
+          }
+          if (onSuccess) {
+            onSuccess(result);
+          }
+          // 不關閉 dialog，不刷新頁面，等待目標道具選擇完成
+          return;
+        }
+
         // 如果不是對抗檢定，處理成功結果
         if (!result.data?.contestId) {
           if (result.data?.checkPassed === false) {
             setUseResult({ success: false, message: '檢定失敗，技能未生效' });
             toast.warning('檢定失敗，技能未生效');
+            // 檢定失敗也清除目標選擇狀態，避免下次開啟時被鎖死
+            if (onClearTargetState) {
+              onClearTargetState();
+            }
           } else {
             setUseResult({ success: true, message: result.message || '技能使用成功' });
             toast.success(result.message || '技能使用成功');
@@ -152,12 +173,12 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
             }
           }
         }
-        
+
         // 調用成功回調（組件可以處理對抗檢定等特殊情況）
         if (onSuccess) {
           onSuccess(result);
         }
-        
+
         // 重新載入頁面資料
         // Phase 8: 對抗檢定時不立即刷新，等待防守方回應後再刷新（避免 dialog 被關閉）
         if (onRouterRefresh && !result.data?.contestId) {
@@ -167,7 +188,11 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
         console.error('技能使用失敗:', result);
         setUseResult({ success: false, message: result.message || '技能使用失敗' });
         toast.error(result.message || '技能使用失敗');
-        
+        // 使用失敗也清除目標選擇狀態
+        if (onClearTargetState) {
+          onClearTargetState();
+        }
+
         if (onError) {
           onError(new Error(result.message || '技能使用失敗'));
         }
@@ -177,7 +202,11 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
       const errorMessage = error instanceof Error ? error.message : '技能使用失敗，請稍後再試';
       setUseResult({ success: false, message: errorMessage });
       toast.error(errorMessage);
-      
+      // 異常也清除目標選擇狀態
+      if (onClearTargetState) {
+        onClearTargetState();
+      }
+
       if (onError) {
         onError(error instanceof Error ? error : new Error(errorMessage));
       }
@@ -188,7 +217,6 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     selectedSkill,
     selectedTargetId,
     selectedTargetItemId,
-    isTargetConfirmed,
     characterId,
     onSuccess,
     onError,
@@ -196,6 +224,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     onUpdateSelectedSkill,
     onClearTargetState,
     onRouterRefresh,
+    onNeedsTargetItemSelection,
   ]);
 
   return {
@@ -207,4 +236,3 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     setCheckResult,
   };
 }
-

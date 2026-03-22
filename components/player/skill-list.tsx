@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Zap, Clock } from 'lucide-react';
 import Image from 'next/image';
 import type { Skill, SkillEffect, Item } from '@/types/character';
@@ -27,6 +28,7 @@ import { useContestDialogState } from '@/hooks/use-contest-dialog-state';
 import { useContestStateRestore } from '@/hooks/use-contest-state-restore';
 import { useSkillUsage } from '@/hooks/use-skill-usage';
 import { useContestableItemUsage } from '@/hooks/use-contestable-item-usage';
+import { usePostUseTargetItemSelection } from '@/hooks/use-post-use-target-item-selection';
 import { getTargetCharacterItems } from '@/app/actions/public';
 import { CONTEST_TIMEOUT, STORAGE_KEYS } from '@/lib/constants/contest';
 import { canUseSkill, getCooldownRemaining } from '@/lib/utils/skill-validators';
@@ -55,10 +57,11 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   // Phase 6.5: 目標選擇相關邏輯
   // Phase 7: 對抗檢定類型自動需要目標角色
   const requiresTarget = Boolean(
-    selectedSkill?.checkType === 'contest' || 
+    selectedSkill?.checkType === 'contest' ||
+    selectedSkill?.checkType === 'random_contest' ||
     selectedSkill?.effects?.some((effect: SkillEffect) => effect.requiresTarget)
   );
-  const targetType = selectedSkill?.checkType === 'contest' 
+  const targetType = (selectedSkill?.checkType === 'contest' || selectedSkill?.checkType === 'random_contest')
     ? 'other' // 對抗檢定只能對其他角色使用
     : selectedSkill?.effects?.find((e: SkillEffect) => e.requiresTarget)?.targetType;
 
@@ -141,7 +144,9 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     setIsTargetConfirmed(false);
     setSelectedTargetItemId('');
     // Phase 3.2: targetItems 由 hook 管理，不需要手動清除
-  }, [setSelectedTargetId, setIsTargetConfirmed, setSelectedTargetItemId]);
+    // 同時清除 localStorage，避免下次開啟 dialog 時恢復舊狀態
+    clearTargetState();
+  }, [setSelectedTargetId, setIsTargetConfirmed, setSelectedTargetItemId, clearTargetState]);
 
   // 顯示 toast 的回調
   const handleToastShow = useCallback((message: string, options?: { duration?: number }) => {
@@ -152,22 +157,41 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     return toastId;
   }, []);
 
+  // Phase 6.4: 使用 ref 存儲 handleCloseDialog，以便在回調中使用
+  const handleCloseDialogRef = useRef<(() => void) | null>(null);
+
+  // 非對抗偷竊/移除：使用成功後的目標道具選擇
+  const postUseSelection = usePostUseTargetItemSelection({
+    onComplete: () => {
+      // 直接關閉 dialog，不經過 handleCloseDialog（因為 React batched state 導致
+      // postUseSelection.selectionState 尚未清除，handleCloseDialog 的 protection check 會擋住關閉）
+      setSelectedSkill(null);
+      setCheckResult(undefined);
+      setUseResult(null);
+      setSelectedTargetId(undefined);
+      setIsTargetConfirmed(false);
+      setSelectedTargetItemId('');
+    },
+    onRouterRefresh: () => router.refresh(),
+  });
+
   // 包裝 setSelectedSkill 以符合 hook 的類型要求
   const handleItemSelected = useCallback((item: Skill | Item | null) => {
-    // 如果嘗試關閉 dialog（item 為 null），但正在進行對抗檢定，則不關閉
+    // 如果嘗試關閉 dialog（item 為 null），但正在進行對抗檢定或目標道具選擇，則不關閉
     if (!item && selectedSkill) {
       const hasPending = hasPendingContest(selectedSkill.id);
-      const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                dialogState.sourceType === 'skill' && 
+      const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
+                                dialogState.sourceType === 'skill' &&
                                 dialogState.sourceId === selectedSkill.id;
       const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-      
-      if (hasPending || isAttackerWaiting || isWaitingInRef) {
+      const isPostUseSelecting = postUseSelection.selectionState?.sourceId === selectedSkill.id;
+
+      if (hasPending || isAttackerWaiting || isWaitingInRef || isPostUseSelecting) {
         return; // 不關閉 dialog
       }
     }
     setSelectedSkill(item as Skill | null);
-  }, [selectedSkill, hasPendingContest, dialogState]);
+  }, [selectedSkill, hasPendingContest, dialogState, postUseSelection.selectionState?.sourceId]);
 
   // dismissLastToast 回調
   const dismissLastToast = useCallback(() => {
@@ -180,7 +204,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   // Phase 8.2: 使用 ref 存儲 handleContestStarted，以便在 onSuccess 回調中使用
   const handleContestStartedRef = useRef<((contestId: string, message?: string) => void) | null>(null);
 
-  // Phase 6.2: 使用 useSkillUsage Hook 管理技能使用（需要在 useTargetItemSelection 之前，因為需要 setUseResult）
+  // Phase 6.2: 使用 useSkillUsage Hook 管理技能使用
   const {
     isUsing,
     checkResult,
@@ -193,7 +217,6 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     selectedSkill,
     selectedTargetId,
     selectedTargetItemId,
-    isTargetConfirmed,
     onSuccess: (result) => {
       // Phase 8.2: 使用統一的對抗檢定處理邏輯
       if (result.data?.contestId && selectedSkill && handleContestStartedRef.current) {
@@ -227,6 +250,14 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       setCheckResult(undefined);
     },
     onRouterRefresh: () => router.refresh(),
+    onNeedsTargetItemSelection: (info) => {
+      // 非對抗偷竊/移除：使用成功後觸發目標道具選擇流程
+      postUseSelection.startSelection({
+        ...info,
+        sourceType: 'skill',
+        characterId,
+      });
+    },
   });
 
   // Phase 8.2: 使用 useContestableItemUsage Hook（需要在 useSkillUsage 之後，因為需要 setUseResult）
@@ -341,8 +372,8 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       ) {
         // Phase 9: 如果攻擊方獲勝且需要選擇目標道具，關閉原本的 dialog，開啟新的選擇道具 dialog
         if (payload.result === 'attacker_wins' && payload.needsTargetItemSelection && payload.skillId) {
-          const skillId = payload.skillId; // 確保 skillId 不是 undefined
-          
+          const skillId = payload.skillId;
+
           import('@/lib/contest/contest-id').then(({ generateContestId }) => {
             const pendingContest = pendingContests[skillId];
             const contestId = pendingContest?.contestId || generateContestId(attackerIdStr, skillId, event.timestamp);
@@ -397,7 +428,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
           }
           // 清除 ref 中的等待標記
           waitingContestRef.current.delete(payload.skillId);
-          handleCloseDialog();} else {// 即使 selectedSkill 不匹配，也要清除 pendingContests，確保狀態一致性
+          handleCloseDialog({ force: true });} else {// 即使 selectedSkill 不匹配，也要清除 pendingContests，確保狀態一致性
           if (payload.skillId && hasPendingContest(payload.skillId)) {
             removePendingContest(payload.skillId);
           }
@@ -433,23 +464,36 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     return () => clearInterval(interval);
   }, [hasAnyCooldown]);
 
-  const handleCloseDialog = useCallback(() => {
+  /**
+   * 關閉技能 Dialog
+   * @param options.force 強制關閉，跳過對抗檢定進行中的檢查。
+   *   用於 WebSocket handler 已確認對抗檢定結束後呼叫，因為 React 批次更新導致
+   *   dialogState / pendingContests 尚未同步到當前 render，guard 會誤判為仍在進行中。
+   */
+  const handleCloseDialog = useCallback((options?: { force?: boolean }) => {
     dismissLastToast();
     // Phase 8: 清除 dialog 狀態（如果有 pending contest）
     if (selectedSkill) {
       // 標記正在關閉這個 dialog，避免 Restore dialog useEffect 重複處理
       isClosingDialogRef.current = selectedSkill.id;
-      const hasPending = hasPendingContest(selectedSkill.id);
-      // Phase 8: 檢查 dialogState 是否為 attacker_waiting（因為 addPendingContest 的狀態更新是異步的）
-      const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && dialogState.sourceType === 'skill' && dialogState.sourceId === selectedSkill.id;
-      // Phase 8: 檢查 ref 中是否有正在等待的 contest（同步檢查）
-      const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-      // Phase 8: 如果有正在進行的對抗檢定（通過 pendingContests、dialogState 或 ref 判斷），不應該關閉 dialog
-      if (hasPending || isAttackerWaiting || isWaitingInRef) {
-        if (hasPending) {
-          updateContestDialog(selectedSkill.id, false);
+
+      if (!options?.force) {
+        const hasPending = hasPendingContest(selectedSkill.id);
+        // Phase 8: 檢查 dialogState 是否為 attacker_waiting（因為 addPendingContest 的狀態更新是異步的）
+        const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && dialogState.sourceType === 'skill' && dialogState.sourceId === selectedSkill.id;
+        // Phase 8: 檢查 ref 中是否有正在等待的 contest（同步檢查）
+        const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
+        // Phase 8: 如果有正在進行的對抗檢定（通過 pendingContests、dialogState 或 ref 判斷），不應該關閉 dialog
+        if (hasPending || isAttackerWaiting || isWaitingInRef) {
+          if (hasPending) {
+            updateContestDialog(selectedSkill.id, false);
+          }
+          return; // 不關閉 dialog
         }
-        return; // 不關閉 dialog
+        // 非對抗偷竊/移除的後續目標道具選擇流程進行中，不關閉 dialog
+        if (postUseSelection.selectionState?.sourceId === selectedSkill.id) {
+          return;
+        }
       }
       // 修復：清除 dialogState（localStorage 中的 dialog 狀態），確保 dialog 不會因為 localStorage 中的狀態而重新打開
       if (isDialogForSource(selectedSkill.id, 'skill')) {
@@ -466,7 +510,12 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     // Phase 3.2: targetItems 由 hook 管理，不需要手動清除
     // 標記會在 selectedSkill 變為 null 時通過 useEffect 清除
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSkill, hasPendingContest, updateContestDialog, dismissLastToast, setSelectedTargetId, setIsTargetConfirmed, setSelectedTargetItemId, isDialogForSource, clearDialogState, dialogState]);
+  }, [selectedSkill, hasPendingContest, updateContestDialog, dismissLastToast, setSelectedTargetId, setIsTargetConfirmed, setSelectedTargetItemId, isDialogForSource, clearDialogState, dialogState, postUseSelection.selectionState?.sourceId]);
+
+  // 更新 handleCloseDialogRef
+  useEffect(() => {
+    handleCloseDialogRef.current = handleCloseDialog;
+  }, [handleCloseDialog]);
 
   // Phase 4: 監聽 pendingContests 變化，當對應的 contest 被移除時關閉 dialog
   useEffect(() => {
@@ -550,6 +599,23 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     if (prevKeys !== currentKeys) {
       prevPendingContestsRef.current = { ...pendingContests };}
   }, [pendingContests, selectedSkill, targetItemSelectionDialog, clearDialogState, isDialogForSource, handleCloseDialog, characterId, dialogState]);
+
+  // 衍生狀態：當前選中技能的對抗檢定與操作鎖定狀態
+  // 集中計算一次，取代 JSX 中 10+ 處重複的 inline IIFE
+  const isContestInProgress = Boolean(
+    selectedSkill && (
+      hasPendingContest(selectedSkill.id) ||
+      waitingContestRef.current.has(selectedSkill.id) ||
+      (dialogState?.type === 'attacker_waiting' &&
+       dialogState.sourceType === 'skill' &&
+       dialogState.sourceId === selectedSkill.id)
+    )
+  );
+  const isPostUseSelecting = Boolean(
+    selectedSkill && postUseSelection.selectionState?.sourceId === selectedSkill.id
+  );
+  /** Dialog 是否被鎖定（不可關閉/不可操作） */
+  const isDialogLocked = isContestInProgress || isPostUseSelecting;
 
   if (!skills || skills.length === 0) {
     return (
@@ -738,49 +804,18 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       {/* 技能詳情 Dialog */}
       {selectedSkill && (
         <Dialog open={!!selectedSkill} onOpenChange={(open) => {
-          // Phase 8: 如果有正在進行的對抗檢定，不允許關閉 dialog
-          if (!open && selectedSkill) {
-            const isPendingContest = hasPendingContest(selectedSkill.id);
-            const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-            const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                      dialogState.sourceType === 'skill' && 
-                                      dialogState.sourceId === selectedSkill.id;
-            if (!isPendingContest && !isWaitingInRef && !isAttackerWaiting) {
-              handleCloseDialog();
-            }
+          if (!open && !isDialogLocked) {
+            handleCloseDialog();
           }
         }}>
-          <DialogContent 
+          <DialogContent
             className="max-w-lg"
-            showCloseButton={(() => {
-              const isPendingContest = hasPendingContest(selectedSkill.id);
-              const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-              const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                        dialogState.sourceType === 'skill' && 
-                                        dialogState.sourceId === selectedSkill.id;
-              return !isPendingContest && !isWaitingInRef && !isAttackerWaiting;
-            })()}
+            showCloseButton={!isDialogLocked}
             onInteractOutside={(e) => {
-              // Phase 8: 如果有正在進行的對抗檢定，不允許點擊外圍關閉
-              const isPendingContest = hasPendingContest(selectedSkill.id);
-              const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-              const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                        dialogState.sourceType === 'skill' && 
-                                        dialogState.sourceId === selectedSkill.id;
-              if (isPendingContest || isWaitingInRef || isAttackerWaiting) {
-                e.preventDefault();
-              }
+              if (isDialogLocked) e.preventDefault();
             }}
             onEscapeKeyDown={(e) => {
-              // Phase 8: 如果有正在進行的對抗檢定，不允許按 ESC 關閉
-              const isPendingContest = hasPendingContest(selectedSkill.id);
-              const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-              const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                        dialogState.sourceType === 'skill' && 
-                                        dialogState.sourceId === selectedSkill.id;
-              if (isPendingContest || isWaitingInRef || isAttackerWaiting) {
-                e.preventDefault();
-              }
+              if (isDialogLocked) e.preventDefault();
             }}
           >
             <DialogHeader>
@@ -863,27 +898,11 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
                             setSelectedTargetId(targetId);
                             // Phase 3.2: targetItems 由 hook 管理，已經通過 setTargetItems 清除
                           }}
-                          disabled={(() => {
-                            const isPendingContest = selectedSkill && hasPendingContest(selectedSkill.id);
-                            const isWaitingInRef = selectedSkill && waitingContestRef.current.has(selectedSkill.id);
-                            const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                                      dialogState.sourceType === 'skill' && 
-                                                      dialogState.sourceId === selectedSkill?.id;
-                            const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
-                            return isTargetConfirmed || isWaitingForContest;
-                          })()}
+                          disabled={isTargetConfirmed || isContestInProgress}
                         />
                         
                         {/* Phase 7.8: 使用 TargetSelectionSection 組件處理目標確認和目標道具選擇 */}
-                        {effect.requiresTarget && (() => {
-                          const isPendingContest = selectedSkill && hasPendingContest(selectedSkill.id);
-                          const isWaitingInRef = selectedSkill && waitingContestRef.current.has(selectedSkill.id);
-                          const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                                    dialogState.sourceType === 'skill' && 
-                                                    dialogState.sourceId === selectedSkill?.id;
-                          const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
-                          
-                          return (
+                        {effect.requiresTarget && (
                             <TargetSelectionSection
                               requiresTarget={true}
                               checkType={selectedSkill.checkType}
@@ -900,10 +919,9 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
                               isLoadingTargetItems={isLoadingTargetItems}
                               onConfirmTarget={handleConfirmTarget}
                               onCancelTarget={handleCancelTarget}
-                              disabled={isTargetConfirmed || isWaitingForContest}
+                              disabled={isTargetConfirmed || isContestInProgress}
                             />
-                          );
-                        })()}
+                        )}
                       </div>
                     ))}
                   </div>
@@ -913,34 +931,72 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
               {/* Phase 7.2: 使用結果訊息 */}
               <UseResultDisplay result={useResult} />
 
+              {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 UI */}
+              {postUseSelection.selectionState?.sourceId === selectedSkill?.id && (
+                <div className="space-y-3 p-3 border rounded-lg bg-muted/50">
+                  <h4 className="font-semibold text-sm">
+                    選擇要{postUseSelection.selectionState.effectType === 'item_steal' ? '偷竊' : '移除'}的道具
+                  </h4>
+                  <div className="space-y-2">
+                    {postUseSelection.isLoadingTargetItems ? (
+                      <p className="text-sm text-muted-foreground">載入目標道具中...</p>
+                    ) : postUseSelection.targetItems.length > 0 ? (
+                      <>
+                        <Select
+                          value={postUseSelection.selectedTargetItemId}
+                          onValueChange={postUseSelection.setSelectedTargetItemId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={`選擇要${postUseSelection.selectionState.effectType === 'item_steal' ? '偷竊' : '移除'}的道具...`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {postUseSelection.targetItems.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          onClick={postUseSelection.confirmSelection}
+                          disabled={!postUseSelection.selectedTargetItemId || postUseSelection.isSubmitting}
+                          className="w-full"
+                        >
+                          {postUseSelection.isSubmitting ? '處理中...' : '確認選擇'}
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">目標角色沒有道具</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={postUseSelection.confirmSelection}
+                          disabled={postUseSelection.isSubmitting}
+                          className="w-full"
+                        >
+                          {postUseSelection.isSubmitting ? '處理中...' : '確認'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
             );
             })()}
 
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
-                  const isPendingContest = hasPendingContest(selectedSkill.id);
-                  const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-                  const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                            dialogState.sourceType === 'skill' && 
-                                            dialogState.sourceId === selectedSkill.id;
-                  if (!isPendingContest && !isWaitingInRef && !isAttackerWaiting) {
+                  if (!isDialogLocked) {
                     setSelectedSkill(null);
                     setCheckResult(undefined);
                     setUseResult(null);
                   }
                 }}
-                disabled={(() => {
-                  const isPendingContest = hasPendingContest(selectedSkill.id);
-                  const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-                  const isAttackerWaiting = dialogState?.type === 'attacker_waiting' && 
-                                            dialogState.sourceType === 'skill' && 
-                                            dialogState.sourceId === selectedSkill.id;
-                  const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
-                  return isWaitingForContest;
-                })()}
+                disabled={isDialogLocked}
               >
                 關閉
               </Button>
@@ -948,63 +1004,21 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
               {!isReadOnly && (
               <Button
                 onClick={handleUseSkill}
-                disabled={(() => {
-                  if (!selectedSkill) return true;
-                  if (isUsing) return true;
-                  // Phase 8: 如果有正在進行的對抗檢定，禁用按鈕
-                  const isPendingContest = hasPendingContest(selectedSkill.id);
-                  const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-                  const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
-                                            dialogState.sourceType === 'skill' &&
-                                            dialogState.sourceId === selectedSkill.id;
-                  const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
-                  if (isWaitingForContest) return true;
-                  // Phase 7: 對抗檢定需要目標角色
-                  if (selectedSkill.checkType === 'contest' && !selectedTargetId) return true;
-                  // Phase 8: 檢查是否需要確認目標角色和選擇目標道具
-                  // 注意：對抗檢定時，不需要在初始使用時選擇目標道具
-                  const effect = selectedSkill.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
-                  const isContest = selectedSkill.checkType === 'contest';
-                  if (effect && !isContest && selectedTargetId && (!isTargetConfirmed || !selectedTargetItemId)) return true;
-                  const { canUse } = canUseSkill(selectedSkill);
-                  return !canUse;
-                })()}
+                disabled={
+                  !selectedSkill ||
+                  isUsing ||
+                  isDialogLocked ||
+                  (requiresTarget && !selectedTargetId) ||
+                  !canUseSkill(selectedSkill).canUse
+                }
               >
                 {isUsing ? '使用中...' :
+                 isContestInProgress ? '等待對抗檢定結果...' :
+                 isPostUseSelecting ? '請選擇目標道具...' :
+                 (requiresTarget && !selectedTargetId) ? '請選擇目標角色' :
                  (() => {
-                   if (!selectedSkill) return '使用技能';
-                   // Phase 8: 如果有正在進行的對抗檢定
-                   const isPendingContest = hasPendingContest(selectedSkill.id);
-                   const isWaitingInRef = waitingContestRef.current.has(selectedSkill.id);
-                   const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
-                                             dialogState.sourceType === 'skill' &&
-                                             dialogState.sourceId === selectedSkill.id;
-                   const isWaitingForContest = isPendingContest || isWaitingInRef || isAttackerWaiting;
-                   if (isWaitingForContest) {
-                     return '等待對抗檢定結果...';
-                   }
-                   // Phase 7: 對抗檢定需要目標角色時的提示
-                   if (selectedSkill.checkType === 'contest' && !selectedTargetId) {
-                     return '請選擇目標角色';
-                   }
-                   // Phase 8: 檢查目標道具選擇（非對抗檢定時才需要）
-                   const effect = selectedSkill.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
-                   const isContest = selectedSkill.checkType === 'contest';
-                   if (effect && !isContest) {
-                     if (!selectedTargetId) {
-                       return '請選擇目標角色';
-                     }
-                     if (!isTargetConfirmed) {
-                       return '請確認目標角色';
-                     }
-                     if (!selectedTargetItemId) {
-                       return '請選擇目標道具';
-                     }
-                   }
                    const { canUse, reason } = canUseSkill(selectedSkill);
-                   if (!canUse && reason) {
-                     return `使用技能 (${reason})`;
-                   }
+                   if (!canUse && reason) return `使用技能 (${reason})`;
                    return '使用技能';
                  })()}
               </Button>

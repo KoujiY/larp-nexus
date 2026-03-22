@@ -140,7 +140,7 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange }: Stat
               {stats.map((stat, index) => (
                 <div
                   key={stat.id}
-                  className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg group"
+                  className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg"
                 >
                   <div className="text-muted-foreground cursor-move">
                     <GripVertical className="h-5 w-5" />
@@ -209,10 +209,9 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange }: Stat
                   </div>
                   
                   <Button
-                    variant="ghost"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleRemoveStat(stat.id)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

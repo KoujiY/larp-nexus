@@ -26,6 +26,8 @@ export interface SkillEffectExecutionResult {
   effectsApplied: string[];
   updatedCharacter: CharacterDocument;
   updatedTarget?: CharacterDocument;
+  /** 需要延遲執行的自動揭露（呼叫者應在發送完通知後再觸發） */
+  pendingReveal?: { receiverId: string };
 }
 
 /**
@@ -57,6 +59,7 @@ export async function executeSkillEffects(
   const now = new Date();
   // Phase 10.4: 使用 Baseline ID 確保 DB 操作和 WebSocket 頻道一致
   const characterId = getBaselineCharacterId(character);
+  let pendingRevealReceiverId: string | undefined;
 
   // 決定效果作用對象（根據效果的 targetType）
   let targetCharacter: CharacterDocument | null = null;
@@ -209,17 +212,18 @@ export async function executeSkillEffects(
       // 跳過
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       // 移除道具或偷竊道具效果
-      // 注意：對抗檢定時，這個效果會在對抗檢定結束後才執行，這裡跳過
-      if (skill.checkType === 'contest') {
+      // 對抗檢定：效果會在對抗結束後由 selectTargetItemForContest 執行
+      if (skill.checkType === 'contest' || skill.checkType === 'random_contest') {
+        continue;
+      }
+      // Step 9.1: 無 targetItemId（目標無道具時由 selectTargetItemAfterUse 呼叫）→ 記錄訊息並跳過
+      if (!targetItemId) {
+        effectsApplied.push('目標角色沒有道具可互動');
         continue;
       }
 
       if (!targetCharacterId) {
         throw new Error('此效果需要選擇目標角色');
-      }
-
-      if (!targetItemId) {
-        throw new Error('請選擇目標道具');
       }
 
       // 驗證目標角色
@@ -290,17 +294,14 @@ export async function executeSkillEffects(
           });
         } else {
           // 施放者沒有此道具，新增道具
+          // 完整複製原道具屬性（保留 usageCount、usageLimit、tags、effects 等）
           const stolenItem = {
-            id: targetItem.id,
-            name: targetItem.name,
-            description: targetItem.description || '',
-            imageUrl: targetItem.imageUrl,
-            type: targetItem.type,
+            ...JSON.parse(JSON.stringify(targetItem)),
             quantity: 1,
-            isTransferable: targetItem.isTransferable !== undefined ? targetItem.isTransferable : true,
             acquiredAt: new Date(),
-            usageCount: 0,
           };
+          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
+          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
 
           await updateCharacterData(characterId, {
             $push: { items: stolenItem },
@@ -308,6 +309,10 @@ export async function executeSkillEffects(
         }
 
         effectsApplied.push(`偷竊了 ${targetItemName}`);
+
+        // item_steal 後，記錄接收方 ID 供呼叫者延遲觸發自動揭露
+        // 不在此處立即執行，避免揭露通知搶先於技能結果通知送達客戶端
+        pendingRevealReceiverId = characterId;
       } else {
         // 移除：只移除目標道具，不轉移
         effectsApplied.push(`移除了 ${targetItemName}`);
@@ -467,6 +472,7 @@ export async function executeSkillEffects(
     effectsApplied,
     updatedCharacter,
     updatedTarget: updatedTarget || undefined,
+    pendingReveal: pendingRevealReceiverId ? { receiverId: pendingRevealReceiverId } : undefined,
   };
 }
 

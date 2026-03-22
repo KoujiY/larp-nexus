@@ -11,6 +11,15 @@ import type { SkillContestEvent } from '@/types/event';
 import { writePendingEvent, writePendingEvents } from '@/lib/websocket/pending-events';
 
 /**
+ * Phase 11: 生成統一事件 ID，用於跨通道去重
+ */
+function generateEventId(): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  return `evt-${timestamp}-${random}`;
+}
+
+/**
  * 發送對抗檢定請求事件（攻擊方發起對抗）
  * 
  * @param attackerId 攻擊方角色 ID
@@ -25,12 +34,15 @@ export async function emitContestRequest(
   const pusher = getPusherServer();
   if (!pusher || !isPusherEnabled()) return;
 
+  // Phase 11: 注入 _eventId 用於跨通道去重
+  const eventId = generateEventId();
   const event: SkillContestEvent = {
     type: 'skill.contest',
     timestamp: Date.now(),
     payload: {
       ...payload,
       subType: 'request', // Phase 2: 標記為請求事件
+      _eventId: eventId,
     },
   };
 
@@ -67,12 +79,15 @@ export async function emitContestResult(
   const pusher = getPusherServer();
   if (!pusher || !isPusherEnabled()) return;
 
+  // Phase 11: 注入 _eventId 用於跨通道去重
+  const eventId = generateEventId();
   const event: SkillContestEvent = {
     type: 'skill.contest',
     timestamp: Date.now(),
     payload: {
       ...payload,
       subType: 'result', // Phase 2: 標記為結果事件
+      _eventId: eventId,
     },
   };
 
@@ -119,12 +134,15 @@ export async function emitContestEffect(
   const pusher = getPusherServer();
   if (!pusher || !isPusherEnabled()) return;
 
+  // Phase 11: 注入 _eventId 用於跨通道去重
+  const eventId = generateEventId();
   const event: SkillContestEvent = {
     type: 'skill.contest',
     timestamp: Date.now(),
     payload: {
       ...payload,
       subType: 'effect', // Phase 2: 標記為效果事件
+      _eventId: eventId,
     },
   };
 

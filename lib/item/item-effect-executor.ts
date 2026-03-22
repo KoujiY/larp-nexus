@@ -23,7 +23,7 @@ type ItemType = NonNullable<CharacterDocument['items']>[number];
 /**
  * 道具效果類型
  */
-type ItemEffect = NonNullable<ItemType['effects']>[number] | NonNullable<ItemType['effect']>;
+type ItemEffect = NonNullable<ItemType['effects']>[number];
 
 /**
  * 執行道具效果的結果
@@ -32,6 +32,8 @@ export interface ItemEffectExecutionResult {
   effectsApplied: string[];
   updatedCharacter: CharacterDocument;
   updatedTarget?: CharacterDocument;
+  /** 需要延遲執行的自動揭露（呼叫者應在發送完通知後再觸發） */
+  pendingReveal?: { receiverId: string };
 }
 
 /**
@@ -65,6 +67,7 @@ export async function executeItemEffects(
 
   // Phase 10.4: 使用 Baseline ID 確保 DB 操作和 WebSocket 頻道一致
   const characterId = getBaselineCharacterId(character);
+  let pendingRevealReceiverId: string | undefined;
   const checkType = item.checkType || 'none';
 
   // 決定效果作用對象
@@ -217,17 +220,18 @@ export async function executeItemEffects(
       effectMessages.push(effect.description);
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       // 移除道具或偷竊道具效果
-      // 注意：對抗檢定時，這個效果會在對抗檢定結束後才執行，這裡跳過
-      if (checkType === 'contest') {
+      // 對抗檢定：效果會在對抗結束後由 selectTargetItemForContest 執行
+      if (checkType === 'contest' || checkType === 'random_contest') {
+        continue;
+      }
+      // Step 9.1: 無 targetItemId（目標無道具時由 selectTargetItemAfterUse 呼叫）→ 記錄訊息並跳過
+      if (!targetItemId) {
+        effectMessages.push('目標角色沒有道具可互動');
         continue;
       }
 
       if (!targetCharacterId) {
         throw new Error('此效果需要選擇目標角色');
-      }
-
-      if (!targetItemId) {
-        throw new Error('請選擇目標道具');
       }
 
       // 驗證目標角色
@@ -306,6 +310,10 @@ export async function executeItemEffects(
         }
 
         effectMessages.push(`偷竊了 ${targetItemName}`);
+
+        // item_steal 後，記錄接收方 ID 供呼叫者延遲觸發自動揭露
+        // 不在此處立即執行，避免揭露通知搶先於道具使用結果通知送達客戶端
+        pendingRevealReceiverId = characterId;
       } else {
         // 移除：只移除目標道具，不轉移
         effectMessages.push(`移除了 ${targetItemName}`);
@@ -460,6 +468,7 @@ export async function executeItemEffects(
     effectsApplied: effectMessages,
     updatedCharacter,
     updatedTarget: updatedTarget || undefined,
+    pendingReveal: pendingRevealReceiverId ? { receiverId: pendingRevealReceiverId } : undefined,
   };
 }
 

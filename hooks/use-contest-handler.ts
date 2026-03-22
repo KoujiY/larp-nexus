@@ -42,7 +42,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
   } = options;
 
   const { setDefenderContest, clearDefenderContest } = useDefenderContestState(characterId);
-  const { pendingContests, removePendingContest } = useContestState(characterId);
+  const { removePendingContest } = useContestState(characterId);
 
   /**
    * 處理對抗檢定事件
@@ -135,29 +135,8 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
             const sourceId = payload.itemId;
 
             if (needsTargetItemSelection && payload.result === 'attacker_wins') {
-              // 需要選擇目標道具，保持對抗檢定狀態，讓 item-list.tsx 處理
-              // 狀態已經在 pendingContests 中，item-list.tsx 會通過 useEffect 檢測並打開 dialog
-
-              // Phase 8: 將狀態保存到 localStorage，確保無論在哪個分頁都能正確處理
-              // 使用與 item-list.tsx 相同的 key 格式
-              if (typeof window !== 'undefined') {
-                try {
-                  const storageKey = `item-needs-target-selection-${characterId}`;
-                  const stateToSave = {
-                    contestId:
-                      pendingContests[sourceId]?.contestId ||
-                      `${String(characterId)}::${sourceId}::${Date.now()}`,
-                    itemId: sourceId,
-                    defenderId: String(payload.defenderId),
-                    timestamp: Date.now(),
-                  };
-                  localStorage.setItem(storageKey, JSON.stringify(stateToSave));
-                } catch (error) {
-                  console.error('[use-contest-handler] 保存道具對抗檢定狀態失敗:', error);
-                }
-              }
-
-              // 不顯示 toast，讓 item-list.tsx 處理
+              // 需要選擇目標道具，保持對抗檢定狀態，讓 item-list.tsx 的 WebSocket handler 處理
+              // item-list.tsx 會偵測到此事件並開啟 TargetItemSelectionDialog
             } else {
               // 不需要選擇目標道具，清除對抗檢定狀態
               // Phase 8: 在清除對抗檢定狀態之前，先確保 dialogOpen 狀態已更新為 false
@@ -187,29 +166,8 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
             const sourceId = payload.skillId;
 
             if (needsTargetItemSelection && payload.result === 'attacker_wins') {
-              // 需要選擇目標道具，保持對抗檢定狀態，讓 skill-list.tsx 處理
-              // 狀態已經在 pendingContests 中，skill-list.tsx 會通過 useEffect 檢測並打開 dialog
-
-              // Phase 8: 將狀態保存到 localStorage，確保無論在哪個分頁都能正確處理
-              // 使用與 skill-list.tsx 相同的 key 格式
-              if (typeof window !== 'undefined') {
-                try {
-                  const storageKey = `skill-needs-target-selection-${characterId}`;
-                  const stateToSave = {
-                    contestId:
-                      pendingContests[sourceId]?.contestId ||
-                      `${String(characterId)}::${sourceId}::${Date.now()}`,
-                    skillId: sourceId,
-                    defenderId: String(payload.defenderId),
-                    timestamp: Date.now(),
-                  };
-                  localStorage.setItem(storageKey, JSON.stringify(stateToSave));
-                } catch (error) {
-                  console.error('[use-contest-handler] 保存技能對抗檢定狀態失敗:', error);
-                }
-              }
-
-              // 不顯示 toast，讓 skill-list.tsx 處理
+              // 需要選擇目標道具，保持對抗檢定狀態，讓 skill-list.tsx 的 WebSocket handler 處理
+              // skill-list.tsx 會偵測到此事件並開啟 TargetItemSelectionDialog
             } else {
               // 不需要選擇目標道具，清除對抗檢定狀態
               // Phase 8: 在清除對抗檢定狀態之前，先確保 dialogOpen 狀態已更新為 false
@@ -239,7 +197,6 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
       onClearDialogState,
       setDefenderContest,
       clearDefenderContest,
-      pendingContests,
       removePendingContest,
     ]
   );

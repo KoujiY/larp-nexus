@@ -158,6 +158,8 @@ export interface SkillContestEvent extends BaseEvent<{
   attackerHasCombatTag?: boolean;
   // Phase 7.6: 來源是否具有「隱匿」標籤（用於隱藏攻擊方名稱）
   sourceHasStealthTag?: boolean;
+  // Phase 11: 跨通道去重 ID（WebSocket + Pending Events 共用）
+  _eventId?: string;
 }> {
   type: 'skill.contest';
 }

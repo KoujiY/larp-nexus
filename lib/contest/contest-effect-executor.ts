@@ -8,7 +8,6 @@
 import dbConnect from '@/lib/db/mongodb';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
-import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { getBaselineCharacterId, getCharacterData } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
@@ -49,6 +48,8 @@ export interface ContestEffectExecutionResult {
   effectsApplied: string[];
   updatedAttacker: CharacterDocument;
   updatedDefender: CharacterDocument;
+  /** 需要延遲執行的自動揭露（呼叫者應在發送完通知後再觸發） */
+  pendingReveal?: { receiverId: string };
 }
 
 /**
@@ -73,6 +74,7 @@ export async function executeContestEffects(
   await dbConnect();
 
   const effectsApplied: string[] = [];
+  let pendingRevealReceiverId: string | undefined;
   const now = new Date();
 
   // Phase 10.4: 使用 Baseline ID（避免 Runtime _id 與頻道、追蹤系統不匹配）
@@ -116,46 +118,15 @@ export async function executeContestEffects(
     ? (actualSource as SkillType).effects || []
     : getItemEffects(actualSource as ItemType);
 
-  // 檢查是否有 item_take/item_steal 效果且沒有 targetItemId
-  const hasItemTakeOrSteal = effects.some((e) => e.type === 'item_take' || e.type === 'item_steal');
-  const needsTargetItemSelection = hasItemTakeOrSteal && !targetItemId;
+  // Phase 12: 不再提前返回 — 即使有 item_steal/item_take 且沒有 targetItemId，
+  // 仍需執行其他效果（stat_change, task_reveal 等）。
+  // item_steal/item_take 本身會在迴圈中透過 continue 跳過。
 
-  // 如果需要選擇目標道具，跳過所有效果的執行
-  if (needsTargetItemSelection) {
-    // Phase 10.4: 使用統一讀取函數（自動判斷 Baseline/Runtime）
-    const updatedAttacker = await getCharacterData(attackerIdStr);
-    const updatedDefender = await getCharacterData(defenderIdStr);
-    
-    if (!updatedAttacker || !updatedDefender) {
-      throw new Error('找不到角色');
-    }
-
-    return {
-      effectsApplied: [],
-      updatedAttacker,
-      updatedDefender,
-    };
-  }
-
-  // Phase 7.6: 決定效果作用對象（根據效果的 targetType 和對抗結果）
-  // 攻擊方獲勝：效果作用於防守方（或根據 targetType）
-  // 防守方獲勝：效果作用於攻擊方（或根據 targetType）
-  let effectTarget: CharacterDocument;
-  if (contestResult === 'defender_wins') {
-    // 防守方獲勝：效果作用於攻擊方
-    // 對於對抗檢定，防守方獲勝時效果應該作用於攻擊方（從攻擊方那裡偷道具/造成影響）
-    // 除非效果明確指定 targetType === 'self'，否則都作用於攻擊方
-    effectTarget = actualSourceType === 'skill' && effects.some((e) => e.targetType === 'self')
-      ? defender
-      : attacker;
-  } else {
-    // 攻擊方獲勝：效果作用於防守方（原有邏輯）
-    effectTarget = actualSourceType === 'skill' && effects.some((e) => e.targetType === 'other')
-      ? defender
-      : actualSourceType === 'item'
-      ? defender
-      : attacker;
-  }
+  // Step 9: 決定效果作用對象 — 獲勝方的效果作用於對手
+  // 與 skill-effect-executor.ts 保持一致：不依賴 effect.targetType 判定
+  // 攻擊方獲勝：效果作用於防守方
+  // 防守方獲勝：效果作用於攻擊方
+  const effectTarget: CharacterDocument = contestResult === 'defender_wins' ? attacker : defender;
 
   // Phase 10.4: 取得效果目標的 Baseline ID（用於 WebSocket 頻道和 DB 更新路由）
   const effectTargetBaselineId = getBaselineCharacterId(effectTarget);
@@ -294,8 +265,10 @@ export async function executeContestEffects(
       }
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       // 移除道具或偷竊道具效果
+      // Step 9.1: 無 targetItemId（目標無道具時由 contest-select-item 呼叫）→ 記錄訊息並跳過
       if (!targetItemId) {
-        continue; // 跳過此效果，但繼續處理其他效果
+        effectsApplied.push('目標角色沒有道具可互動');
+        continue;
       }
 
       // Phase 4: 修復目標道具查找邏輯
@@ -377,17 +350,14 @@ export async function executeContestEffects(
           });
         } else {
           // 來源方沒有此道具，新增道具
+          // 完整複製原道具屬性（保留 usageCount、usageLimit、tags、effects 等）
           const stolenItem = {
-            id: targetItem.id,
-            name: targetItem.name,
-            description: targetItem.description || '',
-            imageUrl: targetItem.imageUrl,
-            type: targetItem.type,
+            ...JSON.parse(JSON.stringify(targetItem)),
             quantity: 1,
-            isTransferable: targetItem.isTransferable !== undefined ? targetItem.isTransferable : true,
             acquiredAt: new Date(),
-            usageCount: 0,
           };
+          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
+          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
 
           await updateCharacterData(sourceIdStr, {
             $push: { items: stolenItem },
@@ -472,13 +442,10 @@ export async function executeContestEffects(
         });
       }
 
-      // Phase 7.7: item_steal 後，為接收方觸發自動揭露評估（items_acquired）
-      // 攻擊方獲勝：道具轉移到攻擊方 → 評估攻擊方
-      // 防守方獲勝：道具轉移到防守方 → 評估防守方
+      // Phase 7.7: item_steal 後，記錄接收方 ID 供呼叫者延遲觸發自動揭露
+      // 不在此處立即執行，避免揭露通知搶先於對抗結果通知送達客戶端
       if (effect.type === 'item_steal') {
-        const receiverIdStr = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
-        executeAutoReveal(receiverIdStr, { type: 'items_acquired' })
-          .catch((error) => console.error('[contest-effect-executor] Failed to execute auto-reveal for item_steal receiver', error));
+        pendingRevealReceiverId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
       }
     } else if (effect.type === 'custom' && effect.description) {
       // 自定義效果
@@ -570,6 +537,7 @@ export async function executeContestEffects(
     effectsApplied,
     updatedAttacker,
     updatedDefender,
+    pendingReveal: pendingRevealReceiverId ? { receiverId: pendingRevealReceiverId } : undefined,
   };
 }
 

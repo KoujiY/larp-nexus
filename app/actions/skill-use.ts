@@ -5,6 +5,7 @@ import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleSkillCheck } from '@/lib/skill/check-handler';
 import { executeSkillEffects } from '@/lib/skill/skill-effect-executor';
+import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
@@ -19,17 +20,20 @@ export async function useSkill(
   checkResult?: number, // 檢定結果（由前端傳入，如果是 random 類型）
   targetCharacterId?: string, // Phase 6.5: 目標角色 ID（跨角色效果用）
   targetItemId?: string // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
-): Promise<ApiResponse<{ 
-  skillUsed: boolean; 
-  checkPassed?: boolean; 
-  checkResult?: number; 
-  effectsApplied?: string[]; 
+): Promise<ApiResponse<{
+  skillUsed: boolean;
+  checkPassed?: boolean;
+  checkResult?: number;
+  effectsApplied?: string[];
   targetCharacterName?: string;
   // Phase 7: 對抗檢定相關欄位
   contestId?: string;
   attackerValue?: number;
   defenderValue?: number;
   preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail';
+  // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+  needsTargetItemSelection?: boolean;
+  targetCharacterId?: string;
 }>> {
   try {
     await dbConnect();
@@ -66,7 +70,8 @@ export async function useSkill(
 
     // Phase 6.5: 驗證目標角色（如果需要）
     let targetCharacter = null;
-    const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget);
+    const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
+    const hasItemTakeOrSteal = skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
 
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -250,12 +255,44 @@ export async function useSkill(
       };
     }
 
+    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標道具 → 延遲所有效果
+    // 所有效果（含 stat_change）都延遲到選擇目標道具後由 selectTargetItemAfterUse 一起執行
+    // 即使目標無道具，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無道具可互動」通知）
+    if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
+      // 仍然更新使用記錄（usageCount, lastUsedAt）
+      const usageUpdates: Record<string, unknown> = {};
+      usageUpdates[`skills.${skillIndex}.lastUsedAt`] = now;
+      if (skill.usageLimit && skill.usageLimit > 0) {
+        const newUsageCount = (skill.usageCount || 0) + 1;
+        usageUpdates[`skills.${skillIndex}.usageCount`] = newUsageCount;
+      }
+      if (Object.keys(usageUpdates).length > 0) {
+        await updateCharacterData(characterId, { $set: usageUpdates });
+      }
+
+      const targetCharacterName = targetCharacter?.name || '目標角色';
+      return {
+        success: true,
+        data: {
+          skillUsed: true,
+          checkPassed: true,
+          checkResult: finalCheckResult,
+          targetCharacterName,
+          needsTargetItemSelection: true,
+          targetCharacterId,
+        },
+        message: `技能使用成功，請選擇要${skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+      };
+    }
+
     // 執行技能效果（只有在檢定成功時才執行）
     let effectsApplied: string[] = [];
+    let pendingReveal: { receiverId: string } | undefined;
     if (checkPassed && skill.effects && skill.effects.length > 0) {
       try {
         const effectResult = await executeSkillEffects(skill, character, targetCharacterId, targetItemId);
         effectsApplied = effectResult.effectsApplied;
+        pendingReveal = effectResult.pendingReveal;
         // 角色資料已由 executeSkillEffects 更新
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '效果執行失敗';
@@ -332,6 +369,15 @@ export async function useSkill(
     }).catch((error) => {
       console.error('Failed to emit skill.used event', error);
     });
+
+    // Phase 7.7: 技能使用通知發送完成後，觸發自動揭露評估（items_acquired）
+    // 延遲到此處執行，確保揭露通知不會搶先於技能結果通知送達客戶端
+    if (pendingReveal) {
+      executeAutoReveal(pendingReveal.receiverId, { type: 'items_acquired' })
+        .catch((error) => console.error('[skill-use] Failed to execute auto-reveal', error));
+    }
+
+    // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
 
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';

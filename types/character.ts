@@ -27,6 +27,11 @@ export interface CharacterData {
    */
   isGameActive?: boolean;
   /**
+   * Phase 11.5: 遊戲進行中時，附帶 Game Code 供玩家端 Runtime Banner 顯示
+   * 僅在 isGameActive=true 且玩家已完整解鎖時才有值
+   */
+  gameCode?: string;
+  /**
    * Phase 10: 遊戲進行中時，附帶 Baseline 原始資料
    * 用於唯讀預覽模式（PIN-only）顯示未修改的角色設定
    * 僅在 isActive=true 時由 getPublicCharacter 填充
@@ -231,11 +236,8 @@ export interface Item {
   // 道具類型與數量
   type: 'consumable' | 'equipment';
   quantity: number;
-  // 使用效果（重構：改為陣列，支援多個效果）
+  // 使用效果（陣列，支援多個效果）
   effects?: ItemEffect[];
-  // 向後兼容：保留 effect 欄位（單一效果），但優先使用 effects
-  /** @deprecated 使用 effects 陣列代替 */
-  effect?: ItemEffect;
   // Phase 7.6: 標籤系統
   tags?: string[];
   // 檢定系統（Phase 8，Phase 7.6: 擴展為包含 random_contest）
