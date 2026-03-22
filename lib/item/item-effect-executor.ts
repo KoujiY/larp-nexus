@@ -32,6 +32,8 @@ export interface ItemEffectExecutionResult {
   effectsApplied: string[];
   updatedCharacter: CharacterDocument;
   updatedTarget?: CharacterDocument;
+  /** 需要延遲執行的自動揭露（呼叫者應在發送完通知後再觸發） */
+  pendingReveal?: { receiverId: string };
 }
 
 /**
@@ -65,6 +67,7 @@ export async function executeItemEffects(
 
   // Phase 10.4: 使用 Baseline ID 確保 DB 操作和 WebSocket 頻道一致
   const characterId = getBaselineCharacterId(character);
+  let pendingRevealReceiverId: string | undefined;
   const checkType = item.checkType || 'none';
 
   // 決定效果作用對象
@@ -307,6 +310,10 @@ export async function executeItemEffects(
         }
 
         effectMessages.push(`偷竊了 ${targetItemName}`);
+
+        // item_steal 後，記錄接收方 ID 供呼叫者延遲觸發自動揭露
+        // 不在此處立即執行，避免揭露通知搶先於道具使用結果通知送達客戶端
+        pendingRevealReceiverId = characterId;
       } else {
         // 移除：只移除目標道具，不轉移
         effectMessages.push(`移除了 ${targetItemName}`);
@@ -461,6 +468,7 @@ export async function executeItemEffects(
     effectsApplied: effectMessages,
     updatedCharacter,
     updatedTarget: updatedTarget || undefined,
+    pendingReveal: pendingRevealReceiverId ? { receiverId: pendingRevealReceiverId } : undefined,
   };
 }
 

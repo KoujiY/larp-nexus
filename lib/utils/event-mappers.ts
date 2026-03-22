@@ -642,7 +642,7 @@ export function createEventMappers(
     return [{
       id: `evt-${event.timestamp}`,
       title: '隱藏資訊揭露',
-      message: `已揭露隱藏資訊，${payload.secretTitle}`,
+      message: `已揭露隱藏資訊：${payload.secretTitle}`,
       type: event.type,
     }];
   };
@@ -655,7 +655,7 @@ export function createEventMappers(
     return [{
       id: `evt-${event.timestamp}`,
       title: '隱藏目標揭露',
-      message: `已揭露隱藏目標，${payload.taskTitle}`,
+      message: `已揭露隱藏目標：${payload.taskTitle}`,
       type: event.type,
     }];
   };

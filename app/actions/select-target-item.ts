@@ -73,6 +73,7 @@ export async function selectTargetItemAfterUse(
     // Step 9: 透過效果執行器執行所有效果（包括 stat_change、item_steal/take 等）
     // 效果執行器已處理：DB 更新、character.affected、inventoryUpdated、role.updated
     let effectsApplied: string[] = [];
+    let pendingReveal: { receiverId: string } | undefined;
 
     if (sourceType === 'skill') {
       const { executeSkillEffects } = await import('@/lib/skill/skill-effect-executor');
@@ -83,6 +84,7 @@ export async function selectTargetItemAfterUse(
         targetItemId
       );
       effectsApplied = effectResult.effectsApplied;
+      pendingReveal = effectResult.pendingReveal;
     } else {
       const { executeItemEffects } = await import('@/lib/item/item-effect-executor');
       const effectResult = await executeItemEffects(
@@ -92,6 +94,7 @@ export async function selectTargetItemAfterUse(
         targetItemId
       );
       effectsApplied = effectResult.effectsApplied;
+      pendingReveal = effectResult.pendingReveal;
     }
 
     // Step 9: 發送 skill.used/item.used 事件給攻擊方（含完整 effectsApplied）
@@ -117,6 +120,14 @@ export async function selectTargetItemAfterUse(
         targetCharacterId,
         targetCharacterName: targetCharacter.name,
       }).catch((error) => console.error('Failed to emit item.used (select-target-item)', error));
+    }
+
+    // Phase 7.7: 通知發送完成後，觸發自動揭露評估（items_acquired）
+    // 延遲到此處執行，確保揭露通知不會搶先於技能/道具使用結果通知送達客戶端
+    if (pendingReveal) {
+      const { executeAutoReveal } = await import('@/lib/reveal/auto-reveal-evaluator');
+      executeAutoReveal(pendingReveal.receiverId, { type: 'items_acquired' })
+        .catch((error) => console.error('[select-target-item] Failed to execute auto-reveal', error));
     }
 
     revalidatePath(`/c/${characterId}`);

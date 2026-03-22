@@ -5,6 +5,7 @@ import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleSkillCheck } from '@/lib/skill/check-handler';
 import { executeSkillEffects } from '@/lib/skill/skill-effect-executor';
+import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
@@ -286,10 +287,12 @@ export async function useSkill(
 
     // 執行技能效果（只有在檢定成功時才執行）
     let effectsApplied: string[] = [];
+    let pendingReveal: { receiverId: string } | undefined;
     if (checkPassed && skill.effects && skill.effects.length > 0) {
       try {
         const effectResult = await executeSkillEffects(skill, character, targetCharacterId, targetItemId);
         effectsApplied = effectResult.effectsApplied;
+        pendingReveal = effectResult.pendingReveal;
         // 角色資料已由 executeSkillEffects 更新
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '效果執行失敗';
@@ -366,6 +369,13 @@ export async function useSkill(
     }).catch((error) => {
       console.error('Failed to emit skill.used event', error);
     });
+
+    // Phase 7.7: 技能使用通知發送完成後，觸發自動揭露評估（items_acquired）
+    // 延遲到此處執行，確保揭露通知不會搶先於技能結果通知送達客戶端
+    if (pendingReveal) {
+      executeAutoReveal(pendingReveal.receiverId, { type: 'items_acquired' })
+        .catch((error) => console.error('[skill-use] Failed to execute auto-reveal', error));
+    }
 
     // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
 

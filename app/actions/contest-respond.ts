@@ -6,6 +6,7 @@ import { validateContestRequest, validateContestSource, validateDefenderItems, v
 import { calculateAttackerValue, calculateDefenderValue, calculateContestResult } from '@/lib/contest/contest-calculator';
 import { executeContestEffects } from '@/lib/contest/contest-effect-executor';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
+import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
@@ -345,12 +346,15 @@ export async function respondToContest(
 
     // Step 9: 效果執行 — 若需要選擇目標道具則完全跳過（所有效果延遲到 contest-select-item 一起執行）
     let effectsApplied: string[] = [];
+    // 延遲自動揭露：在所有對抗通知發送完成後才觸發，確保客戶端先收到對抗結果
+    let pendingReveal: { receiverId: string } | undefined;
 
     if (result === 'attacker_wins' && !needsTargetItemSelection) {
       // 攻擊方獲勝且不需要選擇目標道具：立即執行所有效果
       try {
         const effectResult = await executeContestEffects(attacker!, defender!, source, targetItemId, 'attacker_wins');
         effectsApplied = effectResult.effectsApplied;
+        pendingReveal = effectResult.pendingReveal;
       } catch (error) {
         console.error('[contest-respond] 執行攻擊方效果時發生錯誤:', error);
       }
@@ -390,6 +394,7 @@ export async function respondToContest(
           if (defenderSourceObj) {
             const effectResult = await executeContestEffects(attacker!, defender!, defenderSourceObj, undefined, 'defender_wins', defenderSources);
             effectsApplied = effectResult.effectsApplied;
+            pendingReveal = effectResult.pendingReveal;
           }
         } catch (error) {
           console.error('[contest-respond] 執行防守方效果時發生錯誤:', error);
@@ -487,6 +492,13 @@ export async function respondToContest(
       } catch (error) {
         console.error('[contest-respond] Failed to send final contest notifications', error);
       }
+    }
+
+    // 修復：在所有對抗通知發送完成後，才觸發自動揭露評估
+    // 確保客戶端先收到對抗結果通知，再收到揭露通知
+    if (pendingReveal) {
+      executeAutoReveal(pendingReveal.receiverId, { type: 'items_acquired' })
+        .catch((error) => console.error('[contest-respond] Failed to execute auto-reveal', error));
     }
 
     // Phase 8: 對抗檢定完成後，從追蹤系統中移除

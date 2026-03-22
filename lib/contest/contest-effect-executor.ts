@@ -8,7 +8,6 @@
 import dbConnect from '@/lib/db/mongodb';
 import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
-import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { getBaselineCharacterId, getCharacterData } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
@@ -49,6 +48,8 @@ export interface ContestEffectExecutionResult {
   effectsApplied: string[];
   updatedAttacker: CharacterDocument;
   updatedDefender: CharacterDocument;
+  /** 需要延遲執行的自動揭露（呼叫者應在發送完通知後再觸發） */
+  pendingReveal?: { receiverId: string };
 }
 
 /**
@@ -73,6 +74,7 @@ export async function executeContestEffects(
   await dbConnect();
 
   const effectsApplied: string[] = [];
+  let pendingRevealReceiverId: string | undefined;
   const now = new Date();
 
   // Phase 10.4: 使用 Baseline ID（避免 Runtime _id 與頻道、追蹤系統不匹配）
@@ -440,13 +442,10 @@ export async function executeContestEffects(
         });
       }
 
-      // Phase 7.7: item_steal 後，為接收方觸發自動揭露評估（items_acquired）
-      // 攻擊方獲勝：道具轉移到攻擊方 → 評估攻擊方
-      // 防守方獲勝：道具轉移到防守方 → 評估防守方
+      // Phase 7.7: item_steal 後，記錄接收方 ID 供呼叫者延遲觸發自動揭露
+      // 不在此處立即執行，避免揭露通知搶先於對抗結果通知送達客戶端
       if (effect.type === 'item_steal') {
-        const receiverIdStr = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
-        executeAutoReveal(receiverIdStr, { type: 'items_acquired' })
-          .catch((error) => console.error('[contest-effect-executor] Failed to execute auto-reveal for item_steal receiver', error));
+        pendingRevealReceiverId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
       }
     } else if (effect.type === 'custom' && effect.description) {
       // 自定義效果
@@ -538,6 +537,7 @@ export async function executeContestEffects(
     effectsApplied,
     updatedAttacker,
     updatedDefender,
+    pendingReveal: pendingRevealReceiverId ? { receiverId: pendingRevealReceiverId } : undefined,
   };
 }
 

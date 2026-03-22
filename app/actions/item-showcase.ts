@@ -102,14 +102,7 @@ export async function showcaseItem(
       await targetCharacter.save();
     }
 
-    // 6. 無論是否已記錄，都重新評估自動揭露條件（針對被展示方）
-    //    （GM 可能已將揭露狀態重設為未揭露，需要重新觸發）
-    const revealResults = await executeAutoReveal(targetCharacterId, {
-      type: 'items_viewed',
-      itemIds: [itemId],
-    });
-
-    // 7. 發送 item.showcased 事件給雙方
+    // 6. 發送 item.showcased 事件給雙方（先於揭露通知，確保前端收到正確的通知順序）
     const showcasePayload = {
       fromCharacterId: characterId,
       fromCharacterName: character.name,
@@ -126,9 +119,17 @@ export async function showcaseItem(
       },
     };
 
-    emitItemShowcased(characterId, targetCharacterId, showcasePayload).catch(
+    await emitItemShowcased(characterId, targetCharacterId, showcasePayload).catch(
       (error) => console.error('[item-showcase] Failed to emit item.showcased', error)
     );
+
+    // 7. 展示通知發送完成後，評估自動揭露條件（針對被展示方）
+    //    （GM 可能已將揭露狀態重設為未揭露，需要重新觸發）
+    //    放在展示通知之後，確保揭露通知不會搶先於展示通知到達前端
+    const revealResults = await executeAutoReveal(targetCharacterId, {
+      type: 'items_viewed',
+      itemIds: [itemId],
+    });
 
     // 8. 若有觸發揭露，也發送 role.updated 事件讓前端刷新資料
     if (revealResults.length > 0) {
