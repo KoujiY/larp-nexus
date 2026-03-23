@@ -119,33 +119,41 @@ docs/knowledge/
 
 > TDD order: Vitest setup → write failing tests → refactor types → compose schemas
 
-### A-1. Install and configure Vitest
-- [ ] Add vitest to package.json
-- [ ] Create vitest.config.ts
-- [ ] Add `npm test` script
+### A-1. Install and configure Vitest ✅ 2026-03-23
+- [x] Add vitest to package.json
+- [x] Create vitest.config.ts
+- [x] Add `npm test` script
 
-### A-2. Write unit tests for core logic (RED — failing tests first)
-- [ ] contest-calculator.ts
-- [ ] contest-validator.ts
-- [ ] auto-reveal-evaluator.ts
-- [ ] item-effect-executor.ts
-- [ ] skill-effect-executor.ts
-- [ ] character-cleanup.ts
-- [ ] field-updaters.ts
+### A-2. Write unit tests for core logic ✅ 2026-03-23
+- [x] contest-calculator.ts (8 tests — pure functions, fully GREEN)
+- [x] contest-validator.ts (22 tests — pure validators + mock-based)
+- [x] auto-reveal-evaluator.ts (6 tests — vi.mock for DB/Pusher)
+- [x] item-effect-executor.ts (2 tests — vi.mock skeleton)
+- [x] skill-effect-executor.ts (2 tests — vi.mock skeleton)
+- [x] character-cleanup.ts (27 tests — pure functions, fully GREEN)
+- [x] field-updaters.ts (11 tests — pure functions, fully GREEN)
 
-### A-3. Centralize type definitions (GREEN — refactor under test coverage)
-- [ ] Create `lib/db/types/mongo-helpers.ts` (MongoSecret, MongoTask, MongoItem, MongoStat)
-- [ ] Create `lib/db/types/character-types.ts` (SkillType, ItemType — eliminate 8x duplication)
-- [ ] Create `lib/db/schemas/shared-schemas.ts` (autoRevealConditionSchema — eliminate 2x duplication)
+### A-3. Centralize type definitions ✅ 2026-03-23
+- [x] Create `lib/db/types/mongo-helpers.ts` (MongoSecret, MongoTask, MongoItem, MongoStat, MongoSkill)
+- [x] Create `lib/db/types/character-types.ts` (SkillType, ItemType — eliminated 10+ duplicates)
+- [x] Create `lib/db/schemas/shared-schemas.ts` (autoRevealConditionSchema — eliminated 2x duplication)
+- [x] Update 13 consumer files to import from centralized types
+- [x] 95 tests passing, type-check clean
 
-### A-4. Compose Character/CharacterRuntime schemas (GREEN — refactor under test coverage)
-- [ ] Extract shared base schema fragment
-- [ ] Refactor Character.ts to compose base + specific fields
-- [ ] Refactor CharacterRuntime.ts to compose base + specific fields
-- [ ] Target: eliminate ~600 lines of duplication
+### A-4. Compose Character/CharacterRuntime schemas ✅ 2026-03-23
+- [x] Create `lib/db/types/character-document-base.ts` (CharacterDocumentBase — shared interface ~160 lines)
+- [x] Expand `lib/db/schemas/shared-schemas.ts` with `createBaseCharacterSchemaFields()` factory
+- [x] Refactor `Character.ts`: 708 → 54 lines (−654)
+- [x] Refactor `CharacterRuntime.ts`: 706 → 68 lines (−638)
+- [x] Eliminated ~1292 lines of duplication; 95 tests passing, type-check clean
 
-### A-5. Code Review
-- [ ] `/code-review` on all Phase A changes
+### A-5. Code Review ✅ 2026-03-23
+- [x] `/code-review` on all Phase A changes
+  - Fixed HIGH: createBaseCharacterSchemaFields factory (prevent Mongoose schema mutation)
+  - Fixed HIGH: normalizeCheckConfig missing contestConfig downgraded to error log
+  - Fixed HIGH: field-updaters public functions return strong types (MongoSkill[], MongoItem[], MongoTask[], MongoSecret[])
+  - Fixed HIGH: MongoItemEffect/MongoSkillEffect exported from mongo-helpers; CharacterDocumentBase uses them
+  - Fixed MEDIUM/LOW: test assertions strengthened, mockReturnValueOnce, globals:true removed, circular-dep comment added
 
 ---
 
