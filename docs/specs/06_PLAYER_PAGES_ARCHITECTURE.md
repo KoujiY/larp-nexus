@@ -1,7 +1,7 @@
 # 玩家端頁面與元件架構
 
-## 版本：v2.0
-## 更新日期：2026-03-04（Phase 10 遊戲狀態分層）
+## 版本：v2.1
+## 更新日期：2026-03-23（偷竊/移除延遲選擇流程）
 
 ---
 
@@ -529,6 +529,32 @@ if (revealedSecrets.length === 0) {
   </DialogContent>
 </Dialog>
 ```
+
+---
+
+### 4.6.1 偷竊/移除道具的延遲選擇流程
+
+技能或道具含有 `item_steal` / `item_take` 效果時，採用「先使用、後選擇目標道具」的延遲流程：
+
+```
+使用者操作流程：
+1. 選擇技能/道具 → 打開 Dialog
+2. 選擇目標角色 → 發送使用請求
+3. (若有檢定) 等待檢定結果
+4. 使用成功 → server 回傳 needsTargetItemSelection: true
+5. 載入目標角色道具列表 → 顯示目標道具選擇 UI（Select dropdown）
+6. 選擇目標道具（或目標無道具時直接確認）
+7. 呼叫 selectTargetItemAfterUse → 執行所有效果
+8. 顯示結果通知 → 關閉 Dialog
+```
+
+**相關 Hooks**：
+- `use-post-use-target-item-selection.ts`：管理延遲選擇流程狀態（非對抗路徑）
+- `use-contest-handler.ts`：管理對抗路徑的目標道具選擇
+
+**UI 元件**：
+- `target-item-selection-dialog.tsx`：對抗檢定勝利後的目標道具選擇 Dialog
+- 非對抗路徑的目標道具選擇 UI 內嵌於 `skill-list.tsx` 和 `item-list.tsx` 的 Dialog 中
 
 ---
 

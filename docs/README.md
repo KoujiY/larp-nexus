@@ -3,8 +3,8 @@
 ## 專案資訊
 
 - **專案名稱**：LARP Nexus
-- **版本**：v1.5 (MVP)
-- **更新日期**：2026-02-16（Phase 8 時效性效果系統完成）
+- **版本**：v2.0
+- **更新日期**：2026-03-11（Phase 11.5 效能優化與安全性檢查完成）
 - **專案類型**：LARP GM/玩家輔助系統
 
 ---
@@ -107,7 +107,7 @@
 - [ ] GitHub Repository 建立
 - [ ] 本地開發環境安裝（Node.js, pnpm, Git）
 - [ ] Pusher 設定
-- [ ] Resend 設定
+- [ ] Gmail SMTP 設定（Nodemailer）
 - [ ] `.env.local` 建立與環境變數配置
 
 **詳細步驟**：請參考 [外部設定檢查清單](./specs/10_EXTERNAL_SETUP_CHECKLIST.md)
@@ -309,7 +309,9 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ## 授權
 
-本專案為私有專案，未經授權不得使用。
+本專案採用自訂非商業授權。允許個人使用、教育用途、非營利組織使用，以及私人 LARP 活動使用。禁止商業用途（販售、SaaS、營利產品整合）。
+
+詳見 [LICENSE](../LICENSE)。
 
 ---
 
@@ -320,6 +322,25 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 ---
 
 ## 更新日誌
+
+### v2.0 (2026-03-11) - Phase 11.5 完成，專案文件完備
+- **Phase 11 遠端服務整合與部署**
+  - ✅ 11.1 遠端服務依賴任務全部完成
+  - ✅ 11.2 Vercel 部署完成（含 Nodemailer + Gmail SMTP 遷移）
+  - ✅ 11.3 Cron Jobs 設定（每日排程 + Lazy Evaluation 架構）
+  - ✅ 11.4 完整功能測試（6 個測試場景全數通過）
+  - ✅ 11.5 安全性掃描與修復（CRON_SECRET 強制驗證）
+- **Phase 10 遊戲狀態分層系統**
+  - ✅ Baseline / Runtime / Snapshot 分層架構
+  - ✅ Game Code + PIN 解鎖機制
+  - ✅ 遊戲生命週期管理（開始/結束遊戲）
+- **Phase 9 離線事件佇列**
+  - ✅ Pending Events 機制（離線玩家重連後自動拉取）
+  - ✅ 事件清理（Cron Job 每日清理過期事件）
+- **專案文件**
+  - ✅ README.md 重寫
+  - ✅ USER_GUIDE.md 使用者操作手冊
+  - ✅ LICENSE 自訂非商業授權
 
 ### v1.5 (2026-02-16) - Phase 8 時效性效果系統完成
 - **Phase 8 時效性效果系統實作完成**
@@ -422,4 +443,4 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 - 定期 Review 文件完整性
 
 **文件維護者**：SPEC AGENT
-**最後更新**：2026-02-16（Phase 8 時效性效果系統完成）
+**最後更新**：2026-03-11（Phase 11.5 效能優化與安全性檢查完成）

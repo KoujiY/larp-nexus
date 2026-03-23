@@ -327,6 +327,12 @@ interface InventoryUpdatedEvent extends BaseEvent {
 - **未讀提示**：新事件進來加總未讀數/紅點，開啟面板時清除未讀。
 - **遊戲狀態事件**：需納入 `game.started`、`game.reset`/`game.ended`（開始/重置/結束遊戲）提示，玩家收到後刷新或提示狀態變更。
 
+**通知送達順序（重要）**：
+- 道具展示：`item.showcased` → `secret.revealed` / `task.revealed`（揭露通知在展示通知之後）
+- 偷竊/移除效果：`skill.used` / `item.used`（攻擊方結果）→ `secret.revealed` / `task.revealed`（自動揭露）
+- 所有效果執行器透過 `pendingReveal` 機制延遲自動揭露，確保使用結果通知先於揭露通知送達
+- 對抗檢定：`skill.contest`（結果事件）→ 效果通知 → 揭露通知
+
 ---
 
 ### 2.8 技能使用事件 (skill.used) - Phase 6
@@ -343,10 +349,12 @@ interface SkillUsedEvent extends BaseEvent {
     characterId: string;
     skillId: string;
     skillName: string;
-    checkType: 'none' | 'contest' | 'random';
+    checkType: 'none' | 'contest' | 'random' | 'random_contest';
     checkPassed: boolean;
     checkResult?: number;          // 檢定結果（random 類型）
     effectsApplied?: string[];     // 已執行的效果描述列表
+    targetCharacterId?: string;    // 目標角色 ID（跨角色效果時）
+    targetCharacterName?: string;  // 目標角色名稱
   };
 }
 ```

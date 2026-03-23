@@ -471,6 +471,39 @@ export type WebSocketEvent =
 - `item.showcased` 事件的 `item` payload 僅包含：`id`、`name`、`description`、`imageUrl`、`type`、`quantity`、`tags`
 - 不包含：`effects`、`checkType`、`contestConfig`、`randomConfig`、`usageLimit`、`usageCount`、`cooldown` 等
 
+### 4.5 pendingReveal 機制（延遲揭露）
+
+**問題**：效果執行器內直接呼叫 `executeAutoReveal` 會導致揭露通知搶先於使用結果通知送達前端。
+
+**解決方案**：
+
+- 效果執行器（skill/item/contest）不直接呼叫 `executeAutoReveal`
+- 改為回傳 `pendingReveal: { receiverId: string }` 物件
+- 呼叫端（skill-use, item-use, select-target-item, contest-select-item）在發送完使用結果通知後，才觸發 `executeAutoReveal`
+- 確保通知到達順序：使用結果 → 揭露通知
+
+```typescript
+// 效果執行器回傳介面
+interface EffectExecutionResult {
+  effectsApplied: string[];
+  updatedCharacter: CharacterDocument;
+  updatedTarget?: CharacterDocument;
+  pendingReveal?: { receiverId: string }; // 延遲揭露
+}
+```
+
+```
+使用技能/道具 → 效果執行器（回傳 pendingReveal）
+  → 發送 skill.used / item.used 通知
+  → 觸發 executeAutoReveal（發送 secret.revealed / task.revealed）
+```
+
+**適用範圍**：
+- `lib/skill/skill-effect-executor.ts`：`item_steal` 效果後設定 `pendingRevealReceiverId = characterId`
+- `lib/item/item-effect-executor.ts`：同上
+- `lib/contest/contest-effect-executor.ts`：同上（最早實作）
+- `app/actions/item-showcase.ts`：不使用 pendingReveal，但確保 `await emitItemShowcased()` 在 `executeAutoReveal()` 之前
+
 ---
 
 ## 5. 實作步驟
@@ -516,7 +549,10 @@ export type WebSocketEvent =
 
 - [x]步驟 11: 修改道具轉移流程 — 在 `app/actions/item-use.ts` 或相關道具轉移 action 中，道具轉移完成後呼叫自動揭露評估引擎
 - [x]步驟 12: 修改 GM 新增/更新道具流程 — 在 `app/actions/character-update.ts` 中，當角色道具列表變化時呼叫自動揭露評估引擎
-- [x]步驟 13: 修改對抗檢定效果流程 — 在 `lib/contest/contest-effect-executor.ts` 中，`item_steal`/`item_take` 效果執行後呼叫自動揭露評估引擎
+- [x]步驟 13: 修改對抗檢定效果流程 — 在 `lib/contest/contest-effect-executor.ts` 中，`item_steal`/`item_take` 效果執行後透過 `pendingReveal` 機制延遲呼叫自動揭露評估引擎
+- [x]步驟 13.1: 修改非對抗偷竊效果流程 — 在 `lib/skill/skill-effect-executor.ts` 和 `lib/item/item-effect-executor.ts` 中加入 `pendingReveal` 機制
+- [x]步驟 13.2: 新增延遲目標道具選擇 — 在 `app/actions/select-target-item.ts` 中，效果執行完成後觸發 `executeAutoReveal`
+- [x]步驟 13.3: 修正通知順序 — 在 `app/actions/item-showcase.ts` 中，`emitItemShowcased` 移到 `executeAutoReveal` 之前（await 確保順序）
 - [x]步驟 14: 修改 GM 手動揭露隱藏資訊流程 — 在 `app/actions/character-update.ts` 中，當隱藏資訊 `isRevealed` 從 `false` 變為 `true` 時，檢查是否有隱藏目標的 `secrets_revealed` 條件需要連鎖觸發
 
 ### Phase 7.7-E: GM 端 UI — 隱藏資訊揭露條件設定
@@ -956,10 +992,17 @@ export type WebSocketEvent =
   app/actions/character-update.ts          # 支援 autoRevealCondition 儲存 + 連鎖揭露
   app/actions/public.ts                    # 過濾 GM 專用欄位
   app/actions/games.ts                     # 新增 getGameItems
+  app/actions/item-showcase.ts             # 通知順序修正：emitItemShowcased 先於 executeAutoReveal
+  app/actions/select-target-item.ts        # 延遲偷竊效果執行後觸發 executeAutoReveal
+  app/actions/skill-use.ts                 # 效果執行後透過 pendingReveal 觸發 executeAutoReveal
+  lib/skill/skill-effect-executor.ts       # 新增 pendingReveal 到 SkillEffectExecutionResult
+  lib/item/item-effect-executor.ts         # 新增 pendingReveal 到 ItemEffectExecutionResult
+  lib/contest/contest-effect-executor.ts   # pendingReveal 機制（原始實作）
   components/gm/character-edit-form.tsx     # 隱藏資訊條件 UI
   components/gm/tasks-edit-form.tsx         # 隱藏目標條件 UI
   components/player/item-list.tsx           # 新增展示按鈕 + 點開時記錄檢視
   components/player/character-card-view.tsx # 管理展示 Dialog 狀態
   hooks/use-character-websocket-handler.ts  # 新事件處理
-  lib/utils/event-mappers.ts               # 新事件映射
+  hooks/use-post-use-target-item-selection.ts # 使用成功後的延遲目標道具選擇流程
+  lib/utils/event-mappers.ts               # 新事件映射 + 揭露通知文案格式修正
 ```
