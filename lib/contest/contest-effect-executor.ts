@@ -31,15 +31,7 @@ type Effect = {
   description?: string;
 };
 
-/**
- * 技能類型
- */
-type SkillType = NonNullable<CharacterDocument['skills']>[number];
-
-/**
- * 道具類型
- */
-type ItemType = NonNullable<CharacterDocument['items']>[number];
+import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
  * 執行對抗檢定效果的結果

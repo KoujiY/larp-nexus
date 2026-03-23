@@ -8,11 +8,7 @@
 import dbConnect from '@/lib/db/mongodb';
 import { handleContestCheck, type CheckResult } from '@/lib/contest/contest-handler';
 import type { CharacterDocument } from '@/lib/db/models';
-
-/**
- * 技能類型
- */
-type SkillType = NonNullable<CharacterDocument['skills']>[number];
+import type { SkillType } from '@/lib/db/types/character-types';
 
 /**
  * 檢定結果（從統一處理器導入）

@@ -13,11 +13,7 @@ import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-charact
 import { updateCharacterData } from '@/lib/game/update-character-data';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
-
-/**
- * 技能類型
- */
-type SkillType = NonNullable<CharacterDocument['skills']>[number];
+import type { SkillType } from '@/lib/db/types/character-types';
 
 /**
  * 執行技能效果的結果

@@ -14,7 +14,10 @@
     "format:check": "prettier --check .",
     "test:connection": "tsx scripts/test-connection.ts",
     "test:sendmail": "tsx scripts/test-sendmail.ts",
-    "migrate:phase10": "tsx scripts/migrate-phase10.ts"
+    "migrate:phase10": "tsx scripts/migrate-phase10.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
@@ -60,11 +63,14 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.0",
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.5",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   }
 }

@@ -70,8 +70,8 @@ export async function useSkill(
 
     // Phase 6.5: 驗證目標角色（如果需要）
     let targetCharacter = null;
-    const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
-    const hasItemTakeOrSteal = skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
+    const requiresTarget = skill.effects?.some((effect) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
+    const hasItemTakeOrSteal = skill.effects?.some((e) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
 
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -104,7 +104,7 @@ export async function useSkill(
       }
 
       // 驗證目標類型匹配
-      const effectWithTarget = skill.effects?.find((e: Record<string, unknown>) => e.requiresTarget);
+      const effectWithTarget = skill.effects?.find((e) => e.requiresTarget);
       const targetType = effectWithTarget && 'targetType' in effectWithTarget
         ? (effectWithTarget.targetType as string)
         : undefined;
@@ -281,7 +281,7 @@ export async function useSkill(
           needsTargetItemSelection: true,
           targetCharacterId,
         },
-        message: `技能使用成功，請選擇要${skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+        message: `技能使用成功，請選擇要${skill.effects?.some((e) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
       };
     }
 

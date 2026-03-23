@@ -10,8 +10,8 @@ import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
-import type { CharacterDocument } from '@/lib/db/models';
 import { getItemEffects } from '@/lib/item/get-item-effects';
+import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
  * Phase 7: 防守方回應對抗檢定
@@ -72,8 +72,6 @@ export async function respondToContest(
     const relatedStatName = contestConfig.relatedStat;
 
     // Phase 3.2: 提前獲取技能或道具對象（用於檢查攻擊方標籤和檢定類型）
-    type SkillType = NonNullable<CharacterDocument['skills']>[number];
-    type ItemType = NonNullable<CharacterDocument['items']>[number];
     let attackerSource: SkillType | ItemType | null = null;
 
     if (sourceType === 'skill') {

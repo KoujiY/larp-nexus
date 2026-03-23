@@ -6,6 +6,7 @@ import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-charact
 import { emitSkillUsed, emitItemUsed } from '@/lib/websocket/events';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterDocument } from '@/lib/db/models';
+import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
  * 非對抗偷竊/移除道具的後續目標道具選擇
@@ -41,8 +42,6 @@ export async function selectTargetItemAfterUse(
     }
 
     // 找到來源技能/道具
-    type SkillType = NonNullable<CharacterDocument['skills']>[number];
-    type ItemType = NonNullable<CharacterDocument['items']>[number];
     let source: SkillType | ItemType | null = null;
     let sourceName = '';
 

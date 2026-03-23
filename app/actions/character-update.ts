@@ -34,18 +34,7 @@ import {
 } from "@/lib/character/field-updaters";
 import { writeLog } from "@/lib/logs/write-log"; // Phase 10.6
 
-// Phase 3.3: MongoDB 類型定義已移至 field-updaters.ts
-// MongoDB lean() 返回的類型（可能包含 _id）
-// 注意：MongoItem 類型定義在 field-updaters.ts 中，這裡只保留必要的類型引用
-type MongoItem = NonNullable<import('@/lib/db/models').CharacterDocument['items']>[number] & { _id?: unknown };
-
-interface MongoStat {
-  id: string;
-  name: string;
-  value: number;
-  maxValue?: number;
-  _id?: unknown;
-}
+import type { MongoItem, MongoStat } from '@/lib/db/types/mongo-helpers';
 
 // Phase 3.3: 驗證邏輯已移至 lib/character/character-validator.ts
 
@@ -569,7 +558,7 @@ export async function updateCharacter(
           name: updatedCharacter.name,
           avatar: updatedCharacter.imageUrl,
           publicInfo: updatedCharacter.publicInfo,
-          items: cleanItems,
+          items: cleanItems as unknown as Record<string, unknown>[],
           stats: statsChanged ? (changedStats as unknown as Record<string, unknown>[]) : undefined,
           skills: cleanSkills as unknown as Record<string, unknown>[],
         },

@@ -14,11 +14,7 @@ import { updateCharacterData } from '@/lib/game/update-character-data';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
 import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
 import { getItemEffects } from '@/lib/item/get-item-effects';
-
-/**
- * 道具類型
- */
-type ItemType = NonNullable<CharacterDocument['items']>[number];
+import type { ItemType } from '@/lib/db/types/character-types';
 
 /**
  * 道具效果類型
