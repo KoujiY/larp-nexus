@@ -61,6 +61,9 @@ larp-nexus/
 │   │   ├── skill-use.ts          # 技能使用 Actions
 │   │   ├── contest-respond.ts    # 對抗檢定回應
 │   │   ├── contest-cancel.ts     # 對抗檢定取消
+│   │   ├── contest-query.ts      # 對抗檢定查詢
+│   │   ├── contest-select-item.ts # 對抗檢定目標道具選擇
+│   │   ├── select-target-item.ts  # 非對抗偷竊/移除的延遲目標道具選擇
 │   │   └── item-showcase.ts      # Phase 7.7: 道具展示
 │   ├── layout.tsx                # Root Layout
 │   ├── page.tsx                  # Landing Page
@@ -88,7 +91,8 @@ larp-nexus/
 │   │   ├── delete-character-button.tsx # 刪除角色按鈕
 │   │   ├── upload-character-image-button.tsx  # 上傳角色圖片
 │   │   ├── generate-qrcode-button.tsx  # 生成 QR Code
-│   │   └── view-pin-button.tsx         # 檢視/編輯 PIN
+│   │   ├── view-pin-button.tsx         # 檢視/編輯 PIN
+│   │   └── secret-edit-dialog.tsx      # 隱藏資訊編輯 Dialog
 │   ├── player/                   # 玩家端專用元件
 │   │   ├── character-card.tsx    # 角色卡顯示
 │   │   ├── pin-unlock.tsx        # PIN 解鎖介面
@@ -198,8 +202,8 @@ larp-nexus/
 │   ├── use-target-options.ts     # 目標角色選項
 │   ├── use-target-selection.ts   # 目標選擇
 │   ├── use-effect-target.ts      # 效果目標處理
-│   ├── use-target-item-selection.ts # 目標道具選擇
-│   └── use-toast.ts              # Toast 通知
+│   ├── use-post-use-target-item-selection.ts # 使用成功後的延遲目標道具選擇
+│   └── use-form-guard.ts         # 表單防護（防止未儲存資料遺失）
 │
 ├── store/                        # Jotai 狀態管理
 │   ├── auth.ts                   # 認證狀態
@@ -208,7 +212,9 @@ larp-nexus/
 │   └── notification.ts           # 通知狀態
 │
 ├── scripts/                      # 工具腳本
-│   └── migrate-phase10.ts        # Phase 10: 資料遷移腳本（框架，待 Phase 11）
+│   ├── migrate-phase10.ts        # Phase 10: 資料遷移腳本
+│   ├── test-connection.ts        # 資料庫連線測試
+│   └── test-sendmail.ts          # 郵件發送測試
 ├── middleware.ts                 # Next.js Middleware
 ├── docs/                         # 文件目錄
 │   ├── requirements/             # 需求文件

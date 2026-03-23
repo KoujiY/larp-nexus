@@ -510,6 +510,9 @@ interface ItemInput {
     attackerValue?: number;     // 攻擊方數值（對抗檢定時）
     defenderValue?: number;     // 防守方數值（對抗檢定時）
     preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 初步結果（對抗檢定時）
+    // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+    needsTargetItemSelection?: boolean; // 為 true 時，前端應顯示目標道具選擇 UI
+    targetCharacterId?: string;         // 目標角色 ID（配合 needsTargetItemSelection 使用）
   };
   message?: string;
 }
@@ -549,13 +552,16 @@ interface ItemInput {
 7. 更新技能使用時間與次數
 8. 回傳結果
 
-**Phase 7 實作細節**：
-- `item_take` 和 `item_steal` 效果需要：
+**Phase 7 實作細節（已重構）**：
+- `item_take` 和 `item_steal` 效果採用「延遲執行」模式：
   1. 選擇目標角色（`targetCharacterId` 必填）
-  2. 確認目標角色（前端 UI 流程）
-  3. 選擇目標道具（`targetItemId` 必填）
-- 檢定成功後才會執行效果
+  2. 使用技能/道具（執行檢定）
+  3. 檢定通過後，回傳 `needsTargetItemSelection: true`，所有效果延遲
+  4. 前端載入目標角色道具列表，由使用者選擇目標道具
+  5. 呼叫 `selectTargetItemAfterUse()` 一次執行所有效果（含 stat_change 等）
+- 即使目標角色沒有道具，仍走完整延遲流程，產生「無道具可互動」訊息
 - `item_steal` 會將道具轉移到施放者身上，`item_take` 只移除道具
+- 對抗檢定路徑同理：`contest-respond` 跳過效果執行，由 `contest-select-item` 統一執行
 
 **Phase 7.6 標籤系統實作細節**：
 - **標籤要求**：對抗檢定（`contest` 或 `random_contest`）時，攻擊方使用的技能/道具必須具有 "戰鬥"（`combat`）標籤
@@ -615,13 +621,16 @@ interface ItemInput {
     itemUsed: boolean;
     checkPassed?: boolean;      // 檢定是否通過
     checkResult?: number;       // 檢定結果
-    effectApplied?: string;     // 已執行的效果描述
+    effectsApplied?: string[];  // 已執行的效果描述列表
     targetCharacterName?: string; // 目標角色名稱
     // Phase 7: 對抗檢定相關欄位
     contestId?: string;         // 對抗請求 ID（對抗檢定時）
     attackerValue?: number;     // 攻擊方數值（對抗檢定時）
     defenderValue?: number;     // 防守方數值（對抗檢定時）
     preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 初步結果（對抗檢定時）
+    // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+    needsTargetItemSelection?: boolean; // 為 true 時，前端應顯示目標道具選擇 UI
+    targetCharacterId?: string;         // 目標角色 ID（配合 needsTargetItemSelection 使用）
   };
   message?: string;
 }
@@ -667,6 +676,50 @@ interface ItemInput {
 
 **Phase 8 時效性效果實作細節**：
 - 同技能系統的時效性效果流程
+
+---
+
+### 2.3.1 延遲目標道具選擇 (app/actions/select-target-item.ts)
+
+#### `selectTargetItemAfterUse(characterId, sourceId, sourceType, effectType, targetCharacterId, targetItemId)` ✅
+
+非對抗偷竊/移除的延遲目標道具選擇。當 `useSkill` 或 `useItem` 回傳 `needsTargetItemSelection: true` 後，由前端呼叫此 action 完成效果執行。
+
+**參數**
+```typescript
+{
+  characterId: string;                    // 攻擊方角色 ID
+  sourceId: string;                       // 技能/道具 ID
+  sourceType: 'skill' | 'item';          // 來源類型
+  effectType: 'item_steal' | 'item_take'; // 效果類型
+  targetCharacterId: string;              // 目標角色 ID
+  targetItemId: string;                   // 選擇的目標道具 ID（空字串表示目標無道具）
+}
+```
+
+**回傳**
+```typescript
+{
+  success: boolean;
+  data?: {
+    effectApplied?: string;  // 效果執行結果描述
+  };
+  message?: string;
+}
+```
+
+**實作邏輯**
+1. 載入攻擊方角色資料
+2. 驗證目標角色在同一劇本內
+3. 找到來源技能/道具
+4. 透過 `executeSkillEffects` / `executeItemEffects` 執行所有效果（含 stat_change、item_steal/take 等）
+5. 發送 `skill.used` / `item.used` 事件給攻擊方（含完整 effectsApplied）
+6. 觸發自動揭露評估（`pendingReveal` 機制，`items_acquired` 觸發類型）
+
+**錯誤碼**
+- `INVALID_TARGET`：目標角色不在同一劇本內
+- `NOT_FOUND`：找不到技能/道具
+- `SELECT_FAILED`：選擇目標道具失敗
 
 ---
 
