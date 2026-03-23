@@ -6,12 +6,12 @@
 ## 開發環境
 
 ### 技術棧
-- **Frontend**: Next.js 14+ + React 18+ + TypeScript
-- **State Management**: React Hooks + WebSocket
-- **UI**: Tailwind CSS + shadcn/ui
-- **Database**: MongoDB (透過 Mongoose)
-- **Real-time**: WebSocket
-- **Testing**: Vitest
+- **Frontend**: Next.js 16+ + React 19+ + TypeScript
+- **State Management**: React Hooks + WebSocket (Pusher)
+- **UI**: Tailwind CSS 4+ + shadcn/ui + Framer Motion
+- **Database**: MongoDB Atlas (透過 Mongoose)
+- **Real-time**: Pusher WebSocket
+- **Testing**: Vitest (Phase A 待設定)
 
 ### 開發命令
 ```bash
@@ -59,78 +59,41 @@ lib/              # 業務邏輯和工具
 types/            # TypeScript 類型定義
 hooks/            # 自定義 React Hooks
 docs/             # 文檔
-  ├── specs/      # 技術規格
-  ├── dev-notes/  # 開發筆記
-  └── reviews/    # 代碼審查報告
+  ├── knowledge/  # 原子化知識庫（主要參考）
+  ├── specs/      # 技術規格（詳細 API/WebSocket 規格）
+  ├── archive/    # 歷史文件（唯讀參考）
+  └── refactoring/ # 重構進度追蹤
 ```
 
-## 專業 Agent Skills
+## 開發工具
 
-本專案提供以下專業 Skills，使用 `/skill-name` 調用：
+本專案使用 **everything-claude-code** plugin 提供的工具。常用工具：
 
-### `/spec` - 技術規格撰寫專家
-將需求轉換為結構化技術規格文件。
-- **輸出位置**: `docs/specs/SPEC-{feature-name}-{date}.md`
-- **包含內容**: 功能概述、架構圖、資料模型、實作步驟、驗收標準
+| 工具 | 用途 |
+|------|------|
+| `/plan` | 規劃實作步驟 |
+| `/tdd` | 測試驅動開發流程 |
+| `/code-review` | 程式碼審查 |
+| `/e2e` | E2E 測試 |
+| `/verify` | 完整驗證迴圈 |
+| `/docs` | 查詢套件文件 |
+| `/save-session` | 儲存 session 狀態（context 快用完時使用） |
 
-**使用範例**:
-```
-/spec 請為角色裝備系統撰寫技術規格
-```
-
-### `/rd` - 前端開發專家
-根據技術規格實作功能，每步驟暫停等待驗收。
-- **輸出位置**: 程式碼 + `docs/dev-notes/{feature-name}.md`
-- **工作方式**: 任務拆解 → 逐步實作 → 每步驟暫停驗收
-
-**使用範例**:
-```
-/rd 根據 SPEC-equipment-system-2026-02-09.md 實作裝備系統
-```
-
-### `/test` - 測試工程師
-撰寫全面的單元測試和測試報告。
-- **輸出位置**: `*.test.ts` + `docs/test-plans/{feature-name}-test-report.md`
-- **測試框架**: Vitest
-
-**使用範例**:
-```
-/test 為 lib/contest/contest-calculator.ts 撰寫單元測試
-```
-
-### `/review` - 代碼審查專家
-全面審查程式碼品質、安全性和效能。
-- **輸出位置**: `docs/reviews/{feature-name}-review.md`
-- **審查重點**: 品質、安全性、效能、測試、架構
-
-**使用範例**:
-```
-/review 審查最近的 contest 系統重構
-```
-
-### `/pr` - PR 撰寫專家
-撰寫清晰完整的 Pull Request 描述。
-- **輸出位置**: `docs/pr-templates/{feature-name}-pr.md`
-
-**使用範例**:
-```
-/pr 為當前的變更撰寫 PR 描述
-```
-
-## 工作流程建議
+## 工作流程
 
 ### 新功能開發
-1. `/spec` - 撰寫技術規格
-2. `/rd` - 實作功能（逐步驗收）
-3. `/test` - 撰寫測試
-4. `/review` - 代碼審查
-5. `/pr` - 準備 PR
+1. 讀取相關知識庫文件（`docs/knowledge/`）
+2. `/plan` 規劃實作步驟
+3. `/tdd` 測試驅動實作
+4. `/code-review` 審查程式碼
+5. 更新知識庫（若邏輯有變動）
+6. Commit & PR
 
 ### Bug 修復
-1. 分析問題
-2. `/rd` - 修復實作
-3. `/test` - 添加回歸測試
-4. `/review` - 審查修復
+1. 讀取相關知識庫文件理解現行邏輯
+2. 實作修復
+3. 補回歸測試
+4. `/code-review` 審查
 
 ## 重要提醒
 - 完成實作後執行 `npm run type-check` 和 `npm run lint`
@@ -138,13 +101,41 @@ docs/             # 文檔
 - Server Actions 返回 JSON 可序列化的數據
 - 資料庫查詢前檢查用戶權限
 
+## 知識庫 (Knowledge Base)
+
+原子化知識庫位於 `docs/knowledge/`，依照領域拆分為小單元，每次開發只需載入相關部分：
+
+```
+docs/knowledge/
+  gm/character/     ← 角色卡、基本資訊、公開資訊、隱藏資訊、數值
+  gm/tasks/         ← 任務管理、隱藏任務與自動揭露
+  gm/items/         ← 道具概念、效果與標籤
+  gm/skills/        ← 技能概念、效果與標籤
+  gm/game/          ← 遊戲設定、廣播系統、遊戲狀態
+  player/           ← 角色卡視圖、道具使用、技能使用
+  shared/contest/   ← 對抗流程、檢定機制、標籤規則
+  shared/           ← 自動揭露系統、通知系統、WebSocket 事件
+  architecture/     ← 資料模型、API 參考、部署、技術棧
+```
+
+### 知識庫維護規範（MANDATORY）
+
+以下情況**必須**同步更新對應的知識庫文件：
+1. **新增功能** → 在相關 domain 的 md 中加入概念說明
+2. **修改現有邏輯**（資料結構、流程、規則）→ 更新對應 md
+3. **重構後介面改變** → 更新 component 路徑、函數名稱等參考
+4. **刪除功能** → 移除或標記過時的知識庫條目
+
+違反此規範會導致知識庫與 codebase 脫節，失去其存在的意義。
+
 ## 文件同步規則
-- 完成一個 Phase 或重構階段後，**必須立即**更新對應的進度追蹤文件（如 `docs/refactoring/*_CONTINUE.md`）
-- 進度追蹤文件應記錄：完成的項目清單、修改的檔案、關鍵 SPEC 確認結果
-- 若進度追蹤文件中的狀態標記（如「待實作」）與 codebase 實際狀態不一致，應優先修正文件
-- 新增或刪除檔案時，檢查是否有其他文件引用了該檔案路徑，一併更新
+- 完成一個開發步驟後，**必須立即**更新重構進度文件 `docs/refactoring/REFACTOR_PROGRESS.md`（將對應項目從 `[ ]` 改為 `[x]`）
+- 若進度文件中的狀態與 codebase 實際狀態不一致，應優先修正文件
+- 新增或刪除檔案時，檢查是否有其他文件（包含知識庫）引用了該路徑，一併更新
 
 ## 架構文檔參考
-- 專案結構：@docs/specs/01_PROJECT_STRUCTURE.md
-- API 規範：@docs/specs/03_API_SPECIFICATION.md
-- WebSocket 事件：@docs/specs/04_WEBSOCKET_EVENTS.md
+- 重構進度：`docs/refactoring/REFACTOR_PROGRESS.md`
+- API 規範：`docs/specs/03_API_SPECIFICATION.md`
+- WebSocket 事件：`docs/specs/04_WEBSOCKET_EVENTS.md`
+- 資料模型：`docs/knowledge/architecture/data-models.md`
+- 知識庫索引：`docs/knowledge/`
