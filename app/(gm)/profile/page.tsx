@@ -2,6 +2,7 @@ import { getCurrentGMUser } from '@/app/actions/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageLayout } from '@/components/gm/page-layout';
 import { redirect } from 'next/navigation';
+import { User, Mail, CalendarDays, Clock, Info } from 'lucide-react';
 
 export default async function ProfilePage() {
   const gmUser = await getCurrentGMUser();
@@ -46,7 +47,7 @@ export default async function ProfilePage() {
                 <p className="text-sm font-medium text-muted-foreground">顯示名稱</p>
                 <p className="text-lg font-medium">{gmUser.displayName}</p>
               </div>
-              <span className="text-2xl">👤</span>
+              <User className="h-5 w-5 text-muted-foreground" />
             </div>
 
             <div className="flex items-center justify-between py-3 border-b">
@@ -54,7 +55,7 @@ export default async function ProfilePage() {
                 <p className="text-sm font-medium text-muted-foreground">Email</p>
                 <p className="text-lg font-medium">{gmUser.email}</p>
               </div>
-              <span className="text-2xl">📧</span>
+              <Mail className="h-5 w-5 text-muted-foreground" />
             </div>
 
             <div className="flex items-center justify-between py-3 border-b">
@@ -62,7 +63,7 @@ export default async function ProfilePage() {
                 <p className="text-sm font-medium text-muted-foreground">註冊時間</p>
                 <p className="text-lg font-medium">{formatDate(gmUser.createdAt)}</p>
               </div>
-              <span className="text-2xl">📅</span>
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
             </div>
 
             <div className="flex items-center justify-between py-3">
@@ -70,18 +71,21 @@ export default async function ProfilePage() {
                 <p className="text-sm font-medium text-muted-foreground">最後登入</p>
                 <p className="text-lg font-medium">{formatDate(gmUser.lastLoginAt)}</p>
               </div>
-              <span className="text-2xl">🕐</span>
+              <Clock className="h-5 w-5 text-muted-foreground" />
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50">
+      <Card className="border-info/30 bg-info/5">
         <CardHeader>
-          <CardTitle className="text-blue-900">💡 提示</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Info className="h-5 w-5 text-info" />
+            提示
+          </CardTitle>
         </CardHeader>
-        <CardContent className="text-blue-800">
+        <CardContent className="text-muted-foreground">
           <p className="text-sm">
             目前僅支援查看帳號資訊。編輯個人資料功能將在後續版本中推出。
           </p>

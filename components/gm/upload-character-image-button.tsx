@@ -148,13 +148,13 @@ export function UploadCharacterImageButton({
           )}
 
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
+            <div className="p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
               {error}
             </div>
           )}
 
           {!process.env.NEXT_PUBLIC_BLOB_TOKEN_CONFIGURED && (
-            <div className="p-3 rounded-lg bg-yellow-50 text-yellow-800 text-sm border border-yellow-200">
+            <div className="p-3 rounded-lg bg-warning/10 text-foreground text-sm border border-warning/30">
               ⚠️ 提示：圖片上傳功能需要配置 Vercel Blob Token
             </div>
           )}

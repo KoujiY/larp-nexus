@@ -75,7 +75,7 @@ export function GameBroadcastPanel({ gameId, characters }: GameBroadcastPanelPro
         <TabsContent value="broadcast" className="mt-4 space-y-3">
           <div className="space-y-2">
             <Label>
-              標題 <span className="text-red-500">*</span>
+              標題 <span className="text-destructive">*</span>
             </Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：系統公告" />
           </div>
@@ -89,7 +89,7 @@ export function GameBroadcastPanel({ gameId, characters }: GameBroadcastPanelPro
         <TabsContent value="character" className="mt-4 space-y-3">
           <div className="space-y-2">
             <Label>
-              目標角色 <span className="text-red-500">*</span>
+              目標角色 <span className="text-destructive">*</span>
             </Label>
             <Select
               value={targetCharacterId}
@@ -109,7 +109,7 @@ export function GameBroadcastPanel({ gameId, characters }: GameBroadcastPanelPro
           </div>
           <div className="space-y-2">
             <Label>
-              標題 <span className="text-red-500">*</span>
+              標題 <span className="text-destructive">*</span>
             </Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：密語提醒" />
           </div>

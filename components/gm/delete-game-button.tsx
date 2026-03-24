@@ -64,15 +64,15 @@ export function DeleteGameButton({ gameId, gameName }: DeleteGameButtonProps) {
         </DialogHeader>
 
         <div className="py-4">
-          <div className="p-4 rounded-lg bg-red-50 border border-red-200 space-y-2">
-            <p className="font-semibold text-red-900">📚 {gameName}</p>
-            <p className="text-sm text-red-700">
-              ⚠️ 刪除劇本將同時刪除所有相關的角色卡資料
+          <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 space-y-2">
+            <p className="font-semibold text-destructive">{gameName}</p>
+            <p className="text-sm text-muted-foreground">
+              刪除劇本將同時刪除所有相關的角色卡資料
             </p>
           </div>
 
           {error && (
-            <div className="mt-4 p-3 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
+            <div className="mt-4 p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
               {error}
             </div>
           )}

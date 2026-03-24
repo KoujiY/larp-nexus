@@ -454,9 +454,9 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
         </Dialog>
 
         {/* 使用說明 */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
+        <div className="mt-6 p-4 bg-info/10 rounded-lg text-sm text-foreground">
           <h4 className="font-medium mb-2">💡 使用說明</h4>
-          <ul className="list-disc list-inside space-y-1 text-blue-700">
+          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             <li><strong>消耗品</strong>：使用後數量減 1，數量為 0 時消失</li>
             <li><strong>裝備/道具</strong>：使用後不消耗數量</li>
             <li><strong>使用限制</strong>：可設定使用次數上限與冷卻時間</li>

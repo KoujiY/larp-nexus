@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Drama, Loader2, LockKeyhole, Mail } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -47,10 +48,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto mb-4 text-6xl">🎭</div>
+          <div className="mx-auto mb-4">
+            <Drama className="h-16 w-16 text-primary" />
+          </div>
           <CardTitle className="text-3xl font-bold">LARP Nexus</CardTitle>
           <CardDescription className="text-base">
             GM/玩家輔助系統 - GM 登入
@@ -76,8 +79,8 @@ export default function LoginPage() {
               <div
                 className={`p-4 rounded-lg text-sm ${
                   message.type === 'success'
-                    ? 'bg-green-50 text-green-800 border border-green-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
+                    ? 'bg-success/10 text-foreground border border-success/30'
+                    : 'bg-destructive/10 text-foreground border border-destructive/20'
                 }`}
               >
                 {message.text}
@@ -87,17 +90,23 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
-                  <span className="animate-spin mr-2">⏳</span>
+                  <Loader2 className="animate-spin mr-2 h-4 w-4" />
                   發送中...
                 </>
               ) : (
-                <>🔐 發送登入連結</>
+                <>
+                  <LockKeyhole className="mr-2 h-4 w-4" />
+                  發送登入連結
+                </>
               )}
             </Button>
 
             <div className="text-xs text-muted-foreground text-center space-y-1 pt-2">
-              <p>✨ 無需密碼，使用 Email 即可登入</p>
-              <p>📧 登入連結將發送至您的信箱，有效期限 15 分鐘</p>
+              <p className="flex items-center justify-center gap-1.5">
+                <Mail className="h-3 w-3" />
+                無需密碼，使用 Email 即可登入
+              </p>
+              <p>登入連結將發送至您的信箱，有效期限 15 分鐘</p>
             </div>
           </form>
         </CardContent>
@@ -105,4 +114,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

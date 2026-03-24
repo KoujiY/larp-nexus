@@ -102,7 +102,7 @@ export function SecretInfoSection({
 
   return (
     <>
-      <Card className="border-purple-300 bg-purple-50/50">
+      <Card className="border-primary/20 bg-primary/5">
         <CardHeader>
           <CardTitle className="flex items-center">
             <Lock className="mr-2 h-5 w-5" />
@@ -119,7 +119,7 @@ export function SecretInfoSection({
                   className={`cursor-pointer transition-all hover:shadow-md ${
                     isRead
                       ? 'opacity-75'
-                      : 'border-purple-400 bg-purple-100/50'
+                      : 'border-primary/30 bg-primary/10'
                   }`}
                   onClick={() => handleSecretClick(secret.id)}
                 >

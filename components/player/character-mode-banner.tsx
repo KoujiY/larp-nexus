@@ -9,6 +9,7 @@
  */
 
 import { Button } from '@/components/ui/button';
+import { Eye, Gamepad2, KeyRound } from 'lucide-react';
 
 export interface CharacterModeBannerProps {
   /** 唯讀（預覽）模式 */
@@ -32,13 +33,14 @@ export function CharacterModeBanner({
 }: CharacterModeBannerProps) {
   if (isReadOnly) {
     return (
-      <div className="mb-6 p-4 rounded-lg border border-amber-500 bg-amber-50 text-amber-900">
+      <div className="mb-6 p-4 rounded-lg border border-env-baseline bg-env-baseline-bg text-env-baseline-fg">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-medium mb-1">
-              👁 預覽模式{hasBaselineData ? '（Baseline）' : ''}
+            <p className="font-medium mb-1 flex items-center gap-1.5">
+              <Eye className="h-4 w-4" />
+              預覽模式{hasBaselineData ? '（Baseline）' : ''}
             </p>
-            <p className="text-sm text-amber-800">
+            <p className="text-sm opacity-80">
               {hasBaselineData
                 ? '您正在查看角色的原始設定（Baseline）。遊戲進行中的修改不會顯示在此預覽中。'
                 : '您正在以預覽模式查看此角色。所有互動功能（使用道具、技能、對抗檢定）均已禁用。'}
@@ -48,10 +50,11 @@ export function CharacterModeBanner({
             <Button
               variant="outline"
               size="sm"
-              className="shrink-0 border-amber-500 text-amber-900 hover:bg-amber-100"
+              className="shrink-0 border-env-baseline text-env-baseline-fg hover:bg-env-baseline/10"
               onClick={onRelock}
             >
-              🔑 重新解鎖
+              <KeyRound className="h-4 w-4 mr-1.5" />
+              重新解鎖
             </Button>
           )}
         </div>
@@ -61,11 +64,14 @@ export function CharacterModeBanner({
 
   if (hasPinLock) {
     return (
-      <div className="mb-6 p-4 rounded-lg border border-emerald-500 bg-emerald-50 text-emerald-900">
+      <div className="mb-6 p-4 rounded-lg border border-env-runtime bg-env-runtime-bg text-env-runtime-fg">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-medium mb-1">🎮 遊戲進行中</p>
-            <p className="text-sm text-emerald-800">
+            <p className="font-medium mb-1 flex items-center gap-1.5">
+              <Gamepad2 className="h-4 w-4" />
+              遊戲進行中
+            </p>
+            <p className="text-sm opacity-80">
               {gameCode
                 ? <>遊戲代碼：<span className="font-mono font-bold tracking-widest">{gameCode}</span></>
                 : '所有互動功能已啟用。'}
@@ -74,10 +80,11 @@ export function CharacterModeBanner({
           <Button
             variant="outline"
             size="sm"
-            className="shrink-0 border-emerald-500 text-emerald-900 hover:bg-emerald-100"
+            className="shrink-0 border-env-runtime text-env-runtime-fg hover:bg-env-runtime/10"
             onClick={onRelock}
           >
-            🔑 重新解鎖
+            <KeyRound className="h-4 w-4 mr-1.5" />
+            重新解鎖
           </Button>
         </div>
       </div>

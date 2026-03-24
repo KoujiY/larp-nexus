@@ -124,13 +124,13 @@ export function CheckInfoDisplay({
               <p className="text-sm">骰出結果：<strong>{checkResult}</strong></p>
               {checkResult >= randomConfig.threshold ? (
                 <>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span className="text-sm text-green-600">檢定成功</span>
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <span className="text-sm text-success">檢定成功</span>
                 </>
               ) : (
                 <>
-                  <XCircle className="h-4 w-4 text-red-500" />
-                  <span className="text-sm text-red-600">檢定失敗</span>
+                  <XCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-sm text-destructive">檢定失敗</span>
                 </>
               )}
             </div>

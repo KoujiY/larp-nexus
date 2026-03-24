@@ -3,6 +3,7 @@ import { CharacterCardView } from '@/components/player/character-card-view';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { XCircle } from 'lucide-react';
 
 interface CharacterPageProps {
   params: Promise<{ characterId: string }>;
@@ -24,10 +25,10 @@ export default async function CharacterPage({
   // 角色不存在
   if (!result.success || !result.data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
-            <div className="text-6xl">❌</div>
+            <XCircle className="h-16 w-16 text-destructive" />
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-bold">找不到角色</h1>
               <p className="text-muted-foreground">
@@ -46,7 +47,7 @@ export default async function CharacterPage({
   const character = result.data;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+    <div className="min-h-screen bg-background">
       <CharacterCardView character={character} isReadOnly={isReadOnly} />
     </div>
   );

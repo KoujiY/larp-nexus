@@ -134,7 +134,7 @@ export function CreateGameButton() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">
-                劇本名稱 <span className="text-red-500">*</span>
+                劇本名稱 <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"
@@ -152,7 +152,7 @@ export function CreateGameButton() {
             {/* Phase 10: Game Code 欄位 */}
             <div className="space-y-2">
               <Label htmlFor="gameCode">
-                遊戲代碼 <span className="text-red-500">*</span>
+                遊戲代碼 <span className="text-destructive">*</span>
               </Label>
               <div className="relative">
                 <Input
@@ -174,13 +174,13 @@ export function CreateGameButton() {
                     <span className="text-gray-400 text-sm">⏳</span>
                   )}
                   {gameCodeCheckStatus === 'available' && (
-                    <span className="text-green-600 text-sm">✓</span>
+                    <span className="text-success text-sm">✓</span>
                   )}
                   {gameCodeCheckStatus === 'unavailable' && (
-                    <span className="text-red-600 text-sm">✗</span>
+                    <span className="text-destructive text-sm">✗</span>
                   )}
                   {gameCodeCheckStatus === 'invalid' && (
-                    <span className="text-orange-600 text-sm">⚠</span>
+                    <span className="text-warning text-sm">⚠</span>
                   )}
                 </div>
               </div>
@@ -189,13 +189,13 @@ export function CreateGameButton() {
                 <p className="text-xs text-gray-500">檢查中...</p>
               )}
               {gameCodeCheckStatus === 'available' && (
-                <p className="text-xs text-green-600">此代碼可以使用</p>
+                <p className="text-xs text-success">此代碼可以使用</p>
               )}
               {gameCodeCheckStatus === 'unavailable' && (
-                <p className="text-xs text-red-600">此代碼已被使用，請使用其他代碼</p>
+                <p className="text-xs text-destructive">此代碼已被使用，請使用其他代碼</p>
               )}
               {gameCodeCheckStatus === 'invalid' && (
-                <p className="text-xs text-orange-600">
+                <p className="text-xs text-warning">
                   代碼格式錯誤（需要 6 位英數字）
                 </p>
               )}
@@ -228,7 +228,7 @@ export function CreateGameButton() {
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
+              <div className="p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
                 {error}
               </div>
             )}

@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { PlayCircle, StopCircle } from 'lucide-react';
+import { PlayCircle, StopCircle, AlertTriangle } from 'lucide-react';
 
 interface GameLifecycleControlsProps {
   gameId: string;
@@ -103,7 +103,7 @@ export function GameLifecycleControls({
             variant="default"
             size="sm"
             onClick={() => setShowStartDialog(true)}
-            className="bg-green-600 hover:bg-green-700"
+            className="bg-success text-success-foreground hover:bg-success/90"
           >
             <PlayCircle className="h-4 w-4 mr-2" />
             開始遊戲
@@ -120,8 +120,8 @@ export function GameLifecycleControls({
               </DialogHeader>
 
               <div className="py-4 space-y-4">
-                <div className="p-4 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-200">
-                  <p className="font-semibold mb-2">⚠️ 注意事項</p>
+                <div className="p-4 rounded-lg bg-warning/10 text-foreground text-sm border border-warning/30">
+                  <p className="font-semibold mb-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 text-warning" />注意事項</p>
                   <ul className="list-disc list-inside space-y-1 text-xs">
                     <li>遊戲開始後，玩家可以開始進行遊戲操作</li>
                     <li>對設定資料的修改不會影響進行中的遊戲</li>
@@ -143,7 +143,7 @@ export function GameLifecycleControls({
                   type="button"
                   onClick={handleStartGame}
                   disabled={isLoading}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-success text-success-foreground hover:bg-success/90"
                 >
                   {isLoading ? '開始中...' : '確認開始'}
                 </Button>
@@ -193,8 +193,8 @@ export function GameLifecycleControls({
                 </div>
 
                 {/* 警告訊息 */}
-                <div className="p-4 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
-                  <p className="font-semibold mb-2">⚠️ 注意事項</p>
+                <div className="p-4 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
+                  <p className="font-semibold mb-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 text-destructive" />注意事項</p>
                   <ul className="list-disc list-inside space-y-1 text-xs">
                     <li>遊戲結束後，玩家將無法繼續遊戲操作</li>
                     <li>當前遊戲狀態將被保存為快照</li>

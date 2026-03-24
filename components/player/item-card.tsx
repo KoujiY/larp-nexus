@@ -81,7 +81,7 @@ export function ItemCard({
         {/* 有效果標籤 */}
         {hasItemEffects(item) && !isOnCooldown && (
           <div className="absolute top-2 left-2">
-            <Sparkles className="h-4 w-4 text-yellow-400 drop-shadow-lg" />
+            <Sparkles className="h-4 w-4 text-primary drop-shadow-lg" />
           </div>
         )}
 

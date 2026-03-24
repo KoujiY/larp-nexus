@@ -218,7 +218,7 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="flex items-center gap-2">
-                      <Zap className="h-5 w-5 text-yellow-500" />
+                      <Zap className="h-5 w-5 text-primary" />
                       {skill.name || '未命名技能'}
                     </CardTitle>
                     <CardDescription className="mt-1">{skill.description || '尚無描述'}</CardDescription>

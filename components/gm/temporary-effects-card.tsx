@@ -271,8 +271,8 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
                 <span
                   className={`font-medium ${
                     (effect.deltaValue || 0) > 0 || (effect.deltaMax || 0) > 0
-                      ? 'text-green-600'
-                      : 'text-red-600'
+                      ? 'text-success'
+                      : 'text-destructive'
                   }`}
                 >
                   {getChangeText(effect)}
@@ -295,9 +295,9 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
         ))}
 
         {/* 使用說明 */}
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-800">
+        <div className="mt-4 p-3 bg-info/10 rounded-lg text-xs text-foreground">
           <h5 className="font-medium mb-1">💡 說明</h5>
-          <ul className="list-disc list-inside space-y-0.5 text-blue-700">
+          <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
             <li>時效性效果會在倒數結束後自動恢復數值</li>
             <li>剩餘時間少於 1 分鐘時會以紅色標示</li>
             <li>效果過期後會自動從列表中移除</li>

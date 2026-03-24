@@ -8,6 +8,7 @@ import { UploadCharacterImageButton } from './upload-character-image-button';
 import { GenerateQRCodeButton } from './generate-qrcode-button';
 import { ViewPinButton } from './view-pin-button';
 import Link from 'next/link';
+import { User } from 'lucide-react';
 import Image from 'next/image';
 
 interface CharacterCardProps {
@@ -31,8 +32,8 @@ export function CharacterCard({ character, gameId }: CharacterCardProps) {
             />
           </div>
         ) : (
-          <div className="h-48 w-full bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center group-hover:from-purple-200 group-hover:to-purple-300 transition-colors">
-            <span className="text-6xl group-hover:scale-110 transition-transform">👤</span>
+          <div className="h-48 w-full bg-muted flex items-center justify-center transition-colors group-hover:bg-muted/70">
+            <User className="h-16 w-16 text-muted-foreground group-hover:scale-110 transition-transform" />
           </div>
         )}
 

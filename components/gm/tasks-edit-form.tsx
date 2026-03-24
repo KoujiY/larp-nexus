@@ -367,9 +367,9 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
         </Dialog>
 
         {/* 使用說明 */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
+        <div className="mt-6 p-4 bg-info/10 rounded-lg text-sm text-foreground">
           <h4 className="font-medium mb-2">💡 使用說明</h4>
-          <ul className="list-disc list-inside space-y-1 text-blue-700">
+          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             <li><strong>一般任務</strong>：玩家可直接看到</li>
             <li><strong>隱藏目標</strong>：需 GM 手動揭露或滿足自動揭露條件後玩家才能看到</li>
             <li>點擊編輯按鈕可設定揭露狀態與自動揭露條件</li>
@@ -400,7 +400,7 @@ function TaskCard({ task, onEdit, onRemove, availableItems, secrets }: TaskCardP
           {task.isHidden && (
             <Badge
               variant={task.isRevealed ? 'default' : 'secondary'}
-              className={`text-xs shrink-0 ${task.isRevealed ? 'bg-green-600' : ''}`}
+              className={`text-xs shrink-0 ${task.isRevealed ? 'bg-success text-success-foreground' : ''}`}
             >
               {task.isRevealed ? '已揭露' : '未揭露'}
             </Badge>

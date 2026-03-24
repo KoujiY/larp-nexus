@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Shield, Zap, Package } from 'lucide-react';
+import { Shield, Zap, Package, AlertTriangle } from 'lucide-react';
 import type { SkillContestEvent } from '@/types/event';
 import { respondToContest } from '@/app/actions/contest-respond';
 import { toast } from 'sonner';
@@ -258,7 +258,7 @@ export function ContestResponseDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-orange-500" />
+            <Shield className="h-5 w-5 text-warning" />
             對抗檢定：{attackerDisplayName}對你使用了技能或道具
           </DialogTitle>
           <DialogDescription>
@@ -430,14 +430,14 @@ export function ContestResponseDialog({
 
           {/* 多選提示訊息 */}
           {(selectedItems.length > 1 || selectedSkills.length > 1) && (
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg">
               <div className="flex items-start gap-2">
-                <span className="text-yellow-600 dark:text-yellow-400 text-lg">⚠️</span>
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
+                  <p className="text-sm font-semibold text-foreground">
                     注意：如果獲勝，只有第一個選擇的技能/道具效果會執行
                   </p>
-                  <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {selectedItems.length > 1 && `已選擇 ${selectedItems.length} 個道具，`}
                     {selectedSkills.length > 1 && `已選擇 ${selectedSkills.length} 個技能，`}
                     只有第一個的效果會生效
@@ -466,8 +466,8 @@ export function ContestResponseDialog({
           
           {/* 如果不允許使用道具或技能，顯示提示 */}
           {maxItems === 0 && maxSkills === 0 && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
+            <div className="p-4 bg-info/10 border border-info/30 rounded-lg text-center">
+              <p className="text-sm text-foreground">
                 此技能/道具不允許防守方使用道具或技能回應，只能使用基礎數值進行對抗
               </p>
             </div>

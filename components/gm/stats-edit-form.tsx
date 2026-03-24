@@ -231,9 +231,9 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange }: Stat
         )}
 
         {/* 使用說明 */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
+        <div className="mt-6 p-4 bg-info/10 rounded-lg text-sm text-foreground">
           <h4 className="font-medium mb-2">💡 使用說明</h4>
-          <ul className="list-disc list-inside space-y-1 text-blue-700">
+          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             <li>數值名稱：自訂欄位名稱，如「血量」、「魔力」、「力量」等</li>
             <li>目前值：角色目前的數值</li>
             <li>最大值：數值上限（選填），用於顯示進度條</li>

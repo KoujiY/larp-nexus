@@ -59,8 +59,8 @@ export function SkillCard({
               />
             </div>
           ) : (
-            <div className="h-16 w-16 shrink-0 rounded-lg bg-linear-to-br from-yellow-400 to-orange-500 flex items-center justify-center border">
-              <Zap className="h-8 w-8 text-white" />
+            <div className="h-16 w-16 shrink-0 rounded-lg bg-primary/15 flex items-center justify-center border border-primary/20">
+              <Zap className="h-8 w-8 text-primary" />
             </div>
           )}
 

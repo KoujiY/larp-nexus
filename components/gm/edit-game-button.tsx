@@ -94,7 +94,7 @@ export function EditGameButton({ game }: EditGameButtonProps) {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">
-                劇本名稱 <span className="text-red-500">*</span>
+                劇本名稱 <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"
@@ -350,7 +350,7 @@ export function EditGameButton({ game }: EditGameButtonProps) {
             </Accordion>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
+              <div className="p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
                 {error}
               </div>
             )}

@@ -106,7 +106,7 @@ export function GenerateQRCodeButton({ characterId }: GenerateQRCodeButtonProps)
               </div>
             </>
           ) : error ? (
-            <div className="p-4 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
+            <div className="p-4 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
               {error}
             </div>
           ) : null}

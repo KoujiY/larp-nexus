@@ -121,7 +121,7 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
         ) : (
           <div className="space-y-4 py-4">
             {!currentPin ? (
-              <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
+              <div className="p-4 rounded-lg bg-warning/10 border border-warning/30 text-foreground text-sm">
                 ⚠️ 此角色尚未設定 PIN 碼
               </div>
             ) : (
@@ -166,7 +166,7 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
                 </div>
 
                 {!isEditing && (
-                  <div className="p-3 rounded-lg bg-blue-50 text-blue-800 text-sm border border-blue-200">
+                  <div className="p-3 rounded-lg bg-info/10 text-foreground text-sm border border-info/30">
                     💡 <strong>提示</strong>
                     <p className="mt-1">
                       您可以將此 PIN 碼複製並傳送給玩家，玩家需要此碼才能查看角色卡。

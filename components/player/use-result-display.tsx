@@ -24,15 +24,15 @@ export function UseResultDisplay({ result }: UseResultDisplayProps) {
 
   return (
     <div className={`p-4 rounded-lg border-2 ${
-      result.success 
-        ? 'bg-green-50 border-green-200 text-green-800' 
-        : 'bg-red-50 border-red-200 text-red-800'
+      result.success
+        ? 'bg-success/10 border-success/30'
+        : 'bg-destructive/10 border-destructive/20'
     }`}>
       <div className="flex items-center gap-2">
         {result.success ? (
-          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+          <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
         ) : (
-          <XCircle className="h-5 w-5 text-red-600 shrink-0" />
+          <XCircle className="h-5 w-5 text-destructive shrink-0" />
         )}
         <p className="font-medium">{result.message}</p>
       </div>

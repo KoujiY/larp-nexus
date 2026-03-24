@@ -199,7 +199,7 @@ export function TargetItemSelectionDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-blue-600" />
+            <CheckCircle2 className="h-5 w-5 text-success" />
             對抗檢定成功！請選擇目標道具
           </DialogTitle>
           <DialogDescription>

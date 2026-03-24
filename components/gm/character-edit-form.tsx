@@ -18,9 +18,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Check, X, AlertTriangle, Eye, EyeOff, Plus, Lock, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { X, Plus, Lock, Pencil, Trash2 } from 'lucide-react';
 import type { CharacterData, Secret, AutoRevealCondition } from '@/types/character';
 
 interface CharacterEditFormProps {
@@ -240,7 +240,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">
-              角色名稱 <span className="text-red-500">*</span>
+              角色名稱 <span className="text-destructive">*</span>
             </Label>
             <Input
               id="name"
@@ -295,7 +295,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
           </div>
 
           {formData.hasPinLock && (
-            <div className="space-y-2 p-4 rounded-lg border bg-blue-50/50">
+            <div className="space-y-2 p-4 rounded-lg border bg-info/5">
               <Label htmlFor="pin">
                 {character.hasPinLock ? '新 PIN 碼（留空保持不變）' : 'PIN 碼 *'}
               </Label>
@@ -320,16 +320,16 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                 {/* Phase 10.9.3: PIN 檢查狀態指示器 */}
                 <div className="absolute right-12 top-1/2 -translate-y-1/2">
                   {pinCheckStatus === 'checking' && (
-                    <span className="text-gray-400 text-sm">⏳</span>
+                    <span className="text-muted-foreground text-sm animate-pulse">…</span>
                   )}
                   {pinCheckStatus === 'available' && (
-                    <span className="text-green-600 text-sm">✓</span>
+                    <Check className="h-4 w-4 text-success" />
                   )}
                   {pinCheckStatus === 'unavailable' && (
-                    <span className="text-red-600 text-sm">✗</span>
+                    <X className="h-4 w-4 text-destructive" />
                   )}
                   {pinCheckStatus === 'invalid' && (
-                    <span className="text-orange-600 text-sm">⚠</span>
+                    <AlertTriangle className="h-4 w-4 text-warning" />
                   )}
                 </div>
                 <button
@@ -338,23 +338,23 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   tabIndex={-1}
                 >
-                  {showPin ? '🙈' : '👁️'}
+                  {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {/* Phase 10.9.3: PIN 檢查狀態提示 */}
               {pinCheckStatus === 'checking' && (
-                <p className="text-xs text-gray-500">檢查中...</p>
+                <p className="text-xs text-muted-foreground">檢查中...</p>
               )}
               {pinCheckStatus === 'available' && (
-                <p className="text-xs text-green-600">此 PIN 可以使用</p>
+                <p className="text-xs text-success">此 PIN 可以使用</p>
               )}
               {pinCheckStatus === 'unavailable' && (
-                <p className="text-xs text-red-600">
+                <p className="text-xs text-destructive">
                   此 PIN 在本遊戲中已被使用，請使用其他 PIN
                 </p>
               )}
               {pinCheckStatus === 'invalid' && (
-                <p className="text-xs text-orange-600">
+                <p className="text-xs text-warning">
                   PIN 格式錯誤（需要 4-6 位數字）
                 </p>
               )}
@@ -554,7 +554,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
                   </span>
                   <Badge
                     variant={secret.isRevealed ? 'default' : 'secondary'}
-                    className={`text-xs shrink-0 ${secret.isRevealed ? 'bg-green-600' : ''}`}
+                    className={`text-xs shrink-0 ${secret.isRevealed ? 'bg-success text-success-foreground' : ''}`}
                   >
                     {secret.isRevealed ? '已揭露' : '未揭露'}
                   </Badge>

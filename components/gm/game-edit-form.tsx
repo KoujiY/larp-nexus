@@ -103,7 +103,7 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">
-              劇本名稱 <span className="text-red-500">*</span>
+              劇本名稱 <span className="text-destructive">*</span>
             </Label>
             <Input
               id="name"

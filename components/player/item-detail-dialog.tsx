@@ -266,17 +266,17 @@ export function ItemDetailDialog({
 
                   {/* 使用效果 */}
                   {hasItemEffects(selectedItem) && (
-                    <div className="p-3 bg-purple-50 rounded-lg space-y-3">
-                      <div className="text-sm font-medium text-purple-800 mb-1 flex items-center gap-1">
-                        <Sparkles className="h-4 w-4" />
+                    <div className="p-3 bg-primary/5 rounded-lg space-y-3">
+                      <div className="text-sm font-medium text-foreground mb-1 flex items-center gap-1">
+                        <Sparkles className="h-4 w-4 text-primary" />
                         使用效果
                       </div>
                       <div className="space-y-3">
                         {getItemEffects(selectedItem).map((effect, index) => (
-                          <div key={index} className="text-purple-700">
+                          <div key={index}>
                             {selectedItem.effects &&
                               selectedItem.effects.length > 1 && (
-                                <div className="text-xs font-medium mb-1 text-purple-600">
+                                <div className="text-xs font-medium mb-1 text-muted-foreground">
                                   效果 {index + 1}
                                 </div>
                               )}
@@ -289,7 +289,7 @@ export function ItemDetailDialog({
                                 setSelectedTargetItemId('');
                                 setSelectedUseTargetId(targetId);
                               }}
-                              className="bg-transparent p-0 text-purple-700"
+                              className="bg-transparent p-0"
                               disabled={
                                 isTargetConfirmed || isContestInProgress
                               }
@@ -334,13 +334,13 @@ export function ItemDetailDialog({
                   {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 */}
                   {postUseSelection.selectionState?.sourceId ===
                     selectedItem?.id && (
-                    <div className="p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                    <div className="p-4 bg-success/10 rounded-lg border-2 border-success/30">
                       <div className="space-y-3">
-                        <p className="font-medium text-green-800">
+                        <p className="font-medium text-foreground">
                           使用成功！請選擇目標道具
                         </p>
                         {postUseSelection.isLoadingTargetItems ? (
-                          <p className="text-sm text-green-700">
+                          <p className="text-sm text-muted-foreground">
                             載入目標道具清單中...
                           </p>
                         ) : postUseSelection.targetItems.length > 0 ? (
@@ -381,7 +381,7 @@ export function ItemDetailDialog({
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <p className="text-sm text-green-700">
+                            <p className="text-sm text-muted-foreground">
                               目標角色沒有道具
                             </p>
                             <Button

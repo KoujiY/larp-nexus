@@ -222,7 +222,7 @@ function TaskCard({ task, isHidden, isRead, onClick }: TaskCardProps) {
         isHidden
           ? isRead
             ? 'opacity-75'
-            : 'border-amber-400 bg-amber-100/50'
+            : 'border-warning/50 bg-warning/10'
           : 'hover:bg-muted/50'
       }`}
       onClick={onClick}

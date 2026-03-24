@@ -21,16 +21,16 @@ export default async function WorldInfoPage({ params }: WorldInfoPageProps) {
   const game = result.data;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+    <div className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
         <GameWebSocketSubscriber gameId={gameId} />
         {/* 頁首 */}
         <div className="mb-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
             {game.name}
           </h1>
           {game.description && (
-            <p className="text-purple-200">{game.description}</p>
+            <p className="text-muted-foreground">{game.description}</p>
           )}
         </div>
 
@@ -97,7 +97,7 @@ export default async function WorldInfoPage({ params }: WorldInfoPageProps) {
           <Card>
             <CardContent className="py-12 text-center">
               <div className="space-y-4">
-                <div className="text-6xl">🌍</div>
+                <Globe className="mx-auto h-12 w-12 text-muted-foreground" />
                 <div>
                   <h3 className="text-xl font-semibold">尚未設定世界觀資訊</h3>
                   <p className="text-muted-foreground mt-2">

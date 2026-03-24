@@ -28,6 +28,7 @@ import { useGameEventHandler } from '@/hooks/use-game-event-handler';
 import { CharacterModeBanner } from './character-mode-banner';
 import { NotificationButton } from './notification-button';
 import { GameEndedDialog } from './game-ended-dialog';
+import { Drama, FileText, BarChart3, CheckSquare, Package, Zap, Hash, CalendarDays } from 'lucide-react';
 
 interface CharacterCardViewProps {
   character: CharacterData;
@@ -223,17 +224,18 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
 
       {/* Header */}
       <div className="mb-8 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
-          🎭 LARP Nexus
+        <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2 flex items-center justify-center gap-3">
+          <Drama className="h-10 w-10 text-primary" />
+          LARP Nexus
         </h1>
-        <p className="text-purple-200 text-sm">角色卡系統</p>
+        <p className="text-muted-foreground text-sm">角色卡系統</p>
       </div>
 
       {/* 主要角色卡 */}
       <Card className="mb-6 overflow-hidden">
         {/* 角色圖片 */}
         {character.imageUrl && (
-          <div className="relative h-64 md:h-96 w-full bg-linear-to-br from-purple-200 to-purple-300">
+          <div className="relative h-64 md:h-96 w-full bg-muted">
             <Image
               src={character.imageUrl}
               alt={character.name}
@@ -271,8 +273,8 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
           {/* 角色描述 */}
           {character.description && (
             <div className="space-y-2 mb-6">
-              <h3 className="text-xl font-semibold flex items-center">
-                <span className="mr-2">📝</span>
+              <h3 className="text-xl font-semibold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
                 角色描述
               </h3>
               <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
@@ -288,11 +290,11 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         <CardContent className="p-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="info">📋 資訊</TabsTrigger>
-              <TabsTrigger value="stats">📊 數值</TabsTrigger>
-              <TabsTrigger value="tasks">✅ 任務</TabsTrigger>
-              <TabsTrigger value="items">🎒 道具</TabsTrigger>
-              <TabsTrigger value="skills">⚡ 技能</TabsTrigger>
+              <TabsTrigger value="info" className="flex items-center gap-1"><FileText className="h-4 w-4" /><span className="hidden sm:inline">資訊</span></TabsTrigger>
+              <TabsTrigger value="stats" className="flex items-center gap-1"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">數值</span></TabsTrigger>
+              <TabsTrigger value="tasks" className="flex items-center gap-1"><CheckSquare className="h-4 w-4" /><span className="hidden sm:inline">任務</span></TabsTrigger>
+              <TabsTrigger value="items" className="flex items-center gap-1"><Package className="h-4 w-4" /><span className="hidden sm:inline">道具</span></TabsTrigger>
+              <TabsTrigger value="skills" className="flex items-center gap-1"><Zap className="h-4 w-4" /><span className="hidden sm:inline">技能</span></TabsTrigger>
             </TabsList>
 
             <div className="p-6">
@@ -308,7 +310,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
                 <StatsDisplay stats={displayStats} />
                 {(!displayStats || displayStats.length === 0) && (
                   <div className="text-center py-12 text-muted-foreground">
-                    <div className="text-4xl mb-4">📊</div>
+                    <BarChart3 className="h-10 w-10 mx-auto mb-4 opacity-40" />
                     <p>尚無角色數值</p>
                   </div>
                 )}
@@ -361,11 +363,11 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         <CardContent className="py-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
             <div className="flex items-center">
-              <span className="mr-2">🆔</span>
+              <Hash className="h-4 w-4 mr-2 opacity-60" />
               <span>角色 ID: {character.id.substring(0, 8)}...</span>
             </div>
             <div className="flex items-center">
-              <span className="mr-2">📅</span>
+              <CalendarDays className="h-4 w-4 mr-2 opacity-60" />
               <span>
                 建立於 {new Date(character.createdAt).toLocaleDateString('zh-TW')}
               </span>
@@ -376,8 +378,8 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
 
       {/* 返回提示 */}
       <div className="mt-8 text-center">
-        <p className="text-purple-200 text-sm">
-          🎮 這是您的專屬角色卡，請妥善保管此頁面連結
+        <p className="text-muted-foreground text-sm">
+          這是您的專屬角色卡，請妥善保管此頁面連結
         </p>
       </div>
 

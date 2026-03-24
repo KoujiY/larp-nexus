@@ -312,8 +312,8 @@ export function EffectEditor({
                     : '使用時可選擇任意角色（包含自己）'}
             </p>
           </div>
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800">
+          <div className="p-3 bg-info/10 rounded-lg border border-info/30">
+            <p className="text-sm text-foreground">
               {effect.type === 'item_steal' ? (
                 <>
                   <strong>偷竊道具：</strong>

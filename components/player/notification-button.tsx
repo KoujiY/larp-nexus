@@ -49,7 +49,7 @@ export function NotificationButton({
         <Button variant="outline" size="sm" className="relative">
           通知
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-destructive text-[10px] text-destructive-foreground flex items-center justify-center">
               {unreadCount}
             </span>
           )}

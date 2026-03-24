@@ -160,7 +160,7 @@ export function SecretEditDialog({
             <div className="flex items-center gap-3">
               <span
                 className={`text-sm font-medium ${
-                  editingSecret.isRevealed ? 'text-green-600' : 'text-gray-500'
+                  editingSecret.isRevealed ? 'text-success' : 'text-muted-foreground'
                 }`}
               >
                 {editingSecret.isRevealed ? '✓ 已揭露' : '✗ 未揭露'}

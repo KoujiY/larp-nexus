@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { verifyMagicLink } from '@/app/actions/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 
 function VerifyContent() {
   const router = useRouter();
@@ -49,13 +50,13 @@ function VerifyContent() {
   }, [token, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto mb-4 text-6xl">
-            {status === 'verifying' && '⏳'}
-            {status === 'success' && '✅'}
-            {status === 'error' && '❌'}
+          <div className="mx-auto mb-4">
+            {status === 'verifying' && <Loader2 className="h-16 w-16 text-primary animate-spin" />}
+            {status === 'success' && <CheckCircle2 className="h-16 w-16 text-success" />}
+            {status === 'error' && <XCircle className="h-16 w-16 text-destructive" />}
           </div>
           <CardTitle className="text-2xl font-bold">
             {status === 'verifying' && '驗證中'}
@@ -84,10 +85,12 @@ export default function VerifyPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800">
+        <div className="min-h-screen flex items-center justify-center bg-background">
           <Card className="w-full max-w-md">
             <CardHeader className="space-y-2 text-center">
-              <div className="mx-auto mb-4 text-6xl animate-spin">⏳</div>
+              <div className="mx-auto mb-4">
+                <Loader2 className="h-16 w-16 text-primary animate-spin" />
+              </div>
               <CardTitle className="text-2xl font-bold">載入中...</CardTitle>
             </CardHeader>
           </Card>
@@ -98,4 +101,3 @@ export default function VerifyPage() {
     </Suspense>
   );
 }
-

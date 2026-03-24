@@ -115,13 +115,13 @@ export default function UnlockPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* 主卡片 */}
         <Card>
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <Lock className="w-6 h-6 text-purple-600" />
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Lock className="w-6 h-6 text-primary" />
             </div>
             <CardTitle className="text-2xl">角色解鎖</CardTitle>
             <CardDescription>
@@ -180,7 +180,7 @@ export default function UnlockPage() {
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-muted-foreground">或</span>
+                <span className="bg-background px-2 text-muted-foreground">或</span>
               </div>
             </div>
 

@@ -42,10 +42,10 @@ function StatCard({ stat }: StatCardProps) {
 
   // 根據百分比決定顏色
   const getProgressColor = (percent: number) => {
-    if (percent <= 25) return 'bg-red-500';
-    if (percent <= 50) return 'bg-yellow-500';
-    if (percent <= 75) return 'bg-blue-500';
-    return 'bg-green-500';
+    if (percent <= 25) return 'bg-destructive';
+    if (percent <= 50) return 'bg-warning';
+    if (percent <= 75) return 'bg-info';
+    return 'bg-success';
   };
 
   return (

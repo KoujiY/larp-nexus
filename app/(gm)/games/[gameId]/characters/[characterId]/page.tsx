@@ -14,6 +14,7 @@ import { CharacterWebSocketListener } from '@/components/gm/character-websocket-
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
+import { LockKeyhole, User } from 'lucide-react';
 
 interface CharacterEditPageProps {
   params: Promise<{
@@ -65,11 +66,13 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
             <div className="flex items-center space-x-3">
               <h1 className="text-3xl font-bold truncate">{character.name}</h1>
               {character.hasPinLock && (
-                <Badge variant="secondary" className="shrink-0">🔒 PIN 保護</Badge>
+                <Badge variant="secondary" className="shrink-0 flex items-center gap-1">
+                  <LockKeyhole className="h-3 w-3" />PIN 保護
+                </Badge>
               )}
               {/* Phase 10: Runtime 狀態標籤 */}
               {game.isActive && (
-                <Badge variant="default" className="shrink-0 bg-green-600">
+                <Badge variant="default" className="shrink-0 bg-env-runtime text-env-runtime-fg">
                   Runtime
                 </Badge>
               )}
@@ -94,8 +97,8 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
 
       {/* Phase 10: Runtime 模式提示 Banner */}
       {game.isActive && (
-        <Alert className="border-green-300 bg-green-50">
-          <AlertDescription className="text-green-800">
+        <Alert className="border-env-runtime/40 bg-env-runtime-bg">
+          <AlertDescription className="text-env-runtime-fg">
             遊戲進行中 — 您正在編輯 <strong>Runtime</strong> 資料。所有修改僅影響本次遊戲，不會變更原始角色設定（Baseline）。
           </AlertDescription>
         </Alert>
@@ -104,7 +107,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
       <div className="space-y-6">
 
         {/* Character Preview Card */}
-        <Card className="bg-linear-to-br from-purple-50 to-blue-50">
+        <Card className="bg-muted/50">
           <CardContent className="p-6">
             <div className="flex items-start space-x-6">
               {/* Character Image */}
@@ -119,8 +122,8 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
                     />
                   </div>
                 ) : (
-                  <div className="h-32 w-32 rounded-lg bg-linear-to-br from-purple-200 to-blue-200 flex items-center justify-center border-2 border-white shadow-lg">
-                    <span className="text-5xl">👤</span>
+                  <div className="h-32 w-32 rounded-lg bg-muted flex items-center justify-center border-2 border-border shadow-lg">
+                    <User className="h-14 w-14 text-muted-foreground" />
                   </div>
                 )}
               </div>

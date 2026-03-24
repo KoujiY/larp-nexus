@@ -14,6 +14,7 @@ import { GenerateGamePublicQRCodeButton } from '@/components/gm/generate-game-pu
 import { GameBroadcastPanel } from '@/components/gm/game-broadcast-panel';
 import { GameCodeSection } from '@/components/gm/game-code-section'; // Phase 10
 import { GameLifecycleControls } from '@/components/gm/game-lifecycle-controls'; // Phase 10.3.4
+import { Users } from 'lucide-react';
 
 interface GamePageProps {
   params: Promise<{ gameId: string }>;
@@ -29,7 +30,7 @@ export default async function GamePage({ params }: GamePageProps) {
     }
     return (
       <div className="p-8">
-        <div className="text-center text-red-600">
+        <div className="text-center text-destructive">
           {result.message || '找不到此劇本'}
         </div>
         <div className="mt-4 text-center">
@@ -64,9 +65,9 @@ export default async function GamePage({ params }: GamePageProps) {
               {/* Phase 10.3.4: 改進狀態顯示 */}
               <Badge
                 variant={game.isActive ? 'default' : 'secondary'}
-                className={`shrink-0 ${game.isActive ? 'bg-green-600' : ''}`}
+                className={`shrink-0 ${game.isActive ? 'bg-env-runtime text-env-runtime-fg' : ''}`}
               >
-                {game.isActive ? '🟢 進行中' : '⚪ 待機中'}
+                {game.isActive ? '進行中' : '待機中'}
               </Badge>
             </div>
             {game.description && (
@@ -116,7 +117,7 @@ export default async function GamePage({ params }: GamePageProps) {
             {characters.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
-                  <div className="text-6xl">👥</div>
+                  <Users className="h-16 w-16 text-muted-foreground" />
                   <div className="text-center space-y-2">
                     <h3 className="text-xl font-semibold">尚無角色</h3>
                     <p className="text-muted-foreground">

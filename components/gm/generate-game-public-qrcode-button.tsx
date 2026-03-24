@@ -124,7 +124,7 @@ export function GenerateGamePublicQRCodeButton({ gameId }: GenerateGamePublicQRC
                     title="複製連結"
                   >
                     {isLinkCopied ? (
-                      <Check className="h-4 w-4 text-green-600" />
+                      <Check className="h-4 w-4 text-success" />
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
@@ -133,7 +133,7 @@ export function GenerateGamePublicQRCodeButton({ gameId }: GenerateGamePublicQRC
               </div>
             </>
           ) : error ? (
-            <div className="p-4 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200">
+            <div className="p-4 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
               {error}
             </div>
           ) : null}

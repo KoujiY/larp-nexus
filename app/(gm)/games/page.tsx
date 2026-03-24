@@ -23,7 +23,7 @@ export default async function GamesPage() {
         }
         maxWidth="lg"
       >
-        <div className="text-center text-red-600">
+        <div className="text-center text-destructive">
           {result.message || '無法載入劇本'}
         </div>
       </PageLayout>

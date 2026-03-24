@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LockKeyhole, LockKeyholeOpen, Eye } from 'lucide-react';
 
 interface PinUnlockProps {
   characterId: string;
@@ -128,7 +129,9 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto mb-4 text-6xl">🔒</div>
+          <div className="mx-auto mb-4">
+            <LockKeyhole className="h-16 w-16 text-primary mx-auto" />
+          </div>
           <CardTitle className="text-2xl">角色卡已鎖定</CardTitle>
           <CardDescription className="text-base">
             請輸入遊戲代碼和 PIN 碼查看 <strong>{characterName}</strong> 的角色卡
@@ -172,7 +175,7 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
 
             {/* 錯誤提示 */}
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 text-red-800 text-sm border border-red-200 text-center">
+              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20 text-center">
                 {error}
               </div>
             )}
@@ -184,7 +187,8 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
               disabled={isLoading || pin.length < 4 || !gameCode}
               size="lg"
             >
-              {isLoading ? '驗證中...' : '🔓 解鎖角色卡'}
+              <LockKeyholeOpen className="h-4 w-4 mr-2" />
+              {isLoading ? '驗證中...' : '解鎖角色卡'}
             </Button>
 
             {/* 分隔線 */}
@@ -193,7 +197,7 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-muted-foreground">或</span>
+                <span className="bg-background px-2 text-muted-foreground">或</span>
               </div>
             </div>
 
@@ -205,11 +209,12 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
               disabled={isLoading || pin.length < 4 || gameCode.trim().length > 0}
               onClick={handlePreviewUnlock}
             >
-              👁 僅使用 PIN 預覽（唯讀）
+              <Eye className="h-4 w-4 mr-2" />
+              僅使用 PIN 預覽（唯讀）
             </Button>
 
             <div className="text-xs text-muted-foreground text-center space-y-1 pt-2">
-              <p>💡 提示：遊戲代碼和 PIN 碼由 GM 提供</p>
+              <p>提示：遊戲代碼和 PIN 碼由 GM 提供</p>
               <p>沒有遊戲代碼？僅輸入 PIN 可以預覽角色，但無法使用互動功能</p>
             </div>
           </form>

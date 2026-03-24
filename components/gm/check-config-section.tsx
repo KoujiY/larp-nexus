@@ -124,7 +124,7 @@ export function CheckConfigSection({
       {checkType === 'random_contest' && (
         <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
           <Label className="text-sm font-medium">隨機對抗檢定設定</Label>
-          <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded text-sm text-blue-800 dark:text-blue-200 mb-3">
+          <div className="p-2 bg-info/10 rounded text-sm text-foreground mb-3">
             <strong>提示：</strong>隨機對抗檢定使用劇本預設的上限值 <strong>{randomContestMaxValue}</strong>。
             攻擊方和防守方都骰 1 到 {randomContestMaxValue} 的隨機數，比拚大小決定勝負。
             防守方只能選擇「隨機對抗檢定」類型的技能/道具來回應。

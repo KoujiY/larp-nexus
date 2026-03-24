@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FileText, BarChart3, CheckSquare, Package, Zap } from 'lucide-react';
 import { CharacterEditForm } from '@/components/gm/character-edit-form';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
 import { TemporaryEffectsCard } from '@/components/gm/temporary-effects-card';
@@ -50,11 +51,11 @@ export function CharacterEditTabs({ character, gameId, randomContestMaxValue }: 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} activationMode="manual" className="space-y-6">
       <TabsList className="w-auto">
-        <TabsTrigger value="basic">📝 基本資訊</TabsTrigger>
-        <TabsTrigger value="stats">📊 角色數值</TabsTrigger>
-        <TabsTrigger value="tasks">✅ 任務管理</TabsTrigger>
-        <TabsTrigger value="items">🎒 道具管理</TabsTrigger>
-        <TabsTrigger value="skills">⚡ 技能管理</TabsTrigger>
+        <TabsTrigger value="basic" className="flex items-center gap-1.5"><FileText className="h-4 w-4" />基本資訊</TabsTrigger>
+        <TabsTrigger value="stats" className="flex items-center gap-1.5"><BarChart3 className="h-4 w-4" />角色數值</TabsTrigger>
+        <TabsTrigger value="tasks" className="flex items-center gap-1.5"><CheckSquare className="h-4 w-4" />任務管理</TabsTrigger>
+        <TabsTrigger value="items" className="flex items-center gap-1.5"><Package className="h-4 w-4" />道具管理</TabsTrigger>
+        <TabsTrigger value="skills" className="flex items-center gap-1.5"><Zap className="h-4 w-4" />技能管理</TabsTrigger>
       </TabsList>
 
       <TabsContent value="basic" className="space-y-6">
