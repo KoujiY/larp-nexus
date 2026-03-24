@@ -143,13 +143,22 @@ export function useCharacterWebSocketHandler(
           router.refresh();
           break;
 
-        case 'item.transferred':
+        case 'item.transferred': {
           // 道具轉移：顯示通知與 toast（優先顯示轉移訊息，而不是 inventoryUpdated）
           if (friendlyList.length > 0) {
             toast.success(friendlyList[friendlyList.length - 1].message);
           }
+          // H-4: 負責清理 recentTransferredItemsRef 的過期記錄（映射器只負責寫入）
+          const transferPayload = event.payload as { itemId?: string };
+          if (transferPayload.itemId) {
+            const itemId = transferPayload.itemId;
+            setTimeout(() => {
+              recentTransferredItemsRef.current.delete(itemId);
+            }, 2000);
+          }
           router.refresh();
           break;
+        }
 
         case 'role.message': {
           const { title, message } = event.payload as { title?: string; message?: string };

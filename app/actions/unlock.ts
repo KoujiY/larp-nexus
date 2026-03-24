@@ -2,6 +2,7 @@
 
 import { getCharacterByGameCodeAndPin } from '@/lib/game/get-character-by-game-code-pin';
 import { getCharactersByPinOnly } from '@/lib/game/get-characters-by-pin';
+import { getSession } from '@/lib/auth/session';
 import Game from '@/lib/db/models/Game';
 import type { ApiResponse } from '@/types/api';
 
@@ -44,11 +45,21 @@ export async function unlockByGameCodeAndPin(
     const game = await Game.findById(character.gameId).select('name').lean();
     const gameName = game?.name || '未知遊戲';
 
+    const characterId = character._id.toString();
+
+    // 解鎖成功後，將 characterId 記錄至 session（用於 Server Action 授權驗證）
+    const session = await getSession();
+    const existing = session.unlockedCharacterIds ?? [];
+    if (!existing.includes(characterId)) {
+      session.unlockedCharacterIds = [...existing, characterId];
+      await session.save();
+    }
+
     // 成功返回角色資訊
     return {
       success: true,
       data: {
-        characterId: character._id.toString(),
+        characterId,
         characterName: character.name,
         gameId: character.gameId.toString(),
         gameName,

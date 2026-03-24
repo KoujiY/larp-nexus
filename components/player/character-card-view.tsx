@@ -20,8 +20,6 @@ import { checkExpiredEffects } from '@/app/actions/temporary-effects';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import { useCharacterWebSocket, useGameWebSocket } from '@/hooks/use-websocket';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ContestResponseDialog } from './contest-response-dialog';
 import { TargetItemSelectionDialog } from './target-item-selection-dialog';
 import { ItemShowcaseDialog } from './item-showcase-dialog';
@@ -32,6 +30,9 @@ import { useNotificationSystem } from '@/hooks/use-notification-system';
 import { useCharacterWebSocketHandler } from '@/hooks/use-character-websocket-handler';
 import { useContestDialogState } from '@/hooks/use-contest-dialog-state';
 import { usePendingEvents } from '@/hooks/use-pending-events'; // Phase 9: 離線事件處理
+import { CharacterModeBanner } from './character-mode-banner';
+import { NotificationButton } from './notification-button';
+import { GameEndedDialog } from './game-ended-dialog';
 
 interface CharacterCardViewProps {
   character: CharacterData;
@@ -467,51 +468,13 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   return (
     <div className="container max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
       {/* Phase 11.5: 模式提示 Banner（預覽模式 / Runtime 模式） */}
-      {isReadOnly ? (
-        <div className="mb-6 p-4 rounded-lg border border-amber-500 bg-amber-50 text-amber-900">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-medium mb-1">👁 預覽模式{character.baselineData ? '（Baseline）' : ''}</p>
-              <p className="text-sm text-amber-800">
-                {character.baselineData
-                  ? '您正在查看角色的原始設定（Baseline）。遊戲進行中的修改不會顯示在此預覽中。'
-                  : '您正在以預覽模式查看此角色。所有互動功能（使用道具、技能、對抗檢定）均已禁用。'}
-              </p>
-            </div>
-            {character.hasPinLock && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 border-amber-500 text-amber-900 hover:bg-amber-100"
-                onClick={handleRelock}
-              >
-                🔑 重新解鎖
-              </Button>
-            )}
-          </div>
-        </div>
-      ) : character.hasPinLock && (
-        <div className="mb-6 p-4 rounded-lg border border-emerald-500 bg-emerald-50 text-emerald-900">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-medium mb-1">🎮 遊戲進行中</p>
-              <p className="text-sm text-emerald-800">
-                {character.gameCode
-                  ? <>遊戲代碼：<span className="font-mono font-bold tracking-widest">{character.gameCode}</span></>
-                  : '所有互動功能已啟用。'}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 border-emerald-500 text-emerald-900 hover:bg-emerald-100"
-              onClick={handleRelock}
-            >
-              🔑 重新解鎖
-            </Button>
-          </div>
-        </div>
-      )}
+      <CharacterModeBanner
+        isReadOnly={isReadOnly}
+        hasPinLock={character.hasPinLock}
+        hasBaselineData={!!character.baselineData}
+        gameCode={character.gameCode}
+        onRelock={handleRelock}
+      />
 
       {/* Header */}
       <div className="mb-8 text-center">
@@ -549,40 +512,13 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
               )}
             </div>
             {/* 通知紀錄入口 */}
-            <Dialog open={isNotifOpen} onOpenChange={(open) => {
-              setIsNotifOpen(open);
-              if (open) markAsRead();
-            }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="relative">
-                  通知
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
-                      {unreadCount}
-                    </span>
-                  )}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>通知紀錄</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {notifications.length === 0 && (
-                    <p className="text-sm text-muted-foreground">目前沒有通知</p>
-                  )}
-                  {notifications.slice().reverse().map((n, idx) => (
-                    <div key={`${n.id}-${idx}`} className="p-3 rounded-lg border bg-muted/40">
-                      <div className="text-sm font-semibold">{n.title}</div>
-                      <div className="text-sm text-muted-foreground">{n.message}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {new Date(n.timestamp).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </DialogContent>
-            </Dialog>
+            <NotificationButton
+              isOpen={isNotifOpen}
+              onOpenChange={setIsNotifOpen}
+              unreadCount={unreadCount}
+              notifications={notifications}
+              onMarkAsRead={markAsRead}
+            />
           </div>
         </CardHeader>
 
@@ -740,27 +676,13 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
       )}
 
       {/* Phase 10: 遊戲結束 Dialog */}
-      <Dialog open={gameEndedDialogOpen} onOpenChange={() => { /* 不允許點擊外部關閉 */ }}>
-        <DialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>遊戲已結束</DialogTitle>
-            <DialogDescription>
-              GM 已結束本場遊戲。感謝您的參與！
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              className="w-full"
-              onClick={() => {
-                setGameEndedDialogOpen(false);
-                handleRelock();
-              }}
-            >
-              確認
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <GameEndedDialog
+        open={gameEndedDialogOpen}
+        onConfirm={() => {
+          setGameEndedDialogOpen(false);
+          handleRelock();
+        }}
+      />
 
       {/* Phase 7.7: 道具展示 Dialog（被展示方） */}
       <ItemShowcaseDialog

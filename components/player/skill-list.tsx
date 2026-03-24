@@ -3,23 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, Clock } from 'lucide-react';
-import Image from 'next/image';
-import type { Skill, SkillEffect, Item } from '@/types/character';
+import { Zap } from 'lucide-react';
+import type { Skill, Item, SkillEffect } from '@/types/character';
 import { toast } from 'sonner';
 import { useTargetSelection } from '@/hooks/use-target-selection';
-import { EffectDisplay } from './effect-display';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import type { BaseEvent } from '@/types/event';
 import type { SkillContestEvent } from '@/types/event';
@@ -32,11 +19,10 @@ import { usePostUseTargetItemSelection } from '@/hooks/use-post-use-target-item-
 import { getTargetCharacterItems } from '@/app/actions/public';
 import { CONTEST_TIMEOUT, STORAGE_KEYS } from '@/lib/constants/contest';
 import { canUseSkill, getCooldownRemaining } from '@/lib/utils/skill-validators';
-import { UseResultDisplay } from './use-result-display';
-import { CheckInfoDisplay } from './check-info-display';
-import { TargetSelectionSection } from './target-selection-section';
 import { TargetItemSelectionDialog } from './target-item-selection-dialog';
 import type { SkillListProps } from '@/types/skill-list';
+import { SkillCard } from './skill-card';
+import { SkillDetailDialog } from './skill-detail-dialog';
 
 export function SkillList({ skills, characterId, gameId, characterName, stats = [], randomContestMaxValue = 100, isReadOnly = false }: SkillListProps) {
   // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用技能）
@@ -416,19 +402,24 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
           setTargetItemSelectionDialogState(null);
         }
         
-        // 如果 dialog 是打開的，立即關閉它（不使用 setTimeout，確保立即關閉）// 修復：清除 dialogState（localStorage 中的 dialog 狀態），確保 dialog 不會因為 localStorage 中的狀態而重新打開
+        // 修復：清除 dialogState（localStorage 中的 dialog 狀態），確保 dialog 不會因為 localStorage 中的狀態而重新打開
         // 這必須在關閉 dialog 之前執行，確保狀態一致性
-        if (payload.skillId && isDialogForSource(payload.skillId, 'skill')) {clearDialogState();
+        // 如果 dialog 是打開的，立即關閉它（不使用 setTimeout，確保立即關閉）
+        if (payload.skillId && isDialogForSource(payload.skillId, 'skill')) {
+          clearDialogState();
         }
-        
-        if (selectedSkill && selectedSkill.id === payload.skillId) {// 修復：先清除 pendingContests，確保狀態一致性，避免 dialog 被重新打開
-          // 即使 use-contest-handler.ts 也會調用 removePendingContest，但這裡先清除可以確保 skill-list.tsx 立即看到更新後的狀態
+
+        // 修復：先清除 pendingContests，確保狀態一致性，避免 dialog 被重新打開
+        // 即使 use-contest-handler.ts 也會調用 removePendingContest，但這裡先清除可以確保 skill-list.tsx 立即看到更新後的狀態
+        if (selectedSkill && selectedSkill.id === payload.skillId) {
           if (hasPendingContest(payload.skillId)) {
             removePendingContest(payload.skillId);
           }
           // 清除 ref 中的等待標記
           waitingContestRef.current.delete(payload.skillId);
-          handleCloseDialog({ force: true });} else {// 即使 selectedSkill 不匹配，也要清除 pendingContests，確保狀態一致性
+          handleCloseDialog({ force: true });
+        } else {
+          // 即使 selectedSkill 不匹配，也要清除 pendingContests，確保狀態一致性
           if (payload.skillId && hasPendingContest(payload.skillId)) {
             removePendingContest(payload.skillId);
           }
@@ -695,338 +686,51 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
         const isDisabled = !canUse || isPendingContest;
 
         return (
-          <Card
+          <SkillCard
             key={skill.id}
-            className={`transition-colors ${
-              isDisabled 
-                ? 'opacity-50 cursor-not-allowed' 
-                : 'cursor-pointer hover:bg-accent/50'
-            }`}
+            skill={skill}
+            cooldownRemaining={cooldownRemaining}
+            isPendingContest={isPendingContest}
+            isDisabled={isDisabled}
+            reason={reason}
+            randomContestMaxValue={randomContestMaxValue}
             onClick={() => {
-              if (!isDisabled) {
-                setSelectedSkill(skill);
-                setCheckResult(undefined);
-              }
+              setSelectedSkill(skill);
+              setCheckResult(undefined);
             }}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                {/* 技能圖示 */}
-                {skill.iconUrl ? (
-                  <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden border">
-                    <Image
-                      src={skill.iconUrl}
-                      alt={skill.name}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-16 w-16 shrink-0 rounded-lg bg-linear-to-br from-yellow-400 to-orange-500 flex items-center justify-center border">
-                    <Zap className="h-8 w-8 text-white" />
-                  </div>
-                )}
-
-                {/* 技能資訊 */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-lg truncate">{skill.name}</h3>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                        {skill.description || '尚無描述'}
-                      </p>
-                    </div>
-                    {isDisabled && (
-                      <Badge variant="secondary" className="shrink-0">
-                        {isPendingContest ? '對抗檢定進行中' : reason}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* 技能標籤 */}
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {skill.checkType !== 'none' && (
-                      <Badge variant="outline" className="text-xs">
-                        {skill.checkType === 'contest' ? '對抗檢定' : skill.checkType === 'random_contest' ? '隨機對抗檢定' : '隨機檢定'}
-                        {skill.checkType === 'contest' && skill.contestConfig?.relatedStat && (
-                          <span className="ml-1">
-                            (使用 {skill.contestConfig.relatedStat})
-                          </span>
-                        )}
-                        {skill.checkType === 'random_contest' && (
-                          <span className="ml-1">
-                            (隨機擲骰，D{randomContestMaxValue})
-                          </span>
-                        )}
-                        {skill.checkType === 'random' && skill.randomConfig && (
-                          <span className="ml-1">
-                            ({skill.randomConfig.threshold} / {skill.randomConfig.maxValue})
-                          </span>
-                        )}
-                      </Badge>
-                    )}
-                    {/* Phase 7.6: 顯示標籤 */}
-                    {skill.tags && skill.tags.length > 0 && (
-                      <Badge variant="outline" className="text-xs">
-                        標籤：{skill.tags.map(tag => tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag).join('、')}
-                      </Badge>
-                    )}
-                    {skill.usageLimit != null && (
-                      <Badge variant="outline" className="text-xs">
-                        {skill.usageLimit > 0 
-                          ? `使用次數：${skill.usageCount || 0} / ${skill.usageLimit}`
-                          : '使用次數：無限制'}
-                      </Badge>
-                    )}
-                    {skill.cooldown != null && (
-                      <Badge variant="outline" className="text-xs">
-                        <Clock className="h-3 w-3 mr-1" />
-                        {cooldownRemaining !== null 
-                          ? `冷卻 ${cooldownRemaining}s`
-                          : skill.cooldown > 0 
-                            ? `冷卻 ${skill.cooldown}s`
-                            : '無冷卻時間'}
-                      </Badge>
-                    )}
-                    {skill.effects && skill.effects.length > 0 && (
-                      <Badge variant="outline" className="text-xs">
-                        {skill.effects.length} 個效果
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          />
         );
       })}
 
-      {/* 技能詳情 Dialog */}
-      {selectedSkill && (
-        <Dialog open={!!selectedSkill} onOpenChange={(open) => {
-          if (!open && !isDialogLocked) {
-            handleCloseDialog();
-          }
-        }}>
-          <DialogContent
-            className="max-w-lg"
-            showCloseButton={!isDialogLocked}
-            onInteractOutside={(e) => {
-              if (isDialogLocked) e.preventDefault();
-            }}
-            onEscapeKeyDown={(e) => {
-              if (isDialogLocked) e.preventDefault();
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-yellow-500" />
-                {selectedSkill.name}
-              </DialogTitle>
-              <DialogDescription>{selectedSkill.description || '尚無描述'}</DialogDescription>
-            </DialogHeader>
-
-            {(() => {
-              const selectedCooldownRemaining = getCooldownRemaining(selectedSkill);
-              
-              return (
-            <div className="space-y-4">
-              
-              {/* Phase 7.5: 檢定資訊 */}
-              <CheckInfoDisplay
-                checkType={selectedSkill.checkType}
-                contestConfig={selectedSkill.contestConfig}
-                randomConfig={selectedSkill.randomConfig}
-                stats={stats}
-                checkResult={checkResult}
-                randomContestMaxValue={randomContestMaxValue}
-              />
-
-              {/* Phase 7.6: 標籤顯示 */}
-              {selectedSkill.tags && selectedSkill.tags.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">標籤</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedSkill.tags.map((tag, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 使用限制 */}
-              {(selectedSkill.usageLimit != null || selectedSkill.cooldown != null) && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">使用限制</h4>
-                  <div className="space-y-1 text-sm">
-                    {selectedSkill.usageLimit != null && (
-                      <p>
-                        {selectedSkill.usageLimit > 0 
-                          ? `使用次數：${selectedSkill.usageCount || 0} / ${selectedSkill.usageLimit}`
-                          : '使用次數：無限制'}
-                      </p>
-                    )}
-                    {selectedSkill.cooldown != null && (
-                      <p>
-                        {selectedSkill.cooldown > 0 
-                          ? `冷卻時間：${selectedSkill.cooldown} 秒${selectedCooldownRemaining !== null ? ` (剩餘 ${selectedCooldownRemaining}s)` : ''}`
-                          : '冷卻時間：無冷卻時間'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 效果列表 */}
-              {selectedSkill.effects && selectedSkill.effects.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">技能效果</h4>
-                  <div className="space-y-2">
-                    {selectedSkill.effects.map((effect, index) => (
-                      <div key={index}>
-                        <EffectDisplay
-                          effect={effect}
-                          targetOptions={effect.requiresTarget ? targetCharacters : []}
-                          selectedTargetId={selectedTargetId}
-                          onTargetChange={(targetId) => {
-                            // Phase 7: 當目標角色改變時，重置確認狀態
-                            setIsTargetConfirmed(false);
-                            setTargetItems([]);
-                            setSelectedTargetItemId('');
-                            setSelectedTargetId(targetId);
-                            // Phase 3.2: targetItems 由 hook 管理，已經通過 setTargetItems 清除
-                          }}
-                          disabled={isTargetConfirmed || isContestInProgress}
-                        />
-                        
-                        {/* Phase 7.8: 使用 TargetSelectionSection 組件處理目標確認和目標道具選擇 */}
-                        {effect.requiresTarget && (
-                            <TargetSelectionSection
-                              requiresTarget={true}
-                              checkType={selectedSkill.checkType}
-                              effect={effect}
-                              selectedTargetId={selectedTargetId}
-                              setSelectedTargetId={setSelectedTargetId}
-                              targetOptions={targetCharacters}
-                              isLoadingTargets={isLoadingTargets}
-                              isTargetConfirmed={isTargetConfirmed}
-                              setIsTargetConfirmed={setIsTargetConfirmed}
-                              targetItems={targetItems}
-                              selectedTargetItemId={selectedTargetItemId}
-                              setSelectedTargetItemId={setSelectedTargetItemId}
-                              isLoadingTargetItems={isLoadingTargetItems}
-                              onConfirmTarget={handleConfirmTarget}
-                              onCancelTarget={handleCancelTarget}
-                              disabled={isTargetConfirmed || isContestInProgress}
-                            />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Phase 7.2: 使用結果訊息 */}
-              <UseResultDisplay result={useResult} />
-
-              {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 UI */}
-              {postUseSelection.selectionState?.sourceId === selectedSkill?.id && (
-                <div className="space-y-3 p-3 border rounded-lg bg-muted/50">
-                  <h4 className="font-semibold text-sm">
-                    選擇要{postUseSelection.selectionState.effectType === 'item_steal' ? '偷竊' : '移除'}的道具
-                  </h4>
-                  <div className="space-y-2">
-                    {postUseSelection.isLoadingTargetItems ? (
-                      <p className="text-sm text-muted-foreground">載入目標道具中...</p>
-                    ) : postUseSelection.targetItems.length > 0 ? (
-                      <>
-                        <Select
-                          value={postUseSelection.selectedTargetItemId}
-                          onValueChange={postUseSelection.setSelectedTargetItemId}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={`選擇要${postUseSelection.selectionState.effectType === 'item_steal' ? '偷竊' : '移除'}的道具...`} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {postUseSelection.targetItems.map((item) => (
-                              <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          onClick={postUseSelection.confirmSelection}
-                          disabled={!postUseSelection.selectedTargetItemId || postUseSelection.isSubmitting}
-                          className="w-full"
-                        >
-                          {postUseSelection.isSubmitting ? '處理中...' : '確認選擇'}
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">目標角色沒有道具</p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={postUseSelection.confirmSelection}
-                          disabled={postUseSelection.isSubmitting}
-                          className="w-full"
-                        >
-                          {postUseSelection.isSubmitting ? '處理中...' : '確認'}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-            </div>
-            );
-            })()}
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (!isDialogLocked) {
-                    setSelectedSkill(null);
-                    setCheckResult(undefined);
-                    setUseResult(null);
-                  }
-                }}
-                disabled={isDialogLocked}
-              >
-                關閉
-              </Button>
-              {/* Phase 10.5.4: 唯讀模式下隱藏使用技能按鈕 */}
-              {!isReadOnly && (
-              <Button
-                onClick={handleUseSkill}
-                disabled={
-                  !selectedSkill ||
-                  isUsing ||
-                  isDialogLocked ||
-                  (requiresTarget && !selectedTargetId) ||
-                  !canUseSkill(selectedSkill).canUse
-                }
-              >
-                {isUsing ? '使用中...' :
-                 isContestInProgress ? '等待對抗檢定結果...' :
-                 isPostUseSelecting ? '請選擇目標道具...' :
-                 (requiresTarget && !selectedTargetId) ? '請選擇目標角色' :
-                 (() => {
-                   const { canUse, reason } = canUseSkill(selectedSkill);
-                   if (!canUse && reason) return `使用技能 (${reason})`;
-                   return '使用技能';
-                 })()}
-              </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <SkillDetailDialog
+        selectedSkill={selectedSkill}
+        isDialogLocked={isDialogLocked}
+        onClose={handleCloseDialog}
+        checkResult={checkResult}
+        randomContestMaxValue={randomContestMaxValue}
+        stats={stats}
+        useResult={useResult}
+        isUsing={isUsing}
+        targetCharacters={targetCharacters}
+        selectedTargetId={selectedTargetId}
+        setSelectedTargetId={setSelectedTargetId}
+        isLoadingTargets={isLoadingTargets}
+        isTargetConfirmed={isTargetConfirmed}
+        setIsTargetConfirmed={setIsTargetConfirmed}
+        targetItems={targetItems}
+        selectedTargetItemId={selectedTargetItemId}
+        setSelectedTargetItemId={setSelectedTargetItemId}
+        isLoadingTargetItems={isLoadingTargetItems}
+        requiresTarget={requiresTarget}
+        isContestInProgress={isContestInProgress}
+        isPostUseSelecting={isPostUseSelecting}
+        handleUseSkill={handleUseSkill}
+        handleConfirmTarget={handleConfirmTarget}
+        handleCancelTarget={handleCancelTarget}
+        postUseSelection={postUseSelection}
+        isReadOnly={isReadOnly}
+        canUseSkill={canUseSkill}
+      />
 
       {/* Phase 9: 目標道具選擇 Dialog */}
       {targetItemSelectionDialog && (

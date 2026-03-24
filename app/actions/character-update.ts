@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import dbConnect from "@/lib/db/mongodb";
+import { withAction } from "@/lib/actions/action-wrapper";
 import { Character } from "@/lib/db/models";
 import { getCurrentGMUserId } from "@/lib/auth/session";
 import { getCharacterData } from "@/lib/game/get-character-data"; // Phase 10.4: 統一讀取
@@ -22,6 +22,7 @@ import {
   validateSkills,
   validateItems,
   validateTasks,
+  validateSecrets,
 } from "@/lib/character/character-validator";
 import { executeAutoReveal, executeChainRevealForSecrets } from "@/lib/reveal/auto-reveal-evaluator";
 import {
@@ -204,7 +205,7 @@ export async function updateCharacter(
     }>;
   }
 ): Promise<ApiResponse<CharacterData>> {
-  try {
+  return withAction(async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return {
@@ -213,8 +214,6 @@ export async function updateCharacter(
         message: "請先登入",
       };
     }
-
-    await dbConnect();
 
     // Phase 3.3: 使用驗證模組驗證角色訪問權限
     const accessValidation = await validateCharacterAccess(characterId, gmUserId);
@@ -293,6 +292,14 @@ export async function updateCharacter(
     // 修復：收集被重置為未揭露的 items_viewed 條件中的 itemIds，用於清除 viewedItems
     const unrevealedViewedItemIds = new Set<string>();
     if (data.secretInfo !== undefined) {
+      const secretsValidation = validateSecrets(data.secretInfo.secrets);
+      if (!secretsValidation.success) {
+        return {
+          success: false,
+          error: secretsValidation.error || 'VALIDATION_ERROR',
+          message: secretsValidation.message || 'Secrets 驗證失敗',
+        };
+      }
       const currentSecrets = beforeState.secretInfo?.secrets || [];
       const secretsResult = updateCharacterSecrets(data.secretInfo.secrets, currentSecrets);
 
@@ -629,14 +636,5 @@ export async function updateCharacter(
       },
       message: "角色更新成功",
     };
-  } catch (error) {
-    console.error("Error updating character:", error);
-
-    // Phase 3.3: 驗證錯誤已在驗證模組中處理，這裡只處理其他錯誤
-    return {
-      success: false,
-      error: "UPDATE_FAILED",
-      message: "無法更新角色",
-    };
-  }
+  });
 }

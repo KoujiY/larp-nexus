@@ -1,19 +1,21 @@
 /**
  * 技能效果執行器
  * 執行技能效果（stat_change, task_reveal, task_complete, item_take, item_steal, custom）
- * 
+ *
  * 從 skill-use.ts 提取
+ * stat_change 計算委派至 computeStatChange()
+ * item_take / item_steal 轉移邏輯委派至 applyItemTransfer()
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
-import { cleanItemData } from '@/lib/character-cleanup';
+import { emitCharacterAffected, emitRoleUpdated } from '@/lib/websocket/events';
 import type { CharacterDocument } from '@/lib/db/models';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
-import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
-import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
+import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
+import { writeLog } from '@/lib/logs/write-log';
 import type { SkillType } from '@/lib/db/types/character-types';
+import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effect-executor';
 
 /**
  * 執行技能效果的結果
@@ -28,7 +30,7 @@ export interface SkillEffectExecutionResult {
 
 /**
  * 執行技能效果
- * 
+ *
  * @param skill 技能
  * @param character 角色
  * @param targetCharacterId 目標角色 ID（跨角色效果用）
@@ -44,25 +46,17 @@ export async function executeSkillEffects(
   await dbConnect();
 
   if (!skill.effects || skill.effects.length === 0) {
-    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
     const updatedCharacter = await getCharacterData(getBaselineCharacterId(character));
-    return {
-      effectsApplied: [],
-      updatedCharacter,
-    };
+    return { effectsApplied: [], updatedCharacter };
   }
 
   const now = new Date();
-  // Phase 10.4: 使用 Baseline ID 確保 DB 操作和 WebSocket 頻道一致
   const characterId = getBaselineCharacterId(character);
   let pendingRevealReceiverId: string | undefined;
 
-  // 決定效果作用對象（根據效果的 targetType）
   let targetCharacter: CharacterDocument | null = null;
   if (targetCharacterId) {
-    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
     targetCharacter = await getCharacterData(targetCharacterId) as CharacterDocument;
-    // 驗證在同一劇本內
     if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
       throw new Error('目標角色不在同一劇本內');
     }
@@ -75,120 +69,74 @@ export async function executeSkillEffects(
   const tasks = effectTarget.tasks || [];
   const targetStatUpdates: Record<string, unknown> = {};
   const statUpdates: Array<{
-    id: string;
-    name: string;
-    value: number;
-    maxValue?: number;
-    deltaValue?: number;
-    deltaMax?: number;
+    id: string; name: string; value: number; maxValue?: number;
+    deltaValue?: number; deltaMax?: number;
   }> = [];
   const crossCharacterChanges: Array<{
-    name: string;
-    deltaValue?: number;
-    deltaMax?: number;
-    newValue: number;
-    newMax?: number;
+    name: string; deltaValue?: number; deltaMax?: number;
+    newValue: number; newMax?: number;
   }> = [];
   const effectsApplied: string[] = [];
 
-  // 處理所有效果
   for (const effect of skill.effects) {
     if (effect.type === 'stat_change' && effect.targetStat && effect.value !== undefined) {
-      // 數值變化效果
       const statIndex = stats.findIndex((s) => s.name === effect.targetStat);
-      if (statIndex !== -1) {
-        const statChangeTarget = effect.statChangeTarget || 'value';
-        const currentStat = stats[statIndex];
-        const beforeValue = currentStat.value;
-        const beforeMax = currentStat.maxValue;
+      if (statIndex === -1) continue;
 
-        let newValue = beforeValue;
-        let newMaxValue = beforeMax;
-        let deltaValue = 0;
-        let deltaMax = 0;
+      const result = computeStatChange(
+        stats[statIndex],
+        effect.value,
+        effect.statChangeTarget ?? 'value',
+        effect.syncValue ?? false
+      );
 
-        if (statChangeTarget === 'maxValue') {
-          // 修改最大值
-          if (currentStat.maxValue !== undefined && currentStat.maxValue !== null) {
-            newMaxValue = currentStat.maxValue + effect.value;
-            newMaxValue = Math.max(1, newMaxValue); // 最大值至少為 1
-            deltaMax = newMaxValue - currentStat.maxValue;
-            targetStatUpdates[`stats.${statIndex}.maxValue`] = newMaxValue;
+      targetStatUpdates[`stats.${statIndex}.value`] = result.newValue;
+      if (result.effectiveTarget === 'maxValue' && result.newMaxValue !== undefined) {
+        targetStatUpdates[`stats.${statIndex}.maxValue`] = result.newMaxValue;
+      }
+      effectsApplied.push(result.message);
 
-            // 如果同步修改目前值
-            if (effect.syncValue) {
-              newValue = currentStat.value + effect.value;
-              newValue = Math.min(newValue, newMaxValue); // 不超過新最大值
-              newValue = Math.max(0, newValue);
-              deltaValue = newValue - beforeValue;
-              targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-              effectsApplied.push(`${effect.targetStat} 最大值 ${effect.value > 0 ? '+' : ''}${effect.value}，目前值同步調整`);
-            } else {
-              // 只修改最大值，但確保目前值不超過新最大值
-              newValue = Math.min(currentStat.value, newMaxValue);
-              deltaValue = newValue - beforeValue;
-              targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-              effectsApplied.push(`${effect.targetStat} 最大值 ${effect.value > 0 ? '+' : ''}${effect.value}`);
-            }
-          }
-        } else {
-          // 修改目前值
-          newValue = currentStat.value + effect.value;
-          // 如果有最大值限制，確保不超過
-          if (currentStat.maxValue !== undefined && currentStat.maxValue !== null) {
-            newValue = Math.min(newValue, currentStat.maxValue);
-          }
-          newValue = Math.max(0, newValue); // 確保不低於 0
-          deltaValue = newValue - beforeValue;
-          targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-          effectsApplied.push(`${effect.targetStat} ${effect.value > 0 ? '+' : ''}${effect.value}`);
-        }
+      statUpdates.push({
+        id: stats[statIndex].id,
+        name: stats[statIndex].name,
+        value: result.newValue,
+        maxValue: result.newMaxValue,
+        deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+        deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+      });
 
-        // 記錄統計變化（用於 WebSocket 事件）
-        statUpdates.push({
-          id: currentStat.id,
-          name: effect.targetStat,
-          value: newValue,
-          maxValue: newMaxValue !== beforeMax ? newMaxValue : undefined,
-          deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-          deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+      if (isAffectingOthers) {
+        crossCharacterChanges.push({
+          name: stats[statIndex].name,
+          deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+          deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+          newValue: result.newValue,
+          newMax: result.newMaxValue,
         });
+      }
 
-        // 記錄跨角色變化
-        if (isAffectingOthers) {
-          crossCharacterChanges.push({
-            name: effect.targetStat,
-            deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-            deltaMax: deltaMax !== 0 ? deltaMax : undefined,
-            newValue,
-            newMax: newMaxValue !== beforeMax ? newMaxValue : undefined,
-          });
-        }
-
-        // Phase 8: 如果效果有 duration，建立時效性效果記錄
-        if (effect.duration && effect.duration > 0) {
-          await createTemporaryEffectRecord(
-            getBaselineCharacterId(effectTarget),
-            {
-              sourceType: 'skill',
-              sourceId: skill.id,
-              sourceCharacterId: characterId,
-              sourceCharacterName: character.name,
-              sourceName: skill.name,
-            },
-            {
-              targetStat: effect.targetStat,
-              deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-              deltaMax: deltaMax !== 0 ? deltaMax : undefined,
-              statChangeTarget,
-              syncValue: effect.syncValue,
-            },
-            effect.duration
-          );
-        }
+      // Phase 8: 時效性效果
+      if (effect.duration && effect.duration > 0) {
+        await createTemporaryEffectRecord(
+          getBaselineCharacterId(effectTarget),
+          {
+            sourceType: 'skill',
+            sourceId: skill.id,
+            sourceCharacterId: characterId,
+            sourceCharacterName: character.name,
+            sourceName: skill.name,
+          },
+          {
+            targetStat: effect.targetStat,
+            deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+            deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+            statChangeTarget: result.effectiveTarget,
+            syncValue: effect.syncValue,
+          },
+          effect.duration
+        );
       }
     } else if (effect.type === 'task_reveal' && effect.targetTaskId) {
-      // 任務揭露效果
       const taskIndex = tasks.findIndex((t) => t.id === effect.targetTaskId);
       if (taskIndex !== -1 && !tasks[taskIndex].isRevealed) {
         targetStatUpdates[`tasks.${taskIndex}.isRevealed`] = true;
@@ -196,7 +144,6 @@ export async function executeSkillEffects(
         effectsApplied.push(`揭露任務：${tasks[taskIndex].title}`);
       }
     } else if (effect.type === 'task_complete' && effect.targetTaskId) {
-      // 任務完成效果
       const taskIndex = tasks.findIndex((t) => t.id === effect.targetTaskId);
       if (taskIndex !== -1 && tasks[taskIndex].status !== 'completed') {
         targetStatUpdates[`tasks.${taskIndex}.status`] = 'completed';
@@ -205,24 +152,14 @@ export async function executeSkillEffects(
       }
     } else if (effect.type === 'item_give' && effect.targetItemId) {
       // 給予道具（未實作）
-      // 跳過
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
-      // 移除道具或偷竊道具效果
-      // 對抗檢定：效果會在對抗結束後由 selectTargetItemForContest 執行
-      if (skill.checkType === 'contest' || skill.checkType === 'random_contest') {
-        continue;
-      }
-      // Step 9.1: 無 targetItemId（目標無道具時由 selectTargetItemAfterUse 呼叫）→ 記錄訊息並跳過
+      if (skill.checkType === 'contest' || skill.checkType === 'random_contest') continue;
       if (!targetItemId) {
         effectsApplied.push('目標角色沒有道具可互動');
         continue;
       }
+      if (!targetCharacterId) throw new Error('此效果需要選擇目標角色');
 
-      if (!targetCharacterId) {
-        throw new Error('此效果需要選擇目標角色');
-      }
-
-      // 驗證目標角色
       if (!targetCharacter) {
         targetCharacter = await getCharacterData(targetCharacterId!) as CharacterDocument;
         if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
@@ -230,151 +167,32 @@ export async function executeSkillEffects(
         }
       }
 
-      // 找到目標道具
       const targetItems = targetCharacter.items || [];
-      const targetItemIndex = targetItems.findIndex((i) => i.id === targetItemId);
+      const targetItem = targetItems.find((i) => i.id === targetItemId);
+      if (!targetItem) throw new Error('目標角色沒有此道具');
 
-      if (targetItemIndex === -1) {
-        throw new Error('目標角色沒有此道具');
-      }
+      const sourceTags = skill.tags || [];
+      const hasStealthTag = sourceTags.includes('stealth');
 
-      const targetItem = targetItems[targetItemIndex];
-      const targetItemName = targetItem.name;
-      const targetItemQuantity = targetItem.quantity || 1;
-      const newQuantity = targetItemQuantity - 1;
-
-      // Phase 10.4: 使用統一寫入（自動判斷 Baseline/Runtime）
-      await updateCharacterData(targetCharacterId!, {
-        $pull: { items: { id: targetItemId } },
+      const transferResult = await applyItemTransfer({
+        targetIdStr: targetCharacterId!,
+        sourceIdStr: characterId,
+        targetItem,
+        effectType: effect.type,
+        notification: {
+          sourceCharacterId: characterId,
+          sourceCharacterName: character.name,
+          sourceType: 'skill',
+          sourceName: skill.name,
+          hasStealthTag,
+        },
       });
 
-      // 如果數量 > 0，添加更新後的道具
-      if (newQuantity > 0) {
-        const updatedItem = {
-          ...targetItem,
-          quantity: newQuantity,
-        };
-        const cleanedItem = updatedItem as Record<string, unknown>;
-        delete cleanedItem._id;
-        delete cleanedItem.__v;
-        await updateCharacterData(targetCharacterId!, {
-          $push: { items: cleanedItem },
-        });
-      }
-
-      if (effect.type === 'item_steal') {
-        // 偷竊：將道具轉移到施放者身上
-        const updatedCharacter = await getCharacterData(characterId);
-
-        const sourceItems = updatedCharacter.items || [];
-        const sourceItemIndex = sourceItems.findIndex((i: { id: string }) => i.id === targetItemId);
-
-        if (sourceItemIndex !== -1) {
-          // 施放者已有此道具，增加數量
-          const currentItem = sourceItems[sourceItemIndex];
-          const currentQuantity = currentItem.quantity || 1;
-
-          await updateCharacterData(characterId, {
-            $pull: { items: { id: targetItemId } },
-          });
-
-          const updatedSourceItem = {
-            ...currentItem,
-            quantity: currentQuantity + 1,
-          };
-          delete (updatedSourceItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
-          delete (updatedSourceItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
-
-          await updateCharacterData(characterId, {
-            $push: { items: updatedSourceItem },
-          });
-        } else {
-          // 施放者沒有此道具，新增道具
-          // 完整複製原道具屬性（保留 usageCount、usageLimit、tags、effects 等）
-          const stolenItem = {
-            ...JSON.parse(JSON.stringify(targetItem)),
-            quantity: 1,
-            acquiredAt: new Date(),
-          };
-          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown })._id;
-          delete (stolenItem as Record<string, unknown> & { _id?: unknown; __v?: unknown }).__v;
-
-          await updateCharacterData(characterId, {
-            $push: { items: stolenItem },
-          });
-        }
-
-        effectsApplied.push(`偷竊了 ${targetItemName}`);
-
-        // item_steal 後，記錄接收方 ID 供呼叫者延遲觸發自動揭露
-        // 不在此處立即執行，避免揭露通知搶先於技能結果通知送達客戶端
-        pendingRevealReceiverId = characterId;
-      } else {
-        // 移除：只移除目標道具，不轉移
-        effectsApplied.push(`移除了 ${targetItemName}`);
-      }
-
-      // 發送 WebSocket 事件給目標角色
-      emitInventoryUpdated(targetCharacterId, {
-        characterId: targetCharacterId,
-        item: {
-          id: targetItem.id,
-          name: targetItem.name,
-          description: targetItem.description || '',
-          imageUrl: targetItem.imageUrl,
-          acquiredAt: targetItem.acquiredAt?.toISOString(),
-        },
-        action: targetItemQuantity <= 1 ? 'deleted' : 'updated',
-      }).catch((error) => console.error('Failed to emit inventory.updated (take/steal target)', error));
-
-      // 發送跨角色影響事件
-      emitCharacterAffected(targetCharacterId, {
-        targetCharacterId,
-        sourceCharacterId: characterId,
-        sourceCharacterName: character.name,
-        sourceType: 'skill',
-        sourceName: skill.name,
-        effectType: effect.type === 'item_steal' ? 'item_steal' : 'item_take',
-        changes: {
-          items: [{
-            id: targetItem.id,
-            name: targetItem.name,
-            action: effect.type === 'item_steal' ? 'stolen' : 'removed',
-          }],
-        },
-      }).catch((error) => console.error('Failed to emit character.affected (item_take/steal)', error));
-
-      // 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
-      const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
-        getCharacterData(characterId),
-        getCharacterData(targetCharacterId!),
-      ]);
-
-      if (updatedSourceCharacter && updatedTargetCharacter) {
-        const sourceCleanItems = cleanItemData(updatedSourceCharacter.items);
-        const targetCleanItems = cleanItemData(updatedTargetCharacter.items);
-
-        // 發送 role.updated 給兩個角色，包含最新的道具列表
-        await emitRoleUpdated(characterId, {
-          characterId,
-          updates: {
-            items: sourceCleanItems as unknown as Array<Record<string, unknown>>,
-          },
-        }).catch((error) => {
-          console.error('[skill-effect-executor] Failed to emit role.updated (source character items)', error);
-        });
-
-        await emitRoleUpdated(targetCharacterId, {
-          characterId: targetCharacterId,
-          updates: {
-            items: targetCleanItems as unknown as Array<Record<string, unknown>>,
-          },
-        }).catch((error) => {
-          console.error('[skill-effect-executor] Failed to emit role.updated (target character items)', error);
-        });
+      effectsApplied.push(transferResult.message);
+      if (transferResult.pendingRevealReceiverId) {
+        pendingRevealReceiverId = transferResult.pendingRevealReceiverId;
       }
     } else if (effect.type === 'custom' && effect.description) {
-      // 自定義效果
       effectsApplied.push(effect.description);
     }
   }
@@ -382,49 +200,37 @@ export async function executeSkillEffects(
   // 應用跨角色統計變化
   if (Object.keys(targetStatUpdates).length > 0) {
     if (isAffectingOthers && targetCharacter) {
-      // Phase 10.4: 更新目標角色（自動判斷 Baseline/Runtime）
       await updateCharacterData(targetCharacterId!, {
         $set: targetStatUpdates,
         $unset: { 'tasks.$[].gmNotes': 1 },
       });
 
-      // 發送 WebSocket 事件給目標角色
       if (crossCharacterChanges.length > 0) {
-        // Phase 7.6: 檢查來源技能是否有隱匿標籤
         const sourceTags = skill.tags || [];
         const hasStealthTag = sourceTags.includes('stealth');
-        
+
         emitCharacterAffected(targetCharacterId!, {
           targetCharacterId: targetCharacterId!,
           sourceCharacterId: characterId,
-          sourceCharacterName: hasStealthTag ? '' : character.name, // Phase 7.6: 有隱匿標籤時不顯示來源方名稱
+          sourceCharacterName: hasStealthTag ? '' : character.name,
           sourceType: 'skill',
           sourceName: skill.name,
-          sourceHasStealthTag: hasStealthTag, // Phase 7.6: 標記是否有隱匿標籤
+          sourceHasStealthTag: hasStealthTag,
           effectType: 'stat_change',
           changes: {
-            stats: crossCharacterChanges.map((change) => ({
-              name: change.name,
-              deltaValue: change.deltaValue,
-              deltaMax: change.deltaMax,
-              newValue: change.newValue,
-              newMax: change.newMax,
+            stats: crossCharacterChanges.map((c) => ({
+              name: c.name, deltaValue: c.deltaValue,
+              deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
             })),
           },
-        }).catch((error) => console.error('Failed to emit character.affected (skill)', error));
+        }).catch((err) => console.error('[skill-effect-executor] emitCharacterAffected failed', err));
 
-        // 注意：跨角色影響時，不發送 role.updated 的 stats 更新
-        // 因為 character.affected 已經包含了所有必要信息
-        // 只發送 role.updated 用於觸發頁面刷新，但不包含 stats（避免重複通知）
         emitRoleUpdated(targetCharacterId!, {
           characterId: targetCharacterId!,
-          updates: {
-            // 不包含 stats，避免與 character.affected 重複
-          },
-        }).catch((error) => console.error('Failed to emit role.updated (skill target)', error));
+          updates: {},
+        }).catch((err) => console.error('[skill-effect-executor] emitRoleUpdated failed', err));
       }
     } else {
-      // Phase 10.4: 更新自己（自動判斷 Baseline/Runtime）
       await updateCharacterData(characterId, {
         $set: targetStatUpdates,
         $unset: { 'tasks.$[].gmNotes': 1 },
@@ -432,21 +238,16 @@ export async function executeSkillEffects(
     }
   }
 
-  // 發送 role.updated 給施放者（如果有統計變化且不是跨角色）
-  // 不附帶 stats 資料，避免與 skill.used 事件的通知重複
-  // 玩家端已透過 Server Action 回傳取得效果結果，此處僅觸發頁面刷新
   if (statUpdates.length > 0 && !isAffectingOthers) {
     emitRoleUpdated(characterId, {
       characterId,
       updates: {},
-    }).catch((error) => console.error('Failed to emit role.updated (skill stat)', error));
+    }).catch((err) => console.error('[skill-effect-executor] emitRoleUpdated failed', err));
   }
 
-  // Phase 10.4: 重新載入角色資料（自動判斷 Baseline/Runtime）
   const updatedCharacter = await getCharacterData(characterId);
   const updatedTarget = targetCharacterId ? await getCharacterData(targetCharacterId) : undefined;
 
-  // Phase 10.6: 記錄技能使用日誌
   await writeLog({
     gameId: character.gameId.toString(),
     characterId,
@@ -471,4 +272,3 @@ export async function executeSkillEffects(
     pendingReveal: pendingRevealReceiverId ? { receiverId: pendingRevealReceiverId } : undefined,
   };
 }
-

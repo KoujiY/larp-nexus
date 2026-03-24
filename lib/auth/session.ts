@@ -8,6 +8,8 @@ export interface SessionData {
   gmUserId?: string;
   email?: string;
   isLoggedIn: boolean;
+  /** 玩家透過 PIN 解鎖後，紀錄已授權操作的角色 ID 清單 */
+  unlockedCharacterIds?: string[];
 }
 
 /**
@@ -47,5 +49,19 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function getCurrentGMUserId(): Promise<string | null> {
   const session = await getSession();
   return session.isLoggedIn ? session.gmUserId || null : null;
+}
+
+/**
+ * 驗證玩家是否已透過 PIN 解鎖指定角色
+ *
+ * 用於 useItem / useSkill / transferItem 等 Server Action，
+ * 防止未解鎖的客戶端對任意角色執行操作。
+ *
+ * @param characterId - 要驗證的角色 ID
+ * @returns 是否已授權
+ */
+export async function validatePlayerAccess(characterId: string): Promise<boolean> {
+  const session = await getSession();
+  return session.unlockedCharacterIds?.includes(characterId) ?? false;
 }
 

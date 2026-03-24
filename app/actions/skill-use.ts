@@ -1,6 +1,7 @@
 'use server';
 
-import dbConnect from '@/lib/db/mongodb';
+import { withAction } from '@/lib/actions/action-wrapper';
+import { validatePlayerAccess } from '@/lib/auth/session';
 import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleSkillCheck } from '@/lib/skill/check-handler';
@@ -35,8 +36,11 @@ export async function useSkill(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  try {
-    await dbConnect();
+  return withAction(async () => {
+    // 驗證玩家是否已解鎖此角色（防止未授權操作）
+    if (!(await validatePlayerAccess(characterId))) {
+      return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
+    }
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
@@ -401,12 +405,5 @@ export async function useSkill(
       },
       message: toastMessage,
     };
-  } catch (error) {
-    console.error('Error using skill:', error);
-    return {
-      success: false,
-      error: 'USE_FAILED',
-      message: `無法使用技能：${error instanceof Error ? error.message : '未知錯誤'}`,
-    };
-  }
+  });
 }

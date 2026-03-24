@@ -2,30 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Package, Zap, Clock, ArrowRightLeft, Sparkles, User, Eye } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import Image from 'next/image';
+import { Package, Zap } from 'lucide-react';
 import type { Item, Skill } from '@/types/character';
-import { formatDate } from '@/lib/utils/date';
 import { getTransferTargets, getTargetCharacterItems, type TransferTargetCharacter } from '@/app/actions/public';
 import { useTargetSelection } from '@/hooks/use-target-selection';
-import { EffectDisplay } from './effect-display';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import type { BaseEvent } from '@/types/event';
 import type { SkillContestEvent } from '@/types/event';
@@ -41,11 +21,12 @@ import { useContestableItemUsage } from '@/hooks/use-contestable-item-usage';
 import { CONTEST_TIMEOUT, STORAGE_KEYS } from '@/lib/constants/contest';
 import { canUseItem as canUseItemBase, getCooldownRemaining } from '@/lib/utils/item-validators';
 import { getItemEffects, hasItemEffects } from '@/lib/item/get-item-effects';
-import { UseResultDisplay } from './use-result-display';
-import { CheckInfoDisplay } from './check-info-display';
-import { TargetSelectionSection } from './target-selection-section';
 import type { ItemListProps } from '@/types/item-list';
 import { recordItemView, showcaseItem } from '@/app/actions/item-showcase';
+import { ItemCard } from './item-card';
+import { ItemDetailDialog } from './item-detail-dialog';
+import { ItemTransferDialog } from './item-transfer-dialog';
+import { ItemShowcaseSelectDialog } from './item-showcase-select-dialog';
 
 export function ItemList({ items, characterId, gameId, characterName, randomContestMaxValue = 100, isReadOnly = false, onUseItem, onTransferItem }: ItemListProps) {
   // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用、展示、轉移）
@@ -872,424 +853,75 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       </div>
 
       {/* 道具詳情 Dialog */}
-      <Dialog open={!!selectedItem} onOpenChange={(open) => {
-        if (!open && !isDialogLocked) {
-          handleCloseDialog();
-        }
-      }}>
-        <DialogContent
-          showCloseButton={!isDialogLocked}
-          onInteractOutside={(e) => {
-            if (isDialogLocked) e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            if (isDialogLocked) e.preventDefault();
-          }}
-        >
-          {selectedItem && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant={selectedItem.type === 'consumable' ? 'secondary' : 'outline'}>
-                    {selectedItem.type === 'consumable' ? '消耗品' : '裝備/道具'}
-                  </Badge>
-                  {hasItemEffects(selectedItem) && (
-                    <Badge variant="default">
-                      <Sparkles className="h-3 w-3 mr-1" />
-                      {selectedItem.effects && selectedItem.effects.length > 0 ? `${selectedItem.effects.length} 個效果` : '有效果'}
-                    </Badge>
-                  )}
-                  {selectedItem.isTransferable && (
-                    <Badge variant="outline">
-                      <ArrowRightLeft className="h-3 w-3 mr-1" />
-                      可轉移
-                    </Badge>
-                  )}
-                </div>
-                <DialogTitle className="text-xl">
-                  {selectedItem.name}
-                </DialogTitle>
-                <DialogDescription asChild>
-                  <div className="space-y-4 mt-4">
-                    {/* 道具圖片 */}
-                    {selectedItem.imageUrl && (
-                      <div className="relative h-48 w-full rounded-lg overflow-hidden bg-muted">
-                        <Image
-                          src={selectedItem.imageUrl}
-                          alt={selectedItem.name}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    )}
-
-                    {/* 道具描述 */}
-                    {selectedItem.description && (
-                      <p className="text-foreground whitespace-pre-wrap">
-                        {selectedItem.description}
-                      </p>
-                    )}
-
-                    {/* 道具屬性 */}
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="p-3 bg-muted rounded-lg">
-                        <div className="text-muted-foreground mb-1">數量</div>
-                        <div className="font-semibold text-lg">{selectedItem.quantity}</div>
-                      </div>
-                      
-                      {selectedItem.usageLimit != null && (
-                        <div className="p-3 bg-muted rounded-lg">
-                          <div className="text-muted-foreground mb-1">使用次數</div>
-                          <div className="font-semibold text-lg">
-                            {Number(selectedItem.usageLimit) > 0 
-                              ? `${Number(selectedItem.usageLimit) - (selectedItem.usageCount || 0)} / ${selectedItem.usageLimit}`
-                              : '無限制'}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedItem.cooldown != null && (
-                        <div className="p-3 bg-muted rounded-lg">
-                          <div className="text-muted-foreground mb-1">冷卻時間</div>
-                          <div className="font-semibold text-lg flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {selectedItem.cooldown > 0 ? `${selectedItem.cooldown}s` : '無冷卻時間'}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Phase 7.6: 標籤顯示 */}
-                    {selectedItem.tags && selectedItem.tags.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-sm">標籤</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedItem.tags.map((tag, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Phase 7.6: 檢定資訊 */}
-                    {selectedItem.checkType && (
-                      <CheckInfoDisplay
-                        checkType={selectedItem.checkType}
-                        contestConfig={selectedItem.contestConfig}
-                        randomConfig={selectedItem.randomConfig}
-                        checkResult={checkResult}
-                        randomContestMaxValue={randomContestMaxValue}
-                      />
-                    )}
-
-                    {/* 使用效果 */}
-                    {hasItemEffects(selectedItem) && (
-                      <div className="p-3 bg-purple-50 rounded-lg space-y-3">
-                        <div className="text-sm font-medium text-purple-800 mb-1 flex items-center gap-1">
-                          <Sparkles className="h-4 w-4" />
-                          使用效果
-                        </div>
-                        <div className="space-y-3">
-                          {getItemEffects(selectedItem).map((effect, index) => (
-                            <div key={index} className="text-purple-700">
-                              {selectedItem.effects && selectedItem.effects.length > 1 && (
-                                <div className="text-xs font-medium mb-1 text-purple-600">
-                                  效果 {index + 1}
-                                </div>
-                              )}
-                              <EffectDisplay
-                                effect={effect}
-                                targetOptions={useTargets}
-                                selectedTargetId={selectedUseTargetId}
-                                onTargetChange={(targetId) => {
-                                  // Phase 7: 當目標角色改變時，重置確認狀態
-                                  setIsTargetConfirmed(false);
-                                  setSelectedTargetItemId('');
-                                  setSelectedUseTargetId(targetId);
-                                  // Phase 3.3: targetItems 由 hook 管理，已經通過 setTargetItems 清除
-                                }}
-                                className="bg-transparent p-0 text-purple-700"
-                                disabled={isTargetConfirmed || isContestInProgress}
-                              />
-                              
-                              {/* Phase 7.9: 使用 TargetSelectionSection 組件處理目標確認和目標道具選擇 */}
-                              {effect.requiresTarget && (
-                                  <TargetSelectionSection
-                                    requiresTarget={true}
-                                    checkType={selectedItem.checkType || 'none'}
-                                    effect={effect}
-                                    selectedTargetId={selectedUseTargetId}
-                                    setSelectedTargetId={(targetId) => {
-                                      setIsTargetConfirmed(false);
-                                      setSelectedTargetItemId('');
-                                      setSelectedUseTargetId(targetId);
-                                    }}
-                                    targetOptions={useTargets}
-                                    isLoadingTargets={isLoadingUseTargets}
-                                    isTargetConfirmed={isTargetConfirmed}
-                                    setIsTargetConfirmed={setIsTargetConfirmed}
-                                    targetItems={targetItems}
-                                    selectedTargetItemId={selectedTargetItemId}
-                                    setSelectedTargetItemId={setSelectedTargetItemId}
-                                    isLoadingTargetItems={isLoadingTargetItems}
-                                    onConfirmTarget={handleConfirmTarget}
-                                    onCancelTarget={handleCancelTarget}
-                                    disabled={isContestInProgress}
-                                  />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Phase 7.3: 使用結果訊息 */}
-                    <UseResultDisplay result={useResult} />
-
-                    {/* Phase 7.12: 對抗檢定獲勝後的目標道具選擇已改為獨立 TargetItemSelectionDialog */}
-
-                    {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 */}
-                    {postUseSelection.selectionState?.sourceId === selectedItem?.id && (
-                      <div className="p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                        <div className="space-y-3">
-                          <p className="font-medium text-green-800">
-                            使用成功！請選擇目標道具
-                          </p>
-                          {postUseSelection.isLoadingTargetItems ? (
-                            <p className="text-sm text-green-700">載入目標道具清單中...</p>
-                          ) : postUseSelection.targetItems.length > 0 ? (
-                            <div className="space-y-2">
-                              <Select
-                                value={postUseSelection.selectedTargetItemId}
-                                onValueChange={postUseSelection.setSelectedTargetItemId}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder={`選擇要${postUseSelection.selectionState.effectType === 'item_steal' ? '偷竊' : '移除'}的道具...`} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {postUseSelection.targetItems.map((item) => (
-                                    <SelectItem key={item.id} value={item.id}>
-                                      {item.name} {item.quantity > 1 && `(x${item.quantity})`}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Button
-                                onClick={postUseSelection.confirmSelection}
-                                disabled={!postUseSelection.selectedTargetItemId || postUseSelection.isSubmitting}
-                                className="w-full"
-                              >
-                                {postUseSelection.isSubmitting ? '處理中...' : '確認選擇'}
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <p className="text-sm text-green-700">目標角色沒有道具</p>
-                              <Button
-                                onClick={postUseSelection.confirmSelection}
-                                disabled={postUseSelection.isSubmitting}
-                                className="w-full"
-                              >
-                                {postUseSelection.isSubmitting ? '處理中...' : '確認'}
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 獲得時間 */}
-                    <div className="text-sm text-muted-foreground pt-2 border-t">
-                      獲得於：{formatDate(selectedItem.acquiredAt)}
-                    </div>
-                  </div>
-                </DialogDescription>
-              </DialogHeader>
-
-              {/* 操作按鈕（Phase 10.5.4: 唯讀模式下隱藏） */}
-              {!isReadOnly && (
-              <DialogFooter className="flex-col sm:flex-row gap-2">
-                        {/* 使用按鈕 */}
-                {(hasItemEffects(selectedItem) || onUseItem) && (() => {
-                  const { canUse, reason } = canUseItem(selectedItem);
-                  return (
-                    <Button
-                      onClick={handleUseItem}
-                      disabled={
-                        !canUse ||
-                        isUsing ||
-                        !onUseItem ||
-                        (requiresTarget && !selectedUseTargetId) ||
-                        isDialogLocked
-                      }
-                      className="w-full sm:w-auto"
-                    >
-                      {isUsing ? '使用中...' :
-                       isContestInProgress ? '等待對抗檢定結果...' :
-                       isPostUseSelecting ? '請選擇目標道具...' :
-                       (requiresTarget && !selectedUseTargetId) ? '請選擇目標角色' :
-                       (!canUse && reason) ? `使用道具 (${reason})` :
-                       '使用道具'}
-                    </Button>
-                  );
-                })()}
-                
-                {/* Phase 7.7: 展示按鈕 */}
-                {gameId && characterId && (
-                    <Button
-                      variant="outline"
-                      onClick={handleOpenShowcase}
-                      disabled={isContestInProgress}
-                      className="w-full sm:w-auto"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      展示
-                    </Button>
-                )}
-
-                {/* 轉移按鈕 */}
-                {selectedItem.isTransferable && onTransferItem && gameId && characterId && (
-                    <Button
-                      variant="outline"
-                      onClick={handleOpenTransfer}
-                      disabled={isContestInProgress}
-                      className="w-full sm:w-auto"
-                    >
-                    <ArrowRightLeft className="h-4 w-4 mr-2" />
-                    轉移道具
-                  </Button>
-                )}
-              </DialogFooter>
-              )}
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ItemDetailDialog
+        selectedItem={selectedItem}
+        isDialogLocked={isDialogLocked}
+        onClose={handleCloseDialog}
+        checkResult={checkResult}
+        randomContestMaxValue={randomContestMaxValue}
+        useResult={useResult}
+        isUsing={isUsing}
+        useTargets={useTargets}
+        selectedUseTargetId={selectedUseTargetId}
+        setSelectedUseTargetId={setSelectedUseTargetId}
+        isLoadingUseTargets={isLoadingUseTargets}
+        isTargetConfirmed={isTargetConfirmed}
+        setIsTargetConfirmed={setIsTargetConfirmed}
+        targetItems={targetItems}
+        selectedTargetItemId={selectedTargetItemId}
+        setSelectedTargetItemId={setSelectedTargetItemId}
+        isLoadingTargetItems={isLoadingTargetItems}
+        requiresTarget={requiresTarget}
+        isContestInProgress={isContestInProgress}
+        isPostUseSelecting={isPostUseSelecting}
+        handleUseItem={handleUseItem}
+        handleConfirmTarget={handleConfirmTarget}
+        handleCancelTarget={handleCancelTarget}
+        handleOpenShowcase={handleOpenShowcase}
+        handleOpenTransfer={handleOpenTransfer}
+        postUseSelection={postUseSelection}
+        isReadOnly={isReadOnly}
+        canUseItem={canUseItem}
+        showUseButton={selectedItem ? (hasItemEffects(selectedItem) || !!onUseItem) : false}
+        showShowcaseButton={!!(gameId && characterId)}
+        showTransferButton={!!(onTransferItem && gameId && characterId)}
+      />
 
       {/* 轉移選擇 Dialog */}
-      <Dialog open={isTransferDialogOpen} onOpenChange={(open) => {
-        setIsTransferDialogOpen(open);
-        if (!open) {
-          // 關閉時清除狀態
+      <ItemTransferDialog
+        open={isTransferDialogOpen}
+        onOpenChange={setIsTransferDialogOpen}
+        transferItem={transferItem}
+        isLoadingTargets={isLoadingTargets}
+        transferTargets={transferTargets}
+        selectedTargetId={selectedTargetId}
+        onTargetChange={setSelectedTargetId}
+        isTransferring={isTransferring}
+        onTransfer={handleTransfer}
+        onCancel={() => {
+          setIsTransferDialogOpen(false);
           setTransferItem(null);
           setSelectedTargetId('');
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>選擇轉移對象</DialogTitle>
-            <DialogDescription>
-              將「{transferItem?.name}」轉移給其他角色
-            </DialogDescription>
-          </DialogHeader>
-
-          {isLoadingTargets ? (
-            <div className="py-8 text-center text-muted-foreground">
-              載入中...
-            </div>
-          ) : transferTargets.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              <User className="mx-auto h-12 w-12 mb-4" />
-              <p>沒有其他角色可以轉移</p>
-            </div>
-          ) : (
-            <Select value={selectedTargetId} onValueChange={setSelectedTargetId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="選擇角色..." />
-              </SelectTrigger>
-              <SelectContent>
-                {transferTargets.map((target) => (
-                  <SelectItem key={target.id} value={target.id}>
-                    {target.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsTransferDialogOpen(false);
-                setTransferItem(null);
-                setSelectedTargetId('');
-              }}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleTransfer}
-              disabled={!selectedTargetId || isTransferring}
-            >
-              {isTransferring ? '轉移中...' : '確認轉移'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        }}
+      />
 
       {/* Phase 7.7: 展示選擇 Dialog */}
-      <Dialog open={isShowcaseSelectOpen} onOpenChange={(open) => {
-        setIsShowcaseSelectOpen(open);
-        if (!open) {
+      <ItemShowcaseSelectDialog
+        open={isShowcaseSelectOpen}
+        onOpenChange={setIsShowcaseSelectOpen}
+        itemToShowcase={itemToShowcase}
+        isLoadingTargets={isLoadingShowcaseTargets}
+        showcaseTargets={showcaseTargets}
+        selectedTargetId={selectedShowcaseTargetId}
+        onTargetChange={setSelectedShowcaseTargetId}
+        isShowcasing={isShowcasing}
+        onShowcase={handleShowcase}
+        onCancel={() => {
+          setIsShowcaseSelectOpen(false);
           setItemToShowcase(null);
           setSelectedShowcaseTargetId('');
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>選擇展示對象</DialogTitle>
-            <DialogDescription>
-              將「{itemToShowcase?.name}」展示給其他角色
-            </DialogDescription>
-          </DialogHeader>
-
-          {isLoadingShowcaseTargets ? (
-            <div className="py-8 text-center text-muted-foreground">
-              載入中...
-            </div>
-          ) : showcaseTargets.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              <User className="mx-auto h-12 w-12 mb-4" />
-              <p>沒有其他角色可以展示</p>
-            </div>
-          ) : (
-            <Select value={selectedShowcaseTargetId} onValueChange={setSelectedShowcaseTargetId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="選擇角色..." />
-              </SelectTrigger>
-              <SelectContent>
-                {showcaseTargets.map((target) => (
-                  <SelectItem key={target.id} value={target.id}>
-                    {target.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsShowcaseSelectOpen(false);
-                setItemToShowcase(null);
-                setSelectedShowcaseTargetId('');
-              }}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleShowcase}
-              disabled={!selectedShowcaseTargetId || isShowcasing}
-            >
-              {isShowcasing ? '展示中...' : '確認展示'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        }}
+      />
 
       {/* 對抗檢定獲勝後的目標道具選擇 Dialog（與 skill-list.tsx 統一架構） */}
       {targetItemSelectionDialog && (
@@ -1320,130 +952,3 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   );
 }
 
-// 道具卡片元件
-interface ItemCardProps {
-  item: Item;
-  cooldownRemaining: number | null;
-  onClick: () => void;
-  disabled?: boolean;
-  randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
-}
-
-function ItemCard({ item, cooldownRemaining, onClick, disabled = false, randomContestMaxValue = 100 }: ItemCardProps) {
-  const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
-
-  return (
-    <Card
-      className={`overflow-hidden transition-all ${
-        disabled
-          ? 'opacity-60 cursor-not-allowed'
-          : 'cursor-pointer hover:shadow-lg'
-      }`}
-      onClick={disabled ? undefined : onClick}
-    >
-      <div className="aspect-square relative overflow-hidden bg-muted">
-        {item.imageUrl ? (
-          <Image
-            src={item.imageUrl}
-            alt={item.name}
-            fill
-            className="object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            {item.type === 'consumable' ? (
-              <Zap className="h-12 w-12 text-muted-foreground" />
-            ) : (
-              <Package className="h-12 w-12 text-muted-foreground" />
-            )}
-          </div>
-        )}
-        
-        {/* 數量標籤 */}
-        {item.quantity > 1 && (
-          <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded-full">
-            x{item.quantity}
-          </div>
-        )}
-
-        {/* 冷卻中標籤 */}
-        {isOnCooldown && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="text-white text-center">
-              <Clock className="h-6 w-6 mx-auto mb-1" />
-              <span className="text-sm font-mono">{cooldownRemaining}s</span>
-            </div>
-          </div>
-        )}
-
-        {/* 有效果標籤 */}
-        {hasItemEffects(item) && !isOnCooldown && (
-          <div className="absolute top-2 left-2">
-            <Sparkles className="h-4 w-4 text-yellow-400 drop-shadow-lg" />
-          </div>
-        )}
-        
-        {/* Phase 8: 檢定類型標籤 */}
-        {item.checkType && item.checkType !== 'none' && !isOnCooldown && (
-          <div className="absolute bottom-2 left-2">
-            <Badge variant="secondary" className="text-xs">
-              {item.checkType === 'contest' ? '對抗' : item.checkType === 'random_contest' ? '隨機對抗' : '隨機'}
-            </Badge>
-          </div>
-        )}
-      </div>
-      <CardContent className="p-3">
-        <h4 className="font-semibold text-sm line-clamp-1">{item.name}</h4>
-        {item.description && (
-          <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
-            {item.description}
-          </p>
-        )}
-        {/* Phase 7.6: 標籤顯示 */}
-        {item.tags && item.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {item.tags.map((tag, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-        {/* Phase 8: 檢定資訊（簡要顯示） */}
-        {item.checkType === 'contest' && item.contestConfig && (
-          <p className="text-xs text-muted-foreground mt-1">
-            使用 {item.contestConfig.relatedStat} 對抗
-          </p>
-        )}
-        {item.checkType === 'random_contest' && (
-          <p className="text-xs text-muted-foreground mt-1">
-            隨機擲骰，D{randomContestMaxValue} 對抗
-          </p>
-        )}
-        {item.checkType === 'random' && item.randomConfig && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {item.randomConfig.threshold} / {item.randomConfig.maxValue}
-          </p>
-        )}
-        {/* 使用限制顯示 */}
-        {(item.usageLimit != null || item.cooldown != null) && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {item.usageLimit != null && (
-              <Badge variant="outline" className="text-xs">
-                {item.usageLimit > 0 
-                  ? `使用次數：${(item.usageLimit || 0) - (item.usageCount || 0)} / ${item.usageLimit}`
-                  : '使用次數：無限制'}
-              </Badge>
-            )}
-            {item.cooldown != null && cooldownRemaining === null && (
-              <Badge variant="outline" className="text-xs">
-                <Clock className="h-3 w-3 mr-1" />
-                {item.cooldown > 0 ? `${item.cooldown}s` : '無冷卻時間'}
-              </Badge>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}

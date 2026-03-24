@@ -1,20 +1,22 @@
 /**
  * 道具效果執行器
  * 執行道具效果（stat_change, custom, item_take, item_steal）
- * 
+ *
  * 從 item-use.ts 提取
+ * stat_change 計算委派至 computeStatChange()
+ * item_take / item_steal 轉移邏輯委派至 applyItemTransfer()
  */
 
 import dbConnect from '@/lib/db/mongodb';
-import { emitCharacterAffected, emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
-import { cleanItemData } from '@/lib/character-cleanup';
+import { emitCharacterAffected, emitRoleUpdated } from '@/lib/websocket/events';
 import type { CharacterDocument } from '@/lib/db/models';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
-import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect'; // Phase 8
-import { writeLog } from '@/lib/logs/write-log'; // Phase 10.6
+import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
+import { writeLog } from '@/lib/logs/write-log';
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import type { ItemType } from '@/lib/db/types/character-types';
+import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effect-executor';
 
 /**
  * 道具效果類型
@@ -34,7 +36,7 @@ export interface ItemEffectExecutionResult {
 
 /**
  * 執行道具效果
- * 
+ *
  * @param item 道具
  * @param character 角色
  * @param targetCharacterId 目標角色 ID（跨角色效果用）
@@ -53,15 +55,10 @@ export async function executeItemEffects(
   const effects: ItemEffect[] = getItemEffects(item);
 
   if (effects.length === 0) {
-    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
     const updatedCharacter = await getCharacterData(getBaselineCharacterId(character));
-    return {
-      effectsApplied: [],
-      updatedCharacter,
-    };
+    return { effectsApplied: [], updatedCharacter };
   }
 
-  // Phase 10.4: 使用 Baseline ID 確保 DB 操作和 WebSocket 頻道一致
   const characterId = getBaselineCharacterId(character);
   let pendingRevealReceiverId: string | undefined;
   const checkType = item.checkType || 'none';
@@ -69,9 +66,7 @@ export async function executeItemEffects(
   // 決定效果作用對象
   let targetCharacter: CharacterDocument | null = null;
   if (targetCharacterId) {
-    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
     targetCharacter = await getCharacterData(targetCharacterId) as CharacterDocument;
-    // 驗證在同一劇本內
     if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
       throw new Error('目標角色不在同一劇本內');
     }
@@ -83,115 +78,55 @@ export async function executeItemEffects(
   const stats = effectTarget.stats || [];
   const targetStatUpdates: Record<string, unknown> = {};
   const statUpdatePayload: Array<{
-    id: string;
-    name: string;
-    value: number;
-    maxValue?: number;
-    deltaValue?: number;
-    deltaMax?: number;
+    id: string; name: string; value: number; maxValue?: number;
+    deltaValue?: number; deltaMax?: number;
   }> = [];
   const crossCharacterChanges: Array<{
-    name: string;
-    deltaValue?: number;
-    deltaMax?: number;
-    newValue: number;
-    newMax?: number;
+    name: string; deltaValue?: number; deltaMax?: number;
+    newValue: number; newMax?: number;
   }> = [];
   const effectMessages: string[] = [];
 
   // 處理所有效果
   for (const effect of effects) {
-    if (
-      effect.type === 'stat_change' &&
-      effect.targetStat &&
-      typeof effect.value === 'number'
-    ) {
-      // 數值變化效果
+    if (effect.type === 'stat_change' && effect.targetStat && typeof effect.value === 'number') {
       const statIndex = stats.findIndex((s) => s.name === effect.targetStat);
-      if (statIndex === -1) {
-        // 繼續執行其他效果，不中斷
-        continue;
+      if (statIndex === -1) continue;
+
+      const result = computeStatChange(
+        stats[statIndex],
+        effect.value,
+        effect.statChangeTarget ?? 'value',
+        effect.syncValue ?? false
+      );
+
+      targetStatUpdates[`stats.${statIndex}.value`] = result.newValue;
+      if (result.effectiveTarget === 'maxValue' && result.newMaxValue !== undefined) {
+        targetStatUpdates[`stats.${statIndex}.maxValue`] = result.newMaxValue;
       }
-
-      // 使用 type assertion 處理可能缺少的欄位（向下兼容舊資料）
-      interface ItemEffectExtended {
-        type: string;
-        targetStat?: string;
-        value?: number;
-        statChangeTarget?: 'value' | 'maxValue';
-        syncValue?: boolean;
-        duration?: number; // Phase 8: 時效性效果
-        description?: string;
-      }
-      const effectWithTarget = effect as ItemEffectExtended;
-      const target = effectWithTarget.statChangeTarget || 'value';
-      const delta = effect.value;
-      const beforeValue = stats[statIndex].value;
-      const beforeMax = stats[statIndex].maxValue ?? null;
-      const syncValue = effectWithTarget.syncValue;
-
-      // 若目標無 maxValue，但要求改 maxValue，退回改 value
-      const effectiveTarget = target === 'maxValue' && beforeMax === null ? 'value' : target;
-
-      let newValue = beforeValue;
-      let newMax = beforeMax;
-      let deltaValue = 0;
-      let deltaMax = 0;
-
-      if (effectiveTarget === 'maxValue') {
-        // 修改最大值
-        if (beforeMax !== null) {
-          newMax = Math.max(1, beforeMax + delta);
-          deltaMax = newMax - beforeMax;
-          targetStatUpdates[`stats.${statIndex}.maxValue`] = newMax;
-
-          if (syncValue) {
-            // 同步修改目前值
-            newValue = Math.max(0, beforeValue + delta);
-            newValue = Math.min(newValue, newMax);
-            deltaValue = newValue - beforeValue;
-            targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-            effectMessages.push(`${effect.targetStat} 最大值 ${delta > 0 ? '+' : ''}${delta}，目前值同步調整`);
-          } else {
-            // 只修改最大值，確保目前值不超過新最大值
-            newValue = Math.min(beforeValue, newMax);
-            deltaValue = newValue - beforeValue;
-            targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-            effectMessages.push(`${effect.targetStat} 最大值 ${delta > 0 ? '+' : ''}${delta}`);
-          }
-        }
-      } else {
-        // 修改目前值
-        newValue = Math.max(0, beforeValue + delta);
-        if (beforeMax !== null) {
-          newValue = Math.min(newValue, beforeMax);
-        }
-        deltaValue = newValue - beforeValue;
-        targetStatUpdates[`stats.${statIndex}.value`] = newValue;
-        effectMessages.push(`${effect.targetStat} ${delta > 0 ? '+' : ''}${delta}`);
-      }
+      effectMessages.push(result.message);
 
       statUpdatePayload.push({
         id: stats[statIndex].id,
         name: stats[statIndex].name,
-        value: newValue,
-        maxValue: newMax ?? undefined,
-        deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-        deltaMax: deltaMax !== 0 ? deltaMax : undefined,
+        value: result.newValue,
+        maxValue: result.newMaxValue,
+        deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+        deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
       });
 
       if (isAffectingOthers) {
         crossCharacterChanges.push({
           name: stats[statIndex].name,
-          deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-          deltaMax: deltaMax !== 0 ? deltaMax : undefined,
-          newValue,
-          newMax: newMax ?? undefined,
+          deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+          deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+          newValue: result.newValue,
+          newMax: result.newMaxValue,
         });
       }
 
-      // Phase 8: 如果效果有 duration，建立時效性效果記錄
-      if (effectWithTarget.duration && effectWithTarget.duration > 0) {
+      // Phase 8: 時效性效果
+      if (effect.duration && effect.duration > 0) {
         await createTemporaryEffectRecord(
           getBaselineCharacterId(effectTarget),
           {
@@ -203,34 +138,24 @@ export async function executeItemEffects(
           },
           {
             targetStat: effect.targetStat!,
-            deltaValue: deltaValue !== 0 ? deltaValue : undefined,
-            deltaMax: deltaMax !== 0 ? deltaMax : undefined,
-            statChangeTarget: effectiveTarget,
-            syncValue: effectWithTarget.syncValue,
+            deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+            deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+            statChangeTarget: result.effectiveTarget,
+            syncValue: effect.syncValue,
           },
-          effectWithTarget.duration
+          effect.duration
         );
       }
     } else if (effect.type === 'custom' && effect.description) {
-      // 自定義效果
       effectMessages.push(effect.description);
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
-      // 移除道具或偷竊道具效果
-      // 對抗檢定：效果會在對抗結束後由 selectTargetItemForContest 執行
-      if (checkType === 'contest' || checkType === 'random_contest') {
-        continue;
-      }
-      // Step 9.1: 無 targetItemId（目標無道具時由 selectTargetItemAfterUse 呼叫）→ 記錄訊息並跳過
+      if (checkType === 'contest' || checkType === 'random_contest') continue;
       if (!targetItemId) {
         effectMessages.push('目標角色沒有道具可互動');
         continue;
       }
+      if (!targetCharacterId) throw new Error('此效果需要選擇目標角色');
 
-      if (!targetCharacterId) {
-        throw new Error('此效果需要選擇目標角色');
-      }
-
-      // 驗證目標角色
       if (!targetCharacter) {
         targetCharacter = await getCharacterData(targetCharacterId!) as CharacterDocument;
         if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
@@ -238,158 +163,38 @@ export async function executeItemEffects(
         }
       }
 
-      // 找到目標道具
       const targetItems = targetCharacter.items || [];
-      const targetItemIndex = targetItems.findIndex((i) => i.id === targetItemId);
+      const targetItem = targetItems.find((i) => i.id === targetItemId);
+      if (!targetItem) throw new Error('目標角色沒有此道具');
 
-      if (targetItemIndex === -1) {
-        throw new Error('目標角色沒有此道具');
-      }
+      const sourceTags = item.tags || [];
+      const hasStealthTag = sourceTags.includes('stealth');
 
-      const targetItem = targetItems[targetItemIndex];
-      const targetItemName = targetItem.name;
-      const targetItemQuantity = targetItem.quantity || 1;
-
-      // 準備更新
-      const targetUpdates: Record<string, unknown> = {};
-      const sourceUpdates: Record<string, unknown> = {};
-
-      if (targetItemQuantity <= 1) {
-        // 數量為 1 或更少，直接移除
-        targetUpdates.$pull = { items: { id: targetItemId } };
-      } else {
-        // 減少數量
-        const newQuantity = targetItemQuantity - 1;
-        targetUpdates[`items.${targetItemIndex}.quantity`] = newQuantity;
-      }
-
-      // Phase 10.4: 更新目標角色（自動判斷 Baseline/Runtime）
-      if (targetUpdates.$pull) {
-        await updateCharacterData(targetCharacterId!, {
-          $pull: targetUpdates.$pull as { items: { id: string } },
-        });
-      } else {
-        await updateCharacterData(targetCharacterId!, {
-          $set: targetUpdates,
-        });
-      }
-
-      if (effect.type === 'item_steal') {
-        // 偷竊：將道具轉移到施放者身上
-        const sourceItems = character.items || [];
-        const sourceItemIndex = sourceItems.findIndex((i) => i.id === targetItemId);
-
-        if (sourceItemIndex !== -1) {
-          // 施放者已有此道具，增加數量
-          const currentQuantity = sourceItems[sourceItemIndex].quantity || 1;
-          sourceUpdates[`items.${sourceItemIndex}.quantity`] = currentQuantity + 1;
-        } else {
-          // 施放者沒有此道具，新增道具
-          const stolenItem = {
-            ...targetItem,
-            quantity: 1,
-            acquiredAt: new Date(),
-          };
-          delete (stolenItem as Record<string, unknown> & { _id?: unknown })._id; // 移除 MongoDB ID
-          sourceUpdates.$push = { items: stolenItem };
-        }
-
-        // Phase 10.4: 更新施放者（自動判斷 Baseline/Runtime）
-        if (sourceUpdates.$push) {
-          await updateCharacterData(characterId, {
-            $push: sourceUpdates.$push as { items: unknown },
-          });
-        } else {
-          await updateCharacterData(characterId, {
-            $set: sourceUpdates,
-          });
-        }
-
-        effectMessages.push(`偷竊了 ${targetItemName}`);
-
-        // item_steal 後，記錄接收方 ID 供呼叫者延遲觸發自動揭露
-        // 不在此處立即執行，避免揭露通知搶先於道具使用結果通知送達客戶端
-        pendingRevealReceiverId = characterId;
-      } else {
-        // 移除：只移除目標道具，不轉移
-        effectMessages.push(`移除了 ${targetItemName}`);
-      }
-
-      // 發送 WebSocket 事件給目標角色
-      emitInventoryUpdated(targetCharacterId, {
-        characterId: targetCharacterId,
-        item: {
-          id: targetItem.id,
-          name: targetItem.name,
-          description: targetItem.description || '',
-          imageUrl: targetItem.imageUrl,
-          acquiredAt: targetItem.acquiredAt?.toISOString(),
+      const transferResult = await applyItemTransfer({
+        targetIdStr: targetCharacterId!,
+        sourceIdStr: characterId,
+        targetItem,
+        effectType: effect.type,
+        notification: {
+          sourceCharacterId: characterId,
+          sourceCharacterName: character.name,
+          sourceType: 'item',
+          sourceName: item.name,
+          hasStealthTag,
         },
-        action: targetItemQuantity <= 1 ? 'deleted' : 'updated',
-      }).catch((error) => console.error('Failed to emit inventory.updated (take/steal target)', error));
+      });
 
-      // 發送跨角色影響事件
-      emitCharacterAffected(targetCharacterId, {
-        targetCharacterId,
-        sourceCharacterId: characterId,
-        sourceCharacterName: character.name,
-        sourceType: 'item',
-        sourceName: item.name,
-        effectType: effect.type === 'item_steal' ? 'item_steal' : 'item_take',
-        changes: {
-          items: [{
-            id: targetItem.id,
-            name: targetItem.name,
-            action: effect.type === 'item_steal' ? 'stolen' : 'removed',
-          }],
-        },
-      }).catch((error) => console.error('Failed to emit character.affected (item_take/steal)', error));
-
-      // 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
-      const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
-        getCharacterData(characterId),
-        getCharacterData(targetCharacterId!),
-      ]);
-
-      if (updatedSourceCharacter && updatedTargetCharacter) {
-        const sourceCleanItems = cleanItemData(updatedSourceCharacter.items);
-        const targetCleanItems = cleanItemData(updatedTargetCharacter.items);
-
-        // 發送 role.updated 給兩個角色，包含最新的道具列表
-        await emitRoleUpdated(characterId, {
-          characterId,
-          updates: {
-            items: sourceCleanItems as unknown as Array<Record<string, unknown>>,
-          },
-        }).catch((error) => {
-          console.error('[item-effect-executor] Failed to emit role.updated (source character items)', error);
-        });
-
-        await emitRoleUpdated(targetCharacterId, {
-          characterId: targetCharacterId,
-          updates: {
-            items: targetCleanItems as unknown as Array<Record<string, unknown>>,
-          },
-        }).catch((error) => {
-          console.error('[item-effect-executor] Failed to emit role.updated (target character items)', error);
-        });
+      effectMessages.push(transferResult.message);
+      if (transferResult.pendingRevealReceiverId) {
+        pendingRevealReceiverId = transferResult.pendingRevealReceiverId;
       }
     }
   }
 
   // 應用統計變化
   if (Object.keys(targetStatUpdates).length > 0) {
-    if (isAffectingOthers && targetCharacter) {
-      // Phase 10.4: 更新目標角色（自動判斷 Baseline/Runtime）
-      await updateCharacterData(targetCharacterId!, {
-        $set: targetStatUpdates,
-      });
-    } else {
-      // Phase 10.4: 更新自己（自動判斷 Baseline/Runtime）
-      await updateCharacterData(characterId, {
-        $set: targetStatUpdates,
-      });
-    }
+    const updateTargetId = isAffectingOthers ? targetCharacterId! : characterId;
+    await updateCharacterData(updateTargetId, { $set: targetStatUpdates });
   }
 
   // WebSocket：數值更新（若有）
@@ -397,52 +202,40 @@ export async function executeItemEffects(
     const targetId = isAffectingOthers ? targetCharacterId! : characterId;
 
     if (isAffectingOthers && crossCharacterChanges.length > 0) {
-      // Phase 7.6: 檢查來源道具是否有隱匿標籤
       const sourceTags = item.tags || [];
       const hasStealthTag = sourceTags.includes('stealth');
-      
-      // 跨角色影響：只發送 character.affected，不發送 role.updated 的 stats（避免重複通知）
+
       emitCharacterAffected(targetId, {
         targetCharacterId: targetId,
         sourceCharacterId: characterId,
-        sourceCharacterName: hasStealthTag ? '' : character.name, // Phase 7.6: 有隱匿標籤時不顯示來源方名稱
+        sourceCharacterName: hasStealthTag ? '' : character.name,
         sourceType: 'item',
         sourceName: item.name,
-        sourceHasStealthTag: hasStealthTag, // Phase 7.6: 標記是否有隱匿標籤
+        sourceHasStealthTag: hasStealthTag,
         effectType: 'stat_change',
         changes: {
-          stats: crossCharacterChanges.map((change) => ({
-            name: change.name,
-            deltaValue: change.deltaValue,
-            deltaMax: change.deltaMax,
-            newValue: change.newValue,
-            newMax: change.newMax,
+          stats: crossCharacterChanges.map((c) => ({
+            name: c.name, deltaValue: c.deltaValue,
+            deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
           })),
         },
-      }).catch((error) => console.error('Failed to emit character.affected (item)', error));
+      }).catch((err) => console.error('[item-effect-executor] emitCharacterAffected failed', err));
 
-      // 只發送 role.updated 用於觸發頁面刷新，但不包含 stats
-      emitRoleUpdated(targetId, {
-        characterId: targetId,
-        updates: {
-          // 不包含 stats，避免與 character.affected 重複
-        },
-      }).catch((error) => console.error('Failed to emit role.updated (item target)', error));
-    } else {
-      // 自己使用道具：發送 role.updated 觸發頁面刷新
-      // 不附帶 stats 資料，避免與道具使用結果的通知重複
       emitRoleUpdated(targetId, {
         characterId: targetId,
         updates: {},
-      }).catch((error) => console.error('Failed to emit role.updated (item stat)', error));
+      }).catch((err) => console.error('[item-effect-executor] emitRoleUpdated failed', err));
+    } else {
+      emitRoleUpdated(targetId, {
+        characterId: targetId,
+        updates: {},
+      }).catch((err) => console.error('[item-effect-executor] emitRoleUpdated failed', err));
     }
   }
 
-  // Phase 10.4: 重新載入角色資料（自動判斷 Baseline/Runtime）
   const updatedCharacter = await getCharacterData(characterId);
   const updatedTarget = targetCharacterId ? await getCharacterData(targetCharacterId) : undefined;
 
-  // Phase 10.6: 記錄道具使用日誌
   await writeLog({
     gameId: character.gameId.toString(),
     characterId,
@@ -467,4 +260,3 @@ export async function executeItemEffects(
     pendingReveal: pendingRevealReceiverId ? { receiverId: pendingRevealReceiverId } : undefined,
   };
 }
-
