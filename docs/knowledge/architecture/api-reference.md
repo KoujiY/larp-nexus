@@ -12,14 +12,14 @@ For complete API spec, see `docs/specs/03_API_SPECIFICATION.md`.
 | `games.ts` | Game CRUD, game items query |
 | `characters.ts` | Character CRUD (~813 lines, Phase B refactor target) |
 | `character-update.ts` | Stat/item/skill updates (~653 lines) |
-| `item-use.ts` | Item usage flow (~650 lines) |
-| `skill-use.ts` | Skill usage flow |
+| `item-use.ts` | Item usage flow — requires PIN session auth (`validatePlayerAccess`) |
+| `skill-use.ts` | Skill usage flow — requires PIN session auth (`validatePlayerAccess`) |
 | `contest-respond.ts` | Defender response (~561 lines) |
 | `contest-select-item.ts` | Target item selection step |
 | `contest-cancel.ts` | Cancel pending contest |
 | `contest-query.ts` | Query contest state |
 | `game-lifecycle.ts` | Start/end game |
-| `unlock.ts` | PIN + Game Code unlock |
+| `unlock.ts` | PIN + Game Code unlock — writes `characterId` to `session.unlockedCharacterIds` on success |
 | `public.ts` | Player-facing character data (no auth) |
 | `item-showcase.ts` | Item showcase action |
 | `pending-events.ts` | Pull offline events on reconnect |
