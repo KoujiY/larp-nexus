@@ -196,12 +196,11 @@ docs/knowledge/
 
 ## Phase D: Full UI Redesign
 
-- [ ] Evaluate Google Stitch for design generation
-- [ ] Define design requirements (all platforms, readability focus)
-- [ ] Evaluate Google Docs embedding for content-heavy sections
-- [ ] Implement new UI design
-- [ ] Mobile responsive verification
-- [ ] `/code-review` on all Phase D changes
+> 詳細計畫見 `docs/refactoring/PHASE_D_PLAN.md`
+> 分支：`feat/phase-d-ui-redesign`（從 `main` 分岐，Phase B+C 合併後開始）
+
+- [ ] 執行 `PHASE_D_PLAN.md` 的所有項目
+- [ ] 合併至 `main`
 
 ---
 
