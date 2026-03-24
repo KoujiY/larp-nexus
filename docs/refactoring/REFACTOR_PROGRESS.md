@@ -4,10 +4,10 @@
 
 ## Refactoring Roadmap
 
-- [x] Phase 0: Documentation & Knowledge Base ✅ 2026-03-23
-  - ⏳ Deferred: `docs/specs/05_GM_PAGES_ARCHITECTURE.md` and `06_PLAYER_PAGES_ARCHITECTURE.md` — evaluate delete/refactor after Phase C (component architecture will change significantly)
-- [ ] Phase A: Test Infrastructure + Type Consolidation
-- [ ] Phase B+C: Backend & Frontend Refactoring (shared logic focus)
+- [x] Phase 0: Documentation & Knowledge Base ✅ 2026-03-23 — 0-3 all 27 knowledge base files confirmed ✅ 2026-03-24
+  - [x] Deleted `docs/specs/05_GM_PAGES_ARCHITECTURE.md` and `06_PLAYER_PAGES_ARCHITECTURE.md` ✅ 2026-03-24
+- [x] Phase A: Test Infrastructure + Type Consolidation ✅ 2026-03-23
+- [x] Phase B+C: Backend & Frontend Refactoring ✅ 2026-03-24 — B-2, C-1 complete; B-1 GM form patterns done; useUsageFlow + RevealableItem deferred to Phase D
 - [ ] Phase D: Full UI Redesign (evaluate Google Stitch)
 - [ ] Phase E: Test Coverage + Cleanup
 
@@ -81,33 +81,33 @@ docs/knowledge/
     tech-stack.md
 ```
 
-- [ ] gm/character/character-card.md
-- [ ] gm/character/basic-info.md
-- [ ] gm/character/public-info.md
-- [ ] gm/character/hidden-info.md
-- [ ] gm/character/stats.md
-- [ ] gm/tasks/task-management.md
-- [ ] gm/tasks/hidden-tasks-and-auto-reveal.md
-- [ ] gm/items/item-concepts.md
-- [ ] gm/items/item-effects-and-tags.md
-- [ ] gm/skills/skill-concepts.md
-- [ ] gm/skills/skill-effects-and-tags.md
-- [ ] gm/game/game-settings.md
-- [ ] gm/game/broadcast-system.md
-- [ ] gm/game/game-states.md
-- [ ] player/character-card-view.md
-- [ ] player/item-usage.md
-- [ ] player/skill-usage.md
-- [ ] shared/contest/contest-flow.md
-- [ ] shared/contest/check-mechanism.md
-- [ ] shared/contest/tag-rules.md
-- [ ] shared/auto-reveal-system.md
-- [ ] shared/notification-system.md
-- [ ] shared/websocket-events.md
-- [ ] architecture/data-models.md
-- [ ] architecture/api-reference.md
-- [ ] architecture/deployment-and-env.md
-- [ ] architecture/tech-stack.md
+- [x] gm/character/character-card.md
+- [x] gm/character/basic-info.md
+- [x] gm/character/public-info.md
+- [x] gm/character/hidden-info.md
+- [x] gm/character/stats.md
+- [x] gm/tasks/task-management.md
+- [x] gm/tasks/hidden-tasks-and-auto-reveal.md
+- [x] gm/items/item-concepts.md
+- [x] gm/items/item-effects-and-tags.md
+- [x] gm/skills/skill-concepts.md
+- [x] gm/skills/skill-effects-and-tags.md
+- [x] gm/game/game-settings.md
+- [x] gm/game/broadcast-system.md
+- [x] gm/game/game-states.md
+- [x] player/character-card-view.md
+- [x] player/item-usage.md
+- [x] player/skill-usage.md
+- [x] shared/contest/contest-flow.md
+- [x] shared/contest/check-mechanism.md
+- [x] shared/contest/tag-rules.md
+- [x] shared/auto-reveal-system.md
+- [x] shared/notification-system.md
+- [x] shared/websocket-events.md
+- [x] architecture/data-models.md
+- [x] architecture/api-reference.md
+- [x] architecture/deployment-and-env.md
+- [x] architecture/tech-stack.md
 
 ### 0-4. Update .claude/CLAUDE.md with development norms
 - [x] Add knowledge base maintenance rule
@@ -160,27 +160,37 @@ docs/knowledge/
 ## Phase B+C: Backend & Frontend Refactoring
 
 ### B-1. Identify and extract shared logic
-- [ ] Shared effect executor core (item + skill)
-- [ ] Shared `useUsageFlow` hook (item + skill usage flow)
-- [ ] Shared `RevealableItem` component (hidden-info + hidden-tasks reveal animation)
-- [ ] Shared GM edit form patterns (items + skills forms)
+- [x] Shared effect executor core → `lib/effects/shared-effect-executor.ts` (`computeStatChange`, `applyItemTransfer` — 14 tests)
+- [x] Shared GM edit form patterns → `CheckConfigSection`, `UsageLimitSection`, `TagsSection` (achieved via C-1) ✅ 2026-03-24
+- ⏳ Deferred to Phase D: `useUsageFlow` hook — hooks already clean; item/skill flows have enough divergence; full refactor premature before UI redesign
+- ⏳ Deferred to Phase D: `RevealableItem` component — no existing duplication to extract; Phase D will redesign reveal UI
 
-### B-2. Server-side decomposition
-- [ ] Create service layer for item-use, skill-use, contest-respond, character-update
-- [ ] Create action wrapper utility (eliminate try/catch boilerplate)
-- [ ] Split field-updaters.ts by domain (stats/skills/items/tasks/secrets)
-- [ ] Split event-mappers.ts by event domain
+### B-2. Server-side decomposition ✅ 2026-03-23
+- [x] Create service layer for item-use, skill-use, character-update (`withAction` wrapper applied; contest-respond kept as-is due to cleanup logic in catch)
+- [x] Create action wrapper utility → `lib/actions/action-wrapper.ts` (eliminates try/catch + dbConnect boilerplate; 5 tests)
+- [x] Split field-updaters.ts by domain → `lib/character/field-updaters/` (stats/skills/items/tasks/secrets/public-info + shared + index barrel; −757 lines)
+- [x] Split event-mappers.ts by event domain → `lib/utils/event-mappers/` (item-events/role-events/skill-events/misc-events + types + index facade; −773 lines)
 
 ### C-1. Client-side decomposition
-- [ ] Decompose item-list.tsx (1,449 lines) → ItemCard, ItemDetailDialog, ItemTransferDialog, useItemUsageFlow
-- [ ] Decompose skill-list.tsx (1,059 lines) → SkillCard, SkillDetailDialog, useSkillUsageFlow
-- [ ] Decompose items-edit-form.tsx (1,011 lines)
-- [ ] Decompose skills-edit-form.tsx (839 lines)
-- [ ] Decompose character-card-view.tsx (780 lines)
+- [x] Decompose item-list.tsx (1,449 → 955 lines) → ItemCard, ItemDetailDialog, ItemTransferDialog, ItemShowcaseSelectDialog ✅ 2026-03-24
+- [x] Decompose skill-list.tsx (1,059 → ~755 lines) → SkillCard, SkillDetailDialog ✅ 2026-03-24
+- [x] Decompose items-edit-form.tsx (1,011 → ~450 lines) → CheckConfigSection, UsageLimitSection, TagsSection + pure utils ✅ 2026-03-24
+- [x] Decompose skills-edit-form.tsx (839 → ~310 lines) → reuses CheckConfigSection, UsageLimitSection, TagsSection ✅ 2026-03-24
+- [x] Decompose character-card-view.tsx (780 → 702 lines) → CharacterModeBanner, NotificationButton, GameEndedDialog ✅ 2026-03-24
 
 ### B+C Code Review
-- [ ] `/code-review` on all Phase B+C changes
-- [ ] Evaluate `docs/specs/05_GM_PAGES_ARCHITECTURE.md` and `06_PLAYER_PAGES_ARCHITECTURE.md` — delete or refactor
+- [x] `/code-review` on all Phase B-2 changes ✅ 2026-03-24
+  - Fixed HIGH: normalizeCheckConfig 改為純函數（回傳新物件，不 mutate 參數）
+  - Fixed HIGH: withAction 型別修正（`any` → `ApiResponse<unknown>`，移除 eslint-disable，補充說明）
+  - Fixed HIGH: 補充 field-updaters 測試（updateCharacterItems/Skills/Secrets/PublicInfo）
+  - Fixed HIGH: setTimeout 副作用從 mapItemTransferred 移至 hook（use-character-websocket-handler.ts）
+  - Fixed MEDIUM: shared-effect-executor.ts 的 `delete` mutation 改用 Object.fromEntries 過濾
+  - Fixed MEDIUM: mapSkillContest 175 行拆分為 mapAttackerResult + mapDefenderResult
+  - Fixed MEDIUM: withAction console.error 只記錄 message 避免洩漏使用者資料
+  - Fixed MEDIUM: 補充 event-mappers 子模組測試（role / item / skill / misc）
+  - 212 tests passing, type-check clean, 0 lint errors
+- [x] Deleted `docs/specs/05_GM_PAGES_ARCHITECTURE.md` and `06_PLAYER_PAGES_ARCHITECTURE.md` — outdated after Phase C; knowledge base is authoritative reference ✅ 2026-03-24
+- [x] Fixed HIGH (security): Player authorization for `useItem` / `useSkill` / `transferItem` — added `validatePlayerAccess()` + `unlockedCharacterIds` session field; unlock action writes to session on PIN success ✅ 2026-03-24
 
 ---
 
