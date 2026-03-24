@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useTargetOptions } from './use-target-options';
 import { getTargetCharacterItems, type TargetItemInfo } from '@/app/actions/public';
 import { toast } from 'sonner';
@@ -51,17 +51,11 @@ export function useEffectTarget({
     enabled: enabled && requiresTarget,
   });
 
-  // 使用本地狀態來管理 selectedTargetId，避免被 hook 重置
-  const [localSelectedTargetId, setLocalSelectedTargetId] = useState<string | undefined>(hookSelectedTargetId);
-  
-  // 同步 hook 的 selectedTargetId 到本地狀態
-  useEffect(() => {
-    if (hookSelectedTargetId !== undefined && localSelectedTargetId === undefined) {
-      setLocalSelectedTargetId(hookSelectedTargetId);
-    }
-  }, [hookSelectedTargetId, localSelectedTargetId]);
+  // 使用本地狀態管理使用者明確選擇的目標，避免被 hook 重置
+  // 未明確選擇時（undefined）回退到 hook 提供的預設值，不需 useEffect 同步
+  const [localSelectedTargetId, setLocalSelectedTargetId] = useState<string | undefined>(undefined);
 
-  const selectedTargetId = localSelectedTargetId;
+  const selectedTargetId = localSelectedTargetId ?? hookSelectedTargetId;
   
   const setSelectedTargetId = useCallback((id: string | undefined) => {
     setLocalSelectedTargetId(id);
@@ -114,19 +108,6 @@ export function useEffectTarget({
     setSelectedTargetItemId('');
     setSelectedTargetId(undefined);
   }, [setSelectedTargetId]);
-
-  // 當目標角色改變時，重置確認狀態
-  useEffect(() => {
-    const needsTargetItem = effects.some(
-      (e) => e.type === 'item_take' || e.type === 'item_steal'
-    );
-    
-    if (needsTargetItem && selectedTargetId && !isTargetConfirmed) {
-      setIsTargetConfirmed(false);
-      setTargetItems([]);
-      setSelectedTargetItemId('');
-    }
-  }, [effects, selectedTargetId, isTargetConfirmed]);
 
   return {
     // 目標角色選擇

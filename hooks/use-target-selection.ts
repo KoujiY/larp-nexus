@@ -80,8 +80,9 @@ export function useTargetSelection(options: UseTargetSelectionOptions): UseTarge
   });
 
   // 本地狀態管理（避免被 hook 重置）
-  const [localSelectedTargetId, setLocalSelectedTargetId] = useState<string | undefined>(hookSelectedTargetId);
-  
+  // 未明確選擇時（undefined）回退到 hook 提供的預設值，不需 useEffect 同步
+  const [localSelectedTargetId, setLocalSelectedTargetId] = useState<string | undefined>(undefined);
+
   // 目標確認和目標道具選擇狀態
   const [isTargetConfirmed, setIsTargetConfirmed] = useState(false);
   const [targetItems, setTargetItems] = useState<TargetItemInfo[]>([]);
@@ -91,16 +92,8 @@ export function useTargetSelection(options: UseTargetSelectionOptions): UseTarge
   // 防止重複恢復狀態的 ref
   const restoredStateRef = useRef<Set<string>>(new Set());
 
-  // 同步 hook 的 selectedTargetId 到本地狀態
-  useEffect(() => {
-    // 只有在 hook 的值變化且本地狀態為 undefined 時才同步（避免覆蓋恢復的值）
-    if (hookSelectedTargetId !== undefined && localSelectedTargetId === undefined) {
-      setLocalSelectedTargetId(hookSelectedTargetId);
-    }
-  }, [hookSelectedTargetId, localSelectedTargetId]);
-
-  // 使用本地狀態作為 selectedTargetId
-  const selectedTargetId = localSelectedTargetId;
+  // 未明確選擇時回退到 hook 提供的預設值
+  const selectedTargetId = localSelectedTargetId ?? hookSelectedTargetId;
 
   // 獲取 storage key
   const getTargetStorageKey = useCallback(() => {

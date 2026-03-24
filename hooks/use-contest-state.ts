@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface ContestState {
   sourceId: string; // skillId 或 itemId
@@ -54,79 +54,30 @@ const CONTEST_TIMEOUT_MS = 180_000;
 export function useContestState(characterId: string) {
   const storageKey = `${STORAGE_KEY_PREFIX}${characterId}`;
 
-  const [pendingContests, setPendingContests] = useState<Record<string, ContestState>>({});
-  // 修復：使用 ref 追蹤是否已經從 localStorage 載入過狀態，避免重複載入
-  const hasLoadedFromStorageRef = useRef(false);
-
-  // 從 localStorage 載入狀態
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // 修復：只在首次掛載時從 localStorage 載入狀態，避免在 removePendingContest 清除狀態後重新恢復
-    if (hasLoadedFromStorageRef.current) {
-      return;
-    }
-
-    const loadFromStorage = () => {
-      try {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) {
-          const parsed = JSON.parse(stored) as Record<string, ContestState>;
-          // 清理過期的對抗檢定（超過 3 分鐘）
-          const now = Date.now();
-          const filtered: Record<string, ContestState> = {};
-          for (const [key, contest] of Object.entries(parsed)) {
-            if (now - contest.timestamp < CONTEST_TIMEOUT_MS) {
-              filtered[key] = contest;
-            }
-          }
-          // 使用函數式更新，確保不會覆蓋 removePendingContest 的狀態更新
-          setPendingContests((currentState) => {
-            // 在函數式更新內部重新讀取 localStorage，確保使用最新的數據
-            // 這樣可以避免 removePendingContest 清除 localStorage 後，loadFromStorage 仍然使用舊的 filtered 數據
-            try {
-              const latestStored = localStorage.getItem(storageKey);
-              if (!latestStored) {
-                return {};
-              }
-              const latestParsed = JSON.parse(latestStored) as Record<string, ContestState>;
-              const now = Date.now();
-              const latestFiltered: Record<string, ContestState> = {};
-              for (const [key, contest] of Object.entries(latestParsed)) {
-                if (now - contest.timestamp < CONTEST_TIMEOUT_MS) {
-                  latestFiltered[key] = contest;
-                }
-              }
-              // 修復：只在首次掛載時從 localStorage 恢復狀態
-              // 如果當前狀態是空的且 localStorage 中有記錄，則使用 localStorage 中的記錄
-              // 如果 removePendingContest 已經清除了 localStorage，latestFiltered 應該是空的
-              if (Object.keys(currentState).length === 0 && Object.keys(latestFiltered).length > 0) {
-                return latestFiltered;
-              }
-              return currentState;
-            } catch (error) {
-              console.error('[use-contest-state] Failed to reload from localStorage in function update:', error);
-              return currentState;
-            }
-          });
-          if (Object.keys(filtered).length !== Object.keys(parsed).length) {
-            localStorage.setItem(storageKey, JSON.stringify(filtered));
-          }
-        } else {
-          setPendingContests({});
+  // lazy initializer：掛載時同步讀取 localStorage，避免 useEffect 中呼叫 setState
+  const [pendingContests, setPendingContests] = useState<Record<string, ContestState>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (!stored) return {};
+      const parsed = JSON.parse(stored) as Record<string, ContestState>;
+      const now = Date.now();
+      const filtered: Record<string, ContestState> = {};
+      for (const [key, contest] of Object.entries(parsed)) {
+        if (now - contest.timestamp < CONTEST_TIMEOUT_MS) {
+          filtered[key] = contest;
         }
-        hasLoadedFromStorageRef.current = true;
-      } catch (error) {
-        console.error('Failed to load contest state:', error);
-        hasLoadedFromStorageRef.current = true;
       }
-    };
-
-    loadFromStorage();
-
-    // 修復：移除 storage 事件監聽器，避免在 removePendingContest 清除狀態後重新恢復
-    // 只在首次掛載時載入狀態，之後不再監聽 storage 事件
-  }, [storageKey]);
+      // 順便清除過期記錄
+      if (Object.keys(filtered).length !== Object.keys(parsed).length) {
+        localStorage.setItem(storageKey, JSON.stringify(filtered));
+      }
+      return filtered;
+    } catch (error) {
+      console.error('Failed to load contest state:', error);
+      return {};
+    }
+  });
 
   // 保存狀態到 localStorage
   useEffect(() => {
@@ -270,31 +221,23 @@ export function useContestState(characterId: string) {
 export function useDefenderContestState(characterId: string) {
   const storageKey = `${DEFENDER_STORAGE_KEY_PREFIX}${characterId}`;
 
-  const [defenderState, setDefenderState] = useState<DefenderContestState | null>(null);
-
-  // 從 localStorage 載入狀態
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
+  // lazy initializer：掛載時同步讀取 localStorage，取代 useEffect + setTimeout 的舊寫法
+  const [defenderState, setDefenderState] = useState<DefenderContestState | null>(() => {
+    if (typeof window === 'undefined') return null;
     try {
       const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored) as DefenderContestState;
-        const now = Date.now();
-        if (now - parsed.timestamp < CONTEST_TIMEOUT_MS) {
-          // 使用 setTimeout 避免同步 setState
-          const timeoutId = setTimeout(() => {
-            setDefenderState(parsed);
-          }, 0);
-          return () => clearTimeout(timeoutId);
-        } else {
-          localStorage.removeItem(storageKey);
-        }
+      if (!stored) return null;
+      const parsed = JSON.parse(stored) as DefenderContestState;
+      if (Date.now() - parsed.timestamp < CONTEST_TIMEOUT_MS) {
+        return parsed;
       }
+      localStorage.removeItem(storageKey);
+      return null;
     } catch (error) {
       console.error('Failed to load defender contest state:', error);
+      return null;
     }
-  }, [storageKey]);
+  });
 
   // 保存狀態到 localStorage
   useEffect(() => {
