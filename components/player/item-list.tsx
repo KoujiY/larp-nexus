@@ -44,6 +44,12 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   useEffect(() => {
     pendingContestsRef.current = pendingContests;
   }, [pendingContests]);
+
+  // 修復：使用 useRef 追蹤最新的 selectedItem 值，避免 WebSocket handler 中的閉包問題
+  const selectedItemRef = useRef<Item | null>(selectedItem);
+  useEffect(() => {
+    selectedItemRef.current = selectedItem;
+  }, [selectedItem]);
   
   // Phase 3: 使用統一的 Dialog 狀態管理
   const { dialogState, clearDialogState, isDialogForSource } = useContestDialogState(characterId);
@@ -583,7 +589,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
             const contestId = pendingContest?.contestId || generateContestId(attackerIdStr, itemId, event.timestamp);
 
             // 關閉原本的道具 dialog
-            if (selectedItem && selectedItem.id === itemId) {
+            if (selectedItemRef.current && selectedItemRef.current.id === itemId) {
               handleCloseDialog();
             }
 
@@ -631,7 +637,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         }
 
         // 關閉道具 dialog（force: 對抗檢定已結束，跳過 stale state guard）
-        if (selectedItem && selectedItem.id === payload.itemId) {
+        if (selectedItemRef.current && selectedItemRef.current.id === payload.itemId) {
           handleCloseDialog({ force: true });
         }
 
