@@ -11,7 +11,7 @@
 - **UI**: Tailwind CSS 4+ + shadcn/ui + Framer Motion
 - **Database**: MongoDB Atlas (透過 Mongoose)
 - **Real-time**: Pusher WebSocket
-- **Testing**: Vitest (Phase A 待設定)
+- **Testing**: Vitest
 
 ### 開發命令
 ```bash
@@ -19,35 +19,19 @@ npm run dev          # 啟動開發服務器
 npm run build        # 生產構建
 npm run lint         # ESLint 代碼檢查
 npm run type-check   # TypeScript 類型檢查
-npm test             # 運行測試
+npm run test         # 運行測試
 ```
-
-## 語言規範
-
-- **主要語言**：繁體中文（Chat 回應、文件、程式碼註解、JSDoc）
-- **次要語言**：英文（技術術語、識別碼命名、命令列輸出、commit message 說明文字）
-- **禁止使用**：繁體中文與英文以外的語言（包含日文、簡體中文等），除非使用者明確要求
-- 此規範適用於所有介面（CLI 與 GUI）的所有輸出
 
 ## 程式碼規範
 
 ### TypeScript
 - 使用 `strict: true` 模式
 - 避免使用 `any`，優先使用 `unknown`
-- 為所有函數參數和返回值添加類型
-- 使用 `type` 定義數據結構
+- 使用 `type` 定義數據結構（而非 `interface`）
 
-### React
-- 使用函數式組件和 Hooks
-- 組件命名使用 PascalCase
-- Props 必須定義 TypeScript 介面
+### 檔案與命名
 - 使用 kebab-case 命名文件
-
-### 代碼風格
-- 使用 2 空格縮進
-- ES modules (import/export)
 - 函數需要 JSDoc 註解
-- 遵循單一職責原則（SRP）
 
 ## 專案結構
 ```
@@ -101,12 +85,6 @@ docs/             # 文檔
 2. 實作修復
 3. 補回歸測試
 4. `/code-review` 審查
-
-## 重要提醒
-- 完成實作後執行 `npm run type-check` 和 `npm run lint`
-- WebSocket 連接需要在 useEffect 中清理
-- Server Actions 返回 JSON 可序列化的數據
-- 資料庫查詢前檢查用戶權限
 
 ## 知識庫 (Knowledge Base)
 
