@@ -124,3 +124,29 @@ docs/knowledge/
 - WebSocket 事件：`docs/specs/04_WEBSOCKET_EVENTS.md`
 - 資料模型：`docs/knowledge/architecture/data-models.md`
 - 知識庫索引：`docs/knowledge/`
+
+## Design Context
+
+> 完整設計規格見 `.impeccable.md`
+
+### 品牌個性
+**優雅・精緻・有質感** — 介面本身是 LARP 沉浸體驗的一部分
+
+### 視覺方向
+- 風格：神秘奇幻（Mystical Fantasy）
+- 深色模式：深午夜藍背景 + 金/琥珀強調色（玩家主要使用）
+- 淺色模式：暖米白背景 + 同一強調色（GM 主要使用）
+- 兩種模式同等精緻，非互為反色
+
+### 設計原則
+1. **沉浸優先** — 視覺強化奇幻氛圍，而非通用 SaaS 感
+2. **一步到位** — 玩家端關鍵操作單手可達（畫面下半部）
+3. **資訊層次清晰** — GM 端資訊密度高，依尺寸/色彩/間距分層
+4. **深淺並重** — 兩種模式均為精心設計
+5. **狀態感知** — Baseline/Runtime、對抗中、道具耗盡等狀態需明確視覺提示
+
+### 技術約束
+- Tailwind CSS 4（oklch 色彩空間）
+- shadcn/ui 組件（可改 token，不換 Radix primitive）
+- Framer Motion 製作轉場動畫
+- 玩家端手機優先 RWD，GM 端桌面優先 RWD

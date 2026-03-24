@@ -8,7 +8,7 @@
   - [x] Deleted `docs/specs/05_GM_PAGES_ARCHITECTURE.md` and `06_PLAYER_PAGES_ARCHITECTURE.md` ✅ 2026-03-24
 - [x] Phase A: Test Infrastructure + Type Consolidation ✅ 2026-03-23
 - [x] Phase B+C: Backend & Frontend Refactoring ✅ 2026-03-24 — B-2, C-1 complete; B-1 GM form patterns done; useUsageFlow + RevealableItem deferred to Phase D
-- [ ] Phase D: Full UI Redesign (evaluate Google Stitch)
+- [ ] Phase D: Full UI Redesign (evaluate Google Stitch) — D-1d ✅ 2026-03-24, D-1e ✅ 2026-03-24
 - [ ] Phase E: Test Coverage + Cleanup
 
 ---
