@@ -13,6 +13,19 @@ import { Zap, Clock } from 'lucide-react';
 import Image from 'next/image';
 import type { Skill } from '@/types/character';
 
+/** 將秒數轉為可讀格式，e.g. 3661 → "1h 1m 1s" */
+function formatCooldown(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const parts: string[] = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0) parts.push(`${s}s`);
+  return parts.join(' ');
+}
+
 export interface SkillCardProps {
   skill: Skill;
   /** 剩餘冷卻秒數；null 表示無冷卻 */
@@ -129,9 +142,9 @@ export function SkillCard({
                 <Badge variant="outline" className="text-xs">
                   <Clock className="h-3 w-3 mr-1" />
                   {cooldownRemaining !== null
-                    ? `冷卻 ${cooldownRemaining}s`
+                    ? `冷卻 ${formatCooldown(cooldownRemaining)}`
                     : skill.cooldown > 0
-                      ? `冷卻 ${skill.cooldown}s`
+                      ? `冷卻 ${formatCooldown(skill.cooldown)}`
                       : '無冷卻時間'}
                 </Badge>
               )}

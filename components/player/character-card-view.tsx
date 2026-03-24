@@ -28,7 +28,7 @@ import { useGameEventHandler } from '@/hooks/use-game-event-handler';
 import { CharacterModeBanner } from './character-mode-banner';
 import { NotificationButton } from './notification-button';
 import { GameEndedDialog } from './game-ended-dialog';
-import { Drama, FileText, BarChart3, CheckSquare, Package, Zap, Hash, CalendarDays } from 'lucide-react';
+import { FileText, BarChart3, CheckSquare, Package, Zap, Hash, CalendarDays, User } from 'lucide-react';
 
 interface CharacterCardViewProps {
   character: CharacterData;
@@ -92,7 +92,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   const displaySecretInfo = bl?.secretInfo ?? character.secretInfo;
 
   // Phase 8: 分頁狀態管理（用於自動切換到對應分頁）
-  const [activeTab, setActiveTab] = useState<string>('info');
+  const [activeTab, setActiveTab] = useState<string>('items');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   // Phase 10: 遊戲結束 Dialog 狀態（即時收到 game.ended 時顯示）
@@ -222,19 +222,10 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         onRelock={handleRelock}
       />
 
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2 flex items-center justify-center gap-3">
-          <Drama className="h-10 w-10 text-primary" />
-          LARP Nexus
-        </h1>
-        <p className="text-muted-foreground text-sm">角色卡系統</p>
-      </div>
-
       {/* 主要角色卡 */}
       <Card className="mb-6 overflow-hidden">
         {/* 角色圖片 */}
-        {character.imageUrl && (
+        {character.imageUrl ? (
           <div className="relative h-64 md:h-96 w-full bg-muted">
             <Image
               src={character.imageUrl}
@@ -243,6 +234,15 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
               className="object-cover"
               priority
             />
+          </div>
+        ) : (
+          <div className="h-40 md:h-56 w-full bg-muted flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2 text-muted-foreground/40">
+              <User className="h-16 w-16" />
+              <span className="text-4xl font-bold tracking-wider">
+                {character.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
           </div>
         )}
 
@@ -290,11 +290,11 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         <CardContent className="p-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-5 h-12 sm:h-10">
+              <TabsTrigger value="items" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Package className="h-4 w-4" /><span className="hidden sm:inline">道具</span></TabsTrigger>
+              <TabsTrigger value="skills" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Zap className="h-4 w-4" /><span className="hidden sm:inline">技能</span></TabsTrigger>
               <TabsTrigger value="info" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><FileText className="h-4 w-4" /><span className="hidden sm:inline">資訊</span></TabsTrigger>
               <TabsTrigger value="stats" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">數值</span></TabsTrigger>
               <TabsTrigger value="tasks" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><CheckSquare className="h-4 w-4" /><span className="hidden sm:inline">任務</span></TabsTrigger>
-              <TabsTrigger value="items" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Package className="h-4 w-4" /><span className="hidden sm:inline">道具</span></TabsTrigger>
-              <TabsTrigger value="skills" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Zap className="h-4 w-4" /><span className="hidden sm:inline">技能</span></TabsTrigger>
             </TabsList>
 
             <div className="p-6">
