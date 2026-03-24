@@ -388,7 +388,7 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                  <div className="text-center py-8 rounded-lg bg-muted/30">
                     <p className="text-sm text-muted-foreground">尚無效果，點擊「新增效果」開始新增</p>
                   </div>
                 )}

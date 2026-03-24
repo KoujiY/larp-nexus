@@ -236,7 +236,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
             消耗品 ({consumables.length})
           </h4>
           {consumables.length === 0 ? (
-            <div className="text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground">
+            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
               尚無消耗品
             </div>
           ) : (
@@ -255,7 +255,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
             裝備/道具 ({equipment.length})
           </h4>
           {equipment.length === 0 ? (
-            <div className="text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground">
+            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
               尚無裝備
             </div>
           ) : (
@@ -438,7 +438,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <div className="text-center py-8 rounded-lg bg-muted/30">
                       <p className="text-sm text-muted-foreground">尚無效果，點擊「新增效果」開始新增</p>
                     </div>
                   )}

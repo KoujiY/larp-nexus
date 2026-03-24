@@ -196,7 +196,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
             一般任務 ({normalTasks.length})
           </h4>
           {normalTasks.length === 0 ? (
-            <div className="text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground">
+            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
               尚無一般任務
             </div>
           ) : (
@@ -222,7 +222,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
             隱藏目標 ({hiddenTasks.length})
           </h4>
           {hiddenTasks.length === 0 ? (
-            <div className="text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground">
+            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
               尚無隱藏目標
             </div>
           ) : (

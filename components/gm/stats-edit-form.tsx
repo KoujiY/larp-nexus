@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, BarChart3 } from 'lucide-react';
 import type { Stat } from '@/types/character';
 
 interface StatsEditFormProps {
@@ -124,8 +124,8 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange }: Stat
       </CardHeader>
       <CardContent className="space-y-4">
         {stats.length === 0 ? (
-          <div className="text-center py-12 border-2 border-dashed rounded-lg">
-            <div className="text-4xl mb-4">📊</div>
+          <div className="text-center py-12 rounded-lg bg-muted/30">
+            <BarChart3 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
             <p className="text-muted-foreground mb-4">
               尚未定義任何數值欄位
             </p>
