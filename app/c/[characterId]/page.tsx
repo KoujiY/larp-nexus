@@ -17,7 +17,7 @@ export default async function CharacterPage({
   const { characterId } = await params;
   const { readonly } = await searchParams;
 
-  // Phase 10: ?readonly=true 由 /unlock 頁面導入時使用（向後相容）
+  // Phase 10: ?readonly=true 由 PIN-only 解鎖後使用
   const isReadOnly = readonly === 'true';
 
   const result = await getPublicCharacter(characterId);
