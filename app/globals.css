@@ -2,169 +2,226 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-  }
+/* ============================================================
+   LARP Nexus Design System
+   品牌個性：優雅・精緻・有質感 × 神秘奇幻
+   ============================================================
+   深色模式（玩家）：深午夜藍背景 + 金琥珀強調
+   淺色模式（GM）  ：暖米白背景 + 金琥珀強調
+   ============================================================ */
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
+/* ── Tailwind v4 theme mapping ─────────────────────────── */
 @theme inline {
+  /* Radius */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Core surfaces */
+  --color-background:              var(--background);
+  --color-foreground:              var(--foreground);
+  --color-card:                    var(--card);
+  --color-card-foreground:         var(--card-foreground);
+  --color-popover:                 var(--popover);
+  --color-popover-foreground:      var(--popover-foreground);
+
+  /* Brand */
+  --color-primary:                 var(--primary);
+  --color-primary-foreground:      var(--primary-foreground);
+
+  /* Secondary / Muted / Accent */
+  --color-secondary:               var(--secondary);
+  --color-secondary-foreground:    var(--secondary-foreground);
+  --color-muted:                   var(--muted);
+  --color-muted-foreground:        var(--muted-foreground);
+  --color-accent:                  var(--accent);
+  --color-accent-foreground:       var(--accent-foreground);
+
+  /* Semantic */
+  --color-destructive:             var(--destructive);
+  --color-destructive-foreground:  var(--destructive-foreground);
+  --color-success:                 var(--success);
+  --color-success-foreground:      var(--success-foreground);
+  --color-warning:                 var(--warning);
+  --color-warning-foreground:      var(--warning-foreground);
+  --color-info:                    var(--info);
+  --color-info-foreground:         var(--info-foreground);
+
+  /* Structure */
+  --color-border:                  var(--border);
+  --color-input:                   var(--input);
+  --color-ring:                    var(--ring);
+
+  /* Charts */
+  --color-chart-1:                 var(--chart-1);
+  --color-chart-2:                 var(--chart-2);
+  --color-chart-3:                 var(--chart-3);
+  --color-chart-4:                 var(--chart-4);
+  --color-chart-5:                 var(--chart-5);
+
+  /* Sidebar */
+  --color-sidebar:                        var(--sidebar);
+  --color-sidebar-foreground:             var(--sidebar-foreground);
+  --color-sidebar-primary:                var(--sidebar-primary);
+  --color-sidebar-primary-foreground:     var(--sidebar-primary-foreground);
+  --color-sidebar-accent:                 var(--sidebar-accent);
+  --color-sidebar-accent-foreground:      var(--sidebar-accent-foreground);
+  --color-sidebar-border:                 var(--sidebar-border);
+  --color-sidebar-ring:                   var(--sidebar-ring);
+
+  /* GM 環境狀態 */
+  --color-env-baseline:            var(--env-baseline);
+  --color-env-baseline-fg:         var(--env-baseline-fg);
+  --color-env-baseline-bg:         var(--env-baseline-bg);
+  --color-env-runtime:             var(--env-runtime);
+  --color-env-runtime-fg:          var(--env-runtime-fg);
+  --color-env-runtime-bg:          var(--env-runtime-bg);
 }
 
+/* ── Light Mode（GM 端主題） ────────────────────────────── */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  /* 背景：暖米白，帶極淡金色調 */
+  --background:              oklch(0.975 0.008 80);
+  --foreground:              oklch(0.165 0.028 262);   /* 深午夜藍文字 */
+
+  /* 卡片與彈出層 */
+  --card:                    oklch(0.995 0.005 80);    /* 略亮的暖白 */
+  --card-foreground:         oklch(0.165 0.028 262);
+  --popover:                 oklch(0.995 0.005 80);
+  --popover-foreground:      oklch(0.165 0.028 262);
+
+  /* 品牌色：金琥珀（淺色模式用較深的金，確保對比度）*/
+  --primary:                 oklch(0.52 0.16 75);      /* 琥珀金 */
+  --primary-foreground:      oklch(0.975 0.008 80);    /* 暖白 */
+
+  /* 次要介面色 */
+  --secondary:               oklch(0.925 0.015 262);   /* 冷藍灰 */
+  --secondary-foreground:    oklch(0.25 0.028 262);
+
+  /* 靜音色 */
+  --muted:                   oklch(0.935 0.008 80);    /* 暖淡灰 */
+  --muted-foreground:        oklch(0.48 0.018 262);    /* 中藍灰 */
+
+  /* 強調色（hover 互動面） */
+  --accent:                  oklch(0.925 0.015 262);
+  --accent-foreground:       oklch(0.25 0.028 262);
+
+  /* 語義色 */
+  --destructive:             oklch(0.57 0.24 27);      /* 暖紅 */
+  --destructive-foreground:  oklch(0.975 0.008 80);
+  --success:                 oklch(0.52 0.14 145);     /* 森林綠 */
+  --success-foreground:      oklch(0.975 0.008 80);
+  --warning:                 oklch(0.62 0.15 75);      /* 琥珀警告（偏深） */
+  --warning-foreground:      oklch(0.165 0.028 262);
+  --info:                    oklch(0.50 0.10 248);     /* 板岩藍 */
+  --info-foreground:         oklch(0.975 0.008 80);
+
+  /* 結構色 */
+  --border:                  oklch(0.875 0.012 80);    /* 暖淡邊框 */
+  --input:                   oklch(0.875 0.012 80);
+  --ring:                    oklch(0.52 0.16 75);      /* 金琥珀 focus ring */
+
+  /* 圖表配色（與品牌一致的協調色盤） */
+  --chart-1:                 oklch(0.62 0.16 75);      /* 琥珀金 */
+  --chart-2:                 oklch(0.56 0.14 145);     /* 森林綠 */
+  --chart-3:                 oklch(0.52 0.10 248);     /* 板岩藍 */
+  --chart-4:                 oklch(0.62 0.18 15);      /* 珊瑚玫瑰 */
+  --chart-5:                 oklch(0.56 0.13 295);     /* 深紫羅蘭 */
+
+  /* 側邊欄（GM 端導航）*/
+  --sidebar:                        oklch(0.955 0.010 80);   /* 暖淡側邊 */
+  --sidebar-foreground:             oklch(0.25 0.025 262);
+  --sidebar-primary:                oklch(0.52 0.16 75);
+  --sidebar-primary-foreground:     oklch(0.975 0.008 80);
+  --sidebar-accent:                 oklch(0.925 0.015 262);
+  --sidebar-accent-foreground:      oklch(0.25 0.028 262);
+  --sidebar-border:                 oklch(0.875 0.012 80);
+  --sidebar-ring:                   oklch(0.52 0.16 75);
+
+  /* GM 環境指示色 */
+  /* Baseline：冷靜的板岩藍，代表「設定中、未啟動」*/
+  --env-baseline:            oklch(0.48 0.10 255);
+  --env-baseline-fg:         oklch(0.975 0.008 80);
+  --env-baseline-bg:         oklch(0.940 0.018 255);
+  /* Runtime：琥珀金，代表「遊戲進行中、活躍」*/
+  --env-runtime:             oklch(0.52 0.16 75);
+  --env-runtime-fg:          oklch(0.165 0.028 262);
+  --env-runtime-bg:          oklch(0.955 0.020 75);
 }
 
+/* ── Dark Mode（玩家端主題） ────────────────────────────── */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* 背景：深午夜藍，帶微弱藍紫色調（非純黑）*/
+  --background:              oklch(0.130 0.028 262);
+  --foreground:              oklch(0.935 0.012 75);    /* 帶金色調的暖白 */
+
+  /* 卡片與彈出層 */
+  --card:                    oklch(0.185 0.028 262);   /* 略亮的午夜藍 */
+  --card-foreground:         oklch(0.935 0.012 75);
+  --popover:                 oklch(0.215 0.025 262);   /* 再略亮一層 */
+  --popover-foreground:      oklch(0.935 0.012 75);
+
+  /* 品牌色：金琥珀（深色模式用較亮的金，在深背景上突出）*/
+  --primary:                 oklch(0.78 0.15 75);      /* 明亮琥珀金 */
+  --primary-foreground:      oklch(0.130 0.028 262);   /* 午夜藍（在金底上）*/
+
+  /* 次要介面色 */
+  --secondary:               oklch(0.245 0.028 262);   /* 深午夜層 */
+  --secondary-foreground:    oklch(0.880 0.015 75);
+
+  /* 靜音色 */
+  --muted:                   oklch(0.220 0.025 262);   /* 深午夜灰 */
+  --muted-foreground:        oklch(0.620 0.015 262);   /* 中藍灰 */
+
+  /* 強調色 */
+  --accent:                  oklch(0.245 0.028 262);
+  --accent-foreground:       oklch(0.880 0.015 75);
+
+  /* 語義色 */
+  --destructive:             oklch(0.65 0.22 27);      /* 暖紅（深色下略亮）*/
+  --destructive-foreground:  oklch(0.935 0.012 75);
+  --success:                 oklch(0.65 0.15 145);     /* 亮森林綠 */
+  --success-foreground:      oklch(0.130 0.028 262);
+  --warning:                 oklch(0.75 0.15 75);      /* 亮琥珀警告 */
+  --warning-foreground:      oklch(0.130 0.028 262);
+  --info:                    oklch(0.65 0.10 248);     /* 亮板岩藍 */
+  --info-foreground:         oklch(0.130 0.028 262);
+
+  /* 結構色 */
+  --border:                  oklch(1 0 0 / 10%);       /* 半透明白色邊框 */
+  --input:                   oklch(1 0 0 / 12%);
+  --ring:                    oklch(0.78 0.15 75);      /* 金琥珀 focus ring */
+
+  /* 圖表配色 */
+  --chart-1:                 oklch(0.78 0.15 75);      /* 琥珀金 */
+  --chart-2:                 oklch(0.65 0.15 145);     /* 森林綠 */
+  --chart-3:                 oklch(0.65 0.10 248);     /* 板岩藍 */
+  --chart-4:                 oklch(0.70 0.18 15);      /* 珊瑚玫瑰 */
+  --chart-5:                 oklch(0.68 0.14 295);     /* 紫羅蘭 */
+
+  /* 側邊欄（GM 端導航）*/
+  --sidebar:                        oklch(0.165 0.028 262);   /* 略深側邊 */
+  --sidebar-foreground:             oklch(0.880 0.015 75);
+  --sidebar-primary:                oklch(0.78 0.15 75);
+  --sidebar-primary-foreground:     oklch(0.130 0.028 262);
+  --sidebar-accent:                 oklch(0.245 0.028 262);
+  --sidebar-accent-foreground:      oklch(0.880 0.015 75);
+  --sidebar-border:                 oklch(1 0 0 / 8%);
+  --sidebar-ring:                   oklch(0.78 0.15 75);
+
+  /* GM 環境指示色（深色下）*/
+  --env-baseline:            oklch(0.65 0.08 255);
+  --env-baseline-fg:         oklch(0.130 0.028 262);
+  --env-baseline-bg:         oklch(0.195 0.040 255);
+  --env-runtime:             oklch(0.78 0.15 75);
+  --env-runtime-fg:          oklch(0.130 0.028 262);
+  --env-runtime-bg:          oklch(0.200 0.038 75);
 }
 
+/* ── Base layer ─────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border outline-ring/50;
