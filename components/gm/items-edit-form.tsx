@@ -275,7 +275,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
 
         {/* 編輯 Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-[95vw] lg:max-w-[1400px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[95vw] lg:max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingItem && items.find((i) => i.id === editingItem.id) ? '編輯道具' : '新增道具'}

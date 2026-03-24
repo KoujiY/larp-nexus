@@ -23,7 +23,7 @@ export function CharacterCard({ character, gameId }: CharacterCardProps) {
       <Link href={`/games/${gameId}/characters/${character.id}`} className="block">
         {/* Character Image */}
         {character.imageUrl ? (
-          <div className="relative h-48 w-full bg-muted">
+          <div className="relative aspect-4/3 w-full bg-muted">
             <Image
               src={character.imageUrl}
               alt={character.name}
@@ -32,7 +32,7 @@ export function CharacterCard({ character, gameId }: CharacterCardProps) {
             />
           </div>
         ) : (
-          <div className="h-48 w-full bg-muted flex items-center justify-center transition-colors group-hover:bg-muted/70">
+          <div className="aspect-4/3 w-full bg-muted flex items-center justify-center transition-colors group-hover:bg-muted/70">
             <User className="h-16 w-16 text-muted-foreground group-hover:scale-110 transition-transform" />
           </div>
         )}

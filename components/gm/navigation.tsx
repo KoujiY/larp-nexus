@@ -4,8 +4,9 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { logout } from '@/app/actions/auth';
-import { LayoutDashboard, BookOpen, Settings, LogOut, Drama, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Settings, LogOut, Drama, Menu, type LucideIcon } from 'lucide-react';
 
 interface NavItem {
   href: string;
@@ -18,6 +19,28 @@ const navItems: NavItem[] = [
   { href: '/games', label: '劇本管理', icon: BookOpen },
   { href: '/profile', label: '個人設定', icon: Settings },
 ];
+
+/** 行動版頂部標題列，內含 Sheet 側邊抽屜 */
+export function MobileHeader() {
+  return (
+    <header className="flex lg:hidden items-center justify-between px-4 h-14 border-b bg-card shrink-0">
+      <Link href="/dashboard" className="flex items-center gap-2">
+        <Drama className="h-6 w-6 text-primary" />
+        <span className="font-bold text-sm">LARP Nexus</span>
+      </Link>
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="開啟導航選單">
+            <Menu className="h-5 w-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-64 p-0">
+          <Navigation />
+        </SheetContent>
+      </Sheet>
+    </header>
+  );
+}
 
 export function Navigation() {
   const pathname = usePathname();

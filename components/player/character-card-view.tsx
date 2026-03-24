@@ -289,12 +289,12 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
       <Card className="mb-6">
         <CardContent className="p-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="info" className="flex items-center gap-1"><FileText className="h-4 w-4" /><span className="hidden sm:inline">資訊</span></TabsTrigger>
-              <TabsTrigger value="stats" className="flex items-center gap-1"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">數值</span></TabsTrigger>
-              <TabsTrigger value="tasks" className="flex items-center gap-1"><CheckSquare className="h-4 w-4" /><span className="hidden sm:inline">任務</span></TabsTrigger>
-              <TabsTrigger value="items" className="flex items-center gap-1"><Package className="h-4 w-4" /><span className="hidden sm:inline">道具</span></TabsTrigger>
-              <TabsTrigger value="skills" className="flex items-center gap-1"><Zap className="h-4 w-4" /><span className="hidden sm:inline">技能</span></TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 h-12 sm:h-10">
+              <TabsTrigger value="info" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><FileText className="h-4 w-4" /><span className="hidden sm:inline">資訊</span></TabsTrigger>
+              <TabsTrigger value="stats" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">數值</span></TabsTrigger>
+              <TabsTrigger value="tasks" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><CheckSquare className="h-4 w-4" /><span className="hidden sm:inline">任務</span></TabsTrigger>
+              <TabsTrigger value="items" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Package className="h-4 w-4" /><span className="hidden sm:inline">道具</span></TabsTrigger>
+              <TabsTrigger value="skills" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Zap className="h-4 w-4" /><span className="hidden sm:inline">技能</span></TabsTrigger>
             </TabsList>
 
             <div className="p-6">
