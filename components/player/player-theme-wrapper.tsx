@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { PlayerThemeContext } from './player-theme-context';
 
 interface PlayerThemeWrapperProps {
   children: React.ReactNode;
@@ -12,7 +12,9 @@ const STORAGE_KEY = 'player-theme';
 /**
  * 玩家端主題包裹器
  *
- * 預設深色（符合玩家端設計定義），允許使用者切換至淺色。
+ * 提供主題 Context（isDark + toggleTheme）給所有玩家端子元件。
+ * 不再自行渲染固定按鈕，由各個畫面（CharacterCardView）依其佈局決定按鈕的位置。
+ *
  * - 使用 useState lazy initializer 直接讀取 localStorage，避免 useEffect 中呼叫 setState
  * - SSR 無 window 時回傳 true（深色），client 端讀取儲存偏好
  * - suppressHydrationWarning 消除 SSR/client 初始值不一致的警告
@@ -31,19 +33,10 @@ export function PlayerThemeWrapper({ children }: PlayerThemeWrapperProps) {
   };
 
   return (
-    <div className={isDark ? 'dark' : ''} suppressHydrationWarning>
-      {/* 主題切換按鈕：固定右上角，不干擾主要內容 */}
-      <button
-        onClick={toggleTheme}
-        aria-label={isDark ? '切換至淺色模式' : '切換至深色模式'}
-        className="fixed top-4 right-4 z-50 w-9 h-9 rounded-full bg-card/80 backdrop-blur-sm border border-primary/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-card transition-all duration-200"
-      >
-        {isDark
-          ? <Sun className="h-4 w-4" />
-          : <Moon className="h-4 w-4" />
-        }
-      </button>
-      {children}
-    </div>
+    <PlayerThemeContext.Provider value={{ isDark, toggleTheme }}>
+      <div className={isDark ? 'dark' : ''} suppressHydrationWarning>
+        {children}
+      </div>
+    </PlayerThemeContext.Provider>
   );
 }

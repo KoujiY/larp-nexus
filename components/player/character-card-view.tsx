@@ -2,8 +2,7 @@
 
 import { useState, useSyncExternalStore, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { CharacterData } from '@/types/character';
 import { PinUnlock } from './pin-unlock';
 import { PublicInfoSection } from './public-info-section';
@@ -28,12 +27,22 @@ import { useGameEventHandler } from '@/hooks/use-game-event-handler';
 import { CharacterModeBanner } from './character-mode-banner';
 import { NotificationButton } from './notification-button';
 import { GameEndedDialog } from './game-ended-dialog';
-import { FileText, BarChart3, CheckSquare, Package, Zap, Hash, CalendarDays, User } from 'lucide-react';
+import { usePlayerTheme } from './player-theme-context';
+import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, Feather, ShieldCheck, Sun, Moon } from 'lucide-react';
 
 interface CharacterCardViewProps {
   character: CharacterData;
   isReadOnly?: boolean; // Phase 10.5.4: 預覽模式標記
 }
+
+/** 分頁配置（供 sticky nav 和 mobile bottom nav 共用） */
+const TAB_CONFIG = [
+  { value: 'items', icon: Package, label: '道具' },
+  { value: 'skills', icon: Wand2, label: '技能' },
+  { value: 'info', icon: BookOpen, label: '資訊' },
+  { value: 'stats', icon: BarChart3, label: '數值' },
+  { value: 'tasks', icon: CheckSquare, label: '任務' },
+] as const;
 
 /**
  * Hook 用於安全地讀取 localStorage 解鎖狀態（避免 SSR/CSR hydration 問題）
@@ -72,6 +81,7 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
 
 export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = false }: CharacterCardViewProps) {
   const router = useRouter();
+  const { isDark, toggleTheme } = usePlayerTheme();
 
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
   const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id, character.hasPinLock);
@@ -199,189 +209,260 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     onGameEnded: () => setGameEndedDialogOpen(true),
   });
 
-  // 如果需要 PIN 且未解鎖，顯示解鎖畫面
+  // 如果需要 PIN 且未解鎖，顯示解鎖畫面（主題切換保持固定右上角）
   if (character.hasPinLock && !isUnlocked) {
     return (
-      <PinUnlock
-        characterId={character.id}
-        characterName={character.name}
-        onUnlocked={handleUnlocked}
-      />
+      <>
+        <button
+          onClick={toggleTheme}
+          aria-label={isDark ? '切換至淺色模式' : '切換至深色模式'}
+          className="fixed top-4 right-4 z-50 w-9 h-9 rounded-full bg-card/80 backdrop-blur-sm border border-primary/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-card transition-all duration-200"
+        >
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+        <PinUnlock
+          characterId={character.id}
+          characterName={character.name}
+          onUnlocked={handleUnlocked}
+        />
+      </>
     );
   }
 
+  // 是否顯示頂部模式橫幅（影響 sticky 元素的 top offset）
+  const showBanner = isReadOnly || character.hasPinLock;
+  // Fixed banner 高度 ≈ 40px (py-2 + text)
+  const bannerH = showBanner ? 40 : 0;
+  // Sticky header 高度 ≈ 64px (py-3 + h-10)
+  const headerH = 64;
+
   // 已解鎖或無 PIN，顯示角色卡
   return (
-    <div className="container max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
-      {/* Phase 11.5: 模式提示 Banner（預覽模式 / Runtime 模式） */}
+    <div
+      className="max-w-[896px] mx-auto min-h-screen relative pb-32"
+      style={{ paddingTop: bannerH }}
+    >
+      {/* ── 1. Fixed 模式橫幅 ──────────────────────────────────── */}
       <CharacterModeBanner
         isReadOnly={isReadOnly}
         hasPinLock={character.hasPinLock}
-        hasBaselineData={!!character.baselineData}
         gameCode={character.gameCode}
         onRelock={handleRelock}
       />
 
-      {/* 主要角色卡 */}
-      <Card className="mb-6 overflow-hidden">
-        {/* 角色圖片 */}
-        {character.imageUrl ? (
-          <div className="relative h-64 md:h-96 w-full bg-muted">
-            <Image
-              src={character.imageUrl}
-              alt={character.name}
-              fill
-              className="object-cover"
-              priority
-            />
+      {/* ── 2. Sticky 頂部 Header ──────────────────────────────── */}
+      <header
+        className="sticky z-50 px-6 py-3 bg-background/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] flex justify-between items-center"
+        style={{ top: bannerH }}
+      >
+        {/* Left: 角色縮圖 + 名稱 */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-full overflow-hidden border border-border/15 shrink-0 bg-surface-raised">
+            {character.imageUrl ? (
+              <Image
+                src={character.imageUrl}
+                alt={character.name}
+                width={40}
+                height={40}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-muted">
+                <User className="h-5 w-5 text-muted-foreground" />
+              </div>
+            )}
           </div>
+          <span className="font-bold tracking-tight uppercase text-sm text-primary truncate">
+            {character.name}
+          </span>
+        </div>
+
+        {/* Right: 通知按鈕 + 主題切換按鈕 */}
+        <div className="flex items-center gap-1 shrink-0">
+          <NotificationButton
+            isOpen={isNotifOpen}
+            onOpenChange={setIsNotifOpen}
+            unreadCount={unreadCount}
+            notifications={notifications}
+            onMarkAsRead={markAsRead}
+          />
+          <button
+            onClick={toggleTheme}
+            aria-label={isDark ? '切換至淺色模式' : '切換至深色模式'}
+            className="p-2 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors active:scale-95 duration-200"
+          >
+            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+        </div>
+      </header>
+
+      {/* ── 3. Hero 區塊（名字 overlay 統一在 section 內，有無圖片皆適用） ── */}
+      <section
+        className="relative w-full h-[400px] overflow-hidden"
+        style={{ marginTop: -headerH }}
+      >
+        {/* 背景：有圖片 → 角色圖，無圖片 → 純色佔位 */}
+        {character.imageUrl ? (
+          <Image
+            src={character.imageUrl}
+            alt={character.name}
+            fill
+            className="object-cover"
+            priority
+          />
         ) : (
-          <div className="h-40 md:h-56 w-full bg-muted flex items-center justify-center">
-            <div className="flex flex-col items-center gap-2 text-muted-foreground/40">
-              <User className="h-16 w-16" />
-              <span className="text-4xl font-bold tracking-wider">
-                {character.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
+          <div className="w-full h-full bg-surface-base flex items-center justify-center">
+            <span className="text-[120px] font-bold text-muted-foreground/10 select-none leading-none">
+              {character.name.charAt(0).toUpperCase()}
+            </span>
           </div>
         )}
 
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-3xl md:text-4xl mb-2">
-                {character.name}
-              </CardTitle>
-              {character.publicInfo?.personality && (
-                <p className="text-muted-foreground mb-2">
-                  {character.publicInfo.personality}
-                </p>
-              )}
-            </div>
-            {/* 通知紀錄入口 */}
-            <NotificationButton
-              isOpen={isNotifOpen}
-              onOpenChange={setIsNotifOpen}
-              unreadCount={unreadCount}
-              notifications={notifications}
-              onMarkAsRead={markAsRead}
-            />
-          </div>
-        </CardHeader>
+        {/* 漸層 scrim：統一遮罩，讓文字在兩種背景下都易讀 */}
+        <div className="absolute inset-0 bg-linear-to-b from-transparent via-background/40 to-background/85 z-10 pointer-events-none" />
 
-        <CardContent>
-          {/* 角色描述 */}
+        {/* 角色名稱、個性、描述 overlay（壓在圖片上，顏色為主題金色） */}
+        <div className="absolute bottom-12 left-0 w-full px-8 z-20">
+          <div className="space-y-1">
+            <h1 className="text-5xl font-extrabold tracking-tight text-primary [text-shadow:0_2px_8px_rgba(0,0,0,0.8)]">
+              {character.name}
+            </h1>
+            {character.publicInfo?.personality && (
+              <p className="text-primary/80 font-medium tracking-wide flex items-center gap-2 [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]">
+                <Feather className="h-4 w-4 text-primary/70 shrink-0" />
+                {character.publicInfo.personality}
+              </p>
+            )}
+          </div>
           {character.description && (
-            <div className="space-y-2 mb-6">
-              <h3 className="text-xl font-semibold flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" />
-                角色描述
-              </h3>
-              <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
+            <div className="mt-6 max-w-lg">
+              <p className="text-muted-foreground/90 text-sm leading-relaxed font-light italic">
                 {character.description}
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Tab 切換：資訊、數值、任務、道具 */}
-      <Card className="mb-6">
-        <CardContent className="p-0">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5 h-12 sm:h-10">
-              <TabsTrigger value="items" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Package className="h-4 w-4" /><span className="hidden sm:inline">道具</span></TabsTrigger>
-              <TabsTrigger value="skills" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><Zap className="h-4 w-4" /><span className="hidden sm:inline">技能</span></TabsTrigger>
-              <TabsTrigger value="info" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><FileText className="h-4 w-4" /><span className="hidden sm:inline">資訊</span></TabsTrigger>
-              <TabsTrigger value="stats" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">數值</span></TabsTrigger>
-              <TabsTrigger value="tasks" className="flex items-center gap-1 min-h-[44px] sm:min-h-0"><CheckSquare className="h-4 w-4" /><span className="hidden sm:inline">任務</span></TabsTrigger>
-            </TabsList>
+      {/* ── 4. Tabs（sticky 頂部 nav + 內容） ──────────────────── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
-            <div className="p-6">
-              <TabsContent value="info" className="mt-0 space-y-6">
-                <PublicInfoSection publicInfo={character.publicInfo} />
-                <SecretInfoSection
-                  secretInfo={displaySecretInfo}
-                  characterId={character.id}
-                />
-              </TabsContent>
+        {/* Sticky 分頁導覽列（桌面版，在 hero 下方停駐） */}
+        <nav
+          className="sticky z-40 px-6 py-4 bg-background"
+          style={{ top: bannerH + headerH }}
+        >
+          <div className="bg-card/90 backdrop-blur-md rounded-lg p-1.5 flex gap-1 shadow-2xl border border-border/10">
+            {TAB_CONFIG.map(({ value, icon: Icon, label }) => (
+              <button
+                key={value}
+                onClick={() => setActiveTab(value)}
+                className={`flex-1 flex flex-col items-center justify-center py-3 rounded-md transition-all duration-200 ${
+                  activeTab === value
+                    ? 'bg-gradient-to-br from-primary/20 to-transparent text-primary border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-primary'
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-[10px] uppercase tracking-tighter mt-1 font-semibold">{label}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
 
-              <TabsContent value="stats" className="mt-0">
-                <StatsDisplay stats={displayStats} />
-                {(!displayStats || displayStats.length === 0) && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <BarChart3 className="h-10 w-10 mx-auto mb-4 opacity-40" />
-                    <p>尚無角色數值</p>
-                  </div>
-                )}
+        {/* 分頁內容 */}
+        <div className="px-6 pb-6">
+          <TabsContent value="info" className="mt-0 space-y-6">
+            <PublicInfoSection publicInfo={character.publicInfo} />
+            <SecretInfoSection
+              secretInfo={displaySecretInfo}
+              characterId={character.id}
+            />
+          </TabsContent>
 
-                {/* Phase 8.7: 活躍效果面板 */}
-                <ActiveEffectsPanel
-                  effects={character.temporaryEffects}
-                  onEffectExpired={handleEffectExpired}
-                />
-              </TabsContent>
+          <TabsContent value="stats" className="mt-0">
+            <StatsDisplay stats={displayStats} />
+            {(!displayStats || displayStats.length === 0) && (
+              <div className="text-center py-12 text-muted-foreground">
+                <BarChart3 className="h-10 w-10 mx-auto mb-4 opacity-40" />
+                <p>尚無角色數值</p>
+              </div>
+            )}
 
-              <TabsContent value="tasks" className="mt-0">
-                <TaskList tasks={displayTasks} characterId={character.id} />
-              </TabsContent>
+            {/* Phase 8.7: 活躍效果面板 */}
+            <ActiveEffectsPanel
+              effects={character.temporaryEffects}
+              onEffectExpired={handleEffectExpired}
+            />
+          </TabsContent>
 
-              <TabsContent value="items" className="mt-0">
-                <ItemList
-                  items={displayItems}
-                  characterId={character.id}
-                  gameId={character.gameId}
-                  characterName={character.name}
-                  randomContestMaxValue={character.randomContestMaxValue}
-                  onUseItem={handleUseItem}
-                  onTransferItem={handleTransferItem}
-                  isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
-                />
-              </TabsContent>
+          <TabsContent value="tasks" className="mt-0">
+            <TaskList tasks={displayTasks} characterId={character.id} />
+          </TabsContent>
 
-              <TabsContent value="skills" className="mt-0">
-                <SkillList
-                  skills={displaySkills}
-                  characterId={character.id}
-                  gameId={character.gameId}
-                  characterName={character.name}
-                  stats={displayStats}
-                  randomContestMaxValue={character.randomContestMaxValue}
-                  isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
-                />
-              </TabsContent>
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
+          <TabsContent value="items" className="mt-0">
+            <ItemList
+              items={displayItems}
+              characterId={character.id}
+              gameId={character.gameId}
+              characterName={character.name}
+              randomContestMaxValue={character.randomContestMaxValue}
+              onUseItem={handleUseItem}
+              onTransferItem={handleTransferItem}
+              isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
+            />
+          </TabsContent>
 
-      {/* 世界觀連結 */}
+          <TabsContent value="skills" className="mt-0">
+            <SkillList
+              skills={displaySkills}
+              characterId={character.id}
+              gameId={character.gameId}
+              characterName={character.name}
+              stats={displayStats}
+              randomContestMaxValue={character.randomContestMaxValue}
+              isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
+            />
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      {/* ── 5. 世界觀連結 ─────────────────────────────────────── */}
       <WorldInfoLink gameId={character.gameId} />
 
-      {/* 系統資訊 */}
-      <Card className="mt-6">
-        <CardContent className="py-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center">
-              <Hash className="h-4 w-4 mr-2 opacity-60" />
-              <span>角色 ID: {character.id.substring(0, 8)}...</span>
-            </div>
-            <div className="flex items-center">
-              <CalendarDays className="h-4 w-4 mr-2 opacity-60" />
-              <span>
-                建立於 {new Date(character.createdAt).toLocaleDateString('zh-TW')}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 返回提示 */}
-      <div className="mt-8 text-center">
-        <p className="text-muted-foreground text-sm">
-          這是您的專屬角色卡，請妥善保管此頁面連結
+      {/* ── 6. 頁腳 ──────────────────────────────────────────── */}
+      <footer className="mt-12 px-6 pb-20 border-t border-border/10 pt-8 text-center space-y-2">
+        <p className="text-primary/60 text-xs font-bold tracking-[0.2em] uppercase">
+          Private Encryption Active
         </p>
+        <p className="text-muted-foreground/40 text-[10px] font-mono">
+          ID: {character.id.substring(0, 8)}... • {new Date(character.createdAt).toLocaleDateString('zh-TW')} • RUNTIME PROTOCOL 4.2.0
+        </p>
+        <div className="pt-4 flex items-center justify-center gap-2">
+          <ShieldCheck className="h-3.5 w-3.5 text-primary/40" />
+          <p className="text-muted-foreground/60 text-[11px]">這是您的專屬角色卡，請妥善保管此頁面連結</p>
+        </div>
+      </footer>
+
+      {/* ── 7. 手機底部導覽列（固定，md 以上隱藏） ──────────────── */}
+      <div className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[896px] z-50 rounded-t-lg bg-background/90 backdrop-blur-md shadow-[0_-8px_32px_rgba(0,0,0,0.4)] border-t border-border/15 flex justify-around items-center px-4 pb-safe-area-inset-bottom pb-4 pt-2">
+        {TAB_CONFIG.map(({ value, icon: Icon, label }) => (
+          <button
+            key={value}
+            onClick={() => setActiveTab(value)}
+            className={`flex flex-col items-center justify-center transition-all duration-200 ${
+              activeTab === value
+                ? 'text-primary bg-gradient-to-br from-primary/20 to-transparent rounded-lg px-3 py-1 scale-110'
+                : 'text-muted-foreground opacity-70 hover:text-primary hover:opacity-100'
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="text-[10px] uppercase tracking-tighter font-semibold mt-0.5">{label}</span>
+          </button>
+        ))}
       </div>
+
+      {/* ── 8. Dialogs ────────────────────────────────────────── */}
 
       {/* Phase 7: 對抗檢定回應 Dialog（防守方） */}
       <ContestResponseDialog
@@ -447,8 +528,6 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         fromCharacterName={showcaseFromName}
         item={showcaseItemInfo}
       />
-
     </div>
   );
 }
-
