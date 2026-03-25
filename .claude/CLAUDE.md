@@ -33,6 +33,32 @@ npm run test         # 運行測試
 - 使用 kebab-case 命名文件
 - 函數需要 JSDoc 註解
 
+### React 模式（MANDATORY）
+
+**1. localStorage 初始化：使用 lazy initializer，禁止 useEffect + setState**
+```tsx
+// ❌ 禁止：useEffect 中呼叫 setState 會造成 cascading renders
+const [val, setVal] = useState(null);
+useEffect(() => { setVal(localStorage.getItem(KEY)); }, []);
+
+// ✅ 正確：lazy initializer 同步讀取，SSR 安全
+const [val, setVal] = useState(() => {
+  if (typeof window === 'undefined') return defaultValue;
+  return localStorage.getItem(KEY);
+});
+```
+
+**2. Hook 與本地狀態同步：使用 derived value，禁止 useEffect 同步**
+```tsx
+// ❌ 禁止：useEffect 同步兩個狀態，容易造成循環更新
+const [local, setLocal] = useState(hookValue);
+useEffect(() => { setLocal(hookValue); }, [hookValue]);
+
+// ✅ 正確：本地未明確選擇時，回退至 hook 預設值
+const [local, setLocal] = useState<T | undefined>(undefined);
+const effective = local ?? hookValue;
+```
+
 ## 專案結構
 ```
 app/               # Next.js 應用路由
@@ -112,6 +138,21 @@ docs/knowledge/
 4. **刪除功能** → 移除或標記過時的知識庫條目
 
 違反此規範會導致知識庫與 codebase 脫節，失去其存在的意義。
+
+## 修改現有功能前的縱向分析（MANDATORY）
+
+修改任何現有功能流程之前，必須完成縱向分析，不能只讀入口層就開始設計：
+
+1. **向上（呼叫端）**：確認所有呼叫這個檔案的地方
+   - 元件：grep import 路徑，找出所有父元件
+   - Next.js page：grep `/路由名稱`（Link、router.push、redirect），確認是否仍在導航網路中
+   - Server action / API route：grep 函數名稱，確認所有呼叫端
+
+2. **向下（依賴鏈）**：沿著呼叫鏈讀完關鍵節點
+   - 不能假設任何元件「只是顯示用的」
+   - 特別是 page → component 這一層，component 內部可能已有完整的業務邏輯
+
+**常見陷阱**：Next.js `page.tsx` 不需要 import 即可作為路由存在，靜態分析工具無法偵測「已無入口導航的頁面」，必須人工確認。
 
 ## 文件同步規則
 - 完成一個開發步驟後，**必須立即**更新重構進度文件 `docs/refactoring/REFACTOR_PROGRESS.md`（將對應項目從 `[ ]` 改為 `[x]`）
