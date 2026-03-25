@@ -25,8 +25,7 @@ import type { ItemListProps } from '@/types/item-list';
 import { recordItemView, showcaseItem } from '@/app/actions/item-showcase';
 import { ItemCard } from './item-card';
 import { ItemDetailDialog } from './item-detail-dialog';
-import { ItemTransferDialog } from './item-transfer-dialog';
-import { ItemShowcaseSelectDialog } from './item-showcase-select-dialog';
+import { ItemSelectDialog } from './item-select-dialog';
 
 export function ItemList({ items, characterId, gameId, characterName, randomContestMaxValue = 100, isReadOnly = false, onUseItem, onTransferItem }: ItemListProps) {
   // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用、展示、轉移）
@@ -894,16 +893,17 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       />
 
       {/* 轉移選擇 Dialog */}
-      <ItemTransferDialog
+      <ItemSelectDialog
+        mode="transfer"
         open={isTransferDialogOpen}
         onOpenChange={setIsTransferDialogOpen}
-        transferItem={transferItem}
+        item={transferItem}
         isLoadingTargets={isLoadingTargets}
-        transferTargets={transferTargets}
+        targets={transferTargets}
         selectedTargetId={selectedTargetId}
         onTargetChange={setSelectedTargetId}
-        isTransferring={isTransferring}
-        onTransfer={handleTransfer}
+        isSubmitting={isTransferring}
+        onSubmit={handleTransfer}
         onCancel={() => {
           setIsTransferDialogOpen(false);
           setTransferItem(null);
@@ -911,17 +911,18 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         }}
       />
 
-      {/* Phase 7.7: 展示選擇 Dialog */}
-      <ItemShowcaseSelectDialog
+      {/* 展示選擇 Dialog */}
+      <ItemSelectDialog
+        mode="showcase"
         open={isShowcaseSelectOpen}
         onOpenChange={setIsShowcaseSelectOpen}
-        itemToShowcase={itemToShowcase}
+        item={itemToShowcase}
         isLoadingTargets={isLoadingShowcaseTargets}
-        showcaseTargets={showcaseTargets}
+        targets={showcaseTargets}
         selectedTargetId={selectedShowcaseTargetId}
         onTargetChange={setSelectedShowcaseTargetId}
-        isShowcasing={isShowcasing}
-        onShowcase={handleShowcase}
+        isSubmitting={isShowcasing}
+        onSubmit={handleShowcase}
         onCancel={() => {
           setIsShowcaseSelectOpen(false);
           setItemToShowcase(null);

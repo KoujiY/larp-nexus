@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * 道具轉移 Dialog
+ * 道具對象選擇 Dialog
  *
- * 讓玩家將道具轉移給同場遊戲中的其他角色。
+ * 合併「轉移」與「展示」兩種用途，以 mode prop 區分行為文案。
  * 純展示元件，所有狀態由父元件（ItemList）管理。
  */
 
@@ -27,32 +27,53 @@ import { User } from 'lucide-react';
 import type { Item } from '@/types/character';
 import type { TransferTargetCharacter } from '@/app/actions/public';
 
-export interface ItemTransferDialogProps {
+const COPY = {
+  transfer: {
+    title: '選擇轉移對象',
+    description: (name: string) => `將「${name}」轉移給其他角色`,
+    emptyState: '沒有其他角色可以轉移',
+    confirm: '確認轉移',
+    confirming: '轉移中...',
+  },
+  showcase: {
+    title: '選擇展示對象',
+    description: (name: string) => `將「${name}」展示給其他角色`,
+    emptyState: '沒有其他角色可以展示',
+    confirm: '確認展示',
+    confirming: '展示中...',
+  },
+} as const;
+
+export interface ItemSelectDialogProps {
+  mode: 'transfer' | 'showcase';
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** 欲轉移的道具（null 表示尚未選擇） */
-  transferItem: Item | null;
+  /** 操作目標道具（null 表示尚未選擇） */
+  item: Item | null;
   isLoadingTargets: boolean;
-  transferTargets: TransferTargetCharacter[];
+  targets: TransferTargetCharacter[];
   selectedTargetId: string;
   onTargetChange: (id: string) => void;
-  isTransferring: boolean;
-  onTransfer: () => void;
+  isSubmitting: boolean;
+  onSubmit: () => void;
   onCancel: () => void;
 }
 
-export function ItemTransferDialog({
+export function ItemSelectDialog({
+  mode,
   open,
   onOpenChange,
-  transferItem,
+  item,
   isLoadingTargets,
-  transferTargets,
+  targets,
   selectedTargetId,
   onTargetChange,
-  isTransferring,
-  onTransfer,
+  isSubmitting,
+  onSubmit,
   onCancel,
-}: ItemTransferDialogProps) {
+}: ItemSelectDialogProps) {
+  const copy = COPY[mode];
+
   return (
     <Dialog
       open={open}
@@ -63,9 +84,9 @@ export function ItemTransferDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>選擇轉移對象</DialogTitle>
+          <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>
-            將「{transferItem?.name}」轉移給其他角色
+            {copy.description(item?.name ?? '')}
           </DialogDescription>
         </DialogHeader>
 
@@ -73,10 +94,10 @@ export function ItemTransferDialog({
           <div className="py-8 text-center text-muted-foreground">
             載入中...
           </div>
-        ) : transferTargets.length === 0 ? (
+        ) : targets.length === 0 ? (
           <div className="py-8 text-center text-muted-foreground">
             <User className="mx-auto h-12 w-12 mb-4" />
-            <p>沒有其他角色可以轉移</p>
+            <p>{copy.emptyState}</p>
           </div>
         ) : (
           <Select value={selectedTargetId} onValueChange={onTargetChange}>
@@ -84,7 +105,7 @@ export function ItemTransferDialog({
               <SelectValue placeholder="選擇角色..." />
             </SelectTrigger>
             <SelectContent>
-              {transferTargets.map((target) => (
+              {targets.map((target) => (
                 <SelectItem key={target.id} value={target.id}>
                   {target.name}
                 </SelectItem>
@@ -98,10 +119,10 @@ export function ItemTransferDialog({
             取消
           </Button>
           <Button
-            onClick={onTransfer}
-            disabled={!selectedTargetId || isTransferring}
+            onClick={onSubmit}
+            disabled={!selectedTargetId || isSubmitting}
           >
-            {isTransferring ? '轉移中...' : '確認轉移'}
+            {isSubmitting ? copy.confirming : copy.confirm}
           </Button>
         </DialogFooter>
       </DialogContent>
