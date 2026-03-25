@@ -26,6 +26,10 @@
   --color-popover:                 var(--popover);
   --color-popover-foreground:      var(--popover-foreground);
 
+  /* Extended surface hierarchy（對應 Stitch surface_container_low / surface_bright）*/
+  --color-surface-base:            var(--surface-base);
+  --color-surface-raised:          var(--surface-raised);
+
   /* Brand */
   --color-primary:                 var(--primary);
   --color-primary-foreground:      var(--primary-foreground);
@@ -92,6 +96,10 @@
   --card-foreground:         oklch(0.165 0.028 262);
   --popover:                 oklch(0.995 0.005 80);
   --popover-foreground:      oklch(0.165 0.028 262);
+
+  /* 擴充 surface 層次（對應 Stitch surface_container_low / surface_bright）*/
+  --surface-base:            oklch(0.952 0.010 80);    /* 略低於 background，用於區塊背景 */
+  --surface-raised:          oklch(0.870 0.012 80);    /* 高於 card，用於 hover 和強調區塊 */
 
   /* 品牌色：金琥珀（淺色模式用較深的金，確保對比度）*/
   --primary:                 oklch(0.52 0.16 75);      /* 琥珀金 */
@@ -163,6 +171,10 @@
   --card-foreground:         oklch(0.935 0.012 75);
   --popover:                 oklch(0.215 0.025 262);   /* 再略亮一層 */
   --popover-foreground:      oklch(0.935 0.012 75);
+
+  /* 擴充 surface 層次（對應 Stitch surface_container_low / surface_bright）*/
+  --surface-base:            oklch(0.157 0.028 262);   /* 介於 background 與 card 之間，用於區塊背景 */
+  --surface-raised:          oklch(0.268 0.022 262);   /* 高於 popover，用於 hover 和強調區塊 */
 
   /* 品牌色：金琥珀（深色模式用較亮的金，在深背景上突出）*/
   --primary:                 oklch(0.78 0.15 75);      /* 明亮琥珀金 */
