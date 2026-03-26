@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Package, Zap } from 'lucide-react';
 import type { Item, Skill } from '@/types/character';
-import { getTransferTargets, getTargetCharacterItems, type TransferTargetCharacter } from '@/app/actions/public';
+import { getTransferTargets, type TransferTargetCharacter } from '@/app/actions/public';
 import { useTargetSelection } from '@/hooks/use-target-selection';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import type { BaseEvent } from '@/types/event';
@@ -69,6 +67,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   const [isShowcasing, setIsShowcasing] = useState(false);
   const [itemToShowcase, setItemToShowcase] = useState<Item | null>(null);
 
+  // 共用目標列表（供使用/展示/轉移的單一下拉選單）
+  const [sharedTargets, setSharedTargets] = useState<TransferTargetCharacter[]>([]);
+  const [isLoadingSharedTargets, setIsLoadingSharedTargets] = useState(false);
+
   // Phase 3.3: 使用 useTargetSelection Hook 管理目標選擇
   // Phase 8: 使用道具時的目標選擇狀態（包含檢定類型）
   // 重構：支援多個效果
@@ -89,12 +91,8 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     isLoading: isLoadingUseTargets,
     isTargetConfirmed,
     setIsTargetConfirmed,
-    targetItems,
-    setTargetItems,
     selectedTargetItemId,
     setSelectedTargetItemId,
-    isLoadingTargetItems,
-    setIsLoadingTargetItems,
     clearTargetState,
     saveTargetState,
     restoreTargetState,
@@ -470,64 +468,23 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       saveTargetState();
     }
   }, [selectedItem?.id, selectedUseTargetId, isTargetConfirmed, selectedTargetItemId, selectedItem, saveTargetState]);
-  
-  // Phase 8: 確認目標角色並載入目標道具清單
-  // 注意：對抗檢定時，不應該調用此函數
-  const handleConfirmTarget = async () => {
-    if (!selectedUseTargetId) {
-      toast.error('請先選擇目標角色');
-      return;
-    }
-    
-    const itemEffects = selectedItem ? getItemEffects(selectedItem) : [];
-    const needsTargetItem = itemEffects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
-    const isContest = selectedItem?.checkType === 'contest' || selectedItem?.checkType === 'random_contest';
 
-    // 對抗檢定時，不應該顯示此 UI，直接返回
-    if (isContest) {
+  // 載入共用目標列表（道具選中時自動載入，供使用/展示/轉移共用）
+  useEffect(() => {
+    if (!selectedItem?.id || !gameId || !characterId) {
+      setSharedTargets([]);
       return;
     }
-    
-    if (!needsTargetItem) {
-      // 不需要目標道具，直接確認
-      setIsTargetConfirmed(true);
-      // 儲存狀態
-      if (selectedItem) {
-        saveTargetState();
-      }
-      return;
-    }
-    
-    // 需要目標道具，載入目標角色的道具清單
-    setIsLoadingTargetItems(true);
-    try {
-      const result = await getTargetCharacterItems(selectedUseTargetId);
-      if (result.success && result.data) {
-        setTargetItems(result.data);
-        setIsTargetConfirmed(true);
-        // 如果 localStorage 中有保存的 selectedTargetItemId，恢復它
-        // 注意：這個邏輯已經在 useTargetSelection hook 的 restoreTargetState 中處理
-        if (selectedItem) {
-          saveTargetState();
-        }
-      } else {
-        toast.error(result.message || '無法載入目標角色的道具清單');
-      }
-    } catch (error) {
-      console.error('載入目標道具清單失敗:', error);
-      toast.error('載入目標道具清單失敗');
-    } finally {
-      setIsLoadingTargetItems(false);
-    }
-  };
-  
-  // Phase 7: 取消目標確認
-  const handleCancelTarget = () => {
-    setIsTargetConfirmed(false);
-    setSelectedTargetItemId('');
-    setSelectedUseTargetId(undefined);
-    // Phase 3.3: targetItems 由 hook 管理，不需要手動清除
-  };
+    setIsLoadingSharedTargets(true);
+    getTransferTargets(gameId, characterId)
+      .then((result) => {
+        if (result.success && result.data) setSharedTargets(result.data);
+        else setSharedTargets([]);
+      })
+      .catch(() => setSharedTargets([]))
+      .finally(() => setIsLoadingSharedTargets(false));
+  }, [selectedItem?.id, gameId, characterId]);
+
 
   // Phase 4: 從統一 Dialog 狀態恢復攻擊方等待 Dialog（重新整理後）
   useEffect(() => {
@@ -665,34 +622,44 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   const isEmpty = !items || items.length === 0;
   if (isEmpty) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <div className="space-y-4">
-            <Package className="mx-auto h-12 w-12 text-muted-foreground" />
-            <div>
-              <h3 className="text-lg font-semibold">背包是空的</h3>
-              <p className="text-sm text-muted-foreground mt-2">
-                你還沒有獲得任何道具
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="py-12 text-center">
+        <div className="mx-auto h-12 w-12 rounded-full bg-muted/20 mb-4" />
+        <h3 className="text-lg font-semibold text-foreground">背包是空的</h3>
+        <p className="text-sm text-muted-foreground mt-2">你還沒有獲得任何道具</p>
+      </div>
     );
   }
 
-  // 開啟轉移 Dialog
+  // 開啟轉移 Dialog（若已選目標則直接轉移，否則開啟 ItemSelectDialog）
   const handleOpenTransfer = async () => {
     if (!selectedItem || !gameId || !characterId) return;
-    
-    // 檢查道具是否可轉移
     if (!selectedItem.isTransferable) return;
 
-    // 保存道具引用，避免關閉道具詳情 dialog 時丟失
+    // 若下拉選單已選目標，直接執行轉移
+    if (selectedUseTargetId && onTransferItem) {
+      const itemRef = selectedItem;
+      const targetId = selectedUseTargetId;
+      setIsTransferring(true);
+      try {
+        await onTransferItem(itemRef.id, targetId);
+        setSelectedItem(null);
+        setCheckResult(undefined);
+        setUseResult(null);
+        setSelectedUseTargetId(undefined);
+        setIsTargetConfirmed(false);
+        setSelectedTargetItemId('');
+      } catch (error) {
+        console.error('轉移道具錯誤:', error);
+      } finally {
+        setIsTransferring(false);
+      }
+      return;
+    }
+
+    // Fallback：開啟 ItemSelectDialog
     setTransferItem(selectedItem);
     setIsLoadingTargets(true);
     setIsTransferDialogOpen(true);
-    
     try {
       const result = await getTransferTargets(gameId, characterId);
       if (result.success && result.data) {
@@ -741,7 +708,34 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   const handleOpenShowcase = async () => {
     if (!selectedItem || !gameId || !characterId) return;
 
-    // 保存道具引用，避免關閉道具詳情 dialog 時丟失
+    // 若已有選定目標，直接展示，無需開啟 ItemSelectDialog
+    if (selectedUseTargetId) {
+      const itemRef = selectedItem;
+      const targetId = selectedUseTargetId;
+      setIsShowcasing(true);
+      try {
+        const result = await showcaseItem(characterId, itemRef.id, targetId);
+        if (result.success) {
+          toast.success(result.message);
+        } else {
+          toast.error(result.message || '展示失敗');
+        }
+        setSelectedItem(null);
+        setCheckResult(undefined);
+        setUseResult(null);
+        setSelectedUseTargetId(undefined);
+        setIsTargetConfirmed(false);
+        setSelectedTargetItemId('');
+      } catch (error) {
+        console.error('展示道具錯誤:', error);
+        toast.error('展示失敗');
+      } finally {
+        setIsShowcasing(false);
+      }
+      return;
+    }
+
+    // Fallback: 開啟 ItemSelectDialog
     setItemToShowcase(selectedItem);
     setIsLoadingShowcaseTargets(true);
     setIsShowcaseSelectOpen(true);
@@ -781,80 +775,41 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     }
   };
 
-  // 分類道具
-  const consumables = items.filter((i) => i.type === 'consumable');
-  const equipment = items.filter((i) => i.type === 'equipment');
-
   return (
     <>
-      <div className="space-y-6">
-        {/* 消耗品 */}
-        {consumables.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              消耗品
-            </h4>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {consumables.map((item) => {
-                const isPendingContest = hasPendingContest(item.id);
-                // 卡片只在對抗檢定進行中時才完全 disabled（道具被鎖定）
-                // 使用次數耗盡、冷卻中等情況下，卡片仍可點開（可轉移）
-                const isCardDisabled = isPendingContest;
-                return (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    cooldownRemaining={getCooldownRemaining(item)}
-                    randomContestMaxValue={randomContestMaxValue}
-                    onClick={() => {
-                      if (!isCardDisabled) {
-                        setSelectedItem(item);
-                        // Phase 7.7: 記錄道具檢視（fire-and-forget）
-                        recordItemView(characterId, item.id).catch(() => {});
-                      }
-                    }}
-                    disabled={isCardDisabled}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
+      <div className="space-y-4">
+        {/* 道具清單標題 */}
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-foreground">道具清單</h2>
+          {items.length > 0 && (
+            <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
+              {items.length}
+            </span>
+          )}
+        </div>
 
-        {/* 裝備/道具 */}
-        {equipment.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              裝備/道具
-            </h4>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {equipment.map((item) => {
-                const isPendingContest = hasPendingContest(item.id);
-                // 卡片只在對抗檢定進行中時才完全 disabled（道具被鎖定）
-                // 使用次數耗盡、冷卻中等情況下，卡片仍可點開（可轉移）
-                const isCardDisabled = isPendingContest;
-                return (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    cooldownRemaining={getCooldownRemaining(item)}
-                    randomContestMaxValue={randomContestMaxValue}
-                    onClick={() => {
-                      if (!isCardDisabled) {
-                        setSelectedItem(item);
-                        // Phase 7.7: 記錄道具檢視（fire-and-forget）
-                        recordItemView(characterId, item.id).catch(() => {});
-                      }
-                    }}
-                    disabled={isCardDisabled}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* 道具格子（flat grid，不分類） */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {items.map((item) => {
+            const isPendingContest = hasPendingContest(item.id);
+            const isCardDisabled = isPendingContest;
+            return (
+              <ItemCard
+                key={item.id}
+                item={item}
+                cooldownRemaining={getCooldownRemaining(item)}
+                randomContestMaxValue={randomContestMaxValue}
+                onClick={() => {
+                  if (!isCardDisabled) {
+                    setSelectedItem(item);
+                    recordItemView(characterId, item.id).catch(() => {});
+                  }
+                }}
+                disabled={isCardDisabled}
+              />
+            );
+          })}
+        </div>
       </div>
 
       {/* 道具詳情 Dialog */}
@@ -871,17 +826,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         setSelectedUseTargetId={setSelectedUseTargetId}
         isLoadingUseTargets={isLoadingUseTargets}
         isTargetConfirmed={isTargetConfirmed}
-        setIsTargetConfirmed={setIsTargetConfirmed}
-        targetItems={targetItems}
-        selectedTargetItemId={selectedTargetItemId}
-        setSelectedTargetItemId={setSelectedTargetItemId}
-        isLoadingTargetItems={isLoadingTargetItems}
         requiresTarget={requiresTarget}
         isContestInProgress={isContestInProgress}
         isPostUseSelecting={isPostUseSelecting}
         handleUseItem={handleUseItem}
-        handleConfirmTarget={handleConfirmTarget}
-        handleCancelTarget={handleCancelTarget}
         handleOpenShowcase={handleOpenShowcase}
         handleOpenTransfer={handleOpenTransfer}
         postUseSelection={postUseSelection}
@@ -890,6 +838,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         showUseButton={selectedItem ? (hasItemEffects(selectedItem) || !!onUseItem) : false}
         showShowcaseButton={!!(gameId && characterId)}
         showTransferButton={!!(onTransferItem && gameId && characterId)}
+        isShowcasing={isShowcasing}
+        isTransferring={isTransferring}
+        sharedTargets={sharedTargets}
+        isLoadingSharedTargets={isLoadingSharedTargets}
       />
 
       {/* 轉移選擇 Dialog */}

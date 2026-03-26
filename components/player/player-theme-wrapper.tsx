@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PlayerThemeContext } from './player-theme-context';
 
 interface PlayerThemeWrapperProps {
@@ -26,6 +26,12 @@ export function PlayerThemeWrapper({ children }: PlayerThemeWrapperProps) {
     return stored === null || stored === 'dark';
   });
 
+  // mounted=false on server; true after client hydration.
+  // Child components use this to defer theme-dependent rendering
+  // and avoid SSR/client aria-label + icon mismatches.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const toggleTheme = () => {
     const next = !isDark;
     setIsDark(next);
@@ -33,7 +39,7 @@ export function PlayerThemeWrapper({ children }: PlayerThemeWrapperProps) {
   };
 
   return (
-    <PlayerThemeContext.Provider value={{ isDark, toggleTheme }}>
+    <PlayerThemeContext.Provider value={{ isDark, toggleTheme, mounted }}>
       <div className={isDark ? 'dark' : ''} suppressHydrationWarning>
         {children}
       </div>

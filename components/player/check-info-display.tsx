@@ -1,8 +1,6 @@
 /**
  * 檢定資訊顯示組件
- * 統一顯示技能/道具的檢定資訊
- * 
- * Phase 7: 拆分 Dialog 組件
+ * 統一顯示技能/道具的檢定資訊，樣式對齊特殊效果區塊（左側邊線卡片）
  */
 
 'use client';
@@ -16,13 +14,28 @@ export interface CheckInfoDisplayProps {
   randomConfig?: RandomConfig;
   stats?: Array<{ name: string; value: number }>;
   checkResult?: number;
-  randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
+  randomContestMaxValue?: number;
 }
 
-/**
- * 檢定資訊顯示組件
- * 根據檢定類型顯示相應的檢定資訊
- */
+/** 單列靠左文字，label：value 格式 */
+function InfoLine({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <p className="text-xs text-foreground/90">
+      <span className="text-muted-foreground">{label}：</span>
+      {value}
+    </p>
+  );
+}
+
+/** 對方回應描述：列出可使用的技能/道具數量 */
+function opponentResponseText(maxItems: number, maxSkills: number): string {
+  if (maxItems === 0 && maxSkills === 0) return '不允許';
+  const parts: string[] = [];
+  if (maxItems > 0) parts.push(`可使用 ${maxItems} 個道具`);
+  if (maxSkills > 0) parts.push(`可使用 ${maxSkills} 個技能`);
+  return parts.join('、');
+}
+
 export function CheckInfoDisplay({
   checkType,
   contestConfig,
@@ -31,43 +44,48 @@ export function CheckInfoDisplay({
   checkResult,
   randomContestMaxValue = 100,
 }: CheckInfoDisplayProps) {
-  if (checkType === 'none') {
-    return null;
-  }
+  if (checkType === 'none') return null;
+
+  const sectionLabel = (
+    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1 mb-2">
+      檢定資訊
+    </h3>
+  );
+
+  const tieLabel =
+    contestConfig?.tieResolution === 'attacker_wins'
+      ? '攻擊方獲勝'
+      : contestConfig?.tieResolution === 'defender_wins'
+        ? '防守方獲勝'
+        : '雙方失敗';
 
   // 對抗檢定
   if (checkType === 'contest' && contestConfig) {
     const stat = stats.find((s) => s.name === contestConfig.relatedStat);
     const maxItems = contestConfig.opponentMaxItems ?? 0;
     const maxSkills = contestConfig.opponentMaxSkills ?? 0;
-    const itemsText = maxItems > 0 ? `${maxItems} 個道具` : null;
-    const skillsText = maxSkills > 0 ? `${maxSkills} 個技能` : null;
-    const parts = [itemsText, skillsText].filter(Boolean);
 
     return (
-      <div className="space-y-2">
-        <h4 className="font-semibold text-sm">檢定資訊</h4>
-        <div className="p-3 bg-muted rounded-lg">
-          <p className="text-sm">檢定類型：對抗檢定</p>
-          <p className="text-sm mt-1">
-            使用數值：<strong>{contestConfig.relatedStat}</strong>
-            {stat && (
-              <span className="ml-2">(當前值: {stat.value})</span>
-            )}
-          </p>
-          {parts.length > 0 && (
-            <p className="text-sm mt-1">對方可使用：最多 {parts.join('、')}</p>
-          )}
-          <p className="text-sm mt-1">
-            平手裁決：{
-              contestConfig.tieResolution === 'attacker_wins' ? '攻擊方獲勝' :
-              contestConfig.tieResolution === 'defender_wins' ? '防守方獲勝' :
-              '雙方失敗'
+      <div className="space-y-3">
+        {sectionLabel}
+        <div className="p-4 rounded-r-xl bg-surface-base/40 border-l-2 border-primary/60 space-y-1.5">
+          <InfoLine label="類型" value="對抗檢定" />
+          <InfoLine
+            label="使用數值"
+            value={
+              <>
+                {contestConfig.relatedStat}
+                {stat && (
+                  <span className="text-muted-foreground ml-1">（當前 {stat.value}）</span>
+                )}
+              </>
             }
-          </p>
-          <p className="text-sm mt-2 text-muted-foreground">
-            使用技能後，對方會收到通知並可選擇使用道具或技能進行對抗
-          </p>
+          />
+          <InfoLine
+            label="使用技能或道具回應"
+            value={opponentResponseText(maxItems, maxSkills)}
+          />
+          <InfoLine label="平手裁決" value={tieLabel} />
         </div>
       </div>
     );
@@ -77,31 +95,18 @@ export function CheckInfoDisplay({
   if (checkType === 'random_contest' && contestConfig) {
     const maxItems = contestConfig.opponentMaxItems ?? 0;
     const maxSkills = contestConfig.opponentMaxSkills ?? 0;
-    const itemsText = maxItems > 0 ? `${maxItems} 個道具` : null;
-    const skillsText = maxSkills > 0 ? `${maxSkills} 個技能` : null;
-    const parts = [itemsText, skillsText].filter(Boolean);
 
     return (
-      <div className="space-y-2">
-        <h4 className="font-semibold text-sm">檢定資訊</h4>
-        <div className="p-3 bg-muted rounded-lg">
-          <p className="text-sm">檢定類型：隨機對抗檢定</p>
-          <p className="text-sm mt-1">
-            使用數值：<strong>隨機擲骰，D{randomContestMaxValue}</strong>
-          </p>
-          {parts.length > 0 && (
-            <p className="text-sm mt-1">對方可使用：最多 {parts.join('、')}</p>
-          )}
-          <p className="text-sm mt-1">
-            平手裁決：{
-              contestConfig.tieResolution === 'attacker_wins' ? '攻擊方獲勝' :
-              contestConfig.tieResolution === 'defender_wins' ? '防守方獲勝' :
-              '雙方失敗'
-            }
-          </p>
-          <p className="text-sm mt-2 text-muted-foreground">
-            使用技能後，對方會收到通知並可選擇使用道具或技能進行對抗
-          </p>
+      <div className="space-y-3">
+        {sectionLabel}
+        <div className="p-4 rounded-r-xl bg-surface-base/40 border-l-2 border-primary/60 space-y-1.5">
+          <InfoLine label="類型" value="隨機對抗檢定" />
+          <InfoLine label="使用數值" value={`隨機擲骰 D${randomContestMaxValue}`} />
+          <InfoLine
+            label="使用技能或道具回應"
+            value={opponentResponseText(maxItems, maxSkills)}
+          />
+          <InfoLine label="平手裁決" value={tieLabel} />
         </div>
       </div>
     );
@@ -109,28 +114,30 @@ export function CheckInfoDisplay({
 
   // 隨機檢定
   if (checkType === 'random' && randomConfig) {
+    const passed = checkResult !== undefined && checkResult >= randomConfig.threshold;
+    const failed = checkResult !== undefined && checkResult < randomConfig.threshold;
+
     return (
-      <div className="space-y-2">
-        <h4 className="font-semibold text-sm">檢定資訊</h4>
-        <div className="p-3 bg-muted rounded-lg">
-          <p className="text-sm">檢定類型：隨機檢定</p>
-          <p className="text-sm mt-1">隨機範圍：1 - {randomConfig.maxValue}</p>
-          <p className="text-sm mt-1">
-            檢定門檻：<strong>{randomConfig.threshold}</strong>
-            （&ge; {randomConfig.threshold} 即成功）
-          </p>
+      <div className="space-y-3">
+        {sectionLabel}
+        <div className="p-4 rounded-r-xl bg-surface-base/40 border-l-2 border-primary/60 space-y-1.5">
+          <InfoLine label="類型" value="隨機檢定" />
+          <InfoLine label="隨機範圍" value={`1 – ${randomConfig.maxValue}`} />
+          <InfoLine label="成功門檻" value={`≥ ${randomConfig.threshold}`} />
           {checkResult !== undefined && (
-            <div className="mt-2 flex items-center gap-2">
-              <p className="text-sm">骰出結果：<strong>{checkResult}</strong></p>
-              {checkResult >= randomConfig.threshold ? (
+            <div className="flex items-center gap-2 pt-2 border-t border-border/20 mt-1">
+              <span className="text-muted-foreground text-xs">骰出結果：</span>
+              <span className="text-sm font-black text-primary">{checkResult}</span>
+              {passed && (
                 <>
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <span className="text-sm text-success">檢定成功</span>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                  <span className="text-[10px] font-bold text-success uppercase">成功</span>
                 </>
-              ) : (
+              )}
+              {failed && (
                 <>
-                  <XCircle className="h-4 w-4 text-destructive" />
-                  <span className="text-sm text-destructive">檢定失敗</span>
+                  <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  <span className="text-[10px] font-bold text-destructive uppercase">失敗</span>
                 </>
               )}
             </div>
@@ -142,4 +149,3 @@ export function CheckInfoDisplay({
 
   return null;
 }
-

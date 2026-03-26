@@ -3,17 +3,14 @@
 /**
  * 道具卡片元件（玩家側）
  *
- * 展示道具縮圖、名稱、數量、冷卻狀態、效果標示、
- * 檢定類型標籤與使用限制等資訊。
+ * 展示道具圖片、名稱、類型標籤與狀態覆蓋（冷卻/耗盡）。
+ * 設計對齊 Stitch Ethereal Artifact 風格：深色卡片、琥珀名稱、無邊框分隔線。
  * 純展示元件，不持有任何狀態。
  */
 
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Clock, Zap, Package, Sparkles } from 'lucide-react';
+import { Clock, Lock } from 'lucide-react';
 import Image from 'next/image';
 import type { Item } from '@/types/character';
-import { hasItemEffects } from '@/lib/item/get-item-effects';
 
 export interface ItemCardProps {
   item: Item;
@@ -21,135 +18,119 @@ export interface ItemCardProps {
   cooldownRemaining: number | null;
   onClick: () => void;
   disabled?: boolean;
-  /** 劇本的隨機對抗檢定上限值（顯示於 random_contest 說明） */
+  /** 保留以維持呼叫端相容（不在卡片上顯示） */
   randomContestMaxValue?: number;
 }
+
+const TYPE_LABELS: Record<string, string> = {
+  consumable: '消耗品',
+  equipment: '裝備',
+};
 
 export function ItemCard({
   item,
   cooldownRemaining,
   onClick,
   disabled = false,
-  randomContestMaxValue = 100,
 }: ItemCardProps) {
   const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
+  const isExhausted =
+    item.usageLimit != null &&
+    item.usageLimit > 0 &&
+    (item.usageCount ?? 0) >= item.usageLimit;
+  const isUnavailable = isOnCooldown || isExhausted;
 
   return (
-    <Card
-      className={`overflow-hidden transition-all ${
+    <div
+      className={`relative rounded-xl overflow-hidden bg-card border border-border/30 flex flex-col transition-all ${
         disabled
           ? 'opacity-60 cursor-not-allowed'
-          : 'cursor-pointer hover:shadow-lg'
+          : isExhausted
+            ? 'opacity-60 cursor-pointer'
+            : 'cursor-pointer hover:bg-popover active:scale-[0.98]'
       }`}
       onClick={disabled ? undefined : onClick}
     >
-      <div className="aspect-square relative overflow-hidden bg-muted">
+      {/* 圖片區域 */}
+      <div className="relative aspect-square w-full bg-surface-base overflow-hidden">
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
             alt={item.name}
             fill
-            className="object-cover"
+            className={`object-cover transition-all${
+              isOnCooldown ? ' grayscale opacity-40' : ''
+            }${isExhausted ? ' grayscale brightness-50' : ''}`}
           />
         ) : (
-          <div className="flex h-full items-center justify-center">
-            {item.type === 'consumable' ? (
-              <Zap className="h-12 w-12 text-muted-foreground" />
-            ) : (
-              <Package className="h-12 w-12 text-muted-foreground" />
-            )}
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-4xl font-bold text-muted-foreground/20 select-none leading-none">
+              {item.name.charAt(0).toUpperCase()}
+            </span>
           </div>
         )}
 
-        {/* 數量標籤 */}
-        {item.quantity > 1 && (
-          <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded-full">
-            x{item.quantity}
-          </div>
-        )}
-
-        {/* 冷卻中標籤 */}
+        {/* 冷卻遮罩 */}
         {isOnCooldown && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="text-white text-center">
-              <Clock className="h-6 w-6 mx-auto mb-1" />
-              <span className="text-sm font-mono">{cooldownRemaining}s</span>
-            </div>
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex flex-col items-center justify-center">
+            <Clock className="h-5 w-5 text-primary animate-pulse mb-1" />
+            <span className="text-lg font-bold text-primary font-mono leading-none">
+              {cooldownRemaining}s
+            </span>
           </div>
         )}
 
-        {/* 有效果標籤 */}
-        {hasItemEffects(item) && !isOnCooldown && (
-          <div className="absolute top-2 left-2">
-            <Sparkles className="h-4 w-4 text-primary drop-shadow-lg" />
-          </div>
-        )}
-
-        {/* 檢定類型標籤 */}
-        {item.checkType && item.checkType !== 'none' && !isOnCooldown && (
-          <div className="absolute bottom-2 left-2">
-            <Badge variant="secondary" className="text-xs">
-              {item.checkType === 'contest'
-                ? '對抗'
-                : item.checkType === 'random_contest'
-                  ? '隨機對抗'
-                  : '隨機'}
-            </Badge>
+        {/* 耗盡遮罩 */}
+        {isExhausted && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div
+              className="absolute inset-0 opacity-30"
+              style={{
+                backgroundImage:
+                  'radial-gradient(rgba(254,197,106,0.5) 0.5px, transparent 0.5px)',
+                backgroundSize: '4px 4px',
+              }}
+            />
+            <Lock className="h-6 w-6 text-foreground/40 relative z-10" />
           </div>
         )}
       </div>
-      <CardContent className="p-3">
-        <h4 className="font-semibold text-sm line-clamp-1">{item.name}</h4>
-        {item.description && (
-          <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
-            {item.description}
-          </p>
-        )}
-        {/* 標籤顯示 */}
-        {item.tags && item.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {item.tags.map((tag, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-        {/* 檢定資訊（簡要顯示） */}
-        {item.checkType === 'contest' && item.contestConfig && (
-          <p className="text-xs text-muted-foreground mt-1">
-            使用 {item.contestConfig.relatedStat} 對抗
-          </p>
-        )}
-        {item.checkType === 'random_contest' && (
-          <p className="text-xs text-muted-foreground mt-1">
-            隨機擲骰，D{randomContestMaxValue} 對抗
-          </p>
-        )}
-        {item.checkType === 'random' && item.randomConfig && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {item.randomConfig.threshold} / {item.randomConfig.maxValue}
-          </p>
-        )}
-        {/* 使用限制顯示 */}
-        {(item.usageLimit != null || item.cooldown != null) && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {item.usageLimit != null && (
-              <Badge variant="outline" className="text-xs">
-                {item.usageLimit > 0
-                  ? `使用次數：${(item.usageLimit || 0) - (item.usageCount || 0)} / ${item.usageLimit}`
-                  : '使用次數：無限制'}
-              </Badge>
-            )}
-            {item.cooldown != null && cooldownRemaining === null && (
-              <Badge variant="outline" className="text-xs">
-                <Clock className="h-3 w-3 mr-1" />
-                {item.cooldown > 0 ? `${item.cooldown}s` : '無冷卻時間'}
-              </Badge>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+
+      {/* 文字區域 */}
+      <div className="p-3 flex flex-col flex-1">
+        <h3
+          className={`font-bold text-xs truncate mb-1 ${
+            isUnavailable ? 'text-primary/60' : 'text-primary'
+          }`}
+        >
+          {item.name}
+        </h3>
+        <div className="flex flex-wrap gap-1 mt-auto">
+          {isExhausted ? (
+            <span className="text-[9px] bg-border/30 text-muted-foreground px-1.5 py-0.5 rounded font-bold uppercase">
+              已耗盡
+            </span>
+          ) : (
+            <>
+              <span
+                className={`text-[9px] bg-primary/10 px-1.5 py-0.5 rounded font-bold uppercase ${
+                  isOnCooldown ? 'text-primary/60' : 'text-primary'
+                }`}
+              >
+                {TYPE_LABELS[item.type] ?? item.type}
+              </span>
+              {item.tags?.map((tag, i) => (
+                <span
+                  key={i}
+                  className="text-[9px] bg-muted/30 text-muted-foreground px-1.5 py-0.5 rounded font-bold uppercase"
+                >
+                  {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
+                </span>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
