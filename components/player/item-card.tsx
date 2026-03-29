@@ -127,6 +127,15 @@ export function ItemCard({
                   {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
                 </span>
               ))}
+              {item.effects && item.effects.length > 0 && (
+                <span
+                  className={`text-[9px] bg-primary/10 px-1.5 py-0.5 rounded font-bold uppercase ${
+                    isOnCooldown ? 'text-primary/60' : 'text-primary'
+                  }`}
+                >
+                  {item.effects.length} 個效果
+                </span>
+              )}
             </>
           )}
         </div>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent } from '@/components/ui/card';
 import { Zap } from 'lucide-react';
 import type { Skill, Item, SkillEffect } from '@/types/character';
 import { toast } from 'sonner';
@@ -610,19 +609,17 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
 
   if (!skills || skills.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <div className="space-y-4">
-            <Zap className="mx-auto h-12 w-12 text-muted-foreground" />
-            <div>
-              <h3 className="text-lg font-semibold">尚無技能</h3>
-              <p className="text-sm text-muted-foreground mt-2">
-                你還沒有獲得任何技能
-              </p>
-            </div>
+      <div className="py-12 text-center">
+        <div className="space-y-4">
+          <Zap className="mx-auto h-12 w-12 text-muted-foreground" />
+          <div>
+            <h3 className="text-lg font-semibold">尚無技能</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              你還沒有獲得任何技能
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -678,6 +675,18 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
 
   return (
     <div className="space-y-4">
+      {/* 技能清單標題 */}
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-foreground">技能清單</h2>
+        {localSkills.length > 0 && (
+          <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
+            {localSkills.length}
+          </span>
+        )}
+      </div>
+
+      {/* 技能卡片列表 */}
+      <div className="flex flex-col gap-3">
       {localSkills.map((skill) => {
         const { canUse, reason } = canUseSkill(skill);
         const cooldownRemaining = getCooldownRemaining(skill);
@@ -701,6 +710,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
           />
         );
       })}
+      </div>
 
       <SkillDetailDialog
         selectedSkill={selectedSkill}
