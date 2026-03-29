@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * 資訊分頁 — 隱藏資訊子分頁
+ * 資訊分頁 — 額外資訊子分頁
  *
- * 列表式卡片顯示已揭露的隱藏資訊，
+ * 列表式卡片顯示已揭露的額外資訊，
  * 點擊後以 Bottom Sheet 展示完整內容（支援多段落）。
  * 保留原有的 localStorage 已讀追蹤邏輯。
  */
@@ -89,14 +89,14 @@ export function InfoSecretsTab({ secretInfo, characterId }: InfoSecretsTabProps)
   if (revealedSecrets.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground/60">
-        <p className="text-sm">尚無已揭露的隱藏資訊</p>
+        <p className="text-sm">尚無已揭露的額外資訊</p>
       </div>
     );
   }
 
   return (
     <>
-      {/* 隱藏資訊列表 */}
+      {/* 額外資訊列表 */}
       <div className="space-y-3">
         {revealedSecrets.map((secret) => {
           const isRead = readSecrets.has(secret.id);
@@ -128,7 +128,7 @@ export function InfoSecretsTab({ secretInfo, characterId }: InfoSecretsTabProps)
         })}
       </div>
 
-      {/* 隱藏資訊 Bottom Sheet */}
+      {/* 額外資訊 Bottom Sheet */}
       <BottomSheet
         open={selectedSecretId !== null}
         onClose={() => setSelectedSecretId(null)}

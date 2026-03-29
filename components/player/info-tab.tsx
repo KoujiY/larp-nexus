@@ -3,8 +3,8 @@
 /**
  * 資訊分頁 — 次級選單容器
  *
- * 將原本平鋪的公開資訊和隱藏資訊改為三個子分頁：
- * 角色故事 / 人物關係 / 隱藏資訊
+ * 將原本平鋪的公開資訊和額外資訊改為三個子分頁：
+ * 角色故事 / 人物關係 / 額外資訊
  *
  * 使用底線式分頁切換（設計稿指定樣式）。
  */
@@ -24,7 +24,7 @@ interface InfoTabProps {
 const SUB_TABS = [
   { value: 'story', label: '角色故事' },
   { value: 'relations', label: '人物關係' },
-  { value: 'secrets', label: '隱藏資訊' },
+  { value: 'secrets', label: '額外資訊' },
 ] as const;
 
 type SubTabValue = (typeof SUB_TABS)[number]['value'];
