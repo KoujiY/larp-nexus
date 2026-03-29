@@ -335,19 +335,21 @@ export function SkillDetailDialog({
             >
               關閉
             </Button>
-            {/* 唯讀模式下隱藏使用技能按鈕 */}
-            {!isReadOnly && (
-              <Button
-                onClick={handleUseSkill}
-                disabled={
-                  !selectedSkill ||
-                  isUsing ||
-                  isDialogLocked ||
-                  (requiresTarget && !selectedTargetId) ||
-                  !canUseSkill(selectedSkill).canUse
-                }
-              >
-                {isUsing
+            {/* 唯讀模式下按鈕 disabled */}
+            <Button
+              onClick={handleUseSkill}
+              disabled={
+                isReadOnly ||
+                !selectedSkill ||
+                isUsing ||
+                isDialogLocked ||
+                (requiresTarget && !selectedTargetId) ||
+                !canUseSkill(selectedSkill).canUse
+              }
+            >
+              {isReadOnly
+                ? '預覽模式'
+                : isUsing
                   ? '使用中...'
                   : isContestInProgress
                     ? '等待對抗檢定結果...'
@@ -360,8 +362,7 @@ export function SkillDetailDialog({
                             if (!canUse && reason) return `使用技能 (${reason})`;
                             return '使用技能';
                           })()}
-              </Button>
-            )}
+            </Button>
           </DialogFooter>
           </>
         )}

@@ -16,7 +16,7 @@ export function updateCharacterSecrets(
   secrets: Array<{
     id: string;
     title: string;
-    content: string;
+    content: string | string[];
     isRevealed: boolean;
     revealCondition?: string;
     // Phase 7.7: 自動揭露條件

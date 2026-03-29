@@ -7,6 +7,7 @@ import { getCurrentGMUserId } from "@/lib/auth/session";
 import { getCharacterData } from "@/lib/game/get-character-data"; // Phase 10.4: 統一讀取
 import type { ApiResponse } from "@/types/api";
 import type { CharacterData } from "@/types/character";
+import { serializePublicInfo } from "@/lib/character/normalize-background";
 import { emitRoleUpdated, emitInventoryUpdated } from "@/lib/websocket/events";
 import {
   cleanSkillData,
@@ -51,7 +52,7 @@ export async function updateCharacter(
     hasPinLock?: boolean;
     pin?: string;
     publicInfo?: {
-      background?: string;
+      background?: Array<{ type: 'title' | 'body'; content: string }>;
       personality?: string;
       relationships?: Array<{
         targetName: string;
@@ -62,7 +63,7 @@ export async function updateCharacter(
       secrets: Array<{
         id: string;
         title: string;
-        content: string;
+        content: string | string[];
         isRevealed: boolean;
         revealCondition?: string;
         // Phase 7.7: 自動揭露條件
@@ -564,7 +565,7 @@ export async function updateCharacter(
         updates: {
           name: updatedCharacter.name,
           avatar: updatedCharacter.imageUrl,
-          publicInfo: updatedCharacter.publicInfo,
+          publicInfo: serializePublicInfo(updatedCharacter.publicInfo),
           items: cleanItems as unknown as Record<string, unknown>[],
           stats: statsChanged ? (changedStats as unknown as Record<string, unknown>[]) : undefined,
           skills: cleanSkills as unknown as Record<string, unknown>[],
@@ -625,7 +626,7 @@ export async function updateCharacter(
         description: updatedCharacter.description,
         imageUrl: updatedCharacter.imageUrl,
         hasPinLock: updatedCharacter.hasPinLock,
-        publicInfo: updatedCharacter.publicInfo,
+        publicInfo: serializePublicInfo(updatedCharacter.publicInfo),
         secretInfo: cleanSecretInfo,
         tasks: cleanTasks,
         items: cleanItems,

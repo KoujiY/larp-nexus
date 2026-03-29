@@ -3,6 +3,8 @@
  */
 
 import type { CharacterDocument } from '@/lib/db/models';
+import type { BackgroundBlock } from '@/types/character';
+import { normalizeBackground } from '@/lib/character/normalize-background';
 
 /**
  * 更新角色 PublicInfo
@@ -13,7 +15,7 @@ import type { CharacterDocument } from '@/lib/db/models';
  */
 export function updateCharacterPublicInfo(
   publicInfo: {
-    background?: string;
+    background?: BackgroundBlock[];
     personality?: string;
     relationships?: Array<{
       targetName: string;
@@ -23,7 +25,7 @@ export function updateCharacterPublicInfo(
   currentPublicInfo?: CharacterDocument['publicInfo']
 ): Record<string, unknown> {
   return {
-    background: publicInfo.background ?? currentPublicInfo?.background ?? '',
+    background: publicInfo.background ?? normalizeBackground(currentPublicInfo?.background) ?? [],
     personality: publicInfo.personality ?? currentPublicInfo?.personality ?? '',
     relationships: publicInfo.relationships ?? currentPublicInfo?.relationships ?? [],
   };

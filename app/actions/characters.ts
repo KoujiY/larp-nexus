@@ -7,6 +7,7 @@ import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10: 統一讀取
+import { serializePublicInfo } from '@/lib/character/normalize-background';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10: 統一寫入
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
@@ -136,7 +137,7 @@ export async function getCharactersByGameId(
           description: char.description,
           imageUrl: char.imageUrl,
           hasPinLock: char.hasPinLock,
-          publicInfo: char.publicInfo,
+          publicInfo: serializePublicInfo(char.publicInfo),
           secretInfo: cleanSecretInfo,
           tasks: cleanTasks,
           items: cleanItems,
@@ -242,7 +243,7 @@ export async function getCharacterById(
         description: character.description,
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
-        publicInfo: character.publicInfo,
+        publicInfo: serializePublicInfo(character.publicInfo),
         secretInfo: cleanSecretInfo,
         tasks: cleanTasks,
         items: cleanItems,
@@ -379,7 +380,7 @@ export async function createCharacter(data: {
         description: characterObj.description,
         imageUrl: characterObj.imageUrl,
         hasPinLock: characterObj.hasPinLock,
-        publicInfo: characterObj.publicInfo,
+        publicInfo: serializePublicInfo(characterObj.publicInfo),
         secretInfo: cleanSecretInfo,
         tasks: cleanTasks,
         items: cleanItems,

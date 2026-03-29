@@ -364,7 +364,7 @@ export function ItemDetailDialog({
         </div>
 
         {/* 固定操作區（底部漸層覆蓋） */}
-        {!isReadOnly && showAnyAction && (
+        {showAnyAction && (
           <div className="absolute bottom-0 left-0 w-full px-6 pb-6 pt-12 z-20 bg-linear-to-t from-background from-70% to-transparent">
             <div className="flex flex-col gap-3 max-w-md mx-auto">
               {/* 共用目標下拉選單 */}
@@ -379,6 +379,7 @@ export function ItemDetailDialog({
                       setSelectedUseTargetId(val === '__none__' ? undefined : val)
                     }
                     disabled={
+                      isReadOnly ||
                       isLoadingTargets ||
                       isTargetConfirmed ||
                       isContestInProgress ||
@@ -414,10 +415,10 @@ export function ItemDetailDialog({
                 <button
                   className="w-full py-4 rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-black text-sm tracking-widest uppercase shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleUseItem}
-                  disabled={isUseDisabled}
+                  disabled={isReadOnly || isUseDisabled}
                 >
                   <Zap className="h-5 w-5" />
-                  {useButtonLabel}
+                  {isReadOnly ? '預覽模式' : useButtonLabel}
                 </button>
               )}
 
@@ -428,7 +429,7 @@ export function ItemDetailDialog({
                     <button
                       className="flex-1 py-3 rounded-xl border border-primary/40 bg-card/40 text-primary font-bold text-[11px] tracking-widest uppercase hover:bg-primary/5 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleOpenShowcase}
-                      disabled={isContestInProgress || isShowcasing || noTargetSelected}
+                      disabled={isReadOnly || isContestInProgress || isShowcasing || noTargetSelected}
                     >
                       <Eye className="h-4 w-4" />
                       {isShowcasing ? '展示中...' : '展示'}
@@ -438,7 +439,7 @@ export function ItemDetailDialog({
                     <button
                       className="flex-1 py-3 rounded-xl border border-primary/40 bg-card/40 text-primary font-bold text-[11px] tracking-widest uppercase hover:bg-primary/5 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleOpenTransfer}
-                      disabled={isContestInProgress || isTransferring || noTargetSelected}
+                      disabled={isReadOnly || isContestInProgress || isTransferring || noTargetSelected}
                     >
                       <ArrowRightLeft className="h-4 w-4" />
                       {isTransferring ? '轉移中...' : '轉移'}

@@ -12,7 +12,7 @@
  */
 
 import mongoose from 'mongoose';
-import type { AutoRevealCondition } from '@/types/character';
+import type { AutoRevealCondition, BackgroundBlock } from '@/types/character';
 import type { MongoItemEffect, MongoSkillEffect } from '@/lib/db/types/mongo-helpers';
 
 export interface CharacterDocumentBase {
@@ -25,7 +25,7 @@ export interface CharacterDocumentBase {
 
   // Phase 3: 公開資訊（PIN 解鎖後可見）
   publicInfo?: {
-    background: string;
+    background: BackgroundBlock[];
     personality: string;
     relationships: Array<{
       targetName: string;
@@ -38,7 +38,7 @@ export interface CharacterDocumentBase {
     secrets: Array<{
       id: string;
       title: string;
-      content: string;
+      content: string | string[];
       isRevealed: boolean;
       revealCondition?: string;
       autoRevealCondition?: AutoRevealCondition;

@@ -46,7 +46,7 @@ function createSecretInfoSchemaField() {
           _id: false,
           id: { type: String, required: true },
           title: { type: String, required: true },
-          content: { type: String, default: '' },
+          content: { type: Schema.Types.Mixed, default: [''] },
           isRevealed: { type: Boolean, default: false },
           revealCondition: { type: String, default: '' },
           autoRevealCondition: { type: autoRevealConditionSchema, default: undefined },
@@ -270,7 +270,7 @@ export function createBaseCharacterSchemaFields() {
     pin: { type: String },
     // Phase 3: 公開資訊
     publicInfo: {
-      background: { type: String, default: '' },
+      background: { type: Schema.Types.Mixed, default: [] },
       personality: { type: String, default: '' },
       relationships: [{ _id: false, targetName: String, description: String }],
     },

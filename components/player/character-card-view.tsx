@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { CharacterData } from '@/types/character';
 import { PinUnlock } from './pin-unlock';
-import { PublicInfoSection } from './public-info-section';
-import { SecretInfoSection } from './secret-info-section';
+import { InfoTab } from './info-tab';
 import { StatsDisplay } from './stats-display';
 import { ActiveEffectsPanel } from './active-effects-panel';
 import { TaskList } from './task-list';
@@ -28,7 +27,7 @@ import { CharacterModeBanner } from './character-mode-banner';
 import { NotificationButton } from './notification-button';
 import { GameEndedDialog } from './game-ended-dialog';
 import { usePlayerTheme } from './player-theme-context';
-import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, Feather, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, ShieldCheck, Sun, Moon } from 'lucide-react';
 
 interface CharacterCardViewProps {
   character: CharacterData;
@@ -325,17 +324,9 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
 
         {/* 角色名稱、個性、描述 overlay（壓在圖片上，顏色為主題金色） */}
         <div className="absolute bottom-12 left-0 w-full px-8 z-20">
-          <div className="space-y-1">
-            <h1 className="text-5xl font-extrabold tracking-tight text-primary [text-shadow:0_2px_8px_rgba(0,0,0,0.8)]">
-              {character.name}
-            </h1>
-            {character.publicInfo?.personality && (
-              <p className="text-primary/80 font-medium tracking-wide flex items-center gap-2 [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]">
-                <Feather className="h-4 w-4 text-primary/70 shrink-0" />
-                {character.publicInfo.personality}
-              </p>
-            )}
-          </div>
+          <h1 className="text-5xl font-extrabold tracking-tight text-primary [text-shadow:0_2px_8px_rgba(0,0,0,0.8)]">
+            {character.name}
+          </h1>
           {character.description && (
             <div className="mt-6 max-w-lg">
               <p className="text-muted-foreground/90 text-sm leading-relaxed font-light italic">
@@ -349,9 +340,9 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
       {/* ── 4. Tabs（sticky 頂部 nav + 內容） ──────────────────── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
-        {/* Sticky 分頁導覽列（桌面版，在 hero 下方停駐） */}
+        {/* Sticky 分頁導覽列（桌面版，手機版由底部 nav 取代） */}
         <nav
-          className="sticky z-40 px-6 py-4 bg-background"
+          className="hidden md:block sticky z-40 px-6 py-4 bg-background"
           style={{ top: bannerH + headerH }}
         >
           <div className="bg-card/90 backdrop-blur-md rounded-lg p-1.5 flex gap-1 shadow-2xl border border-border/10">
@@ -374,9 +365,9 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
 
         {/* 分頁內容 */}
         <div className="px-6 pb-6">
-          <TabsContent value="info" className="mt-0 space-y-6">
-            <PublicInfoSection publicInfo={character.publicInfo} />
-            <SecretInfoSection
+          <TabsContent value="info" className="mt-0">
+            <InfoTab
+              publicInfo={character.publicInfo}
               secretInfo={displaySecretInfo}
               characterId={character.id}
             />

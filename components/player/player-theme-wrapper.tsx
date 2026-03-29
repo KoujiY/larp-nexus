@@ -40,7 +40,7 @@ export function PlayerThemeWrapper({ children }: PlayerThemeWrapperProps) {
 
   return (
     <PlayerThemeContext.Provider value={{ isDark, toggleTheme, mounted }}>
-      <div className={isDark ? 'dark' : ''} suppressHydrationWarning>
+      <div className={(!mounted || isDark) ? 'dark' : ''} suppressHydrationWarning>
         {children}
       </div>
     </PlayerThemeContext.Provider>

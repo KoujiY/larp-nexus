@@ -80,34 +80,42 @@ describe('updateCharacterSecrets', () => {
 
 describe('updateCharacterPublicInfo', () => {
   it('returns provided fields', () => {
+    const blocks = [{ type: 'body' as const, content: '流浪騎士' }]
     const result = updateCharacterPublicInfo({
-      background: '流浪騎士',
+      background: blocks,
       personality: '正直',
       relationships: [{ targetName: 'Alice', description: '朋友' }],
     })
-    expect(result.background).toBe('流浪騎士')
+    expect(result.background).toEqual(blocks)
     expect(result.personality).toBe('正直')
     expect(result.relationships).toHaveLength(1)
   })
 
   it('falls back to currentPublicInfo for missing fields', () => {
-    const current = { background: '皇家騎士', personality: '驕傲', relationships: [] }
+    const current = { background: [{ type: 'body' as const, content: '皇家騎士' }], personality: '驕傲', relationships: [] }
     const result = updateCharacterPublicInfo({}, current)
-    expect(result.background).toBe('皇家騎士')
+    expect(result.background).toEqual(current.background)
     expect(result.personality).toBe('驕傲')
   })
 
-  it('returns empty strings and empty array as defaults', () => {
+  it('normalizes legacy string background from currentPublicInfo', () => {
+    const current = { background: '舊字串背景' as unknown as import('@/types/character').BackgroundBlock[], personality: '冷酷', relationships: [] }
+    const result = updateCharacterPublicInfo({}, current)
+    expect(result.background).toEqual([{ type: 'body', content: '舊字串背景' }])
+  })
+
+  it('returns empty array and empty string as defaults', () => {
     const result = updateCharacterPublicInfo({})
-    expect(result.background).toBe('')
+    expect(result.background).toEqual([])
     expect(result.personality).toBe('')
     expect(result.relationships).toEqual([])
   })
 
   it('new value overrides currentPublicInfo', () => {
-    const current = { background: '舊背景', personality: '冷酷', relationships: [] }
-    const result = updateCharacterPublicInfo({ background: '新背景' }, current)
-    expect(result.background).toBe('新背景')
+    const current = { background: [{ type: 'body' as const, content: '舊背景' }], personality: '冷酷', relationships: [] }
+    const newBlocks = [{ type: 'title' as const, content: '新章節' }, { type: 'body' as const, content: '新背景' }]
+    const result = updateCharacterPublicInfo({ background: newBlocks }, current)
+    expect(result.background).toEqual(newBlocks)
     expect(result.personality).toBe('冷酷') // 未提供，從 current 繼承
   })
 })

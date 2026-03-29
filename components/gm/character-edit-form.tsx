@@ -8,6 +8,8 @@ import { checkPinAvailability } from '@/app/actions/characters'; // Phase 10.9.3
 import type { GameItemInfo } from '@/app/actions/games';
 import { cleanSecretConditions } from '@/lib/reveal/condition-cleaner';
 import { useFormGuard } from '@/hooks/use-form-guard';
+import type { BackgroundBlock } from '@/types/character';
+import { BackgroundBlockEditor } from '@/components/gm/background-block-editor';
 import { useGuardedNavigation } from '@/hooks/use-guarded-navigation';
 import { SaveButton } from '@/components/gm/save-button';
 import { NavigationGuardDialog } from '@/components/gm/navigation-guard-dialog';
@@ -51,7 +53,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
     hasPinLock: character.hasPinLock,
     pin: '',
     publicInfo: {
-      background: character.publicInfo?.background || '',
+      background: character.publicInfo?.background || ([] as BackgroundBlock[]),
       personality: character.publicInfo?.personality || '',
       relationships: character.publicInfo?.relationships || [],
     },
@@ -168,7 +170,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
         hasPinLock: boolean;
         pin?: string;
         publicInfo?: {
-          background: string;
+          background: BackgroundBlock[];
           personality: string;
           relationships: Array<{ targetName: string; description: string }>;
         };
@@ -176,7 +178,7 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
           secrets: Array<{
             id: string;
             title: string;
-            content: string;
+            content: string | string[];
             isRevealed: boolean;
             revealCondition?: string;
             autoRevealCondition?: AutoRevealCondition;
@@ -380,26 +382,22 @@ export function CharacterEditForm({ character, gameId, onDirtyChange }: Characte
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="background">角色背景</Label>
-            <Textarea
-              id="background"
+            <Label>角色背景</Label>
+            <BackgroundBlockEditor
               value={formData.publicInfo.background}
-              onChange={(e) =>
+              onChange={(blocks) =>
                 setFormData((prev) => ({
                   ...prev,
                   publicInfo: {
                     ...prev.publicInfo,
-                    background: e.target.value,
+                    background: blocks,
                   },
                 }))
               }
               disabled={isLoading}
-              rows={6}
-              className="resize-none"
-              placeholder="輸入角色的背景故事、出身、經歷等..."
             />
             <p className="text-xs text-muted-foreground">
-              可輸入多行文字，建議不超過 2000 字
+              使用「標題」和「內文」區塊編排角色的背景故事，可拖曳排序
             </p>
           </div>
 

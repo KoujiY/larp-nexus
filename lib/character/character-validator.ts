@@ -364,7 +364,7 @@ export function validateTasks(tasks: Array<{
 export function validateSecrets(secrets: Array<{
   id: string;
   title: string;
-  content: string;
+  content: string | string[];
   isRevealed: boolean;
 }>): ValidationResult {
   if (!Array.isArray(secrets)) {

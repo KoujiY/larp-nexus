@@ -13,7 +13,7 @@ import type { AutoRevealCondition } from '@/types/character';
 export interface MongoSecret {
   id: string;
   title: string;
-  content: string;
+  content: string | string[];
   isRevealed: boolean;
   revealCondition?: string;
   autoRevealCondition?: AutoRevealCondition;
