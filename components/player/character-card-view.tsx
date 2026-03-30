@@ -376,15 +376,15 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
           <TabsContent value="stats" className="mt-0">
             <StatsDisplay stats={displayStats} />
             {(!displayStats || displayStats.length === 0) && (
-              <div className="text-center py-12 text-muted-foreground">
-                <BarChart3 className="h-10 w-10 mx-auto mb-4 opacity-40" />
-                <p>尚無角色數值</p>
+              <div className="text-center py-12 text-muted-foreground/60">
+                <p className="text-sm">尚無角色數值</p>
               </div>
             )}
 
             {/* Phase 8.7: 活躍效果面板 */}
             <ActiveEffectsPanel
               effects={character.temporaryEffects}
+              characterId={character.id}
               onEffectExpired={handleEffectExpired}
             />
           </TabsContent>
@@ -424,7 +424,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
       <WorldInfoLink gameId={character.gameId} />
 
       {/* ── 6. 頁腳 ──────────────────────────────────────────── */}
-      <footer className="mt-12 px-6 pb-20 border-t border-border/10 pt-8 text-center space-y-2">
+      <footer className="mt-12 px-6 pb-4 border-t border-border/10 pt-8 text-center space-y-2">
         <p className="text-primary/60 text-xs font-bold tracking-[0.2em] uppercase">
           Private Encryption Active
         </p>

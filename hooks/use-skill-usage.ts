@@ -34,6 +34,8 @@ export interface UseSkillUsageOptions {
   onUpdateSelectedSkill?: (updates: { lastUsedAt: Date; usageCount: number }) => void;
   onClearTargetState?: () => void;
   onRouterRefresh?: () => void;
+  /** 使用成功時關閉 dialog（使用者可透過通知面板查看結果） */
+  onCloseDialog?: () => void;
   /** 非對抗偷竊/移除：使用成功後需要選擇目標道具 */
   onNeedsTargetItemSelection?: (info: {
     sourceId: string;
@@ -66,6 +68,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     onUpdateSelectedSkill,
     onClearTargetState,
     onRouterRefresh,
+    onCloseDialog,
     onNeedsTargetItemSelection,
   } = options;
 
@@ -165,11 +168,12 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
               onClearTargetState();
             }
           } else {
-            setUseResult({ success: true, message: result.message || '技能使用成功' });
-            toast.success(result.message || '技能使用成功');
-            // 技能使用成功後，清除目標選擇狀態
+            // 技能使用成功後，清除目標選擇狀態並直接關閉 dialog
             if (onClearTargetState) {
               onClearTargetState();
+            }
+            if (onCloseDialog) {
+              onCloseDialog();
             }
           }
         }

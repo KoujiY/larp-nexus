@@ -119,13 +119,11 @@ export function TaskList({ tasks, characterId }: TaskListProps) {
         {/* 一般任務 */}
         {normalTasks.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm font-semibold text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-6 bg-primary rounded-full" />
+              <h3 className="text-xl font-bold tracking-tight text-foreground">
                 一般任務
-              </h4>
-              <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
-                {normalTasks.length}
-              </span>
+              </h3>
             </div>
             <div className="space-y-3">
               {normalTasks.map((task) => (
@@ -155,13 +153,11 @@ export function TaskList({ tasks, characterId }: TaskListProps) {
         {/* 已揭露的額外目標 */}
         {revealedHiddenTasks.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm font-semibold text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-6 bg-primary rounded-full" />
+              <h3 className="text-xl font-bold tracking-tight text-foreground">
                 額外目標
-              </h4>
-              <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
-                {revealedHiddenTasks.length}
-              </span>
+              </h3>
             </div>
             <div className="space-y-3">
               {revealedHiddenTasks.map((task) => {

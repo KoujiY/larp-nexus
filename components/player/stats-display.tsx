@@ -1,7 +1,13 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart3 } from 'lucide-react';
+/**
+ * 數值顯示元件（玩家側）
+ *
+ * 顯示角色所有數值，有 maxValue 時附帶進度條與色彩語義。
+ * 設計對齊 Stitch Ethereal Manuscript 風格：
+ * 琥珀豎線區段標題、ghost border 卡片、大型等寬數值。
+ */
+
 import type { Stat } from '@/types/character';
 
 interface StatsDisplayProps {
@@ -9,19 +15,22 @@ interface StatsDisplayProps {
 }
 
 export function StatsDisplay({ stats }: StatsDisplayProps) {
-  // 如果沒有數值，不顯示
   if (!stats || stats.length === 0) {
     return null;
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center space-x-2">
-        <BarChart3 className="h-5 w-5 text-primary" />
-        <h3 className="text-lg font-semibold">角色數值</h3>
+    <div className="space-y-6">
+      {/* 區段標題 */}
+      <div className="flex items-center gap-3">
+        <div className="w-1 h-6 bg-primary rounded-full" />
+        <h3 className="text-xl font-bold tracking-tight text-foreground">
+          角色數值
+        </h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 數值卡片 grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {stats.map((stat) => (
           <StatCard key={stat.id} stat={stat} />
         ))}
@@ -40,44 +49,53 @@ function StatCard({ stat }: StatCardProps) {
     ? Math.min(100, Math.max(0, (stat.value / stat.maxValue!) * 100))
     : null;
 
-  // 根據百分比決定顏色
-  const getProgressColor = (percent: number) => {
-    if (percent <= 25) return 'bg-destructive';
-    if (percent <= 50) return 'bg-warning';
-    if (percent <= 75) return 'bg-info';
-    return 'bg-success';
-  };
-
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-2 pt-4 px-4">
-        <CardTitle className="text-base font-medium flex items-center justify-between">
-          <span>{stat.name}</span>
-          <span className="text-lg font-bold tabular-nums">
-            {stat.value}
-            {hasMaxValue && (
-              <span className="text-muted-foreground font-normal">
-                {' '}/ {stat.maxValue}
-              </span>
-            )}
+    <div className="bg-card p-5 rounded-xl border border-border/10 hover:border-primary/30 transition-all duration-300 flex flex-col justify-center">
+      {/* 數值名稱 */}
+      <p className="text-xs font-extrabold text-muted-foreground tracking-widest uppercase mb-4">
+        {stat.name}
+      </p>
+
+      {/* 數值文字 */}
+      <div className="flex items-baseline gap-1 mb-3">
+        <span
+          className={`font-mono font-bold tracking-tighter tabular-nums ${
+            hasMaxValue
+              ? 'text-3xl text-foreground'
+              : 'text-5xl text-primary'
+          }`}
+        >
+          {stat.value}
+        </span>
+        {hasMaxValue && (
+          <span className="text-muted-foreground/50 font-mono text-xl tabular-nums">
+            / {stat.maxValue}
           </span>
-        </CardTitle>
-      </CardHeader>
+        )}
+      </div>
+
+      {/* 進度條（僅有 maxValue 時） */}
       {hasMaxValue && percentage !== null && (
-        <CardContent className="pb-4 px-4 pt-0">
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className={`h-full transition-all duration-500 ${getProgressColor(percentage)}`}
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-        </CardContent>
+        <div className="w-full h-2 bg-popover rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all duration-500 ${getProgressColor(percentage)}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
       )}
-    </Card>
+    </div>
   );
 }
 
-// 簡化版顯示（用於緊湊佈局）
+/** 根據百分比決定進度條顏色 */
+function getProgressColor(percent: number): string {
+  if (percent <= 25) return 'bg-destructive';
+  if (percent <= 50) return 'bg-amber-500';
+  if (percent <= 75) return 'bg-primary/70';
+  return 'bg-emerald-500';
+}
+
+/** 簡化版顯示（用於緊湊佈局） */
 export function StatsCompact({ stats }: StatsDisplayProps) {
   if (!stats || stats.length === 0) {
     return null;
@@ -104,4 +122,3 @@ export function StatsCompact({ stats }: StatsDisplayProps) {
     </div>
   );
 }
-

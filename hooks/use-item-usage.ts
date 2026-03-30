@@ -169,18 +169,13 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
               }, 2000);
             }
           } else {
-            // 檢定成功或無檢定
-            setUseResult({ success: true, message: result.message || '道具使用成功' });
-            toast.success(result.message || '道具使用成功');
-            // 道具使用成功後，清除目標選擇狀態
+            // 檢定成功或無檢定 — 清除目標選擇狀態並直接關閉 dialog
             if (onClearTargetState) {
               onClearTargetState();
             }
-            // 使用成功時關閉 dialog
+            // 使用成功時直接關閉 dialog（使用者可透過通知面板查看結果）
             if (onCloseDialog) {
-              setTimeout(() => {
-                onCloseDialog();
-              }, 1500);
+              onCloseDialog();
             }
           }
         }

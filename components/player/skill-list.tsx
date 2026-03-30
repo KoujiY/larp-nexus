@@ -235,6 +235,9 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       setCheckResult(undefined);
     },
     onRouterRefresh: () => router.refresh(),
+    onCloseDialog: () => {
+      handleCloseDialogRef.current?.();
+    },
     onNeedsTargetItemSelection: (info) => {
       // 非對抗偷竊/移除：使用成功後觸發目標道具選擇流程
       postUseSelection.startSelection({
