@@ -32,6 +32,19 @@ export function PlayerThemeWrapper({ children }: PlayerThemeWrapperProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // 同步 dark class 到 <html>，讓 Portal（Dialog、Select 等）
+  // 也能繼承正確的主題 CSS 變數
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    return () => {
+      document.documentElement.classList.remove('dark');
+    };
+  }, [isDark]);
+
   const toggleTheme = () => {
     const next = !isDark;
     setIsDark(next);

@@ -90,9 +90,9 @@ function StatCard({ stat }: StatCardProps) {
 /** 根據百分比決定進度條顏色 */
 function getProgressColor(percent: number): string {
   if (percent <= 25) return 'bg-destructive';
-  if (percent <= 50) return 'bg-amber-500';
+  if (percent <= 50) return 'bg-warning';
   if (percent <= 75) return 'bg-primary/70';
-  return 'bg-emerald-500';
+  return 'bg-success';
 }
 
 /** 簡化版顯示（用於緊湊佈局） */
