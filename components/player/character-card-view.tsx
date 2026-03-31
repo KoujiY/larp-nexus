@@ -27,8 +27,8 @@ import { useGameEventHandler } from '@/hooks/use-game-event-handler';
 import { CharacterModeBanner } from './character-mode-banner';
 import { NotificationButton } from './notification-button';
 import { GameEndedDialog } from './game-ended-dialog';
-import { usePlayerTheme } from './player-theme-context';
-import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { ThemeToggleButton } from './theme-toggle-button';
+import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, ShieldCheck } from 'lucide-react';
 
 interface CharacterCardViewProps {
   character: CharacterData;
@@ -81,10 +81,6 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
 
 export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = false }: CharacterCardViewProps) {
   const router = useRouter();
-  const { isDark, toggleTheme, mounted } = usePlayerTheme();
-  // 在 hydration 完成前，以 server 預設值（dark=true）渲染，避免 aria-label/icon 不一致
-  const themeResolved = mounted ? isDark : true;
-
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
   const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id, character.hasPinLock);
   const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
@@ -217,13 +213,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   if (character.hasPinLock && !isUnlocked) {
     return (
       <>
-        <button
-          onClick={toggleTheme}
-          aria-label={themeResolved ? '切換至淺色模式' : '切換至深色模式'}
-          className="fixed top-4 right-4 z-50 w-9 h-9 rounded-full bg-card/80 backdrop-blur-sm border border-primary/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-card transition-all duration-200"
-        >
-          {themeResolved ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+        <ThemeToggleButton variant="fixed" />
         <PinUnlock
           characterId={character.id}
           characterName={character.name}
@@ -290,13 +280,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
             notifications={notifications}
             onMarkAsRead={markAsRead}
           />
-          <button
-            onClick={toggleTheme}
-            aria-label={themeResolved ? '切換至淺色模式' : '切換至深色模式'}
-            className="p-2 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors active:scale-95 duration-200"
-          >
-            {themeResolved ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </button>
+          <ThemeToggleButton />
         </div>
       </header>
 

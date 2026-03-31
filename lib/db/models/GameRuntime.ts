@@ -21,14 +21,11 @@ export interface GameRuntimeDocument extends Document {
   gameCode: string; // Phase 10: 繼承自 Baseline
   isActive: boolean; // 通常為 true（Runtime 存在即代表遊戲進行中）
 
-  // Phase 3: 公開資訊（所有玩家可見）
+  // 公開資訊：使用 BackgroundBlock[] 統一結構
   publicInfo?: {
-    intro: string; // 前導故事
-    worldSetting: string; // 世界觀
-    chapters: Array<{
-      title: string;
+    blocks: Array<{
+      type: 'title' | 'body';
       content: string;
-      order: number;
     }>;
   };
 
@@ -91,30 +88,19 @@ const GameRuntimeSchema = new Schema<GameRuntimeDocument>(
       default: true, // Runtime 通常為 true
     },
 
-    // Phase 3: 公開資訊
+    // 公開資訊：BackgroundBlock[] 統一結構
     publicInfo: {
-      intro: {
-        type: String,
-        default: '',
-      },
-      worldSetting: {
-        type: String,
-        default: '',
-      },
-      chapters: [
+      blocks: [
         {
-          _id: false, // 不為子文檔生成 _id
-          title: {
+          _id: false,
+          type: {
             type: String,
+            enum: ['title', 'body'],
             required: true,
           },
           content: {
             type: String,
             default: '',
-          },
-          order: {
-            type: Number,
-            required: true,
           },
         },
       ],

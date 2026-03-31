@@ -227,12 +227,9 @@ export async function updateGame(
     description?: string;
     isActive?: boolean;
     publicInfo?: {
-      intro?: string;
-      worldSetting?: string;
-      chapters?: Array<{
-        title: string;
+      blocks?: Array<{
+        type: 'title' | 'body';
         content: string;
-        order: number;
       }>;
     };
     // Phase 7.6: 隨機對抗檢定設定
@@ -262,14 +259,12 @@ export async function updateGame(
     if (data.description !== undefined) updateData.description = data.description;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     
-    // Phase 3: 處理 publicInfo 更新
+    // 處理 publicInfo 更新（BackgroundBlock[] 結構）
     if (data.publicInfo !== undefined) {
       const currentGame = await Game.findOne({ _id: gameId, gmUserId });
       const currentPublicInfo = currentGame?.publicInfo || {};
       updateData.publicInfo = {
-        intro: data.publicInfo.intro ?? currentPublicInfo.intro ?? '',
-        worldSetting: data.publicInfo.worldSetting ?? currentPublicInfo.worldSetting ?? '',
-        chapters: data.publicInfo.chapters ?? currentPublicInfo.chapters ?? [],
+        blocks: data.publicInfo.blocks ?? currentPublicInfo.blocks ?? [],
       };
     }
     

@@ -1,5 +1,7 @@
 // Game (劇本) 相關類型定義
 
+import type { BackgroundBlock } from './character';
+
 /**
  * Phase 3 擴展版劇本資料（用於 API 回傳）
  */
@@ -11,9 +13,7 @@ export interface GameData {
   gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
   publicInfo?: {
-    intro: string;
-    worldSetting: string;
-    chapters: Chapter[];
+    blocks: BackgroundBlock[];
   };
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
@@ -29,10 +29,18 @@ export interface GamePublicData {
   name: string;
   description: string;
   publicInfo?: {
-    intro: string;
-    worldSetting: string;
-    chapters: Chapter[];
+    blocks: BackgroundBlock[];
   };
+  /** 同劇本角色列表（世界觀頁面用） */
+  characters: GamePublicCharacter[];
+}
+
+/** 角色公開摘要（世界觀頁面角色列表用） */
+export interface GamePublicCharacter {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
 }
 
 /**
@@ -47,9 +55,7 @@ export interface Game {
   gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
   publicInfo?: {
-    intro: string;
-    worldSetting: string;
-    chapters: Chapter[];
+    blocks: BackgroundBlock[];
   };
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
@@ -57,19 +63,11 @@ export interface Game {
   updatedAt: Date;
 }
 
-export interface Chapter {
-  title: string;
-  content: string;
-  order: number;
-}
-
 export interface CreateGameInput {
   name: string;
   description?: string;
   publicInfo?: {
-    intro?: string;
-    worldSetting?: string;
-    chapters?: Chapter[];
+    blocks?: BackgroundBlock[];
   };
 }
 
@@ -78,11 +76,8 @@ export interface UpdateGameInput {
   description?: string;
   isActive?: boolean;
   publicInfo?: {
-    intro?: string;
-    worldSetting?: string;
-    chapters?: Chapter[];
+    blocks?: BackgroundBlock[];
   };
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
 }
-

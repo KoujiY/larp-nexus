@@ -185,7 +185,7 @@ export async function getPublicCharacter(
 
 /**
  * 取得劇本公開資訊（玩家端使用）
- * Phase 3: 新增功能，用於世界觀公開頁
+ * 包含世界觀 blocks 和角色列表（名稱 + 描述 + 頭像）
  */
 export async function getPublicGame(
   gameId: string
@@ -193,7 +193,10 @@ export async function getPublicGame(
   try {
     await dbConnect();
 
-    const game = await Game.findById(gameId).lean();
+    const [game, characters] = await Promise.all([
+      Game.findById(gameId).lean(),
+      Character.find({ gameId }).select('_id name description imageUrl').sort({ name: 1 }).lean(),
+    ]);
 
     if (!game) {
       return {
@@ -210,6 +213,12 @@ export async function getPublicGame(
         name: game.name,
         description: game.description,
         publicInfo: game.publicInfo,
+        characters: characters.map((char) => ({
+          id: char._id.toString(),
+          name: char.name,
+          description: char.description || '',
+          imageUrl: char.imageUrl,
+        })),
       },
     };
   } catch (error) {

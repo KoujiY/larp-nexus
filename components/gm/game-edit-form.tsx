@@ -8,12 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { X, Plus } from 'lucide-react';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { SaveButton } from '@/components/gm/save-button';
+import { BackgroundBlockEditor } from '@/components/gm/background-block-editor';
 import type { GameData } from '@/types/game';
+import type { BackgroundBlock } from '@/types/character';
 
 interface GameEditFormProps {
   game: GameData;
@@ -30,9 +30,7 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
     description: game.description || '',
     isActive: game.isActive,
     publicInfo: {
-      intro: game.publicInfo?.intro || '',
-      worldSetting: game.publicInfo?.worldSetting || '',
-      chapters: game.publicInfo?.chapters || [],
+      blocks: game.publicInfo?.blocks || [],
     },
     randomContestMaxValue: game.randomContestMaxValue || 100,
   }), [game]);
@@ -56,6 +54,14 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
   /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
+  /** 處理 blocks 變更 */
+  const handleBlocksChange = (blocks: BackgroundBlock[]) => {
+    setFormData((prev) => ({
+      ...prev,
+      publicInfo: { ...prev.publicInfo, blocks },
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -66,9 +72,7 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
         description: formData.description,
         isActive: formData.isActive,
         publicInfo: {
-          intro: formData.publicInfo.intro,
-          worldSetting: formData.publicInfo.worldSetting,
-          chapters: formData.publicInfo.chapters,
+          blocks: formData.publicInfo.blocks,
         },
         randomContestMaxValue: formData.randomContestMaxValue,
       };
@@ -182,209 +186,20 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
         </CardContent>
       </Card>
 
-      {/* 公開資訊 */}
+      {/* 公開資訊（世界觀） */}
       <Card>
         <CardHeader>
-          <CardTitle>公開資訊</CardTitle>
+          <CardTitle>公開資訊（世界觀）</CardTitle>
           <CardDescription>
-            設定劇本的世界觀、前導故事與章節（所有玩家可見）
+            使用標題與內文編排劇本的世界觀、前導故事與章節（所有玩家可見）
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="worldSetting">世界觀</Label>
-            <Textarea
-              id="worldSetting"
-              value={formData.publicInfo.worldSetting}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  publicInfo: {
-                    ...prev.publicInfo,
-                    worldSetting: e.target.value,
-                  },
-                }))
-              }
-              disabled={isLoading}
-              rows={8}
-              className="resize-none"
-              placeholder="輸入劇本的世界觀設定、背景、規則等..."
-            />
-            <p className="text-xs text-muted-foreground">
-              可輸入多行文字，建議不超過 3000 字
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="intro">前導故事</Label>
-            <Textarea
-              id="intro"
-              value={formData.publicInfo.intro}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  publicInfo: {
-                    ...prev.publicInfo,
-                    intro: e.target.value,
-                  },
-                }))
-              }
-              disabled={isLoading}
-              rows={8}
-              className="resize-none"
-              placeholder="輸入劇本的前導故事、開場情境等..."
-            />
-            <p className="text-xs text-muted-foreground">
-              可輸入多行文字，建議不超過 2000 字
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>章節</Label>
-            <div className="space-y-3">
-              {formData.publicInfo.chapters
-                .sort((a, b) => a.order - b.order)
-                .map((chapter, index) => (
-                  <div
-                    key={index}
-                    className="flex gap-2 p-3 rounded-lg border bg-card"
-                  >
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          placeholder="順序"
-                          value={chapter.order}
-                          onChange={(e) => {
-                            const newChapters = [...formData.publicInfo.chapters];
-                            const chapterIndex = newChapters.findIndex(
-                              (c) => c === chapter
-                            );
-                            if (chapterIndex !== -1) {
-                              newChapters[chapterIndex] = {
-                                ...newChapters[chapterIndex],
-                                order: parseInt(e.target.value) || 0,
-                              };
-                              setFormData((prev) => ({
-                                ...prev,
-                                publicInfo: {
-                                  ...prev.publicInfo,
-                                  chapters: newChapters,
-                                },
-                              }));
-                            }
-                          }}
-                          disabled={isLoading}
-                          className="w-20"
-                        />
-                        <Input
-                          placeholder="章節標題"
-                          value={chapter.title}
-                          onChange={(e) => {
-                            const newChapters = [...formData.publicInfo.chapters];
-                            const chapterIndex = newChapters.findIndex(
-                              (c) => c === chapter
-                            );
-                            if (chapterIndex !== -1) {
-                              newChapters[chapterIndex] = {
-                                ...newChapters[chapterIndex],
-                                title: e.target.value,
-                              };
-                              setFormData((prev) => ({
-                                ...prev,
-                                publicInfo: {
-                                  ...prev.publicInfo,
-                                  chapters: newChapters,
-                                },
-                              }));
-                            }
-                          }}
-                          disabled={isLoading}
-                        />
-                      </div>
-                      <Textarea
-                        placeholder="章節內容"
-                        value={chapter.content}
-                        onChange={(e) => {
-                          const newChapters = [...formData.publicInfo.chapters];
-                          const chapterIndex = newChapters.findIndex(
-                            (c) => c === chapter
-                          );
-                          if (chapterIndex !== -1) {
-                            newChapters[chapterIndex] = {
-                              ...newChapters[chapterIndex],
-                              content: e.target.value,
-                            };
-                            setFormData((prev) => ({
-                              ...prev,
-                              publicInfo: {
-                                ...prev.publicInfo,
-                                chapters: newChapters,
-                              },
-                            }));
-                          }
-                        }}
-                        disabled={isLoading}
-                        rows={4}
-                        className="resize-none"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        const newChapters = formData.publicInfo.chapters.filter(
-                          (c) => c !== chapter
-                        );
-                        setFormData((prev) => ({
-                          ...prev,
-                          publicInfo: {
-                            ...prev.publicInfo,
-                            chapters: newChapters,
-                          },
-                        }));
-                      }}
-                      disabled={isLoading}
-                      className="shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  const maxOrder = formData.publicInfo.chapters.length > 0
-                    ? Math.max(...formData.publicInfo.chapters.map((c) => c.order))
-                    : 0;
-                  setFormData((prev) => ({
-                    ...prev,
-                    publicInfo: {
-                      ...prev.publicInfo,
-                      chapters: [
-                        ...prev.publicInfo.chapters,
-                        {
-                          title: '',
-                          content: '',
-                          order: maxOrder + 1,
-                        },
-                      ],
-                    },
-                  }));
-                }}
-                disabled={isLoading}
-                className="w-full"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                新增章節
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              可新增多個章節，每個章節包含順序、標題與內容
-            </p>
-          </div>
+        <CardContent>
+          <BackgroundBlockEditor
+            value={formData.publicInfo.blocks}
+            onChange={handleBlocksChange}
+            disabled={isLoading}
+          />
         </CardContent>
       </Card>
 
@@ -394,4 +209,3 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
     </form>
   );
 }
-
