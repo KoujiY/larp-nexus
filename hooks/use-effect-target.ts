@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useTargetOptions } from './use-target-options';
 import { getTargetCharacterItems, type TargetItemInfo } from '@/app/actions/public';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 
 interface UseEffectTargetOptions {
   gameId: string;
@@ -71,7 +71,7 @@ export function useEffectTarget({
   // 確認目標角色並載入目標道具清單
   const handleConfirmTarget = useCallback(async () => {
     if (!selectedTargetId) {
-      toast.error('請先選擇目標角色');
+      notify.error('請先選擇目標角色');
       return;
     }
     
@@ -91,11 +91,11 @@ export function useEffectTarget({
         setTargetItems(result.data);
         setIsTargetConfirmed(true);
       } else {
-        toast.error(result.message || '無法載入目標角色的道具清單');
+        notify.error(result.message || '無法載入目標角色的道具清單');
       }
     } catch (error) {
       console.error('載入目標道具清單失敗:', error);
-      toast.error('載入目標道具清單失敗');
+      notify.error('載入目標道具清單失敗');
     } finally {
       setIsLoadingTargetItems(false);
     }

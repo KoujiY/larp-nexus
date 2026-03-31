@@ -13,6 +13,7 @@
 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -250,28 +251,30 @@ function ContestConfigFields({
             </Select>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>對方最多可使用道具數</Label>
-            <Input
-              type="number"
-              min={0}
-              value={contestConfig?.opponentMaxItems ?? 0}
-              onChange={(e) =>
-                onChange(mergeContestConfig(contestConfig, { opponentMaxItems: Math.max(0, parseInt(e.target.value) || 0) }))
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="allow-defender-items"
+              checked={(contestConfig?.opponentMaxItems ?? 0) > 0}
+              onCheckedChange={(checked) =>
+                onChange(mergeContestConfig(contestConfig, { opponentMaxItems: checked ? 99 : 0 }))
               }
             />
+            <Label htmlFor="allow-defender-items" className="cursor-pointer">
+              允許使用道具回應
+            </Label>
           </div>
-          <div className="space-y-2">
-            <Label>對方最多可使用技能數</Label>
-            <Input
-              type="number"
-              min={0}
-              value={contestConfig?.opponentMaxSkills ?? 0}
-              onChange={(e) =>
-                onChange(mergeContestConfig(contestConfig, { opponentMaxSkills: Math.max(0, parseInt(e.target.value) || 0) }))
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="allow-defender-skills"
+              checked={(contestConfig?.opponentMaxSkills ?? 0) > 0}
+              onCheckedChange={(checked) =>
+                onChange(mergeContestConfig(contestConfig, { opponentMaxSkills: checked ? 99 : 0 }))
               }
             />
+            <Label htmlFor="allow-defender-skills" className="cursor-pointer">
+              允許使用技能回應
+            </Label>
           </div>
         </div>
         <div className="space-y-2">

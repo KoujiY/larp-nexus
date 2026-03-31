@@ -1,22 +1,20 @@
 'use client';
 
+/**
+ * 防守方對抗檢定回應 Dialog
+ *
+ * 居中固定 Dialog（非 Bottom Sheet），不可關閉。
+ * 防守方在此查看攻擊方數值、選擇道具或技能回應。
+ *
+ * 視覺語言對齊 Ethereal Manuscript 風格。
+ * 設計決策：道具與技能為互斥選擇（只能選其中一類回應）。
+ */
+
 import { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { Shield, Zap, Package, AlertTriangle } from 'lucide-react';
+import { Shield, ChevronUp, Info, Lock, SearchX, Package, Sparkles } from 'lucide-react';
 import type { SkillContestEvent } from '@/types/event';
 import { respondToContest } from '@/app/actions/contest-respond';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import type { Item, Skill } from '@/types/character';
 import { getItemEffects } from '@/lib/item/get-item-effects';
 
@@ -44,126 +42,88 @@ export function ContestResponseDialog({
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [isResponding, setIsResponding] = useState(false);
-
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   // 當 dialog 打開時重置選擇
   useEffect(() => {
     if (open) {
       setSelectedItems([]);
       setSelectedSkills([]);
+      setExpandedCards(new Set());
     }
   }, [open]);
 
-  if (!contestEvent) return null;
+  // 鎖定背景滾動
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
+  if (!open || !contestEvent) return null;
 
   const { attackerValue, defenderValue } = contestEvent;
-  // 防守方不應該知道攻擊方的數值（如果 attackerValue 為 0，表示這是佔位符）
   const showAttackerValue = attackerValue !== 0;
-  // 防守方不應該看到技能或道具名稱（隱私保護）
-  // Phase 7.6: 根據隱匿標籤決定是否顯示攻擊方名稱
-  const attackerDisplayName = contestEvent.sourceHasStealthTag ? '有人' : (contestEvent.attackerName || '有人');
+  const attackerDisplayName = contestEvent.sourceHasStealthTag
+    ? '有人'
+    : (contestEvent.attackerName || '有人');
 
-  // Phase 7.6: 取得攻擊方的檢定類型和相關數值
   const attackerCheckType = contestEvent.checkType || 'contest';
   const attackerRelatedStat = contestEvent.relatedStat;
-  // Phase 7.6: 取得攻擊方是否有戰鬥標籤（如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤）
   const attackerHasCombatTag = contestEvent.attackerHasCombatTag ?? false;
 
-  // Phase 7.6: 取得可用的道具（過濾條件：根據攻擊方是否有戰鬥標籤決定是否需要 combat 標籤、checkType 相同、relatedStat 相同）
+  // ── 過濾可用道具 ─────────────────────────────────────────────
   const availableItems = items.filter((item) => {
-    // 檢查冷卻時間
     if (item.cooldown && item.cooldown > 0 && item.lastUsedAt) {
       const lastUsed = new Date(item.lastUsedAt).getTime();
-      const cooldownMs = item.cooldown * 1000;
-      if (Date.now() - lastUsed < cooldownMs) {
-        return false;
-      }
+      if (Date.now() - lastUsed < item.cooldown * 1000) return false;
     }
-
-    // 檢查使用次數限制
-    if (item.usageLimit && item.usageLimit > 0) {
-      if ((item.usageCount || 0) >= item.usageLimit) {
-        return false;
-      }
-    }
-
-    // 檢查數量（消耗品）
-    if (item.type === 'consumable' && item.quantity <= 0) {
-      return false;
-    }
-
-    // Phase 7.6: 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
-    if (attackerHasCombatTag && (!item.tags || !item.tags.includes('combat'))) {
-      return false;
-    }
-
-    // Phase 7.6: checkType 必須與攻擊方相同
-    if (item.checkType !== attackerCheckType) {
-      return false;
-    }
-
-    // Phase 7.6: 如果是 contest 類型，relatedStat 必須與攻擊方相同
+    if (item.usageLimit && item.usageLimit > 0 && (item.usageCount || 0) >= item.usageLimit) return false;
+    if (item.type === 'consumable' && item.quantity <= 0) return false;
+    if (attackerHasCombatTag && (!item.tags || !item.tags.includes('combat'))) return false;
+    if (item.checkType !== attackerCheckType) return false;
     if (attackerCheckType === 'contest' && attackerRelatedStat) {
-      if (item.contestConfig?.relatedStat !== attackerRelatedStat) {
-        return false;
-      }
+      if (item.contestConfig?.relatedStat !== attackerRelatedStat) return false;
     }
-
     return true;
   });
 
-  // Phase 7.6: 取得可用的技能（過濾條件：根據攻擊方是否有戰鬥標籤決定是否需要 combat 標籤、checkType 相同、relatedStat 相同）
+  // ── 過濾可用技能 ─────────────────────────────────────────────
   const availableSkills = skills.filter((skill) => {
-    // 檢查冷卻時間
     if (skill.cooldown && skill.cooldown > 0 && skill.lastUsedAt) {
       const lastUsed = new Date(skill.lastUsedAt).getTime();
-      const cooldownMs = skill.cooldown * 1000;
-      if (Date.now() - lastUsed < cooldownMs) {
-        return false;
-      }
+      if (Date.now() - lastUsed < skill.cooldown * 1000) return false;
     }
-
-    // 檢查使用次數限制
-    if (skill.usageLimit && skill.usageLimit > 0) {
-      if ((skill.usageCount || 0) >= skill.usageLimit) {
-        return false;
-      }
-    }
-
-    // Phase 7.6: 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
-    if (attackerHasCombatTag && (!skill.tags || !skill.tags.includes('combat'))) {
-      return false;
-    }
-
-    // Phase 7.6: checkType 必須與攻擊方相同
-    if (skill.checkType !== attackerCheckType) {
-      return false;
-    }
-
-    // Phase 7.6: 如果是 contest 類型，relatedStat 必須與攻擊方相同
+    if (skill.usageLimit && skill.usageLimit > 0 && (skill.usageCount || 0) >= skill.usageLimit) return false;
+    if (attackerHasCombatTag && (!skill.tags || !skill.tags.includes('combat'))) return false;
+    if (skill.checkType !== attackerCheckType) return false;
     if (attackerCheckType === 'contest' && attackerRelatedStat) {
-      if (skill.contestConfig?.relatedStat !== attackerRelatedStat) {
-        return false;
-      }
+      if (skill.contestConfig?.relatedStat !== attackerRelatedStat) return false;
     }
-
     return true;
   });
 
-  // 取得最大可使用道具/技能數量（從對抗檢定事件中取得）
-  const maxItems = contestEvent.opponentMaxItems ?? 0; // 預設為 0（不允許使用道具）
-  const maxSkills = contestEvent.opponentMaxSkills ?? 0; // 預設為 0（不允許使用技能）
+  const maxItems = contestEvent.opponentMaxItems ?? 0;
+  const maxSkills = contestEvent.opponentMaxSkills ?? 0;
 
+  // ── 互斥選擇：選了道具就清空技能，反之亦然 ─────────────────
   const handleItemToggle = (itemId: string) => {
     setSelectedItems((prev) => {
       if (prev.includes(itemId)) {
         return prev.filter((id) => id !== itemId);
-      } else if (prev.length < maxItems) {
-        return [...prev, itemId];
-      } else {
-        toast.warning(`最多只能選擇 ${maxItems} 個道具`);
-        return prev;
       }
+      if (prev.length < maxItems) {
+        // 選擇道具時清空技能
+        setSelectedSkills([]);
+        return [...prev, itemId];
+      }
+      notify.warning(`最多只能選擇 ${maxItems} 個道具`);
+      return prev;
     });
   };
 
@@ -171,12 +131,26 @@ export function ContestResponseDialog({
     setSelectedSkills((prev) => {
       if (prev.includes(skillId)) {
         return prev.filter((id) => id !== skillId);
-      } else if (prev.length < maxSkills) {
-        return [...prev, skillId];
-      } else {
-        toast.warning(`最多只能選擇 ${maxSkills} 個技能`);
-        return prev;
       }
+      if (prev.length < maxSkills) {
+        // 選擇技能時清空道具
+        setSelectedItems([]);
+        return [...prev, skillId];
+      }
+      notify.warning(`最多只能選擇 ${maxSkills} 個技能`);
+      return prev;
+    });
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
     });
   };
 
@@ -185,19 +159,14 @@ export function ContestResponseDialog({
       e.preventDefault();
       e.stopPropagation();
     }
-    
-    if (isResponding) {
-      return; // 防止重複點擊
-    }
-    
+    if (isResponding) return;
     if (!contestId) {
-      toast.error('對抗請求 ID 無效');
+      notify.error('對抗請求 ID 無效');
       return;
     }
-    
-    // Phase 7.6: 優先使用事件中的 contestId（如果有的話），確保與攻擊方生成的一致
+
     const finalContestId = contestEvent?.contestId || contestId;
-    
+
     setIsResponding(true);
     try {
       const result = await respondToContest(
@@ -205,294 +174,394 @@ export function ContestResponseDialog({
         characterId,
         selectedItems.length > 0 ? selectedItems : undefined,
         selectedSkills.length > 0 ? selectedSkills : undefined,
-        contestEvent.targetItemId // Phase 7: 從 contestEvent 中獲取 targetItemId
+        contestEvent.targetItemId,
       );
 
       if (result.success) {
-        // 回應成功，關閉 dialog
-        // 通知會通過 character.affected 事件顯示（只有當有實際數值變化時）
-        
-        // 不顯示檢定結果通知，讓 character.affected 事件來處理實際的數值變化
         onResponded();
         onOpenChange(false);
       } else {
-        toast.error(result.message || '回應失敗');
+        notify.error(result.message || '回應失敗');
       }
     } catch (error) {
       console.error('回應對抗檢定錯誤:', error);
-      toast.error('回應失敗，請稍後再試');
+      notify.error('回應失敗，請稍後再試');
     } finally {
       setIsResponding(false);
     }
   };
 
+  // ── 按鈕文案 ─────────────────────────────────────────────────
+  const hasSelection = selectedItems.length > 0 || selectedSkills.length > 0;
+  const buttonLabel = isResponding
+    ? '回應中...'
+    : hasSelection
+      ? '確認回應'
+      : '使用基礎數值回應';
 
-  // Phase 8: 防守方的 dialog 在整個對抗檢定期間都無法關閉
-  // 只有在結算完成後才能關閉
+  // ── 檢定類型文案 ─────────────────────────────────────────────
+  const checkTypeLabel = (() => {
+    if (attackerCheckType === 'random_contest') {
+      return `隨機對抗 D${contestEvent.randomContestMaxValue || 100}`;
+    }
+    if (attackerCheckType === 'contest' && attackerRelatedStat) {
+      return `${attackerRelatedStat} 對抗`;
+    }
+    return '對抗檢定';
+  })();
+
+  const itemsAllowed = maxItems > 0;
+  const skillsAllowed = maxSkills > 0;
+  const showItemSection = itemsAllowed && availableItems.length > 0;
+  const showSkillSection = skillsAllowed && availableSkills.length > 0;
+  const noResourcesAvailable = !showItemSection && !showSkillSection;
+
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      // 防守方的 dialog 在對抗檢定期間完全無法關閉
-      // 只有在結算完成後（通過 onResponded 回調）才能關閉
-      if (!newOpen) {
-        // 嘗試關閉時，如果正在回應中，阻止關閉
-        if (isResponding) {
-          return; // 阻止關閉
-        }
-        // 即使不在回應中，也不允許手動關閉（必須通過結算完成）
-        return; // 阻止關閉
-      }
-      // 允許打開
-      onOpenChange(newOpen);
-    }}>
-      <DialogContent 
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
-        showCloseButton={false}
-        onInteractOutside={(e) => {
-          // 防守方的 dialog 在對抗檢定期間完全無法關閉
-          e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          // 防守方的 dialog 在對抗檢定期間完全無法關閉
-          e.preventDefault();
-        }}
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      {/* Dialog 容器 */}
+      <div
+        className="relative w-full max-w-lg rounded-2xl border border-border/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden bg-background/94 backdrop-blur-[28px]"
+        style={{ boxShadow: '0 0 30px rgba(254,197,106,0.12)' }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="對抗檢定"
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-warning" />
-            對抗檢定：{attackerDisplayName}對你使用了技能或道具
-          </DialogTitle>
-          <DialogDescription>
-            你可以選擇使用道具或技能來增強防禦，或直接使用基礎數值回應
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* 對抗數值顯示 */}
-          <div className="p-4 bg-muted rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">
-                  {contestEvent.checkType === 'random_contest' ? '攻擊方骰子：' : '攻擊方數值：'}
-                </span>
-                {showAttackerValue ? (
-                  <Badge variant="destructive" className="text-lg">
-                    {attackerValue}
-                  </Badge>
-                ) : (
-                  <>
-                    <Badge variant="outline" className="text-lg">
-                      ???
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">（未知）</span>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">
-                  {contestEvent.checkType === 'random_contest' ? '你的骰子：' : '你的數值：'}
-                </span>
-                <Badge variant="default" className="text-lg">
-                  {defenderValue}
-                </Badge>
-              </div>
-            </div>
-            <div className="text-sm text-muted-foreground mt-2">
-              {contestEvent.checkType === 'random_contest' 
-                ? `這是隨機對抗檢定，雙方各自骰出 1 到 ${contestEvent.randomContestMaxValue || 100} 的隨機數值進行比較。請選擇道具或技能來增強防禦。`
-                : `${attackerDisplayName}對你使用了技能或道具，請選擇道具或技能來增強防禦`}
-            </div>
-            {/* Phase 7.6: 顯示檢定類型資訊 */}
-            {contestEvent.checkType === 'contest' && contestEvent.relatedStat && (
-              <div className="text-xs text-muted-foreground mt-2">
-                檢定類型：對抗檢定（使用 {contestEvent.relatedStat} 數值）
-              </div>
-            )}
-            {contestEvent.checkType === 'random_contest' && (
-              <div className="text-xs text-muted-foreground mt-2">
-                檢定類型：隨機對抗檢定（雙方各自骰出 1 到 {contestEvent.randomContestMaxValue || 100} 的隨機數值，D{contestEvent.randomContestMaxValue || 100}）
-              </div>
-            )}
+        {/* ── Header ──────────────────────────────────────────── */}
+        <header className="px-6 pt-6 pb-4 flex flex-col gap-1 shrink-0">
+          <div className="flex items-center gap-3">
+            <Shield className="h-7 w-7 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              對抗檢定
+            </h1>
           </div>
+          <p className="text-primary/60 text-sm font-medium">
+            {attackerDisplayName} 對你使用了技能或道具
+          </p>
+        </header>
 
-          {/* 道具選擇 */}
-          {availableItems.length > 0 && maxItems > 0 && (
-            <div className="space-y-2">
-              <Label className="text-base font-semibold flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                選擇道具（最多 {maxItems} 個）
-              </Label>
-              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-                {availableItems.map((item) => {
-                  const isSelected = selectedItems.includes(item.id);
-                  const canSelect = isSelected || selectedItems.length < maxItems;
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
-                        isSelected ? 'bg-primary/10 border-primary' : canSelect ? 'hover:bg-muted' : 'opacity-50 cursor-not-allowed'
-                      }`}
-                      onClick={() => canSelect && handleItemToggle(item.id)}
-                    >
-                      <Checkbox checked={isSelected} onCheckedChange={() => canSelect && handleItemToggle(item.id)} />
-                      <div className="flex-1">
-                        <div className="font-medium">{item.name}</div>
-                        {(() => {
-                          const effects = getItemEffects(item);
-                          if (effects.length === 0) return null;
-                          const descriptions = effects.map((eff) => {
-                            if (eff.type === 'stat_change' && eff.targetStat && eff.value !== undefined) {
-                              const target = eff.statChangeTarget || 'value';
-                              if (target === 'maxValue') {
-                                return `${eff.targetStat} 最大值 ${eff.value > 0 ? '+' : ''}${eff.value}${eff.syncValue ? '，目前值同步調整' : ''}`;
-                              }
-                              return `${eff.targetStat} ${eff.value > 0 ? '+' : ''}${eff.value}`;
-                            }
-                            if (eff.type === 'item_steal') return '偷竊目標角色的道具';
-                            if (eff.type === 'item_take') return '移除目標角色的道具';
-                            if (eff.type === 'custom' && eff.description) return eff.description;
-                            return eff.description || null;
-                          }).filter(Boolean);
-                          if (descriptions.length === 0) return null;
-                          return (
-                            <div className="text-sm text-muted-foreground">
-                              效果：{descriptions.join('、')}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  );
-                })}
+        {/* ── 可滾動主內容 ────────────────────────────────────── */}
+        <main className="flex-1 overflow-y-auto px-6 pb-28 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
+          <div className="space-y-8">
+            {/* ── 數值對比 Grid ────────────────────────────────── */}
+            <section className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                {/* 攻擊方數值 */}
+                <div className="rounded-xl p-4 flex flex-col items-center justify-center bg-card/20 border border-white/5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                    攻擊方
+                  </span>
+                  <span className={`text-4xl font-extrabold tracking-tighter ${showAttackerValue ? 'text-foreground' : 'text-muted-foreground/40'}`}>
+                    {showAttackerValue ? attackerValue : '???'}
+                  </span>
+                </div>
+                {/* 防守方數值（自己：高亮） */}
+                <div
+                  className="rounded-xl p-4 flex flex-col items-center justify-center bg-card/30 border border-primary/20"
+                  style={{ boxShadow: '0 0 25px rgba(254,197,106,0.15)' }}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">
+                    {attackerCheckType === 'random_contest' ? '骰子上限' : '你的數值'}
+                  </span>
+                  <span className="text-4xl font-extrabold tracking-tighter text-primary">
+                    {attackerCheckType === 'random_contest'
+                      ? `D${contestEvent.randomContestMaxValue || 100}`
+                      : defenderValue}
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
+              {/* 檢定類型 chip */}
+              <div className="text-center">
+                <span className="inline-block text-xs font-semibold text-primary/50 py-1 px-3 bg-white/5 rounded-full">
+                  檢定類型：{checkTypeLabel}
+                </span>
+              </div>
+            </section>
 
-          {/* 技能選擇 */}
-          {availableSkills.length > 0 && maxSkills > 0 && (
-            <div className="space-y-2">
-              <Label className="text-base font-semibold flex items-center gap-2">
-                <Zap className="h-4 w-4" />
-                選擇技能（最多 {maxSkills} 個）
-              </Label>
-              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-                {availableSkills.map((skill) => {
-                  const isSelected = selectedSkills.includes(skill.id);
-                  const canSelect = isSelected || selectedSkills.length < maxSkills;
+            {/* ── 道具選擇區 ──────────────────────────────────── */}
+            {showItemSection && (
+              <section className="space-y-3">
+                <div className="flex justify-between items-center px-1">
+                  <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Package className="w-4 h-4 text-muted-foreground" />
+                    選擇道具
+                    <span className="text-xs font-normal text-muted-foreground">
+                      (選擇 1 個)
+                    </span>
+                  </h2>
+                </div>
+                <div className="space-y-3">
+                  {availableItems.map((item) => {
+                    const isSelected = selectedItems.includes(item.id);
+                    const isExpanded = expandedCards.has(`item-${item.id}`);
+                    const isDisabledBySkill = selectedSkills.length > 0;
+                    const isDisabledBySameType = !isSelected && selectedItems.length > 0;
+                    const isDisabled = isDisabledBySkill || isDisabledBySameType;
+                    const effects = getItemEffects(item);
 
-                  return (
-                    <div
-                      key={skill.id}
-                      className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
-                        isSelected ? 'bg-primary/10 border-primary' : canSelect ? 'hover:bg-muted' : 'opacity-50 cursor-not-allowed'
-                      }`}
-                      onClick={() => canSelect && handleSkillToggle(skill.id)}
-                    >
-                      <Checkbox checked={isSelected} onCheckedChange={() => canSelect && handleSkillToggle(skill.id)} />
-                      <div className="flex-1">
-                        <div className="font-medium">{skill.name}</div>
-                        {skill.effects && skill.effects.length > 0 && (
-                          <div className="text-sm text-muted-foreground">
-                            效果：{skill.effects.map((e) => {
-                              // 格式化效果描述
-                              if (e.type === 'stat_change' && e.targetStat && e.value !== undefined) {
-                                const target = e.statChangeTarget || 'value';
-                                const value = e.value;
-                                const targetStat = e.targetStat;
-                                if (target === 'maxValue') {
-                                  return `${targetStat} 最大值 ${value > 0 ? '+' : ''}${value}${e.syncValue ? '，目前值同步調整' : ''}`;
-                                }
-                                return `${targetStat} ${value > 0 ? '+' : ''}${value}`;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-xl p-4 transition-all overflow-hidden ${
+                          isSelected
+                            ? 'bg-gradient-to-tr from-primary/15 to-primary/5 border border-primary/40'
+                            : isDisabled
+                              ? 'bg-card/10 border border-border/5 opacity-40'
+                              : 'bg-card/20 border border-border/10 hover:bg-card/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div
+                            className={`flex items-center gap-4 flex-1 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                            onClick={() => !isDisabled && handleItemToggle(item.id)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              isSelected
+                                ? 'border-primary bg-primary'
+                                : 'border-muted-foreground/20'
+                            }`}>
+                              {isSelected && (
+                                <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className="text-foreground font-bold text-sm">
+                              {item.name}
+                            </span>
+                          </div>
+                          {/* 展開/收起按鈕 */}
+                          {effects.length > 0 && (
+                            <button
+                              type="button"
+                              className={`flex items-center gap-1 text-[10px] font-bold transition-colors ${
+                                isExpanded
+                                  ? 'text-primary'
+                                  : 'text-muted-foreground hover:text-primary'
+                              }`}
+                              onClick={() => toggleExpanded(`item-${item.id}`)}
+                            >
+                              <span>{isExpanded ? '收起' : '詳情'}</span>
+                              {isExpanded
+                                ? <ChevronUp className="w-3 h-3" />
+                                : <Info className="w-3 h-3" />
                               }
-                              if (e.type === 'task_reveal' && e.targetTaskId) {
-                                return `揭露任務：${e.targetTaskId}`;
-                              }
-                              if (e.type === 'task_complete' && e.targetTaskId) {
-                                return `完成任務：${e.targetTaskId}`;
-                              }
-                              if (e.type === 'item_steal') return '偷竊目標角色的道具';
-                              if (e.type === 'item_take') return '移除目標角色的道具';
-                              if (e.type === 'item_give') return '給予目標角色道具';
-                              if (e.type === 'custom' && e.description) {
-                                return e.description;
-                              }
-                              return e.description || null;
-                            }).filter(Boolean).join('、')}
+                            </button>
+                          )}
+                        </div>
+                        {/* 效果展開面板 */}
+                        {isExpanded && effects.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-primary/10 space-y-2">
+                            {effects.map((eff, i) => {
+                              const desc = formatEffectDescription(eff);
+                              if (!desc) return null;
+                              return (
+                                <div key={i} className="flex items-center gap-2 text-xs text-primary/90">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
+                                  {desc}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
-          {/* 多選提示訊息 */}
-          {(selectedItems.length > 1 || selectedSkills.length > 1) && (
-            <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    注意：如果獲勝，只有第一個選擇的技能/道具效果會執行
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {selectedItems.length > 1 && `已選擇 ${selectedItems.length} 個道具，`}
-                    {selectedSkills.length > 1 && `已選擇 ${selectedSkills.length} 個技能，`}
-                    只有第一個的效果會生效
+            {/* ── 技能選擇區 ──────────────────────────────────── */}
+            {showSkillSection && (
+              <section className="space-y-3">
+                <div className="flex justify-between items-center px-1">
+                  <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-muted-foreground" />
+                    選擇技能
+                    <span className="text-xs font-normal text-muted-foreground">
+                      (選擇 1 個)
+                    </span>
+                  </h2>
+                </div>
+                <div className="space-y-3">
+                  {availableSkills.map((skill) => {
+                    const isSelected = selectedSkills.includes(skill.id);
+                    const isExpanded = expandedCards.has(`skill-${skill.id}`);
+                    const isDisabledByItem = selectedItems.length > 0;
+                    const isDisabledBySameType = !isSelected && selectedSkills.length > 0;
+                    const isDisabled = isDisabledByItem || isDisabledBySameType;
+
+                    return (
+                      <div
+                        key={skill.id}
+                        className={`rounded-xl p-4 transition-all overflow-hidden ${
+                          isSelected
+                            ? 'bg-gradient-to-tr from-primary/15 to-primary/5 border border-primary/40'
+                            : isDisabled
+                              ? 'bg-card/10 border border-border/5 opacity-40'
+                              : 'bg-card/20 border border-border/10 hover:bg-card/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div
+                            className={`flex items-center gap-4 flex-1 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                            onClick={() => !isDisabled && handleSkillToggle(skill.id)}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              isSelected
+                                ? 'border-primary bg-primary'
+                                : 'border-muted-foreground/20'
+                            }`}>
+                              {isSelected && (
+                                <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className="text-foreground font-bold text-sm">
+                              {skill.name}
+                            </span>
+                          </div>
+                          {/* 展開/收起按鈕 */}
+                          {skill.effects && skill.effects.length > 0 && (
+                            <button
+                              type="button"
+                              className={`flex items-center gap-1 text-[10px] font-bold transition-colors ${
+                                isExpanded
+                                  ? 'text-primary'
+                                  : 'text-muted-foreground hover:text-primary'
+                              }`}
+                              onClick={() => toggleExpanded(`skill-${skill.id}`)}
+                            >
+                              <span>{isExpanded ? '收起' : '詳情'}</span>
+                              {isExpanded
+                                ? <ChevronUp className="w-3 h-3" />
+                                : <Info className="w-3 h-3" />
+                              }
+                            </button>
+                          )}
+                        </div>
+                        {/* 效果展開面板 */}
+                        {isExpanded && skill.effects && skill.effects.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-primary/10 space-y-2">
+                            {skill.effects.map((eff, i) => {
+                              const desc = formatSkillEffectDescription(eff);
+                              if (!desc) return null;
+                              return (
+                                <div key={i} className="flex items-center gap-2 text-xs text-primary/90">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
+                                  {desc}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* ── 互斥提示 ────────────────────────────────────── */}
+            {showItemSection && showSkillSection && (
+              <div className="text-center">
+                <span className="inline-block text-[11px] font-medium text-muted-foreground/70 py-1.5 px-4 bg-muted/20 rounded-full">
+                  道具與技能只能擇一使用
+                </span>
+              </div>
+            )}
+
+            {/* ── 無可用項目 ────────────────────────────────── */}
+            {noResourcesAvailable && (itemsAllowed || skillsAllowed) && (
+              <div className="rounded-xl bg-card/20 border border-white/5 p-6">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-card/30 border border-white/5 flex items-center justify-center">
+                    <SearchX className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">
+                    沒有符合條件的道具或技能
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-[280px] text-center">
+                    當前對抗要求的標籤或者檢定類型不符
                   </p>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 只有在允許使用道具或技能時，才顯示「沒有符合條件的道具或技能」提示 */}
-          {availableItems.length === 0 && availableSkills.length === 0 && (maxItems > 0 || maxSkills > 0) && (
-            <div className="p-4 bg-muted rounded-lg text-center text-muted-foreground">
-              <p className="font-semibold mb-2">沒有符合條件的道具或技能</p>
-              <p className="text-sm">
-                防守方使用的技能/道具必須：
-              </p>
-              <ul className="text-sm mt-2 space-y-1 text-left list-disc list-inside">
-                <li>具有「戰鬥」標籤</li>
-                <li>檢定類型與攻擊方相同（{attackerCheckType === 'contest' ? '對抗檢定' : '隨機對抗檢定'}）</li>
-                {attackerCheckType === 'contest' && attackerRelatedStat && (
-                  <li>使用相同的數值（{attackerRelatedStat}）</li>
-                )}
-              </ul>
-            </div>
-          )}
-          
-          {/* 如果不允許使用道具或技能，顯示提示 */}
-          {maxItems === 0 && maxSkills === 0 && (
-            <div className="p-4 bg-info/10 border border-info/30 rounded-lg text-center">
-              <p className="text-sm text-foreground">
-                此技能/道具不允許防守方使用道具或技能回應，只能使用基礎數值進行對抗
-              </p>
-            </div>
-          )}
-        </div>
+            {/* ── 不允許使用道具或技能（限制模式） ──────────────── */}
+            {!itemsAllowed && !skillsAllowed && (
+              <div className="rounded-xl bg-card/20 border border-white/5 p-6">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-card/30 border border-white/5 flex items-center justify-center">
+                    <Lock className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">
+                    只能使用基礎數值對抗
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-[280px] text-center">
+                    此項攻擊不允許防守方使用道具或技能進行回應
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
 
-        <DialogFooter>
-          <Button 
+        {/* ── Footer（固定底部） ───────────────────────────────── */}
+        <footer className="absolute bottom-0 left-0 right-0 p-6 bg-background/90 backdrop-blur-[20px] border-t border-border/10 shrink-0 z-10">
+          <button
+            type="button"
+            className={`w-full h-14 rounded-xl font-extrabold text-base tracking-wide flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+              isResponding
+                ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                : 'bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20'
+            }`}
+            disabled={isResponding}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               handleRespond(e);
             }}
-            disabled={isResponding}
-            className="w-full sm:w-auto"
-            type="button"
           >
-            {isResponding ? '回應中...' : 
-             selectedItems.length > 0 || selectedSkills.length > 0 
-               ? '確認回應' 
-               : '使用基礎數值回應'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {buttonLabel}
+          </button>
+        </footer>
+      </div>
+    </div>
   );
 }
 
+// ── 效果描述格式化 ────────────────────────────────────────────────
+
+function formatEffectDescription(eff: ReturnType<typeof getItemEffects>[number]): string | null {
+  if (eff.type === 'stat_change' && eff.targetStat && eff.value !== undefined) {
+    const target = eff.statChangeTarget || 'value';
+    if (target === 'maxValue') {
+      return `${eff.targetStat} 最大值 ${eff.value > 0 ? '+' : ''}${eff.value}${eff.syncValue ? '，目前值同步調整' : ''}`;
+    }
+    return `${eff.targetStat} ${eff.value > 0 ? '+' : ''}${eff.value}`;
+  }
+  if (eff.type === 'item_steal') return '偷竊目標角色的道具';
+  if (eff.type === 'item_take') return '移除目標角色的道具';
+  if (eff.type === 'custom' && eff.description) return eff.description;
+  return eff.description || null;
+}
+
+function formatSkillEffectDescription(eff: { type: string; targetStat?: string; value?: number; statChangeTarget?: string; syncValue?: boolean; description?: string; targetTaskId?: string }): string | null {
+  if (eff.type === 'stat_change' && eff.targetStat && eff.value !== undefined) {
+    const target = eff.statChangeTarget || 'value';
+    if (target === 'maxValue') {
+      return `${eff.targetStat} 最大值 ${eff.value > 0 ? '+' : ''}${eff.value}${eff.syncValue ? '，目前值同步調整' : ''}`;
+    }
+    return `${eff.targetStat} ${eff.value > 0 ? '+' : ''}${eff.value}`;
+  }
+  if (eff.type === 'task_reveal' && eff.targetTaskId) return `揭露任務：${eff.targetTaskId}`;
+  if (eff.type === 'task_complete' && eff.targetTaskId) return `完成任務：${eff.targetTaskId}`;
+  if (eff.type === 'item_steal') return '偷竊目標角色的道具';
+  if (eff.type === 'item_take') return '移除目標角色的道具';
+  if (eff.type === 'item_give') return '給予目標角色道具';
+  if (eff.type === 'custom' && eff.description) return eff.description;
+  return eff.description || null;
+}

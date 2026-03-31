@@ -272,7 +272,7 @@ export async function useItem(
           defenderValue: checkResultData.defenderValue,
           preliminaryResult: checkResultData.preliminaryResult,
         },
-        message: `對抗檢定請求已發送給 ${targetCharacterName}，等待回應...`,
+        message: `已對 ${targetCharacterName} 發起對抗檢定`,
       };
     }
 
@@ -404,8 +404,6 @@ export async function useItem(
     }).catch((error) => {
       console.error('Failed to emit item.used event', error);
     });
-
-    // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
 
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';

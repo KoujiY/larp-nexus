@@ -30,8 +30,6 @@ export interface UseContestStateRestoreOptions {
   removePendingContest: (sourceId: string) => void;
   updateContestDialog: (sourceId: string, dialogOpen: boolean, selectedTargetId?: string) => void;
   onItemSelected: (item: Skill | Item | null) => void;
-  onUseResultSet: (result: { success: boolean; message: string } | null) => void;
-  onToastShow: (message: string, options?: { duration?: number }) => string | number;
   onClearDialog: () => void;
   isDialogForSource: (sourceId: string, sourceType: 'skill' | 'item') => boolean;
   onClearTargetState: () => void;
@@ -53,8 +51,7 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
     removePendingContest,
     updateContestDialog,
     onItemSelected,
-    onUseResultSet,
-    onToastShow,
+
     onClearDialog,
     isDialogForSource,
     onClearTargetState,
@@ -127,7 +124,7 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
           onClearDialog();
         }
         onItemSelected(null); // 設置為 null 來關閉 dialog
-        onUseResultSet(null); // 清除使用結果
+
         onClearTargetState(); // 清除目標選擇狀態
         // 標記會在 selectedItem 變為 null 時通過 useEffect 清除
         return; // 提前返回，不執行後續邏輯
@@ -145,11 +142,50 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
     // 檢查每個 pending contest 是否已完成
     const now = Date.now();
     const queryPromises: Promise<void>[] = [];
-    
+
     for (const [sourceId, contest] of Object.entries(pendingContests)) {
       if (contest.sourceType === sourceType) {
         const item = items.find((i) => i.id === sourceId);
         if (item) {
+          // 新架構：attacker_waiting 由 character-card-view 層級的 ContestWaitingDialog 處理，
+          // 不再透過 bottom sheet 恢復。此處只執行 server query 偵測對抗是否已完成。
+          const isHandledByWaitingDialog =
+            dialogState?.type === 'attacker_waiting' &&
+            dialogState.sourceType === sourceType &&
+            dialogState.sourceId === sourceId;
+
+          if (isHandledByWaitingDialog) {
+            // 標記 dialogOpen 為 false（防止 useContestDialogManagement 重複設定），
+            // 但僅在尚未標記時執行，避免重複觸發 pendingContests 變更
+            if (contest.dialogOpen) {
+              updateContestDialog(sourceId, false);
+            }
+
+            // Server query：偵測對抗是否已完成（處理重新整理後 WebSocket 事件遺失的情況）
+            const contestAge = now - contest.timestamp;
+            if (contestAge > CONTEST_QUERY_DELAY) {
+              const queryPromise = import('@/app/actions/contest-query').then(({ queryContestStatus }) => {
+                return queryContestStatus(contest.contestId, characterId)
+                  .then((result) => {
+                    if (result.success && result.data) {
+                      if (!result.data.isActive) {
+                        removePendingContest(sourceId);
+                        onClearDialog();
+                      }
+                    } else {
+                      removePendingContest(sourceId);
+                      onClearDialog();
+                    }
+                  })
+                  .catch((error) => {
+                    console.error(`[${sourceType}-list] 查詢對抗檢定狀態錯誤`, { sourceId, error });
+                  });
+              });
+              queryPromises.push(queryPromise);
+            }
+            continue; // 跳過 bottom sheet 恢復邏輯
+          }
+
           // 修復：如果 dialogOpen 為 false，且 selectedItem 存在，關閉 dialog
           // 這處理了 updateContestDialog 在 removePendingContest 之後被調用的情況
           if (!contest.dialogOpen && selectedItem && selectedItem.id === sourceId) {
@@ -164,42 +200,19 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
               onClearDialog();
             }
             onItemSelected(null); // 設置為 null 來關閉 dialog
-            onUseResultSet(null); // 清除使用結果
+    
             onClearTargetState(); // 清除目標選擇狀態
             // 標記會在 selectedItem 變為 null 時通過 useEffect 清除
             continue; // 跳過這個 contest，繼續處理下一個
           }
-          
-          // Phase 8: 如果 dialogOpen 為 true，自動打開 dialog（顯示等待狀態）
-          // 這樣攻擊方重新整理後，會看到技能或道具 dialog 的等待狀態
-          // 修復：只有在對抗檢定仍在進行時（dialogOpen 為 true）才恢復 dialog
-          // 如果 dialogOpen 為 false，說明對抗檢定已完成，不應該恢復 dialog
-          // 額外檢查：如果 selectedItem 已經存在且對應的 pendingContest 不存在，不應該恢復
-          if (contest.dialogOpen && !selectedItem && hasPendingContest(sourceId)) {
-            // Phase 8: 設置 dialogOpen 為 false，因為 dialog 會顯示等待狀態
-            // 這必須在設置 selectedItem 之前執行
-            updateContestDialog(sourceId, false);
-            // 設置選中的 item，這會自動打開 dialog
-            onItemSelected(item);
-            // Phase 8: 設置等待狀態訊息，讓 dialog 顯示等待狀態
-            const waitingMessage = '對抗檢定請求已發送，等待防守方回應...';
-            onUseResultSet({
-              success: true,
-              message: waitingMessage,
-            });
-            // 恢復等待 toast，讓用戶知道正在等待防守方回應
-            onToastShow(waitingMessage, {
-              duration: 5000,
-            });
-          }
-          
+
           const contestAge = now - contest.timestamp;
-          
+
           // Phase 8: 如果對抗檢定超過 10 秒，查詢服務器狀態確認是否已完成
           // 這是為了處理攻擊方重新整理後無法收到 WebSocket 事件的情況
           // 10 秒是一個合理的等待時間，足夠防守方回應，同時不會讓用戶等待太久
           if (contestAge > CONTEST_QUERY_DELAY) {
-            
+
             // 查詢服務器狀態
             const queryPromise = import('@/app/actions/contest-query').then(({ queryContestStatus }) => {
               return queryContestStatus(contest.contestId, characterId)
@@ -221,7 +234,7 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
                   // 查詢錯誤時，不清除本地狀態（可能是網絡問題），但記錄錯誤
                 });
             });
-            
+
             queryPromises.push(queryPromise);
           }
         }
@@ -243,8 +256,7 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
     characterId,
     updateContestDialog,
     onItemSelected,
-    onUseResultSet,
-    onToastShow,
+
     onClearDialog,
     isDialogForSource,
     onClearTargetState,
@@ -253,43 +265,5 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
     sourceType,
   ]);
 
-  // 修復：當 pendingContests 被清除時，確保關閉 dialog
-  // 這是一個額外的安全措施，確保當對抗檢定完成時 dialog 會被關閉
-  // 使用 ref 追蹤之前的狀態，只在對抗檢定實際完成時（從有 pendingContest 變為沒有 pendingContest）才關閉 dialog
-  useEffect(() => {
-    if (!selectedItem) {
-      // 如果 selectedItem 為 null，重置追蹤狀態
-      prevSelectedItemPendingContestRef.current = false;
-      return;
-    }
-    
-    const hasPending = hasPendingContest(selectedItem.id);
-    const hadPending = prevSelectedItemPendingContestRef.current;
-    
-    // 更新追蹤狀態
-    prevSelectedItemPendingContestRef.current = hasPending;
-    
-    // 只在對抗檢定實際完成時（從有 pendingContest 變為沒有 pendingContest）才關閉 dialog
-    // 如果用戶手動打開 dialog（hadPending 為 false），不應該關閉
-    if (hadPending && !hasPending) {
-      // Phase 10: 對抗檢定已完成（pendingContest 被清除），無條件關閉 dialog 並清理 dialogState。
-      // 移除 isAttackerWaiting 守衛，原因同上方 useEffect。
-
-      // 如果已經在關閉這個 dialog，跳過
-      if (isClosingDialogRef.current === selectedItem.id) {
-        return;
-      }
-      
-      // 標記正在關閉這個 dialog
-      isClosingDialogRef.current = selectedItem.id;
-      // 修復：清除 dialogState（localStorage 中的 dialog 狀態），確保 dialog 不會因為 localStorage 中的狀態而重新打開
-      if (isDialogForSource(selectedItem.id, sourceType)) {
-        onClearDialog();
-      }
-      onItemSelected(null); // 設置為 null 來關閉 dialog
-      onUseResultSet(null); // 清除使用結果
-      onClearTargetState(); // 清除目標選擇狀態
-    }
-  }, [pendingContests, selectedItem, hasPendingContest, onItemSelected, onUseResultSet, onClearTargetState, isDialogForSource, onClearDialog, isClosingDialogRef, dialogState, sourceType]);
 }
 

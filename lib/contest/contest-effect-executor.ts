@@ -187,7 +187,7 @@ export async function executeContestEffects(
       }
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       if (!targetItemId) {
-        effectsApplied.push('目標角色沒有道具可互動');
+        effectsApplied.push('放棄道具獲取');
         continue;
       }
 

@@ -27,12 +27,12 @@ function InfoLine({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-/** 對方回應描述：列出可使用的技能/道具數量 */
+/** 對方回應描述：以布林方式顯示是否允許使用道具/技能 */
 function opponentResponseText(maxItems: number, maxSkills: number): string {
   if (maxItems === 0 && maxSkills === 0) return '不允許';
   const parts: string[] = [];
-  if (maxItems > 0) parts.push(`可使用 ${maxItems} 個道具`);
-  if (maxSkills > 0) parts.push(`可使用 ${maxSkills} 個技能`);
+  if (maxItems > 0) parts.push('允許使用道具');
+  if (maxSkills > 0) parts.push('允許使用技能');
   return parts.join('、');
 }
 

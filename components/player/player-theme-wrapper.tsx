@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { PlayerThemeContext } from './player-theme-context';
+import { Toaster } from '@/components/ui/sonner';
 
 interface PlayerThemeWrapperProps {
   children: React.ReactNode;
@@ -55,6 +56,7 @@ export function PlayerThemeWrapper({ children }: PlayerThemeWrapperProps) {
     <PlayerThemeContext.Provider value={{ isDark, toggleTheme, mounted }}>
       <div className={(!mounted || isDark) ? 'dark' : ''} suppressHydrationWarning>
         {children}
+        <Toaster theme={isDark ? 'dark' : 'light'} />
       </div>
     </PlayerThemeContext.Provider>
   );

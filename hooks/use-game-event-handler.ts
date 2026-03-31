@@ -11,7 +11,6 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import type { BaseEvent, ItemShowcasedEvent, SkillContestEvent } from '@/types/event';
 import type { CharacterData } from '@/types/character';
 import type { ContestDialogState } from './use-contest-dialog-state';
@@ -36,7 +35,6 @@ type ContestDialogActions = {
 type Params = {
   character: CharacterData;
   addNotification: (notifications: Notification[]) => void;
-  onTabChange: (tab: string) => void;
   contestDialog: ContestDialogActions;
   /** 被展示方收到道具展示事件時的回調 */
   onItemShowcased: (fromName: string, item: ShowcasedItemInfo) => void;
@@ -50,7 +48,6 @@ type Params = {
 export function useGameEventHandler({
   character,
   addNotification,
-  onTabChange,
   contestDialog,
   onItemShowcased,
   onGameEnded,
@@ -70,7 +67,6 @@ export function useGameEventHandler({
   const { handleWebSocketEvent } = useCharacterWebSocketHandler({
     characterId: character.id,
     addNotification,
-    onTabChange,
     onClearDialogState: clearDialogState,
     onContestRequest: async (payload) => {
       const sourceId = payload.itemId || payload.skillId || '';
@@ -125,35 +121,17 @@ export function useGameEventHandler({
 
   useCharacterWebSocket(character.id, handleWebSocketEvent);
 
-  /** 離線事件的統一處理器（補充 toast 顯示） */
+  /** 離線事件的統一處理器 */
   const handlePendingEvent = useCallback((event: BaseEvent) => {
     if (event.type === 'game.broadcast') {
+      // 離線廣播：加入通知面板
       const { title, message } = event.payload as { title?: string; message?: string };
-      toast.info(title || '系統廣播', { description: message });
       addNotification([{
         id: `evt-${event.timestamp}`,
         title: title || '系統廣播',
         message: message || '收到廣播',
         type: event.type,
       }]);
-    } else if (event.type === 'role.updated') {
-      // 離線補送時額外顯示數值變更 toast
-      handleWebSocketEvent(event);
-      const payload = event.payload as {
-        updates?: { stats?: Array<{ name?: string; deltaValue?: number; deltaMax?: number }> };
-      };
-      const stats = payload?.updates?.stats;
-      if (stats && stats.length > 0) {
-        const changes = stats
-          .map((s) => {
-            const name = s.name ?? '數值';
-            if (s.deltaValue && s.deltaValue !== 0) return `${name} ${s.deltaValue > 0 ? '+' : ''}${s.deltaValue}`;
-            if (s.deltaMax && s.deltaMax !== 0) return `${name} 最大值 ${s.deltaMax > 0 ? '+' : ''}${s.deltaMax}`;
-            return null;
-          })
-          .filter(Boolean);
-        if (changes.length > 0) toast.info('離線期間數值變更', { description: changes.join('、') });
-      }
     } else {
       handleWebSocketEvent(event);
     }
@@ -168,7 +146,6 @@ export function useGameEventHandler({
   useGameWebSocket(character.gameId, (event: BaseEvent) => {
     if (event.type === 'game.broadcast') {
       const { title, message } = event.payload as { title?: string; message?: string };
-      toast.info(title || '系統廣播', { description: message });
       addNotification([{
         id: `evt-${event.timestamp}`,
         title: title || '系統廣播',
@@ -179,11 +156,9 @@ export function useGameEventHandler({
       // 遊戲開始時靜默刷新（更新 isGameActive 和 baselineData）
       router.refresh();
     } else if (event.type === 'game.reset' || event.type === 'game.ended') {
-      const titles: Record<string, string> = { 'game.reset': '遊戲重置', 'game.ended': '遊戲結束' };
-      toast.info(titles[event.type] || '遊戲狀態變更');
       addNotification([{
         id: `evt-${event.timestamp}`,
-        title: titles[event.type] || '遊戲狀態',
+        title: event.type === 'game.ended' ? '遊戲結束' : '遊戲重置',
         message: event.type === 'game.ended' ? '感謝您的參與！' : '請刷新以取得最新狀態',
         type: event.type,
       }]);

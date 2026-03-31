@@ -17,14 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import type { Skill, SkillEffect } from '@/types/character';
 import type { TargetItemInfo } from '@/app/actions/public';
-import type { UsePostUseTargetItemSelectionReturn } from '@/hooks/use-post-use-target-item-selection';
 import { getCooldownRemaining } from '@/lib/utils/skill-validators';
 import { EffectDisplay } from './effect-display';
-import { UseResultDisplay } from './use-result-display';
+
 import { CheckInfoDisplay } from './check-info-display';
 import { BottomSheet } from './bottom-sheet';
 
@@ -40,7 +38,6 @@ export interface SkillDetailDialogProps {
   randomContestMaxValue: number;
   /** 角色數值（用於 CheckInfoDisplay 中顯示對抗數值） */
   stats?: Array<{ name: string; value: number }>;
-  useResult: { success: boolean; message: string } | null;
   isUsing: boolean;
 
   // ── 目標選擇 ──
@@ -58,15 +55,11 @@ export interface SkillDetailDialogProps {
   // ── 衍生狀態 ──
   requiresTarget: boolean;
   isContestInProgress: boolean;
-  isPostUseSelecting: boolean;
 
   // ── 事件處理 ──
   handleUseSkill: () => void;
   handleConfirmTarget: () => Promise<void>;
   handleCancelTarget: () => void;
-
-  /** 非對抗偷竊/移除後的目標道具選擇流程 */
-  postUseSelection: UsePostUseTargetItemSelectionReturn;
 
   /** 是否為唯讀模式 */
   isReadOnly: boolean;
@@ -81,7 +74,6 @@ export function SkillDetailDialog({
   checkResult,
   randomContestMaxValue,
   stats = [],
-  useResult,
   isUsing,
   targetCharacters,
   selectedTargetId,
@@ -95,11 +87,9 @@ export function SkillDetailDialog({
   isLoadingTargetItems,
   requiresTarget,
   isContestInProgress,
-  isPostUseSelecting,
   handleUseSkill,
   handleConfirmTarget,
   handleCancelTarget,
-  postUseSelection,
   isReadOnly,
   canUseSkill,
 }: SkillDetailDialogProps) {
@@ -114,13 +104,11 @@ export function SkillDetailDialog({
     ? '使用中...'
     : isContestInProgress
       ? '等待對抗結果...'
-      : isPostUseSelecting
-        ? '請選擇目標道具...'
-        : requiresTarget && !selectedTargetId
-          ? '請選擇目標角色'
-          : !canUse && cantUseReason
-            ? `使用技能 (${cantUseReason})`
-            : '使用技能';
+      : requiresTarget && !selectedTargetId
+        ? '請選擇目標角色'
+        : !canUse && cantUseReason
+          ? `使用技能 (${cantUseReason})`
+          : '使用技能';
 
   const noTargetSelected = hasTargets && !selectedTargetId;
 
@@ -312,71 +300,6 @@ export function SkillDetailDialog({
         </div>
       )}
 
-      {/* 使用結果訊息 */}
-      <UseResultDisplay result={useResult} />
-
-      {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 UI */}
-      {postUseSelection.selectionState?.sourceId === selectedSkill?.id && (
-        <div className="p-4 bg-success/10 rounded-lg border-2 border-success/30 mb-4">
-          <div className="space-y-3">
-            <p className="font-medium text-foreground">
-              使用成功！請選擇要
-              {postUseSelection.selectionState.effectType === 'item_steal'
-                ? '偷竊'
-                : '移除'}
-              的道具
-            </p>
-            {postUseSelection.isLoadingTargetItems ? (
-              <p className="text-sm text-muted-foreground">
-                載入目標道具清單中...
-              </p>
-            ) : postUseSelection.targetItems.length > 0 ? (
-              <div className="space-y-2">
-                <Select
-                  value={postUseSelection.selectedTargetItemId}
-                  onValueChange={postUseSelection.setSelectedTargetItemId}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue
-                      placeholder={`選擇要${postUseSelection.selectionState.effectType === 'item_steal' ? '偷竊' : '移除'}的道具...`}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {postUseSelection.targetItems.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={postUseSelection.confirmSelection}
-                  disabled={
-                    !postUseSelection.selectedTargetItemId ||
-                    postUseSelection.isSubmitting
-                  }
-                  className="w-full"
-                >
-                  {postUseSelection.isSubmitting ? '處理中...' : '確認選擇'}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  目標角色沒有道具
-                </p>
-                <Button
-                  onClick={postUseSelection.confirmSelection}
-                  disabled={postUseSelection.isSubmitting}
-                  className="w-full"
-                >
-                  {postUseSelection.isSubmitting ? '處理中...' : '確認'}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </BottomSheet>
   );
 }

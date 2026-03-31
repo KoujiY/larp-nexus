@@ -14,9 +14,10 @@ import { SkillList } from './skill-list';
 import { WorldInfoLink } from './world-info-link';
 import { useItem as consumeItemAction, transferItem as transferItemAction } from '@/app/actions/item-use';
 import { checkExpiredEffects } from '@/app/actions/temporary-effects';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import Image from 'next/image';
 import { ContestResponseDialog } from './contest-response-dialog';
+import { ContestWaitingDialog } from './contest-waiting-dialog';
 import { TargetItemSelectionDialog } from './target-item-selection-dialog';
 import { ItemShowcaseDialog } from './item-showcase-dialog';
 import type { ShowcasedItemInfo } from './item-showcase-dialog';
@@ -118,7 +119,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   const { notifications, unreadCount, markAsRead, addNotification } = useNotificationSystem(character.id);
 
   // 對抗 Dialog 狀態管理（含頁面重整後恢復邏輯）
-  const contestDialog = useContestDialogManagement({ characterId: character.id, onTabChange: setActiveTab });
+  const contestDialog = useContestDialogManagement({ characterId: character.id });
   const {
     clearDialogState,
     defenderTargetDialog: defenderTargetItemSelectionDialog,
@@ -127,6 +128,10 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     contestDialogOpen,
     currentContestEvent,
     currentContestId,
+    attackerWaitingOpen,
+    attackerWaitingDisplayData,
+    attackerTargetItemOpen,
+    attackerTargetItemData,
   } = contestDialog;
 
   // 最終解鎖狀態：localStorage 或手動解鎖
@@ -189,10 +194,9 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   const handleTransferItem = useCallback(async (itemId: string, targetCharacterId: string) => {
     const result = await transferItemAction(character.id, itemId, targetCharacterId, 1);
     if (result.success) {
-      toast.success(result.message || '道具轉移成功');
       router.refresh();
     } else {
-      toast.error(result.message || '道具轉移失敗');
+      notify.error(result.message || '道具轉移失敗');
     }
   }, [character.id, router]);
 
@@ -200,7 +204,6 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   useGameEventHandler({
     character,
     addNotification,
-    onTabChange: setActiveTab,
     contestDialog,
     onItemShowcased: (fromName, item) => {
       setShowcaseFromName(fromName);
@@ -480,9 +483,38 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         }}
       />
 
-      {/* Phase 9: 防守方目標道具選擇 Dialog */}
+      {/* 攻擊方等待 Dialog */}
+      <ContestWaitingDialog
+        open={attackerWaitingOpen}
+        displayData={attackerWaitingDisplayData}
+      />
+
+      {/* 攻擊方目標道具選擇 Dialog（分歧 2：攻擊方獲勝 + 偷竊/移除） */}
+      {attackerTargetItemData && (
+        <TargetItemSelectionDialog
+          mode="contest"
+          open={!!attackerTargetItemOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              clearDialogState();
+            }
+          }}
+          contestId={attackerTargetItemData.contestId}
+          characterId={character.id}
+          defenderId={attackerTargetItemData.targetCharacterId}
+          sourceType={attackerTargetItemData.sourceType}
+          sourceId={attackerTargetItemData.sourceId}
+          onSelectionComplete={() => {
+            clearDialogState();
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* 防守方目標道具選擇 Dialog（分歧 5：防守方獲勝 + 偷竊/移除） */}
       {defenderTargetItemSelectionDialog && (
         <TargetItemSelectionDialog
+          mode="contest"
           open={defenderTargetItemSelectionDialog.open}
           onOpenChange={(open) => {
             if (!open) {

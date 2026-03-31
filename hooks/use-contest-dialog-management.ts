@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from 'react';
 import { useContestDialogState } from './use-contest-dialog-state';
-import { useDefenderContestState, useContestState } from './use-contest-state';
+import { useDefenderContestState } from './use-contest-state';
 
 /** 防守方獲勝後目標道具選擇 dialog 的狀態 */
 export type DefenderTargetDialogState = {
@@ -22,14 +22,12 @@ export type DefenderTargetDialogState = {
 
 type Params = {
   characterId: string;
-  /** 切換主畫面 Tab（恢復攻擊方等待狀態時使用） */
-  onTabChange: (tab: string) => void;
 };
 
 /**
  * 管理角色卡對抗 Dialog 的開關狀態與頁面重整後的狀態恢復。
  */
-export function useContestDialogManagement({ characterId, onTabChange }: Params) {
+export function useContestDialogManagement({ characterId }: Params) {
   const {
     dialogState,
     setAttackerWaitingDialog: setAttackerWaitingDialogState,
@@ -47,8 +45,6 @@ export function useContestDialogManagement({ characterId, onTabChange }: Params)
   const currentContestEvent = defenderState?.contestEvent ?? null;
   const currentContestId = defenderState?.contestId ?? '';
 
-  const { pendingContests } = useContestState(characterId);
-
   // 頁面重整兼容：若有 defenderState 但 dialogState 尚未恢復，補寫統一 Dialog 狀態
   // 注意：此處呼叫的是外部 setter（非本地 setState），不觸發 set-state-in-effect 規則
   useEffect(() => {
@@ -60,28 +56,20 @@ export function useContestDialogManagement({ characterId, onTabChange }: Params)
     }
   }, [defenderState, dialogState, setDefenderResponseDialog]);
 
-  // 從統一 Dialog 狀態恢復攻擊方等待 dialog（切換到對應分頁，讓子元件處理）
-  useEffect(() => {
-    if (!dialogState) return;
-    switch (dialogState.type) {
-      case 'attacker_waiting':
-      case 'target_item_selection':
-        onTabChange(dialogState.sourceType === 'skill' ? 'skills' : 'items');
-        break;
-    }
-  }, [dialogState, onTabChange]);
+  // 攻擊方等待 Dialog 狀態
+  const attackerWaitingOpen = dialogState?.type === 'attacker_waiting';
+  const attackerWaitingDisplayData = dialogState?.waitingDisplayData;
 
-  // 從持久化狀態恢復攻擊方等待 dialog
-  useEffect(() => {
-    if (Object.keys(pendingContests).length > 0) {
-      for (const [sourceId, contest] of Object.entries(pendingContests)) {
-        if (contest.dialogOpen) {
-          setAttackerWaitingDialogState(contest.contestId, contest.sourceType, sourceId);
-          break;
-        }
+  // 攻擊方目標道具選擇 Dialog 狀態（從統一的 dialogState 衍生）
+  const attackerTargetItemOpen = dialogState?.type === 'target_item_selection';
+  const attackerTargetItemData = attackerTargetItemOpen
+    ? {
+        contestId: dialogState.contestId,
+        sourceType: dialogState.sourceType,
+        sourceId: dialogState.sourceId,
+        targetCharacterId: dialogState.targetCharacterId || '',
       }
-    }
-  }, [pendingContests, setAttackerWaitingDialogState]);
+    : null;
 
   return {
     dialogState,
@@ -97,6 +85,9 @@ export function useContestDialogManagement({ characterId, onTabChange }: Params)
     contestDialogOpen,
     currentContestEvent,
     currentContestId,
-    pendingContests,
+    attackerWaitingOpen,
+    attackerWaitingDisplayData,
+    attackerTargetItemOpen,
+    attackerTargetItemData,
   };
 }

@@ -192,12 +192,18 @@ export function useContestState(characterId: string) {
       if (!(sourceId in prev)) {
         return prev;
       }
+      const existing = prev[sourceId];
+      const newSelectedTargetId = selectedTargetId !== undefined ? selectedTargetId : existing.selectedTargetId;
+      // 值相同時不建立新物件，避免不必要的 re-render
+      if (existing.dialogOpen === dialogOpen && existing.selectedTargetId === newSelectedTargetId) {
+        return prev;
+      }
       return {
         ...prev,
         [sourceId]: {
-          ...prev[sourceId],
+          ...existing,
           dialogOpen,
-          selectedTargetId: selectedTargetId !== undefined ? selectedTargetId : prev[sourceId].selectedTargetId,
+          selectedTargetId: newSelectedTargetId,
         },
       };
     });

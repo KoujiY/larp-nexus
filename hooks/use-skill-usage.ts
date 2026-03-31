@@ -8,7 +8,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { useSkill as executeSkillAction } from '@/app/actions/skill-use';
 import { canUseSkill } from '@/lib/utils/skill-validators';
 import type { Skill, SkillEffect } from '@/types/character';
@@ -24,6 +24,7 @@ export interface UseSkillUsageOptions {
       contestId?: string;
       checkPassed?: boolean;
       checkResult?: number;
+      attackerValue?: number;
       needsTargetItemSelection?: boolean;
       targetCharacterId?: string;
     };
@@ -47,9 +48,7 @@ export interface UseSkillUsageOptions {
 export interface UseSkillUsageReturn {
   isUsing: boolean;
   checkResult: number | undefined;
-  useResult: { success: boolean; message: string } | null;
   handleUseSkill: () => Promise<void>;
-  setUseResult: (result: { success: boolean; message: string } | null) => void;
   setCheckResult: (result: number | undefined) => void;
 }
 
@@ -74,7 +73,6 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
 
   const [isUsing, setIsUsing] = useState(false);
   const [checkResult, setCheckResult] = useState<number | undefined>(undefined);
-  const [useResult, setUseResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleUseSkill = useCallback(async () => {
     if (!selectedSkill) return;
@@ -87,7 +85,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     // 檢查是否需要選擇目標角色
     const requiresTarget = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest' || selectedSkill.effects?.some((effect: SkillEffect) => effect.requiresTarget);
     if (requiresTarget && !selectedTargetId) {
-      toast.error('請先選擇目標角色');
+      notify.error('請先選擇目標角色');
       return;
     }
 
@@ -101,13 +99,12 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     if (selectedSkill.checkType === 'random' && selectedSkill.randomConfig) {
       finalCheckResult = Math.floor(Math.random() * selectedSkill.randomConfig.maxValue) + 1;
       setCheckResult(finalCheckResult);
-      toast.info(`骰出結果：${finalCheckResult}`);
     }
 
     // 對抗檢定必須有目標角色
     if (isContest) {
       if (!selectedTargetId) {
-        toast.error('對抗檢定需要選擇目標角色');
+        notify.error('對抗檢定需要選擇目標角色');
         return;
       }
     }
@@ -138,7 +135,6 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
 
         // 非對抗偷竊/移除：使用成功後需要選擇目標道具
         if (result.data?.needsTargetItemSelection && result.data?.targetCharacterId) {
-          setUseResult({ success: true, message: result.message || '使用成功，請選擇目標道具' });
           if (onClearTargetState) {
             onClearTargetState();
           }
@@ -160,21 +156,12 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
 
         // 如果不是對抗檢定，處理成功結果
         if (!result.data?.contestId) {
-          if (result.data?.checkPassed === false) {
-            setUseResult({ success: false, message: '檢定失敗，技能未生效' });
-            toast.warning('檢定失敗，技能未生效');
-            // 檢定失敗也清除目標選擇狀態，避免下次開啟時被鎖死
-            if (onClearTargetState) {
-              onClearTargetState();
-            }
-          } else {
-            // 技能使用成功後，清除目標選擇狀態並直接關閉 dialog
-            if (onClearTargetState) {
-              onClearTargetState();
-            }
-            if (onCloseDialog) {
-              onCloseDialog();
-            }
+          // 清除目標選擇狀態並關閉 dialog（結果透過通知面板呈現）
+          if (onClearTargetState) {
+            onClearTargetState();
+          }
+          if (onCloseDialog) {
+            onCloseDialog();
           }
         }
 
@@ -190,9 +177,8 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
         }
       } else {
         console.error('技能使用失敗:', result);
-        setUseResult({ success: false, message: result.message || '技能使用失敗' });
-        toast.error(result.message || '技能使用失敗');
-        // 使用失敗也清除目標選擇狀態
+        notify.error(result.message || '技能使用失敗');
+        // 使用失敗清除目標選擇狀態
         if (onClearTargetState) {
           onClearTargetState();
         }
@@ -204,8 +190,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     } catch (error) {
       console.error('技能使用錯誤:', error);
       const errorMessage = error instanceof Error ? error.message : '技能使用失敗，請稍後再試';
-      setUseResult({ success: false, message: errorMessage });
-      toast.error(errorMessage);
+      notify.error(errorMessage);
       // 異常也清除目標選擇狀態
       if (onClearTargetState) {
         onClearTargetState();
@@ -229,14 +214,13 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
     onClearTargetState,
     onRouterRefresh,
     onNeedsTargetItemSelection,
+    onCloseDialog,
   ]);
 
   return {
     isUsing,
     checkResult,
-    useResult,
     handleUseSkill,
-    setUseResult,
     setCheckResult,
   };
 }

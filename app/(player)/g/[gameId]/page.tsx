@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Globe, BookOpen, List } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { GameWebSocketSubscriber } from '@/components/player/game-websocket-subscriber';
 
 interface WorldInfoPageProps {
   params: Promise<{ gameId: string }>;
@@ -23,7 +22,6 @@ export default async function WorldInfoPage({ params }: WorldInfoPageProps) {
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
-        <GameWebSocketSubscriber gameId={gameId} />
         {/* 頁首 */}
         <div className="mb-8 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
