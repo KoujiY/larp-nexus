@@ -6,29 +6,12 @@ import { updateCharacter } from '@/app/actions/character-update';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { SaveButton } from '@/components/gm/save-button';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Plus, Trash2, Zap, Pencil } from 'lucide-react';
-import type { Skill, SkillEffect, Stat } from '@/types/character';
-import { EditFormCard } from './edit-form-card';
-import { EffectEditor } from './effect-editor';
-import { CheckConfigSection } from './check-config-section';
-import { UsageLimitSection } from './usage-limit-section';
-import { TagsSection } from './tags-section';
-import { validateCheckConfig, type CheckType } from '@/lib/utils/check-config-validators';
-import { normalizeCheckConfig } from '@/lib/utils/check-config-normalizers';
+import type { Skill, Stat } from '@/types/character';
+import { AbilityEditWizard } from './ability-edit-wizard';
 
 interface SkillsEditFormProps {
   characterId: string;
@@ -44,7 +27,8 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
   const [skills, setSkills] = useState<Skill[]>(initialSkills);
   const [prevInitialSkills, setPrevInitialSkills] = useState(initialSkills);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+
   /** 當 initialSkills props 變化時（例如 router.refresh() 後），同步更新本地 state */
   if (initialSkills !== prevInitialSkills) {
     setPrevInitialSkills(initialSkills);
@@ -72,7 +56,7 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
       tags: [],
     };
     setEditingSkill(newSkill);
-    setIsDialogOpen(true);
+    setIsWizardOpen(true);
   };
 
   // 編輯技能
@@ -82,47 +66,19 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
       effects: skill.effects ? [...skill.effects] : [],
       tags: skill.tags ? [...skill.tags] : [],
     });
-    setIsDialogOpen(true);
+    setIsWizardOpen(true);
   };
 
-  // 儲存技能（新增或編輯）
-  const handleSaveSkill = () => {
-    if (!editingSkill) return;
-
-    if (!editingSkill.name.trim()) {
-      toast.error('技能名稱不可為空');
-      return;
-    }
-
-    // 驗證檢定設定
-    const validation = validateCheckConfig(
-      editingSkill.checkType as CheckType,
-      editingSkill.contestConfig,
-      editingSkill.randomConfig,
-    );
-    if (!validation.valid) {
-      toast.error(validation.errorMessage);
-      return;
-    }
-
-    // 正規化檢定設定並建構最終技能
-    const configPatch = normalizeCheckConfig(
-      editingSkill.checkType as CheckType,
-      editingSkill.contestConfig,
-      editingSkill.randomConfig,
-    );
-    const finalSkill: Skill = { ...editingSkill, ...configPatch };
-
-    const existingIndex = skills.findIndex((s) => s.id === finalSkill.id);
+  /** Wizard 儲存回呼 — 接收已驗證+正規化的技能資料 */
+  const handleWizardSave = (savedData: Skill) => {
+    const existingIndex = skills.findIndex((s) => s.id === savedData.id);
     if (existingIndex >= 0) {
       const updatedSkills = [...skills];
-      updatedSkills[existingIndex] = finalSkill;
+      updatedSkills[existingIndex] = savedData;
       setSkills(updatedSkills);
     } else {
-      setSkills([...skills, finalSkill]);
+      setSkills([...skills, savedData]);
     }
-
-    setIsDialogOpen(false);
     setEditingSkill(null);
   };
 
@@ -150,30 +106,7 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
     }
   };
 
-  // 新增效果
-  const handleAddEffect = () => {
-    if (!editingSkill) return;
-    const newEffect: SkillEffect = { type: 'stat_change' };
-    setEditingSkill({
-      ...editingSkill,
-      effects: [...(editingSkill.effects || []), newEffect],
-    });
-  };
-
-  // 編輯效果
-  const handleEditEffect = (index: number, effect: SkillEffect) => {
-    if (!editingSkill) return;
-    const updatedEffects = [...(editingSkill.effects || [])];
-    updatedEffects[index] = effect;
-    setEditingSkill({ ...editingSkill, effects: updatedEffects });
-  };
-
-  // 刪除效果
-  const handleDeleteEffect = (index: number) => {
-    if (!editingSkill) return;
-    const updatedEffects = (editingSkill.effects || []).filter((_, i) => i !== index);
-    setEditingSkill({ ...editingSkill, effects: updatedEffects });
-  };
+  const isNew = editingSkill ? !skills.find((s) => s.id === editingSkill.id) : true;
 
   return (
     <div className="space-y-6">
@@ -269,139 +202,19 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
         </div>
       )}
 
-      {/* 編輯技能 Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[95vw] lg:max-w-[1400px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingSkill?.id && skills.find((s) => s.id === editingSkill.id) ? '編輯技能' : '新增技能'}
-            </DialogTitle>
-            <DialogDescription>設定技能的基本資訊、檢定系統、使用限制和效果</DialogDescription>
-          </DialogHeader>
-
-          {editingSkill && (
-            <div className="space-y-6">
-              {/* 上排：基本資訊、檢定系統、使用限制 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 基本資訊 */}
-                <EditFormCard title="基本資訊" description="設定技能的基本屬性">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="skill-name">技能名稱 *</Label>
-                      <Input
-                        id="skill-name"
-                        value={editingSkill.name}
-                        onChange={(e) => setEditingSkill({ ...editingSkill, name: e.target.value })}
-                        placeholder="例如：治療術"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="skill-description">技能描述</Label>
-                      <Textarea
-                        id="skill-description"
-                        value={editingSkill.description}
-                        onChange={(e) => setEditingSkill({ ...editingSkill, description: e.target.value })}
-                        placeholder="描述技能的效果和使用方式"
-                        rows={3}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="skill-icon">圖示 URL（選填）</Label>
-                      <Input
-                        id="skill-icon"
-                        value={editingSkill.iconUrl || ''}
-                        onChange={(e) => setEditingSkill({ ...editingSkill, iconUrl: e.target.value })}
-                        placeholder="https://..."
-                      />
-                    </div>
-                    <div className="space-y-2 pt-2 border-t">
-                      <TagsSection
-                        tags={editingSkill.tags}
-                        onChange={(tags) => setEditingSkill({ ...editingSkill, tags })}
-                      />
-                    </div>
-                  </div>
-                </EditFormCard>
-
-                {/* 檢定系統 */}
-                <EditFormCard title="檢定系統" description="設定技能使用時的檢定方式">
-                  <CheckConfigSection
-                    checkType={editingSkill.checkType as CheckType}
-                    contestConfig={editingSkill.contestConfig}
-                    randomConfig={editingSkill.randomConfig}
-                    stats={stats}
-                    randomContestMaxValue={randomContestMaxValue}
-                    onChange={(patch) => setEditingSkill({ ...editingSkill, ...patch })}
-                    onCheckTypeChange={(newCheckType) => {
-                      // 切換為對抗檢定時，將所有效果的目標對象設為「其他玩家」
-                      if ((newCheckType === 'contest' || newCheckType === 'random_contest') &&
-                          editingSkill.effects && editingSkill.effects.length > 0) {
-                        setEditingSkill((prev) => prev ? {
-                          ...prev,
-                          effects: prev.effects?.map((effect) => ({
-                            ...effect,
-                            targetType: 'other' as const,
-                            requiresTarget: true,
-                          })),
-                        } : null);
-                      }
-                    }}
-                  />
-                </EditFormCard>
-
-                {/* 使用限制 */}
-                <EditFormCard title="使用限制" description="設定使用次數與冷卻時間">
-                  <UsageLimitSection
-                    usageLimit={editingSkill.usageLimit}
-                    cooldown={editingSkill.cooldown}
-                    onChange={(patch) => setEditingSkill({ ...editingSkill, ...patch })}
-                  />
-                </EditFormCard>
-              </div>
-
-              {/* 下排：效果列表 */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <h3 className="text-base font-semibold">效果定義</h3>
-                    <p className="text-sm text-muted-foreground">設定技能使用時的效果，可添加多個效果</p>
-                  </div>
-                  <Button onClick={handleAddEffect} variant="outline" size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    新增效果
-                  </Button>
-                </div>
-
-                {editingSkill.effects && editingSkill.effects.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {editingSkill.effects.map((effect, index) => (
-                      <EffectEditor
-                        key={index}
-                        effect={effect}
-                        index={index}
-                        stats={stats}
-                        onChange={(updatedEffect) => handleEditEffect(index, updatedEffect)}
-                        onDelete={() => handleDeleteEffect(index)}
-                        availableTypes={['stat_change', 'item_take', 'item_steal', 'task_reveal', 'task_complete', 'custom']}
-                        checkType={editingSkill.checkType}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 rounded-lg bg-muted/30">
-                    <p className="text-sm text-muted-foreground">尚無效果，點擊「新增效果」開始新增</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSaveSkill}>儲存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 技能編輯 Wizard */}
+      {editingSkill && (
+        <AbilityEditWizard
+          mode="skill"
+          open={isWizardOpen}
+          onOpenChange={setIsWizardOpen}
+          initialData={editingSkill}
+          isNew={isNew}
+          stats={stats}
+          randomContestMaxValue={randomContestMaxValue}
+          onSave={(data) => handleWizardSave(data as Skill)}
+        />
+      )}
     </div>
   );
 }
