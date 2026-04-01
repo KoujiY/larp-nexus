@@ -13,6 +13,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Trash2 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface DeleteCharacterButtonProps {
   characterId: string;
@@ -54,11 +61,22 @@ export function DeleteCharacterButton({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="destructive" size="sm" className="flex-1">
-          🗑️ 刪除
-        </Button>
-      </DialogTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">刪除角色</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>確認刪除角色</DialogTitle>

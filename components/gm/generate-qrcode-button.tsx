@@ -13,6 +13,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { QrCode } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface GenerateQRCodeButtonProps {
   characterId: string;
@@ -65,11 +72,22 @@ export function GenerateQRCodeButton({ characterId }: GenerateQRCodeButtonProps)
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex-1">
-          📱 QR Code
-        </Button>
-      </DialogTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 text-muted-foreground hover:bg-muted"
+              >
+                <QrCode className="h-5 w-5" />
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">QR Code</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>角色 QR Code</DialogTitle>

@@ -14,6 +14,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Upload } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface UploadCharacterImageButtonProps {
   characterId: string;
@@ -100,11 +107,22 @@ export function UploadCharacterImageButton({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex-1">
-          📸 上傳圖片
-        </Button>
-      </DialogTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 text-muted-foreground hover:bg-muted"
+              >
+                <Upload className="h-5 w-5" />
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">上傳圖片</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>上傳角色圖片</DialogTitle>

@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 
 interface PageLayoutProps {
+  /** 全寬頂部插槽（例如環境橫幅），不受 maxWidth 限制 */
+  topSlot?: ReactNode;
   header: ReactNode;
   children: ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
@@ -16,13 +18,17 @@ const maxWidthClasses = {
 };
 
 export function PageLayout({
+  topSlot,
   header,
   children,
   maxWidth = 'lg',
 }: PageLayoutProps) {
   return (
     <div className="flex flex-col h-full">
-      {/* Header Area - 統一高度與 logo 區塊對齊 */}
+      {/* 全寬頂部插槽（環境橫幅等） */}
+      {topSlot}
+
+      {/* Header Area */}
       <div className="border-b bg-card">
         <div className={`mx-auto px-6 py-8 min-h-[112px] flex items-center ${maxWidthClasses[maxWidth]}`}>
           <div className="w-full">
@@ -40,4 +46,3 @@ export function PageLayout({
     </div>
   );
 }
-
