@@ -8,7 +8,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,12 +15,7 @@ import { getCharacterPin } from '@/app/actions/characters';
 import { updateCharacter } from '@/app/actions/character-update';
 import { toast } from 'sonner';
 import { Eye } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { IconActionButton } from '@/components/gm/icon-action-button';
 
 interface ViewPinButtonProps {
   characterId: string;
@@ -107,23 +101,14 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 text-muted-foreground hover:bg-muted"
-              >
-                <Eye className="h-5 w-5" />
-              </Button>
-            </DialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="top">檢視 PIN</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+    <>
+      <IconActionButton
+        icon={<Eye className="h-[18px] w-[18px]" />}
+        label="檢視 PIN"
+        onClick={() => setOpen(true)}
+        size="sm"
+      />
+      <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>角色 PIN 碼</DialogTitle>
@@ -238,6 +223,7 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
           )}
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </>
   );
 }

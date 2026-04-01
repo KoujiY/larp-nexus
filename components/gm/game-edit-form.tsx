@@ -1,33 +1,47 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateGame } from '@/app/actions/games';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useFormGuard } from '@/hooks/use-form-guard';
-import { SaveButton } from '@/components/gm/save-button';
 import { BackgroundBlockEditor } from '@/components/gm/background-block-editor';
+import { ImagePlus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_INPUT_CLASS,
+  GM_ERROR_RING_CLASS,
+  GM_ERROR_TEXT_CLASS,
+} from '@/lib/styles/gm-form';
 import type { GameData } from '@/types/game';
 import type { BackgroundBlock } from '@/types/character';
+
+const SECTION_TITLE_CLASS = 'text-lg font-bold flex items-center gap-2';
 
 interface GameEditFormProps {
   game: GameData;
   onDirtyChange?: (dirty: boolean) => void;
 }
 
+/**
+ * 劇本資訊編輯表單（v3）
+ *
+ * v3 變更：
+ * - Input 樣式改用 GM_INPUT_CLASS（與 Wizard 統一）
+ * - 必填欄位驗證 + scrollIntoView
+ * - 移除「可編輯區塊」提示文字
+ */
 export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [showNameError, setShowNameError] = useState(false);
+  const nameFieldRef = useRef<HTMLDivElement>(null);
 
-  // 保留原始資料用於 dirty state 比較
   const initialData = useMemo(() => ({
     name: game.name,
-    description: game.description || '',
     isActive: game.isActive,
     publicInfo: {
       blocks: game.publicInfo?.blocks || [],
@@ -38,9 +52,6 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
   const [formData, setFormData] = useState(initialData);
   const [prevInitialData, setPrevInitialData] = useState(initialData);
 
-  /**
-   * 當 initialData props 變化時（例如結束遊戲後 router.refresh()），同步更新本地 state
-   */
   if (initialData !== prevInitialData) {
     setPrevInitialData(initialData);
     setFormData(initialData);
@@ -51,10 +62,8 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
     currentData: formData,
   });
 
-  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
-  /** 處理 blocks 變更 */
   const handleBlocksChange = (blocks: BackgroundBlock[]) => {
     setFormData((prev) => ({
       ...prev,
@@ -64,12 +73,21 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 必填驗證：劇本名稱
+    if (!formData.name.trim()) {
+      setShowNameError(true);
+      requestAnimationFrame(() =>
+        nameFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      );
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const updateData = {
         name: formData.name,
-        description: formData.description,
         isActive: formData.isActive,
         publicInfo: {
           blocks: formData.publicInfo.blocks,
@@ -81,6 +99,7 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
 
       if (result.success) {
         toast.success('劇本更新成功！');
+        setLastSavedAt(new Date());
         resetDirty();
         router.refresh();
       } else {
@@ -94,118 +113,106 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
     }
   };
 
+  const lastSavedLabel = lastSavedAt
+    ? `上次儲存於 ${lastSavedAt.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}`
+    : null;
+
+  const nameHasError = showNameError && !formData.name.trim();
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* 基本資訊 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>基本資訊</CardTitle>
-          <CardDescription>
-            設定劇本的名稱、描述與狀態
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">
-              劇本名稱 <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, name: e.target.value }))
-              }
-              disabled={isLoading}
-              required
-              placeholder="例：維多利亞時代的謎案"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">劇本描述</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-              disabled={isLoading}
-              rows={5}
-              className="resize-none"
-              placeholder="輸入劇本的簡介、類型、適合人數等..."
-            />
-            <p className="text-xs text-muted-foreground">
-              建議不超過 300 字
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between py-3 px-4 rounded-lg border bg-muted/30">
-            <div className="space-y-0.5">
-              <Label htmlFor="isActive" className="text-base font-medium">
-                劇本狀態
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                停用後將無法建立新角色
-              </p>
+    <form onSubmit={handleSubmit} className="flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* 左欄：基礎設定 + 封面圖 */}
+        <div className="lg:col-span-5 flex flex-col gap-8">
+          {/* 劇本基礎設定 */}
+          <section className="bg-card p-8 rounded-xl shadow-sm border border-border/5">
+            <h2 className={SECTION_TITLE_CLASS}>
+              <span className="w-1 h-5 bg-primary rounded-full" />
+              劇本基礎設定
+            </h2>
+            <div className="space-y-6 mt-6">
+              <div ref={nameFieldRef} className="relative">
+                <label className={GM_LABEL_CLASS}>劇本名稱 <span className="text-destructive">*</span></label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, name: e.target.value }));
+                    if (showNameError) setShowNameError(false);
+                  }}
+                  disabled={isLoading}
+                  placeholder="請輸入劇本名稱"
+                  className={cn(GM_INPUT_CLASS, nameHasError && GM_ERROR_RING_CLASS)}
+                />
+                {nameHasError && (
+                  <p className={GM_ERROR_TEXT_CLASS}>此欄位為必填，請輸入劇本名稱</p>
+                )}
+              </div>
+              <div>
+                <label className={GM_LABEL_CLASS}>最大檢定值</label>
+                <div className="max-w-[120px]">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={formData.randomContestMaxValue}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        randomContestMaxValue: Math.max(1, parseInt(e.target.value) || 100),
+                      }))
+                    }
+                    disabled={isLoading}
+                    className={GM_INPUT_CLASS}
+                  />
+                </div>
+              </div>
             </div>
-            <Switch
-              id="isActive"
-              checked={formData.isActive}
-              onCheckedChange={(checked) =>
-                setFormData((prev) => ({ ...prev, isActive: checked }))
-              }
-              disabled={isLoading}
-            />
-          </div>
+          </section>
 
-          <div className="space-y-2">
-            <Label htmlFor="randomContestMaxValue">
-              隨機對抗檢定上限值
-            </Label>
-            <Input
-              id="randomContestMaxValue"
-              type="number"
-              min={1}
-              value={formData.randomContestMaxValue}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  randomContestMaxValue: Math.max(1, parseInt(e.target.value) || 100),
-                }))
-              }
-              disabled={isLoading}
-              placeholder="100"
-            />
-            <p className="text-xs text-muted-foreground">
-              設定隨機對抗檢定時使用的上限值（預設 100，必須大於 0）
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+          {/* 劇本封面圖（預留） */}
+          <section className="bg-card p-8 rounded-xl shadow-sm border border-border/5">
+            <h2 className={SECTION_TITLE_CLASS}>
+              <span className="w-1 h-5 bg-primary rounded-full" />
+              劇本封面圖
+            </h2>
+            <div className="mt-6">
+              <div className="group relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed border-border/40 rounded-xl bg-muted/30 hover:bg-muted/50 hover:border-primary/50 transition-all cursor-pointer">
+                <ImagePlus className="h-12 w-12 text-muted-foreground/40 group-hover:text-primary mb-4" strokeWidth={1.5} />
+                <p className="text-sm font-bold text-muted-foreground group-hover:text-foreground">上傳圖片</p>
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mt-1">建議 16:9（JPG, PNG）</p>
+              </div>
+            </div>
+          </section>
+        </div>
 
-      {/* 公開資訊（世界觀） */}
-      <Card>
-        <CardHeader>
-          <CardTitle>公開資訊（世界觀）</CardTitle>
-          <CardDescription>
-            使用標題與內文編排劇本的世界觀、前導故事與章節（所有玩家可見）
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        {/* 右欄：世界觀公開資訊 */}
+        <section className="lg:col-span-7 bg-card p-8 rounded-xl shadow-sm border border-border/5">
+          <h2 className={cn(SECTION_TITLE_CLASS, 'mb-8')}>
+            <span className="w-1 h-5 bg-primary rounded-full" />
+            世界觀公開資訊
+          </h2>
           <BackgroundBlockEditor
             value={formData.publicInfo.blocks}
             onChange={handleBlocksChange}
             disabled={isLoading}
           />
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end space-x-2">
-        <SaveButton isDirty={isDirty} isLoading={isLoading} />
+        </section>
       </div>
+
+      {/* Sticky Save Footer */}
+      <footer className="sticky bottom-0 z-10 mt-8 -mx-6 px-6 py-6 bg-background border-t border-border/10">
+        <div className="flex items-center justify-end gap-6">
+          {lastSavedLabel && (
+            <span className="text-xs text-muted-foreground font-medium">{lastSavedLabel}</span>
+          )}
+          <button
+            type="submit"
+            disabled={isLoading || !isDirty}
+            className="bg-primary hover:bg-primary/80 text-primary-foreground px-10 py-3 rounded-xl font-black text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {isLoading ? '儲存中...' : '儲存變更'}
+          </button>
+        </div>
+      </footer>
     </form>
   );
 }

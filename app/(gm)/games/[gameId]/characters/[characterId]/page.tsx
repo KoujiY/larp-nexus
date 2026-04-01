@@ -9,10 +9,10 @@ import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
 import { ViewPinButton } from '@/components/gm/view-pin-button';
 import { DeleteCharacterButton } from '@/components/gm/delete-character-button';
 import { CharacterWebSocketListener } from '@/components/gm/character-websocket-listener';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
-import { ChevronRight, LockKeyhole } from 'lucide-react';
+import { LockKeyhole } from 'lucide-react';
+import { GmBreadcrumb } from '@/components/gm/gm-breadcrumb';
 
 interface CharacterEditPageProps {
   params: Promise<{
@@ -68,31 +68,12 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
             )}
 
             <div className="space-y-3">
-              {/* 麵包屑 — chevron 分隔 */}
-              <nav aria-label="breadcrumb">
-                <ol className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  <li>
-                    <Link href="/games" className="transition-colors hover:text-foreground">
-                      劇本管理
-                    </Link>
-                  </li>
-                  <li aria-hidden="true">
-                    <ChevronRight className="h-2.5 w-2.5" />
-                  </li>
-                  <li>
-                    <Link
-                      href={`/games/${gameId}`}
-                      className="transition-colors hover:text-foreground"
-                    >
-                      {game.name}
-                    </Link>
-                  </li>
-                  <li aria-hidden="true">
-                    <ChevronRight className="h-2.5 w-2.5" />
-                  </li>
-                  <li className="truncate text-primary">{character.name}</li>
-                </ol>
-              </nav>
+              {/* 麵包屑 */}
+              <GmBreadcrumb items={[
+                { label: '劇本管理', href: '/games' },
+                { label: game.name, href: `/games/${gameId}` },
+                { label: character.name },
+              ]} />
 
               {/* 角色名稱 + 標籤 */}
               <div className="flex items-center gap-4">

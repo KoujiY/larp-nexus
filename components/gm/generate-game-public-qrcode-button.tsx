@@ -10,10 +10,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, QrCode } from 'lucide-react';
+import { IconActionButton } from '@/components/gm/icon-action-button';
 
 interface GenerateGamePublicQRCodeButtonProps {
   gameId: string;
@@ -77,12 +77,13 @@ export function GenerateGamePublicQRCodeButton({ gameId }: GenerateGamePublicQRC
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          📱 QR Code
-        </Button>
-      </DialogTrigger>
+    <>
+      <IconActionButton
+        icon={<QrCode className="h-5 w-5" />}
+        label="世界觀 QR Code"
+        onClick={() => handleOpenChange(true)}
+      />
+      <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>公開資訊頁面 QR Code</DialogTitle>
@@ -155,6 +156,7 @@ export function GenerateGamePublicQRCodeButton({ gameId }: GenerateGamePublicQRC
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { GmTabsList, GmTabsTrigger } from '@/components/gm/gm-tabs';
 import { CharacterEditForm } from '@/components/gm/character-edit-form';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
 import { TemporaryEffectsCard } from '@/components/gm/temporary-effects-card';
@@ -75,45 +76,45 @@ export function CharacterEditTabs({
         {/* Tab 導航列：分兩組，中間以豎線分隔 */}
         <div className="flex items-center gap-0 border-b border-border/20">
           {/* 敘事類 */}
-          <TabsList className="h-auto gap-6 rounded-none border-b-0 bg-transparent p-0 pr-6">
+          <GmTabsList className="pr-6 gap-6">
             {narrativeTabs.map((tab) => {
               const isDirty = dirtyState[tab.key].isDirty;
               return (
-                <TabsTrigger
+                <GmTabsTrigger
                   key={tab.key}
                   value={tab.key}
-                  className="relative rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-4 pt-0 text-sm font-medium text-muted-foreground shadow-none outline-none ring-0 transition-all focus-visible:ring-0 focus-visible:outline-none data-[state=active]:border-b-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none"
+                  className="px-0"
                 >
                   {tab.label}
                   {isDirty && (
                     <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary/80" />
                   )}
-                </TabsTrigger>
+                </GmTabsTrigger>
               );
             })}
-          </TabsList>
+          </GmTabsList>
 
           {/* 分隔豎線 */}
           <div className="mb-4 h-6 w-px bg-border/30" />
 
           {/* 機制類 */}
-          <TabsList className="h-auto gap-6 rounded-none border-b-0 bg-transparent p-0 pl-6">
+          <GmTabsList className="pl-6 gap-6">
             {mechanicTabs.map((tab) => {
               const isDirty = dirtyState[tab.key].isDirty;
               return (
-                <TabsTrigger
+                <GmTabsTrigger
                   key={tab.key}
                   value={tab.key}
-                  className="relative rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-4 pt-0 text-sm font-medium text-muted-foreground shadow-none outline-none ring-0 transition-all focus-visible:ring-0 focus-visible:outline-none data-[state=active]:border-b-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none"
+                  className="px-0"
                 >
                   {tab.label}
                   {isDirty && (
                     <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary/80" />
                   )}
-                </TabsTrigger>
+                </GmTabsTrigger>
               );
             })}
-          </TabsList>
+          </GmTabsList>
         </div>
 
         {/* === Tab 內容 === */}

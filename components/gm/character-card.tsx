@@ -1,7 +1,5 @@
 'use client';
 
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import type { CharacterData } from '@/types/character';
 import { DeleteCharacterButton } from './delete-character-button';
 import { UploadCharacterImageButton } from './upload-character-image-button';
@@ -18,80 +16,69 @@ interface CharacterCardProps {
 
 export function CharacterCard({ character, gameId }: CharacterCardProps) {
   return (
-    <Card className="hover:shadow-lg transition-all hover:-translate-y-1 group overflow-hidden cursor-pointer border-2 hover:border-primary/50">
-      {/* Clickable Area - Navigate to Edit Page */}
+    <div className="group bg-card rounded-xl overflow-hidden border border-border/40 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5">
+      {/* 可點擊區域 — 導航至編輯頁 */}
       <Link href={`/games/${gameId}/characters/${character.id}`} className="block">
-        {/* Character Image */}
+        {/* 角色圖片 */}
         {character.imageUrl ? (
-          <div className="relative aspect-4/3 w-full bg-muted">
+          <div className="relative aspect-16/10 w-full overflow-hidden bg-muted">
             <Image
               src={character.imageUrl}
               alt={character.name}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-200"
+              className="object-cover group-hover:scale-105 transition-transform duration-700"
             />
           </div>
         ) : (
-          <div className="aspect-4/3 w-full bg-muted flex items-center justify-center transition-colors group-hover:bg-muted/70">
-            <User className="h-16 w-16 text-muted-foreground group-hover:scale-110 transition-transform" />
+          <div className="aspect-16/10 w-full flex flex-col items-center justify-center bg-muted/30">
+            <User className="h-8 w-8 text-muted-foreground/30" />
+            <span className="text-[9px] text-muted-foreground/30 tracking-widest mt-1">尚無圖片</span>
           </div>
         )}
-
-        <CardHeader className="pt-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 space-y-2 min-w-0">
-              <CardTitle className="line-clamp-1 group-hover:text-primary transition-colors text-lg">
-                {character.name}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                {character.description || '無描述'}
-              </p>
-            </div>
-            {character.hasPinLock && (
-              <Badge variant="secondary" className="ml-2 shrink-0">
-                🔒 PIN
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          <div className="text-xs text-muted-foreground">
-            建立於 {new Date(character.createdAt).toLocaleDateString('zh-TW')}
-          </div>
-        </CardContent>
       </Link>
 
-      {/* Action Buttons - Prevent click propagation */}
-      <CardFooter className="flex flex-col space-y-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex w-full gap-2">
+      {/* 卡片資訊區 */}
+      <div className="px-4 py-3">
+        {/* 名稱 + 日期 */}
+        <div className="mb-2">
+          <h3 className="text-base font-extrabold text-foreground line-clamp-1">
+            {character.name}
+          </h3>
+          <p className="text-[9px] text-muted-foreground/50 tracking-widest mt-0.5">
+            EST. {new Date(character.createdAt).toLocaleDateString('sv-SE')}
+          </p>
+        </div>
+
+        {/* 操作列 */}
+        <div
+          className="flex items-center gap-0.5 mb-2.5"
+          onClick={(e) => e.stopPropagation()}
+        >
           <UploadCharacterImageButton characterId={character.id} />
           <GenerateQRCodeButton characterId={character.id} />
-        </div>
-        {character.hasPinLock && (
-          <div className="flex w-full">
-            <ViewPinButton 
-              characterId={character.id} 
+          {character.hasPinLock && (
+            <ViewPinButton
+              characterId={character.id}
               characterName={character.name}
             />
-          </div>
-        )}
-        <div className="flex w-full">
+          )}
+          <div className="flex-1" />
           <DeleteCharacterButton
             characterId={character.id}
             characterName={character.name}
             gameId={gameId}
           />
         </div>
-        <div className="w-full pt-3 border-t border-border/50">
+
+        {/* 底部連結 */}
+        <div className="pt-2.5 border-t border-border/5">
           <Link href={`/games/${gameId}/characters/${character.id}`}>
-            <div className="text-center text-sm text-muted-foreground hover:text-primary transition-colors py-1.5">
+            <span className="text-[11px] font-bold text-primary opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all inline-block cursor-pointer">
               點擊卡片進入編輯 →
-            </div>
+            </span>
           </Link>
         </div>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
 }
-

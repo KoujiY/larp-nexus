@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
 
 interface PageLayoutProps {
   /** 全寬頂部插槽（例如環境橫幅），不受 maxWidth 限制 */
@@ -38,7 +39,7 @@ export function PageLayout({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-background">
+      <div className={`flex-1 overflow-y-auto bg-background ${GM_SCROLLBAR_CLASS}`}>
         <div className={`mx-auto px-6 py-6 ${maxWidthClasses[maxWidth]}`}>
           {children}
         </div>

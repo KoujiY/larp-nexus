@@ -11,8 +11,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
+import { Trash2 } from 'lucide-react';
+import { IconActionButton } from '@/components/gm/icon-action-button';
 
 interface DeleteGameButtonProps {
   gameId: string;
@@ -48,13 +49,14 @@ export function DeleteGameButton({ gameId, gameName }: DeleteGameButtonProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="destructive">
-          <span className="mr-2">🗑️</span>
-          刪除
-        </Button>
-      </DialogTrigger>
+    <>
+      <IconActionButton
+        icon={<Trash2 className="h-5 w-5" />}
+        label="刪除劇本"
+        variant="destructive"
+        onClick={() => setOpen(true)}
+      />
+      <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>確認刪除劇本</DialogTitle>
@@ -98,6 +100,7 @@ export function DeleteGameButton({ gameId, gameName }: DeleteGameButtonProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

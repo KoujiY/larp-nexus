@@ -57,6 +57,14 @@ import { normalizeCheckConfig } from '@/lib/utils/check-config-normalizers';
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import type { Item, Skill, ItemEffect, SkillEffect, Stat, ContestConfig } from '@/types/character';
 import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_INPUT_CLASS,
+  GM_SELECT_CLASS,
+  GM_SCROLLBAR_CLASS,
+  GM_ERROR_RING_CLASS,
+  GM_ERROR_TEXT_CLASS,
+} from '@/lib/styles/gm-form';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -76,14 +84,11 @@ type AbilityEditWizardProps = {
 const STEP_LABELS = ['基本資訊', '檢定系統', '使用限制', '效果設計'];
 const TOTAL_STEPS = 4;
 
-/** Wizard 內的 label 統一樣式 */
-const LABEL_CLASS = 'block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2';
-/** Wizard 內的 input 覆蓋樣式（Step 4 設計：bg-muted, no border） */
-const INPUT_CLASS = 'bg-muted border-none shadow-none h-11 py-0 px-4 font-semibold focus-visible:ring-primary';
-/** Wizard 內的 SelectTrigger 覆蓋樣式（高度與 Input 一致） */
-const SELECT_CLASS = 'w-full bg-card border-none shadow-none rounded-lg px-4 h-11 data-[size=default]:h-11 font-semibold text-sm focus:ring-2 focus:ring-primary';
-/** 自訂捲軸樣式（4px 寬、圓角、半透明） */
-const WIZARD_SCROLL = '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full';
+/** 向下相容別名 — 統一由 gm-form.ts 匯出 */
+const LABEL_CLASS = GM_LABEL_CLASS;
+const INPUT_CLASS = GM_INPUT_CLASS;
+const SELECT_CLASS = GM_SELECT_CLASS;
+const WIZARD_SCROLL = GM_SCROLLBAR_CLASS;
 
 /** Step 2 check type 選項 */
 const CHECK_TYPE_OPTIONS: { value: CheckType; label: string; icon: typeof Ban }[] = [
@@ -326,16 +331,16 @@ export function AbilityEditWizard({
       <div className="space-y-8 max-w-2xl mx-auto">
         {/* 名稱 + 數量 */}
         <div className={cn('grid gap-8', isItemMode ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1')}>
-          <div ref={nameFieldRef} className={isItemMode ? 'md:col-span-2' : ''}>
+          <div ref={nameFieldRef} className={cn('relative', isItemMode ? 'md:col-span-2' : '')}>
             <label className={LABEL_CLASS}>{isItemMode ? '道具' : '技能'}名稱 *</label>
             <Input
               value={data.name}
               onChange={(e) => { updateData({ name: e.target.value }); if (showNameError) setShowNameError(false); }}
               placeholder={isItemMode ? '輸入道具名稱...' : '輸入技能名稱...'}
-              className={cn(INPUT_CLASS, showNameError && !data.name.trim() && 'ring-2 ring-destructive')}
+              className={cn(INPUT_CLASS, showNameError && !data.name.trim() && GM_ERROR_RING_CLASS)}
             />
             {showNameError && !data.name.trim() && (
-              <p className="text-xs text-destructive font-medium mt-1.5">此欄位為必填，請輸入名稱後繼續</p>
+              <p className={GM_ERROR_TEXT_CLASS}>此欄位為必填，請輸入名稱後繼續</p>
             )}
           </div>
           {isItemMode && (

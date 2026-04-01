@@ -101,11 +101,10 @@ export function GameLifecycleControls({
         <>
           <Button
             variant="default"
-            size="sm"
             onClick={() => setShowStartDialog(true)}
-            className="bg-success text-success-foreground hover:bg-success/90"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-xl font-black text-sm shadow-sm gap-3"
           >
-            <PlayCircle className="h-4 w-4 mr-2" />
+            <PlayCircle className="h-5 w-5 fill-current" />
             開始遊戲
           </Button>
 
@@ -158,10 +157,10 @@ export function GameLifecycleControls({
         <>
           <Button
             variant="destructive"
-            size="sm"
             onClick={() => setShowEndDialog(true)}
+            className="px-8 py-3 rounded-xl font-black text-sm shadow-sm gap-3"
           >
-            <StopCircle className="h-4 w-4 mr-2" />
+            <StopCircle className="h-5 w-5 fill-current" />
             結束遊戲
           </Button>
 

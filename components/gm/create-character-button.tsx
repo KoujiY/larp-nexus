@@ -11,18 +11,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { UserPlus } from 'lucide-react';
+import { DashedAddButton } from '@/components/gm/dashed-add-button';
 
 interface CreateCharacterButtonProps {
   gameId: string;
+  /** 'button'（預設）= header 按鈕；'card' = grid 內的空狀態卡片 */
+  variant?: 'button' | 'card';
 }
 
-export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
+export function CreateCharacterButton({ gameId, variant = 'button' }: CreateCharacterButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -115,14 +118,26 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
     }
   };
 
+  const trigger = variant === 'card' ? (
+    <DashedAddButton
+      label="建立新角色"
+      onClick={() => setOpen(true)}
+      className="min-h-[180px] py-5"
+    />
+  ) : (
+    <Button
+      onClick={() => setOpen(true)}
+      className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/10 hover:shadow-primary/20 transition-all"
+    >
+      <UserPlus className="h-4 w-4 mr-2" />
+      新增角色
+    </Button>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <span className="mr-2">➕</span>
-          新增角色
-        </Button>
-      </DialogTrigger>
+    <>
+      {trigger}
+      <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
@@ -291,7 +306,8 @@ export function CreateCharacterButton({ gameId }: CreateCharacterButtonProps) {
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </>
   );
 }
 

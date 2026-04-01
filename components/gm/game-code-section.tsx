@@ -11,12 +11,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Copy, Edit } from 'lucide-react';
+import { Copy, Pencil } from 'lucide-react';
+import { IconActionButton } from '@/components/gm/icon-action-button';
 import { isValidGameCodeFormat } from '@/lib/game/generate-game-code-client';
 
 interface GameCodeSectionProps {
@@ -144,34 +144,26 @@ export function GameCodeSection({ gameId, gameCode, className = '' }: GameCodeSe
   };
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {/* Game Code 顯示 */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-lg">
-        <span className="text-xs text-muted-foreground">遊戲代碼</span>
-        <span className="text-2xl font-bold font-mono tracking-wider text-primary">
-          {gameCode}
-        </span>
+    <div className={`inline-flex items-center gap-3 px-4 py-2 bg-muted/50 border border-border/30 rounded-xl ${className}`}>
+      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Game Code:</span>
+      <span className="text-xl font-black font-mono tracking-tight text-foreground">
+        {gameCode}
+      </span>
+      <div className="flex items-center gap-1 border-l border-border/30 ml-2 pl-3">
+        <IconActionButton
+          icon={<Copy className="h-4 w-4" />}
+          label="複製遊戲代碼"
+          onClick={handleCopyGameCode}
+          size="sm"
+        />
+        <IconActionButton
+          icon={<Pencil className="h-4 w-4" />}
+          label="編輯遊戲代碼"
+          onClick={() => setOpen(true)}
+          size="sm"
+        />
       </div>
-
-      {/* 複製按鈕 */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleCopyGameCode}
-        className="shrink-0"
-      >
-        <Copy className="h-4 w-4 mr-2" />
-        複製
-      </Button>
-
-      {/* 編輯對話框 */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="shrink-0">
-            <Edit className="h-4 w-4 mr-2" />
-            編輯
-          </Button>
-        </DialogTrigger>
         <DialogContent className="sm:max-w-[500px]">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
