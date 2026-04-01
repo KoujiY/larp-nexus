@@ -13,15 +13,17 @@
 | `logs` | Operation audit log |
 
 ## Key Model Files
-- `lib/db/models/Character.ts` — Character mongoose model (~708 lines, Phase A target)
-- `lib/db/models/CharacterRuntime.ts` — CharacterRuntime mongoose model (~706 lines, ~90% duplicate of Character.ts)
-- TypeScript types: `types/character.ts`, `types/event.ts`
+- `lib/db/models/Character.ts` — Character mongoose model（Phase A 已重構，共用 `createBaseCharacterSchemaFields()` factory）
+- `lib/db/models/CharacterRuntime.ts` — CharacterRuntime mongoose model（與 Character.ts 共用 schema factory）
+- `lib/db/models/Game.ts` / `GameRuntime.ts` — Game mongoose model（`publicInfo.blocks: BackgroundBlock[]`）
+- TypeScript types: `types/character.ts`（含 `BackgroundBlock`）、`types/game.ts`、`types/event.ts`
 
 ## Baseline vs Runtime
 - **Baseline** (`characters`): GM's designed state. Editable anytime.
 - **Runtime** (`character_runtimes`): Created from Baseline snapshot when game starts. Receives all in-game changes. Deleted when game ends.
 - Player in Full Access mode reads from Runtime. Player in Preview mode reads from Baseline.
 
-## Refactoring Note (Phase A)
-`Character.ts` and `CharacterRuntime.ts` share ~90% identical schema definitions. Phase A will extract a shared base schema to eliminate ~600 lines of duplication.
-See `docs/refactoring/REFACTOR_PROGRESS.md` Phase A-3.
+## Refactoring Note
+- Phase A（已完成）：Character/CharacterRuntime schema 透過 `createBaseCharacterSchemaFields()` factory 共用，消除 ~1292 行重複。
+- Phase D（進行中）：Game `publicInfo` 從 `{ worldSetting, intro, chapters }` 改為 `{ blocks: BackgroundBlock[] }`，與角色背景共用同一段落結構。
+- 詳見 `docs/refactoring/REFACTOR_PROGRESS.md`。

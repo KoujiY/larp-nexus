@@ -2,6 +2,9 @@
 
 ## Game Data Model
 ```typescript
+import type { BackgroundBlock } from '@/types/character';
+// BackgroundBlock = { type: 'title' | 'body'; content: string }
+
 interface Game {
   _id: ObjectId;
   gmUserId: ObjectId;
@@ -10,9 +13,7 @@ interface Game {
   isActive: boolean;           // Controls Runtime layer read/write
   gameCode: string;            // 6-char alphanumeric, unique, auto-generated
   publicInfo?: {
-    intro: string;
-    worldSetting: string;
-    chapters: Array<{ title: string; content: string; order: number }>;
+    blocks: BackgroundBlock[];  // 與角色背景共用同一段落結構
   };
   randomContestMaxValue?: number;  // Default 100; shared across all characters in game
 }
@@ -27,7 +28,11 @@ See [game-states.md](./game-states.md) for the full state machine.
 - **Do not reuse the same Game Code across different game sessions** — could allow players from a previous session to re-enter
 
 ## Public Info
-The game's public info (world setting, intro, chapters) is accessible at `/g/[gameId]` — a public page all players can view regardless of their character card unlock state.
+The game's public info is accessible at `/g/[gameId]` — a public page all players can view regardless of their character card unlock state.
+
+內容使用 `BackgroundBlock[]` 結構（與角色背景相同），由標題區塊（`type: 'title'`）和內文區塊（`type: 'body'`）組成。GM 透過 `BackgroundBlockEditor` 元件編輯（支援拖拉排序）。玩家端以 `BackgroundBlockRenderer` 渲染，標題區塊可摺疊。
+
+世界觀頁面同時顯示同劇本的角色列表（名稱、描述、頭像），由 `GamePublicCharacter` 型別定義。
 
 ## randomContestMaxValue
 - Sets the upper bound for `random_contest` check type
