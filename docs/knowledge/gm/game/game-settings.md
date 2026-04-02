@@ -17,6 +17,11 @@ interface Game {
   };
   randomContestMaxValue?: number;  // Default 100; shared across all characters in game
 }
+
+// API 回傳型別（getGames 列表頁）
+interface GameData extends Game {
+  characterCount?: number;     // 角色數量（僅 getGames 列表頁回傳）
+}
 ```
 
 ## Game States
