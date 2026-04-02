@@ -21,8 +21,15 @@ import {
   generateGameCodeClient,
   isValidGameCodeFormat,
 } from '@/lib/game/generate-game-code-client';
+import { DashedAddButton } from '@/components/gm/dashed-add-button';
+import { Plus } from 'lucide-react';
 
-export function CreateGameButton() {
+type CreateGameButtonProps = {
+  /** 顯示模式：預設 header 按鈕，card 模式為虛線框卡片 */
+  variant?: 'button' | 'card';
+};
+
+export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -117,10 +124,19 @@ export function CreateGameButton() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg">
-          <span className="mr-2">➕</span>
-          建立劇本
-        </Button>
+        {variant === 'card' ? (
+          <DashedAddButton
+            label="建立新劇本"
+            onClick={() => {}}
+            variant="card"
+            className="h-[280px]"
+          />
+        ) : (
+          <Button className="bg-primary text-primary-foreground font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
+            <Plus className="h-4 w-4 mr-2" />
+            建立劇本
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>

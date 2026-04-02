@@ -242,3 +242,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* GM 劇本卡片 — 金色角落裝飾 */
+.game-card::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: 40px;
+  height: 40px;
+  border-top: 2px solid oklch(var(--primary) / 0.4);
+  border-left: 2px solid oklch(var(--primary) / 0.4);
+  border-radius: 0.75rem 0 0 0;
+  pointer-events: none;
+}

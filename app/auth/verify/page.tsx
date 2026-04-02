@@ -33,7 +33,7 @@ function VerifyContent() {
           setMessage('登入成功！正在跳轉...');
           // 延遲跳轉讓使用者看到成功訊息
           setTimeout(() => {
-            router.push('/dashboard');
+            router.push('/games');
           }, 1500);
         } else {
           setStatus('error');

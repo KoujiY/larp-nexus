@@ -40,6 +40,16 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
       .sort({ createdAt: -1 })
       .lean();
 
+    // 一次查完所有劇本的角色數量（避免 N+1）
+    const gameIds = games.map((g) => g._id);
+    const counts = await Character.aggregate<{ _id: string; count: number }>([
+      { $match: { gameId: { $in: gameIds } } },
+      { $group: { _id: '$gameId', count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(
+      counts.map((c) => [c._id.toString(), c.count]),
+    );
+
     return {
       success: true,
       data: games.map((game) => ({
@@ -51,6 +61,7 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
         isActive: game.isActive,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
+        characterCount: countMap.get(game._id.toString()) ?? 0,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       })),

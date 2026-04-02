@@ -6,7 +6,7 @@ import type { SessionData } from './lib/auth/session';
 /**
  * 需要認證的路徑前綴
  */
-const protectedPaths = ['/dashboard', '/games', '/profile'];
+const protectedPaths = ['/games', '/profile'];
 
 /**
  * 登入頁面路徑
@@ -60,9 +60,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 如果已登入卻訪問登入頁，重導向到儀表板
+  // 如果已登入卻訪問登入頁，重導向到劇本管理
   if (isAuthPath && isAuthenticated && pathname !== '/auth/verify') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/games', request.url));
   }
 
   return response;

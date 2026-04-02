@@ -17,6 +17,8 @@ export interface GameData {
   };
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
+  /** 角色數量（僅 getGames 列表頁回傳） */
+  characterCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
