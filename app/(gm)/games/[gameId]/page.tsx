@@ -13,6 +13,7 @@ import { GameLifecycleControls } from '@/components/gm/game-lifecycle-controls';
 import { GameHeaderActions } from '@/components/gm/game-header-actions';
 import { EnvironmentBanner } from '@/components/gm/environment-banner';
 import { GmBreadcrumb } from '@/components/gm/gm-breadcrumb';
+import { RuntimeConsole } from '@/components/gm/runtime-console';
 
 interface GamePageProps {
   params: Promise<{ gameId: string }>;
@@ -85,6 +86,11 @@ export default async function GamePage({ params }: GamePageProps) {
     >
       <GameEditTabs
         game={game}
+        consoleTab={
+          game.isActive ? (
+            <RuntimeConsole gameId={game.id} characters={characters} />
+          ) : undefined
+        }
         charactersTab={
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {/* 建立新角色 — 放在第一個，隨時可見 */}

@@ -9,6 +9,7 @@
  */
 
 import type { Stat } from '@/types/character';
+import { getProgressColor } from '@/lib/styles/health-status';
 
 interface StatsDisplayProps {
   stats?: Stat[];
@@ -87,13 +88,6 @@ function StatCard({ stat }: StatCardProps) {
   );
 }
 
-/** 根據百分比決定進度條顏色 */
-function getProgressColor(percent: number): string {
-  if (percent <= 25) return 'bg-destructive';
-  if (percent <= 50) return 'bg-warning';
-  if (percent <= 75) return 'bg-primary/70';
-  return 'bg-success';
-}
 
 /** 簡化版顯示（用於緊湊佈局） */
 export function StatsCompact({ stats }: StatsDisplayProps) {

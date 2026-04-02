@@ -34,7 +34,7 @@ export interface LogData {
  */
 export async function getGameLogs(
   gameId: string,
-  limit?: number
+  options?: { limit?: number; characterId?: string }
 ): Promise<ApiResponse<LogData[]>> {
   try {
     // 驗證 GM 身份
@@ -68,8 +68,12 @@ export async function getGameLogs(
     }
 
     // 查詢日誌（按時間降序）
-    const logLimit = limit || 100;
-    const logs = await Log.find({ gameId: game._id })
+    const logLimit = options?.limit || 100;
+    const query: Record<string, unknown> = { gameId: game._id };
+    if (options?.characterId) {
+      query.characterId = options.characterId;
+    }
+    const logs = await Log.find(query)
       .sort({ timestamp: -1 })
       .limit(logLimit)
       .lean();

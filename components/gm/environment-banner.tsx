@@ -11,15 +11,15 @@ interface EnvironmentBannerProps {
 export function EnvironmentBanner({ isActive, gameName }: EnvironmentBannerProps) {
   if (isActive) {
     return (
-      <div className="sticky top-0 z-40 w-full border-b border-env-runtime/30 bg-env-runtime/10 px-6 py-2.5 text-sm font-medium text-env-runtime flex items-center gap-2.5">
-        <span className="inline-block h-2.5 w-2.5 rounded-full bg-env-runtime" />
+      <div className="sticky top-0 z-40 w-full border-b border-env-runtime/30 bg-env-runtime/10 px-6 py-2.5 text-sm font-bold tracking-wider text-env-runtime flex justify-center items-center gap-2.5">
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-env-runtime animate-pulse" />
         <span>遊戲進行中（Runtime）— {gameName}</span>
       </div>
     );
   }
 
   return (
-    <div className="sticky top-0 z-40 w-full border-b border-border bg-muted/50 px-6 py-2.5 text-sm text-muted-foreground flex items-center gap-2.5">
+    <div className="sticky top-0 z-40 w-full border-b border-border bg-muted/50 px-6 py-2.5 text-sm text-muted-foreground flex justify-center items-center gap-2.5">
       <span className="inline-block h-2.5 w-2.5 rounded-full border border-muted-foreground/50" />
       <span>設定模式（Baseline）— {gameName}</span>
     </div>
