@@ -5,15 +5,30 @@ A character card is the core unit of LARP Nexus. Each character belongs to one g
 
 ## Character Card Editor (GM Side)
 
-The character edit page has **5 tabs**:
+The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs** split into two groups:
 
-| Tab | Emoji | Content |
-|-----|-------|---------|
-| 基本資訊 | 📝 | Name, description, PIN, public info, hidden info |
-| 角色數值 | 📊 | Stats (name/value/max) + active temporary effects |
-| 任務管理 | ✅ | Normal tasks + hidden tasks |
-| 道具管理 | 🎒 | Items inventory |
-| 技能管理 | ⚡ | Skills |
+**Narrative Group（敘事）**
+| Tab | Component | Content |
+|-----|-----------|---------|
+| 基本設定 | `basic-settings-tab.tsx` | Name, description, personality, PIN lock |
+| 背景故事 | `background-story-tab.tsx` | Background blocks + relationships |
+| 隱藏資訊 | `secrets-tab.tsx` | Secrets with reveal conditions |
+
+**Mechanic Group（機制）**
+| Tab | Component | Content |
+|-----|-----------|---------|
+| 數值 | `stats-edit-form.tsx` | Stats grid with percentage watermark |
+| 任務 | `tasks-edit-form.tsx` | Dual-column layout (normal + hidden) |
+| 道具 | `items-edit-form.tsx` | AbilityCard grid with expand/collapse |
+| 技能 | `skills-edit-form.tsx` | AbilityCard grid (shared with items) |
+
+### Shared Patterns（所有 Tab 共用）
+
+- **Soft-delete**: `deletedIds: Set<string>` + `effectiveData` filtered for `useFormGuard` / save
+- **Status badges**: NEW (`primary-solid`) / MODIFIED (`primary`) via `GM_STATUS_BADGE_BASE`
+- **Empty states**: `GmEmptyState` component with icon + title + action button
+- **Shared styles**: `lib/styles/gm-form.ts` — label, input, badge, scrollbar, section, accent card
+- **Shared components**: `GmInfoLine` (label:value), `GmEmptyState`, `DashedAddButton`, `IconActionButton`
 
 ## Core Data Model
 

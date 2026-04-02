@@ -14,7 +14,6 @@ interface Task {
   revealedAt?: Date;
   status: 'pending' | 'in-progress' | 'completed' | 'failed';
   completedAt?: Date;
-  gmNotes?: string;          // GM-only notes, never shown to player
   revealCondition?: string;  // Plain-text note about reveal condition
   autoRevealCondition?: AutoRevealCondition;
   createdAt: Date;
@@ -31,12 +30,16 @@ interface Task {
 
 ## Player View
 - Player sees: normal tasks + revealed hidden tasks
-- Player does NOT see: unrevealed hidden tasks, `gmNotes`, `revealCondition`
+- Player does NOT see: unrevealed hidden tasks, `revealCondition`
 - Task status (pending/in-progress/completed/failed) IS visible on player side
 - Component: `components/player/task-list.tsx`
 
 ## GM View
-- **✅ 任務管理 tab**: Shows all tasks including unrevealed hidden tasks
+- Component: `components/gm/tasks-edit-form.tsx`
+- **Dual-column layout**: normal tasks (left) + hidden tasks (right), each in a card container with fixed header + scrollable body
+- Task cards support expand/collapse, showing description, GM notes, and auto-reveal conditions
+- Supports soft-delete (recoverable) + status badges (NEW / MODIFIED)
+- Empty state uses `GmEmptyState` component per column
 - GM can manually reveal hidden tasks at any time
 
 ## Related

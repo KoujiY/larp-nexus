@@ -31,5 +31,5 @@ interface Secret {
 - Chain reveals are possible: revealing secret A can trigger revealing secret B (via `secrets_revealed` condition type)
 
 ## UI Location
-Component: `components/gm/character-edit-form.tsx` (隱藏資訊 card, ~line 537)
-Player view: `components/player/character-card-view.tsx` (📋 資訊 tab)
+GM editor: `components/gm/secrets-tab.tsx` — 12-column grid (left: list, right: detail panel), soft-delete + status badges
+Player view: `components/player/info-secrets-tab.tsx`
