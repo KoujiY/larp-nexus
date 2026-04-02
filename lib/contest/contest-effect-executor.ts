@@ -232,7 +232,6 @@ export async function executeContestEffects(
   if (Object.keys(targetStatUpdates).length > 0) {
     await updateCharacterData(effectTargetBaselineId, {
       $set: targetStatUpdates,
-      $unset: { 'tasks.$[].gmNotes': 1 },
     });
 
     if (crossCharacterChanges.length > 0) {

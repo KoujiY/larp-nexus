@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getHealthStatus } from '@/lib/styles/health-status';
 import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
 import type { CharacterData } from '@/types/character';
@@ -19,6 +20,41 @@ interface CharacterStatusOverviewProps {
  * 展開區域透過 Portal 渲染至 body，避免被 overflow 裁切。
  */
 export function CharacterStatusOverview({ characters }: CharacterStatusOverviewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 1);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const el = scrollRef.current;
+    if (!el) return;
+
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      observer.disconnect();
+    };
+  }, [updateScrollState, characters.length]);
+
+  const scroll = useCallback((direction: 'left' | 'right') => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const scrollAmount = el.clientWidth * 0.7;
+    el.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  }, []);
+
   if (characters.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground text-sm">
@@ -28,10 +64,35 @@ export function CharacterStatusOverview({ characters }: CharacterStatusOverviewP
   }
 
   return (
-    <div className={`flex gap-4 overflow-x-auto pb-2 ${GM_SCROLLBAR_CLASS}`}>
-      {characters.map((character) => (
-        <CharacterStatusCard key={character.id} character={character} />
-      ))}
+    <div className="relative">
+      {canScrollLeft && (
+        <button
+          type="button"
+          onClick={() => scroll('left')}
+          className="cursor-pointer absolute -left-2.5 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 w-6 h-10 rounded-lg bg-background/80 backdrop-blur-sm border border-border/20 shadow-sm flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:border-primary/30 transition-colors"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      <div
+        ref={scrollRef}
+        className={`flex gap-4 overflow-x-auto pb-2 ${GM_SCROLLBAR_CLASS}`}
+      >
+        {characters.map((character) => (
+          <CharacterStatusCard key={character.id} character={character} />
+        ))}
+      </div>
+
+      {canScrollRight && (
+        <button
+          type="button"
+          onClick={() => scroll('right')}
+          className="cursor-pointer absolute -right-2.5 translate-x-1/2 top-1/2 -translate-y-1/2 z-10 w-6 h-10 rounded-lg bg-background/80 backdrop-blur-sm border border-border/20 shadow-sm flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:border-primary/30 transition-colors"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

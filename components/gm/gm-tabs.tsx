@@ -38,7 +38,7 @@ function GmTabsTrigger({
         // reset shadcn defaults
         'rounded-none border-0 border-b-2 border-transparent bg-transparent shadow-none outline-none ring-0',
         // base
-        'px-8 py-4 text-sm font-medium text-muted-foreground transition-all',
+        'px-8 py-4 text-sm font-medium text-muted-foreground transition-all cursor-pointer',
         // focus
         'focus-visible:ring-0 focus-visible:outline-none',
         // active

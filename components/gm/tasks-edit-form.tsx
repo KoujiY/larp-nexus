@@ -1,22 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
 import { getGameItems } from '@/app/actions/games';
 import { useFormGuard } from '@/hooks/use-form-guard';
-import { SaveButton } from '@/components/gm/save-button';
 import type { GameItemInfo } from '@/app/actions/games';
 import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
 import type { SecretOption } from '@/components/gm/auto-reveal-condition-editor';
 import { cleanTaskConditions } from '@/lib/reveal/condition-cleaner';
+import { DashedAddButton } from '@/components/gm/dashed-add-button';
+import { GmEmptyState } from '@/components/gm/gm-empty-state';
+import { IconActionButton } from '@/components/gm/icon-action-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import {
+  GM_SECTION_TITLE_CLASS,
+  GM_SCROLLBAR_CLASS,
+  GM_STATUS_BADGE_BASE,
+  GM_ATTR_BADGE_BASE,
+  GM_BADGE_VARIANTS,
+  GM_DETAIL_HEADER_CLASS,
+  GM_ACCENT_CARD_CLASS,
+} from '@/lib/styles/gm-form';
 import {
   Dialog,
   DialogContent,
@@ -26,18 +35,26 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
+import { Pencil, Trash2, Undo2, ChevronDown, Lock, ListChecks } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { Task } from '@/types/character';
+
+type TaskStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
 
 interface TasksEditFormProps {
   characterId: string;
   gameId: string;
   initialTasks: Task[];
-  /** 該角色的隱藏資訊列表（用於 secrets_revealed 條件） */
   secrets: SecretOption[];
   onDirtyChange?: (dirty: boolean) => void;
 }
 
+/**
+ * 任務管理 — 雙欄佈局（一般任務 | 隱藏任務）
+ *
+ * 各欄為獨立卡片容器，header 固定 + body 可捲動。
+ * 任務卡片支援點擊展開/收合、軟刪除（可復原）、狀態 badge。
+ */
 export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDirtyChange }: TasksEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -46,24 +63,47 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
-  /**
-   * 當 initialTasks props 變化時（例如 router.refresh() 後），同步更新本地 state
-   */
   if (initialTasks !== prevInitialTasks) {
     setPrevInitialTasks(initialTasks);
     setTasks(initialTasks);
+    setDeletedIds(new Set());
   }
+
+  /** 排除軟刪除的有效任務 */
+  const effectiveTasks = useMemo(
+    () => tasks.filter((t) => !deletedIds.has(t.id)),
+    [tasks, deletedIds],
+  );
 
   const { isDirty, resetDirty } = useFormGuard({
     initialData: initialTasks,
-    currentData: tasks,
+    currentData: effectiveTasks,
   });
 
-  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
-  // Phase 7.7: 載入劇本中所有道具（用於自動揭露條件設定）
+  /** 初始資料查找表 */
+  const initialTasksMap = useMemo(() => {
+    const map = new Map<string, Task>();
+    for (const t of initialTasks) map.set(t.id, t);
+    return map;
+  }, [initialTasks]);
+
+  /** 判斷狀態 */
+  const getTaskStatus = useCallback(
+    (task: Task): TaskStatus => {
+      if (deletedIds.has(task.id)) return 'deleted';
+      const original = initialTasksMap.get(task.id);
+      if (!original) return 'new';
+      if (JSON.stringify(original) !== JSON.stringify(task)) return 'modified';
+      return 'unchanged';
+    },
+    [initialTasksMap, deletedIds],
+  );
+
+  // 載入劇本中所有道具（用於自動揭露條件設定）
   useEffect(() => {
     getGameItems(gameId).then((result) => {
       if (result.success && result.data) {
@@ -74,84 +114,76 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
     });
   }, [gameId]);
 
-  // Phase 7.7-G: 道具載入後，清理隱藏目標中引用已刪除道具/隱藏資訊的揭露條件
+  // 道具載入後清理失效條件
   useEffect(() => {
     if (availableItems.length === 0) return;
-
     const existingItemIds = availableItems.map((item) => item.itemId);
     const existingSecretIds = secrets.map((s) => s.id);
-    const { tasks: cleanedTasks, result } = cleanTaskConditions(
-      tasks,
-      existingItemIds,
-      existingSecretIds
-    );
-
+    const { tasks: cleanedTasks, result } = cleanTaskConditions(tasks, existingItemIds, existingSecretIds);
     if (result.cleaned) {
       setTasks(cleanedTasks);
       toast.info(`已自動清理 ${result.removedCount} 個失效的揭露條件引用`);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- 僅在 availableItems 載入完成後執行一次
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableItems]);
 
-  // 新增任務
-  const handleAddTask = () => {
+  const handleAddTask = useCallback((isHidden: boolean) => {
     const newTask: Task = {
       id: `task-${Date.now()}`,
       title: '',
       description: '',
-      isHidden: false,
+      isHidden,
       isRevealed: false,
       status: 'pending',
-      gmNotes: '',
       revealCondition: '',
       createdAt: new Date(),
     };
     setEditingTask(newTask);
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  // 編輯任務
-  const handleEditTask = (task: Task) => {
+  const handleEditTask = useCallback((task: Task) => {
     setEditingTask({ ...task });
     setIsDialogOpen(true);
-  };
+  }, []);
 
-  // 儲存任務（新增或編輯）
   const handleSaveTask = () => {
     if (!editingTask) return;
-    
     if (!editingTask.title.trim()) {
       toast.error('任務標題不可為空');
       return;
     }
-
     const existingIndex = tasks.findIndex((t) => t.id === editingTask.id);
     if (existingIndex >= 0) {
-      // 編輯現有任務
-      const updatedTasks = [...tasks];
-      updatedTasks[existingIndex] = editingTask;
-      setTasks(updatedTasks);
+      setTasks((prev) => {
+        const updated = [...prev];
+        updated[existingIndex] = editingTask;
+        return updated;
+      });
     } else {
-      // 新增任務
-      setTasks([...tasks, editingTask]);
+      setTasks((prev) => [...prev, editingTask]);
     }
-    
     setIsDialogOpen(false);
     setEditingTask(null);
   };
 
-  // 刪除任務
-  const handleRemoveTask = (taskId: string) => {
-    setTasks(tasks.filter((t) => t.id !== taskId));
-  };
+  const handleSoftDelete = useCallback((taskId: string) => {
+    setDeletedIds((prev) => new Set(prev).add(taskId));
+  }, []);
 
+  const handleRestore = useCallback((taskId: string) => {
+    setDeletedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
 
-  // 儲存所有變更
+  // TODO: 待 StickySaveBar registerSaveHandler 接線後啟用
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const result = await updateCharacter(characterId, { tasks });
-
+      const result = await updateCharacter(characterId, { tasks: effectiveTasks });
       if (result.success) {
         toast.success('任務已儲存');
         resetDirty();
@@ -166,304 +198,431 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
     }
   };
 
-  // 分類任務
   const normalTasks = tasks.filter((t) => !t.isHidden);
   const hiddenTasks = tasks.filter((t) => t.isHidden);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>✅ 任務管理</CardTitle>
-            <CardDescription>
-              管理角色的目標任務，支援隱藏目標機制
-            </CardDescription>
-          </div>
-          <SaveButton
-            isDirty={isDirty}
-            isLoading={isLoading}
-            type="button"
-            onClick={handleSave}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* 一般任務 */}
-        <div className="space-y-3">
-          <h4 className="font-medium flex items-center gap-2">
-            <Eye className="h-4 w-4" />
-            一般任務 ({normalTasks.length})
-          </h4>
-          {normalTasks.length === 0 ? (
-            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
-              尚無一般任務
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {normalTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onEdit={() => handleEditTask(task)}
-                  onRemove={() => handleRemoveTask(task.id)}
-                  availableItems={availableItems}
-                  secrets={secrets}
+    <>
+      <div className="flex gap-6 h-full min-h-0">
+        {/* ── 左欄：一般任務 ── */}
+        <TaskColumn
+          title="一般任務"
+          tasks={normalTasks}
+          onAdd={() => handleAddTask(false)}
+          onEdit={handleEditTask}
+          onRemove={handleSoftDelete}
+          onRestore={handleRestore}
+          getStatus={getTaskStatus}
+          addLabel="新增一般任務"
+          availableItems={availableItems}
+          secrets={secrets}
+          disabled={isLoading}
+        />
+
+        {/* ── 右欄：隱藏任務 ── */}
+        <TaskColumn
+          title="隱藏任務"
+          tasks={hiddenTasks}
+          onAdd={() => handleAddTask(true)}
+          onEdit={handleEditTask}
+          onRemove={handleSoftDelete}
+          onRestore={handleRestore}
+          getStatus={getTaskStatus}
+          addLabel="新增隱藏任務"
+          variant="muted"
+          availableItems={availableItems}
+          secrets={secrets}
+          disabled={isLoading}
+        />
+      </div>
+
+      {/* 編輯 Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingTask && tasks.find((t) => t.id === editingTask.id) ? '編輯任務' : '新增任務'}
+            </DialogTitle>
+            <DialogDescription>
+              設定任務內容與揭露條件
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingTask && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="task-title">任務標題 *</Label>
+                <Input
+                  id="task-title"
+                  value={editingTask.title}
+                  onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
+                  placeholder="例：找到失蹤的信件"
                 />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 隱藏任務 */}
-        <div className="space-y-3">
-          <h4 className="font-medium flex items-center gap-2">
-            <EyeOff className="h-4 w-4" />
-            隱藏目標 ({hiddenTasks.length})
-          </h4>
-          {hiddenTasks.length === 0 ? (
-            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
-              尚無隱藏目標
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {hiddenTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onEdit={() => handleEditTask(task)}
-                  onRemove={() => handleRemoveTask(task.id)}
-                  availableItems={availableItems}
-                  secrets={secrets}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 新增任務按鈕 */}
-        <Button onClick={handleAddTask} variant="outline" className="w-full">
-          <Plus className="mr-2 h-4 w-4" />
-          新增任務
-        </Button>
-
-        {/* 編輯 Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                {editingTask && tasks.find((t) => t.id === editingTask.id) ? '編輯任務' : '新增任務'}
-              </DialogTitle>
-              <DialogDescription>
-                設定任務內容與揭露條件
-              </DialogDescription>
-            </DialogHeader>
-
-            {editingTask && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="task-title">任務標題 *</Label>
-                  <Input
-                    id="task-title"
-                    value={editingTask.title}
-                    onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
-                    placeholder="例：找到失蹤的信件"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="task-description">任務描述</Label>
-                  <Textarea
-                    id="task-description"
-                    value={editingTask.description}
-                    onChange={(e) => setEditingTask({ ...editingTask, description: e.target.value })}
-                    placeholder="詳細描述任務內容..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>隱藏目標</Label>
-                    <p className="text-sm text-muted-foreground">
-                      設為隱藏目標後，需手動或自動揭露才會顯示給玩家
-                    </p>
-                  </div>
-                  <Switch
-                    checked={editingTask.isHidden}
-                    onCheckedChange={(checked) => setEditingTask({ 
-                      ...editingTask, 
-                      isHidden: checked,
-                      isRevealed: checked ? editingTask.isRevealed : false,
-                    })}
-                  />
-                </div>
-
-                {editingTask.isHidden && (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label>已揭露</Label>
-                        <p className="text-sm text-muted-foreground">
-                          揭露後玩家可以看到此目標
-                        </p>
-                      </div>
-                      <Switch
-                        checked={editingTask.isRevealed}
-                        onCheckedChange={(checked) => setEditingTask({ 
-                          ...editingTask, 
-                          isRevealed: checked,
-                          revealedAt: checked ? new Date() : undefined,
-                        })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="reveal-condition">揭露條件（GM 備註）</Label>
-                      <Input
-                        id="reveal-condition"
-                        value={editingTask.revealCondition || ''}
-                        onChange={(e) => setEditingTask({ ...editingTask, revealCondition: e.target.value })}
-                        placeholder="例：當玩家發現密室後揭露"
-                      />
-                    </div>
-
-                    {/* Phase 7.7: 自動揭露條件編輯器 */}
-                    <AutoRevealConditionEditor
-                      condition={editingTask.autoRevealCondition}
-                      onChange={(newCondition) => setEditingTask({
-                        ...editingTask,
-                        autoRevealCondition: newCondition,
-                      })}
-                      availableItems={availableItems}
-                      availableSecrets={secrets}
-                      allowSecretsCondition={true}
-                    />
-                  </>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="gm-notes">GM 筆記</Label>
-                  <Textarea
-                    id="gm-notes"
-                    value={editingTask.gmNotes || ''}
-                    onChange={(e) => setEditingTask({ ...editingTask, gmNotes: e.target.value })}
-                    placeholder="僅 GM 可見的備註..."
-                    rows={2}
-                  />
-                </div>
               </div>
-            )}
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                取消
-              </Button>
-              <Button onClick={handleSaveTask}>
-                確認
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <div className="space-y-2">
+                <Label htmlFor="task-description">任務描述</Label>
+                <Textarea
+                  id="task-description"
+                  value={editingTask.description}
+                  onChange={(e) => setEditingTask({ ...editingTask, description: e.target.value })}
+                  placeholder="詳細描述任務內容..."
+                  rows={3}
+                />
+              </div>
 
-        {/* 使用說明 */}
-        <div className="mt-6 p-4 bg-info/10 rounded-lg text-sm text-foreground">
-          <h4 className="font-medium mb-2">💡 使用說明</h4>
-          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-            <li><strong>一般任務</strong>：玩家可直接看到</li>
-            <li><strong>隱藏目標</strong>：需 GM 手動揭露或滿足自動揭露條件後玩家才能看到</li>
-            <li>點擊編輯按鈕可設定揭露狀態與自動揭露條件</li>
-            <li><strong>自動揭露</strong>：可設定檢視道具、取得道具、或隱藏資訊已揭露等條件</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>隱藏目標</Label>
+                  <p className="text-sm text-muted-foreground">
+                    設為隱藏目標後，需手動或自動揭露才會顯示給玩家
+                  </p>
+                </div>
+                <Switch
+                  checked={editingTask.isHidden}
+                  onCheckedChange={(checked) => setEditingTask({
+                    ...editingTask,
+                    isHidden: checked,
+                    isRevealed: checked ? editingTask.isRevealed : false,
+                  })}
+                />
+              </div>
+
+              {editingTask.isHidden && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>已揭露</Label>
+                      <p className="text-sm text-muted-foreground">
+                        揭露後玩家可以看到此目標
+                      </p>
+                    </div>
+                    <Switch
+                      checked={editingTask.isRevealed}
+                      onCheckedChange={(checked) => setEditingTask({
+                        ...editingTask,
+                        isRevealed: checked,
+                        revealedAt: checked ? new Date() : undefined,
+                      })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="reveal-condition">GM 備註（揭露條件）</Label>
+                    <Input
+                      id="reveal-condition"
+                      value={editingTask.revealCondition || ''}
+                      onChange={(e) => setEditingTask({ ...editingTask, revealCondition: e.target.value })}
+                      placeholder="例：當玩家發現密室後揭露"
+                    />
+                  </div>
+
+                  <AutoRevealConditionEditor
+                    condition={editingTask.autoRevealCondition}
+                    onChange={(newCondition) => setEditingTask({
+                      ...editingTask,
+                      autoRevealCondition: newCondition,
+                    })}
+                    availableItems={availableItems}
+                    availableSecrets={secrets}
+                    allowSecretsCondition={true}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSaveTask}>
+              確認
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-// 任務卡片元件（嚴格比照隱藏資訊卡片排版）
-interface TaskCardProps {
-  task: Task;
-  onEdit: () => void;
-  onRemove: () => void;
+// ─── 欄位容器 ──────────────────────────────────
+
+interface TaskColumnProps {
+  title: string;
+  tasks: Task[];
+  onAdd: () => void;
+  onEdit: (task: Task) => void;
+  onRemove: (taskId: string) => void;
+  onRestore: (taskId: string) => void;
+  getStatus: (task: Task) => TaskStatus;
+  addLabel: string;
+  variant?: 'default' | 'muted';
   availableItems: GameItemInfo[];
   secrets: SecretOption[];
+  disabled?: boolean;
 }
 
-function TaskCard({ task, onEdit, onRemove, availableItems, secrets }: TaskCardProps) {
+function TaskColumn({
+  title,
+  tasks,
+  onAdd,
+  onEdit,
+  onRemove,
+  onRestore,
+  getStatus,
+  addLabel,
+  variant = 'default',
+  availableItems,
+  secrets,
+  disabled,
+}: TaskColumnProps) {
   return (
-    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border">
-      <div className="flex-1 min-w-0">
-        {/* 第一行：標題 + 揭露狀態（比照隱藏資訊卡片） */}
-        <div className="flex items-center gap-2">
-          <span className="font-medium truncate">{task.title || '未命名任務'}</span>
-          {task.isHidden && (
-            <Badge
-              variant={task.isRevealed ? 'default' : 'secondary'}
-              className={`text-xs shrink-0 ${task.isRevealed ? 'bg-success text-success-foreground' : ''}`}
-            >
+    <section
+      className={cn(
+        'flex-1 flex flex-col rounded-2xl border shadow-sm overflow-hidden',
+        variant === 'muted'
+          ? 'bg-muted/20 border-border/20'
+          : 'bg-card border-border/10',
+      )}
+    >
+      {/* Header */}
+      <div className="p-6 border-b border-border/10 shrink-0">
+        <h2 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          {title}
+        </h2>
+      </div>
+
+      {/* Body */}
+      <div className={cn('flex-1 overflow-y-auto p-4 space-y-3', GM_SCROLLBAR_CLASS)}>
+        {tasks.length === 0 ? (
+          <GmEmptyState
+            icon={<ListChecks className="h-10 w-10" />}
+            title={variant === 'muted' ? '尚無隱藏任務' : '尚無一般任務'}
+            actionLabel={addLabel}
+            onAction={onAdd}
+            disabled={disabled}
+          />
+        ) : (
+          <>
+            {tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                status={getStatus(task)}
+                onEdit={() => onEdit(task)}
+                onRemove={() => onRemove(task.id)}
+                onRestore={() => onRestore(task.id)}
+                availableItems={availableItems}
+                secrets={secrets}
+                disabled={disabled}
+              />
+            ))}
+
+            {/* 新增按鈕 */}
+            <DashedAddButton
+              label={addLabel}
+              onClick={onAdd}
+              disabled={disabled}
+              className="py-4 mt-3"
+            />
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ─── 任務卡片 ──────────────────────────────────
+
+/** 自動揭露條件類型標籤 */
+const CONDITION_TYPE_LABELS: Record<string, string> = {
+  items_viewed: '檢視道具',
+  items_acquired: '取得道具',
+  secrets_revealed: '隱藏資訊揭露',
+};
+
+interface TaskCardProps {
+  task: Task;
+  status: TaskStatus;
+  onEdit: () => void;
+  onRemove: () => void;
+  onRestore: () => void;
+  availableItems: GameItemInfo[];
+  secrets: SecretOption[];
+  disabled?: boolean;
+}
+
+function TaskCard({ task, status, onEdit, onRemove, onRestore, availableItems, secrets, disabled }: TaskCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const isDeleted = status === 'deleted';
+
+  const hasAutoCondition = task.autoRevealCondition && task.autoRevealCondition.type !== 'none';
+  const conditionTypeLabel = hasAutoCondition
+    ? CONDITION_TYPE_LABELS[task.autoRevealCondition!.type] ?? task.autoRevealCondition!.type
+    : null;
+
+  return (
+    <div
+      className={cn(
+        'bg-card rounded-xl border border-border/10 shadow-sm transition-all cursor-pointer',
+        // 狀態樣式（對齊 AbilityCard / StatCard）
+        isDeleted && 'opacity-60 bg-muted/30',
+        !isDeleted && 'hover:shadow-md',
+        status === 'new' && !isDeleted && 'border-primary/20',
+        status === 'modified' && !isDeleted && 'bg-primary/5 border-primary/20',
+      )}
+      onClick={isDeleted ? undefined : () => setExpanded((prev) => !prev)}
+    >
+      {/* ── Header ── */}
+      <div className="p-4 flex items-center justify-between gap-2">
+        {/* 左側：狀態 badge + 展開 icon + 標題 + 揭露狀態 */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {/* 狀態 badge（NEW / MODIFIED） */}
+          {(status === 'new' || status === 'modified') && !isDeleted && (
+            <span className={cn(
+              GM_STATUS_BADGE_BASE,
+              'shrink-0',
+              status === 'new' ? GM_BADGE_VARIANTS['primary-solid'] : GM_BADGE_VARIANTS.primary,
+            )}>
+              {status === 'new' ? 'NEW' : 'MODIFIED'}
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200',
+              expanded && 'rotate-180',
+            )}
+          />
+          <h3 className={cn(
+            'text-lg font-black truncate',
+            isDeleted ? 'text-muted-foreground/50 line-through' : 'text-foreground',
+          )}>
+            {task.title || '未命名任務'}
+          </h3>
+          {task.isHidden && !isDeleted && (
+            <span className={cn(
+              GM_STATUS_BADGE_BASE,
+              'shrink-0',
+              GM_BADGE_VARIANTS[task.isRevealed ? 'success' : 'secondary'],
+            )}>
               {task.isRevealed ? '已揭露' : '未揭露'}
-            </Badge>
+            </span>
           )}
         </div>
-        {/* 第二行：標籤（嚴格比照隱藏資訊的條件標籤，含道具名稱與隱藏資訊名稱） */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-          {task.revealCondition && (
-            <Badge variant="outline" className="text-xs bg-muted">
-              條件：{task.revealCondition}
-            </Badge>
-          )}
-          {task.autoRevealCondition && task.autoRevealCondition.type !== 'none' && (
+
+        {/* 右側：操作按鈕（常時可見） */}
+        <div className="flex items-center gap-1 shrink-0">
+          {isDeleted ? (
+            <IconActionButton
+              icon={<Undo2 className="h-3.5 w-3.5" />}
+              label="復原"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onRestore(); }}
+              disabled={disabled}
+            />
+          ) : (
             <>
-              {/* 條件類型 */}
-              <Badge variant="outline" className="text-xs bg-muted">
-                {task.autoRevealCondition.type === 'items_viewed' && '自動揭露條件：檢視道具'}
-                {task.autoRevealCondition.type === 'items_acquired' && '自動揭露條件：取得道具'}
-                {task.autoRevealCondition.type === 'secrets_revealed' && '自動揭露條件：隱藏資訊揭露'}
-              </Badge>
-              {/* 匹配邏輯 */}
-              {task.autoRevealCondition.matchLogic && (
-                <Badge variant="outline" className="text-xs bg-muted">
-                  {task.autoRevealCondition.matchLogic === 'and' ? '全部符合 (AND)' : '任一符合 (OR)'}
-                </Badge>
-              )}
-              {/* 匹配道具（逐一列出名稱） */}
-              {task.autoRevealCondition.itemIds?.map((itemId) => {
-                const item = availableItems.find((i) => i.itemId === itemId);
-                return (
-                  <Badge key={itemId} variant="outline" className="text-xs bg-muted">
-                    {item ? `${item.characterName}：${item.itemName}` : itemId}
-                  </Badge>
-                );
-              })}
-              {/* 匹配隱藏資訊（逐一列出名稱） */}
-              {task.autoRevealCondition.secretIds?.map((secretId) => {
-                const targetSecret = secrets.find((s) => s.id === secretId);
-                return (
-                  <Badge key={secretId} variant="outline" className="text-xs bg-muted">
-                    {targetSecret ? targetSecret.title : secretId}
-                  </Badge>
-                );
-              })}
+              <IconActionButton
+                icon={<Pencil className="h-3.5 w-3.5" />}
+                label="編輯"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                disabled={disabled}
+              />
+              <IconActionButton
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+                label="刪除"
+                variant="destructive"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                disabled={disabled}
+              />
             </>
           )}
         </div>
       </div>
 
-      {/* 操作按鈕 */}
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRemove}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      {/* ── 展開內容 ── */}
+      {expanded && !isDeleted && (
+        <div className="mx-4 pb-4 pt-3 border-t border-border/10 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          {/* 描述 */}
+          {task.description && (
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {task.description}
+            </p>
+          )}
+
+          {/* GM 備註（隱藏任務才顯示） */}
+          {task.isHidden && task.revealCondition && (
+            <div className="space-y-2">
+              <h4 className={GM_DETAIL_HEADER_CLASS}>
+                GM 備註
+              </h4>
+              <div className={GM_ACCENT_CARD_CLASS}>
+                <p className="text-xs text-foreground/90">{task.revealCondition}</p>
+              </div>
+            </div>
+          )}
+
+          {/* 揭露條件（隱藏任務 + 有自動條件才顯示） */}
+          {task.isHidden && hasAutoCondition && (
+            <div className="space-y-2">
+              <h4 className={GM_DETAIL_HEADER_CLASS}>
+                揭露條件
+              </h4>
+              <div className={cn(GM_ACCENT_CARD_CLASS, 'space-y-1.5')}>
+                <p className="text-xs font-medium text-foreground">
+                  <span className="text-muted-foreground">自動揭露：</span>
+                  {conditionTypeLabel}
+                </p>
+
+                {task.autoRevealCondition!.matchLogic && (
+                  <p className="text-xs text-foreground/90">
+                    <span className="text-muted-foreground">邏輯：</span>
+                    {task.autoRevealCondition!.matchLogic === 'and' ? '全部符合' : '任一符合'}
+                  </p>
+                )}
+
+                {task.autoRevealCondition!.itemIds && task.autoRevealCondition!.itemIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {task.autoRevealCondition!.itemIds.map((itemId) => {
+                      const item = availableItems.find((i) => i.itemId === itemId);
+                      return (
+                        <span key={itemId} className={cn(GM_ATTR_BADGE_BASE, GM_BADGE_VARIANTS.muted)}>
+                          {item ? `${item.characterName}：${item.itemName}` : itemId}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {task.autoRevealCondition!.secretIds && task.autoRevealCondition!.secretIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {task.autoRevealCondition!.secretIds.map((secretId) => {
+                      const target = secrets.find((s) => s.id === secretId);
+                      return (
+                        <span key={secretId} className={cn(GM_ATTR_BADGE_BASE, GM_BADGE_VARIANTS.muted)}>
+                          {target ? target.title : secretId}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 隱藏任務但無 GM 備註也無揭露條件 */}
+          {task.isHidden && !task.revealCondition && !hasAutoCondition && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground/40">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span className="italic">尚未設定揭露條件</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-

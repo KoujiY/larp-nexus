@@ -92,7 +92,6 @@ export async function updateCharacter(
       revealedAt?: Date;
       status: "pending" | "in-progress" | "completed" | "failed";
       completedAt?: Date;
-      gmNotes?: string;
       revealCondition?: string;
       // Phase 7.7: 自動揭露條件
       autoRevealCondition?: {
@@ -478,7 +477,6 @@ export async function updateCharacter(
     const cleanTasks = cleanTaskData(updatedCharacter.tasks).map((task) => ({
       ...task,
       description: task.description || "",
-      gmNotes: task.gmNotes || "",
       revealCondition: task.revealCondition || "",
       createdAt: task.createdAt || new Date(),
     }));

@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GmTabsList, GmTabsTrigger } from '@/components/gm/gm-tabs';
-import { CharacterEditForm } from '@/components/gm/character-edit-form';
+import { BasicSettingsTab } from '@/components/gm/basic-settings-tab';
+import { BackgroundStoryTab } from '@/components/gm/background-story-tab';
+import { SecretsTab } from '@/components/gm/secrets-tab';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
 import { TemporaryEffectsCard } from '@/components/gm/temporary-effects-card';
 import { TasksEditForm } from '@/components/gm/tasks-edit-form';
@@ -29,10 +31,19 @@ const TAB_CONFIG: {
   { key: 'skills', label: '技能', group: 'mechanic' },
 ];
 
+/** 同劇本角色摘要（用於人物關係頭像列表） */
+export type GameCharacterSummary = {
+  id: string;
+  name: string;
+  imageUrl?: string;
+};
+
 interface CharacterEditTabsProps {
   character: CharacterData;
   gameId: string;
   randomContestMaxValue?: number;
+  /** 同劇本所有角色摘要（排除自身），用於 Tab 2 人物關係 */
+  gameCharacters?: GameCharacterSummary[];
 }
 
 /**
@@ -49,8 +60,12 @@ export function CharacterEditTabs({
   character,
   gameId,
   randomContestMaxValue,
+  gameCharacters = [],
 }: CharacterEditTabsProps) {
   const [activeTab, setActiveTab] = useState<CharacterTabKey>('basic');
+
+  /** 這些 tab 需要填滿視窗高度、禁止外層滾動，內部獨立捲動 */
+  const isFullHeightTab = activeTab === 'background' || activeTab === 'secrets';
 
   const {
     dirtyState,
@@ -71,10 +86,14 @@ export function CharacterEditTabs({
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as CharacterTabKey)}
-        className="space-y-6"
+        className={
+          isFullHeightTab
+            ? 'h-[calc(100dvh-240px)] flex flex-col overflow-hidden pb-2'
+            : 'space-y-6'
+        }
       >
         {/* Tab 導航列：分兩組，中間以豎線分隔 */}
-        <div className="flex items-center gap-0 border-b border-border/20">
+        <div className={`flex items-center gap-0 border-b border-border/20 ${isFullHeightTab ? 'shrink-0' : ''}`}>
           {/* 敘事類 */}
           <GmTabsList className="pr-6 gap-6">
             {narrativeTabs.map((tab) => {
@@ -120,7 +139,7 @@ export function CharacterEditTabs({
         {/* === Tab 內容 === */}
 
         <TabsContent value="basic" className="space-y-6">
-          <CharacterEditForm
+          <BasicSettingsTab
             character={character}
             gameId={gameId}
             onDirtyChange={(dirty) =>
@@ -134,22 +153,34 @@ export function CharacterEditTabs({
           />
         </TabsContent>
 
-        {/* 背景故事 Tab — P5-2 時替換為 BackgroundStoryTab */}
-        <TabsContent value="background" className="space-y-6">
-          <div className="flex items-center justify-center rounded-xl bg-muted/30 py-16">
-            <p className="text-sm text-muted-foreground">
-              背景故事 Tab（待 P5-2 實作）
-            </p>
-          </div>
+        <TabsContent value="background" className={isFullHeightTab ? 'flex-1 min-h-0 mt-6' : 'space-y-6'}>
+          <BackgroundStoryTab
+            character={character}
+            gameCharacters={gameCharacters}
+            onDirtyChange={(dirty) =>
+              registerDirty('background', {
+                isDirty: dirty,
+                added: 0,
+                modified: dirty ? 1 : 0,
+                deleted: 0,
+              })
+            }
+          />
         </TabsContent>
 
-        {/* 隱藏資訊 Tab — P5-3 時替換為 SecretsTab */}
-        <TabsContent value="secrets" className="space-y-6">
-          <div className="flex items-center justify-center rounded-xl bg-muted/30 py-16">
-            <p className="text-sm text-muted-foreground">
-              隱藏資訊 Tab（待 P5-3 實作）
-            </p>
-          </div>
+        <TabsContent value="secrets" className={isFullHeightTab ? 'flex-1 min-h-0 mt-6' : 'space-y-6'}>
+          <SecretsTab
+            character={character}
+            gameId={gameId}
+            onDirtyChange={(dirty) =>
+              registerDirty('secrets', {
+                isDirty: dirty,
+                added: 0,
+                modified: dirty ? 1 : 0,
+                deleted: 0,
+              })
+            }
+          />
         </TabsContent>
 
         <TabsContent value="stats" className="space-y-6">

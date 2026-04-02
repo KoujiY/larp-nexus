@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CreateCharacterButton } from '@/components/gm/create-character-button';
 import { CharacterCard } from '@/components/gm/character-card';
+import { GmEmptyState } from '@/components/gm/gm-empty-state';
+import { Users } from 'lucide-react';
 import { GameEditTabs } from '@/components/gm/game-edit-tabs';
 import { GameCodeSection } from '@/components/gm/game-code-section';
 import { GameLifecycleControls } from '@/components/gm/game-lifecycle-controls';
@@ -92,17 +94,26 @@ export default async function GamePage({ params }: GamePageProps) {
           ) : undefined
         }
         charactersTab={
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {/* 建立新角色 — 放在第一個，隨時可見 */}
-            <CreateCharacterButton gameId={game.id} variant="card" />
-            {characters.map((character) => (
-              <CharacterCard
-                key={character.id}
-                character={character}
-                gameId={game.id}
-              />
-            ))}
-          </div>
+          characters.length === 0 ? (
+            <GmEmptyState
+              icon={<Users className="h-10 w-10" />}
+              title="尚未建立任何角色"
+              description="開始為你的劇本建立角色吧，每個角色都可以擁有獨立的背景故事、道具與技能。"
+            >
+              <CreateCharacterButton gameId={game.id} variant="card" />
+            </GmEmptyState>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <CreateCharacterButton gameId={game.id} variant="card" />
+              {characters.map((character) => (
+                <CharacterCard
+                  key={character.id}
+                  character={character}
+                  gameId={game.id}
+                />
+              ))}
+            </div>
+          )
         }
       />
     </PageLayout>

@@ -75,7 +75,6 @@ function createTasksSchemaField() {
         default: 'pending',
       },
       completedAt: { type: Date },
-      gmNotes: { type: String, default: '' },
       revealCondition: { type: String, default: '' },
       autoRevealCondition: { type: autoRevealConditionSchema, default: undefined },
       createdAt: { type: Date, default: Date.now },

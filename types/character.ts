@@ -204,7 +204,6 @@ export interface Task {
   status: 'pending' | 'in-progress' | 'completed' | 'failed';
   completedAt?: Date;
   // GM 專用欄位（玩家端不顯示）
-  gmNotes?: string;
   revealCondition?: string;
   autoRevealCondition?: AutoRevealCondition;  // Phase 7.7: 結構化自動揭露條件
   createdAt: Date;
@@ -376,7 +375,6 @@ export interface CreateTaskInput {
   title: string;
   description: string;
   isHidden?: boolean;
-  gmNotes?: string;
   revealCondition?: string;
 }
 

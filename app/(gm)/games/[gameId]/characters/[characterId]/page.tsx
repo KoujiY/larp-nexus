@@ -1,4 +1,4 @@
-import { getCharacterById } from '@/app/actions/characters';
+import { getCharacterById, getCharactersByGameId } from '@/app/actions/characters';
 import { getGameById } from '@/app/actions/games';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/gm/page-layout';
@@ -39,6 +39,15 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
 
   const character = characterResult.data;
   const game = gameResult.data;
+
+  // 同劇本角色摘要（排除自身），用於 Tab 2 人物關係頭像
+  const allCharsResult = await getCharactersByGameId(gameId);
+  const gameCharacters = (allCharsResult.success && allCharsResult.data
+    ? allCharsResult.data
+    : []
+  )
+    .filter((c) => c.id !== character.id)
+    .map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }));
 
   /** 角色名稱首字，用於頭像佔位 */
   const avatarInitial = character.name.charAt(0);
@@ -134,6 +143,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
         character={character}
         gameId={gameId}
         randomContestMaxValue={game.randomContestMaxValue}
+        gameCharacters={gameCharacters}
       />
     </PageLayout>
   );

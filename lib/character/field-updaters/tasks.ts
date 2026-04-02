@@ -73,7 +73,6 @@ export function updateCharacterTasks(
       revealedAt,
       status: newTask.status,
       completedAt,
-      gmNotes: newTask.gmNotes || '',
       revealCondition: newTask.revealCondition || '',
       createdAt: newTask.createdAt || new Date(),
       ...(autoRevealCondition !== undefined ? { autoRevealCondition } : {}),

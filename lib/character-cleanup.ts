@@ -158,7 +158,6 @@ export function cleanTaskData(tasks: MongoTask[] | undefined): MongoTask[] {
       revealedAt: task.revealedAt,
       status: task.status,
       completedAt: task.completedAt,
-      gmNotes: task.gmNotes,
       revealCondition: task.revealCondition,
       // Phase 7.7: 保留自動揭露條件（GM 端需要顯示）
       autoRevealCondition: task.autoRevealCondition,

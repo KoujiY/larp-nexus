@@ -14,11 +14,11 @@ import {
   GM_INPUT_CLASS,
   GM_ERROR_RING_CLASS,
   GM_ERROR_TEXT_CLASS,
+  GM_SECTION_TITLE_CLASS,
+  GM_SECTION_CARD_CLASS,
 } from '@/lib/styles/gm-form';
 import type { GameData } from '@/types/game';
 import type { BackgroundBlock } from '@/types/character';
-
-const SECTION_TITLE_CLASS = 'text-lg font-bold flex items-center gap-2';
 
 interface GameEditFormProps {
   game: GameData;
@@ -125,8 +125,8 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
         {/* 左欄：基礎設定 + 封面圖 */}
         <div className="lg:col-span-5 flex flex-col gap-8">
           {/* 劇本基礎設定 */}
-          <section className="bg-card p-8 rounded-xl shadow-sm border border-border/5">
-            <h2 className={SECTION_TITLE_CLASS}>
+          <section className={GM_SECTION_CARD_CLASS}>
+            <h2 className={GM_SECTION_TITLE_CLASS}>
               <span className="w-1 h-5 bg-primary rounded-full" />
               劇本基礎設定
             </h2>
@@ -169,8 +169,8 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
           </section>
 
           {/* 劇本封面圖（預留） */}
-          <section className="bg-card p-8 rounded-xl shadow-sm border border-border/5">
-            <h2 className={SECTION_TITLE_CLASS}>
+          <section className={GM_SECTION_CARD_CLASS}>
+            <h2 className={GM_SECTION_TITLE_CLASS}>
               <span className="w-1 h-5 bg-primary rounded-full" />
               劇本封面圖
             </h2>
@@ -185,8 +185,8 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
         </div>
 
         {/* 右欄：世界觀公開資訊 */}
-        <section className="lg:col-span-7 bg-card p-8 rounded-xl shadow-sm border border-border/5">
-          <h2 className={cn(SECTION_TITLE_CLASS, 'mb-8')}>
+        <section className={cn('lg:col-span-7', GM_SECTION_CARD_CLASS)}>
+          <h2 className={cn(GM_SECTION_TITLE_CLASS, 'mb-8')}>
             <span className="w-1 h-5 bg-primary rounded-full" />
             世界觀公開資訊
           </h2>

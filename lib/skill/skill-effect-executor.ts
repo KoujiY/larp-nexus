@@ -202,7 +202,6 @@ export async function executeSkillEffects(
     if (isAffectingOthers && targetCharacter) {
       await updateCharacterData(targetCharacterId!, {
         $set: targetStatUpdates,
-        $unset: { 'tasks.$[].gmNotes': 1 },
       });
 
       if (crossCharacterChanges.length > 0) {
@@ -233,7 +232,6 @@ export async function executeSkillEffects(
     } else {
       await updateCharacterData(characterId, {
         $set: targetStatUpdates,
-        $unset: { 'tasks.$[].gmNotes': 1 },
       });
     }
   }

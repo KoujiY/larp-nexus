@@ -56,7 +56,6 @@ export interface CharacterDocumentBase {
     revealedAt?: Date;
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
     completedAt?: Date;
-    gmNotes?: string;
     revealCondition?: string;
     autoRevealCondition?: AutoRevealCondition;
     createdAt: Date;

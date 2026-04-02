@@ -1,20 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
 import { useFormGuard } from '@/hooks/use-form-guard';
-import { SaveButton } from '@/components/gm/save-button';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { AbilityCard } from '@/components/gm/ability-card';
+import { DashedAddButton } from '@/components/gm/dashed-add-button';
+import { GmEmptyState } from '@/components/gm/gm-empty-state';
+import { GM_SECTION_TITLE_CLASS } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
-import { Plus, Trash2, Package, Pencil, Zap, Clock } from 'lucide-react';
+import { Package } from 'lucide-react';
 import type { Item, Stat } from '@/types/character';
 import type { BaseEvent, RoleUpdatedEvent, InventoryUpdatedEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
-import { getItemEffects, hasItemEffects } from '@/lib/item/get-item-effects';
 import { AbilityEditWizard } from './ability-edit-wizard';
+import { getItemEffects } from '@/lib/item/get-item-effects';
 
 interface ItemsEditFormProps {
   characterId: string;
@@ -24,6 +24,13 @@ interface ItemsEditFormProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
+/**
+ * 道具管理 — 卡片 grid 佈局
+ *
+ * 不分消耗品 / 裝備，全部混排 grid。
+ * 新增卡片排在 grid 第一位。
+ * 空狀態使用 GmEmptyState 共用元件。
+ */
 export function ItemsEditForm({ characterId, initialItems, stats, randomContestMaxValue = 100, onDirtyChange }: ItemsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -31,22 +38,46 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
   const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
-  /** 當 initialItems props 變化時（例如 router.refresh() 後），同步更新本地 state */
   if (initialItems !== prevInitialItems) {
     setPrevInitialItems(initialItems);
     setItems(initialItems);
+    setDeletedIds(new Set());
   }
+
+  const effectiveItems = useMemo(
+    () => items.filter((i) => !deletedIds.has(i.id)),
+    [items, deletedIds],
+  );
 
   const { isDirty, resetDirty } = useFormGuard({
     initialData: initialItems,
-    currentData: items,
+    currentData: effectiveItems,
   });
 
-  /** 回報 dirty 狀態給父層（用於 tab 切換攔截） */
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
-  // Phase 9: 訂閱 WebSocket 事件，同步更新道具列表
+  /** 初始資料查找表 */
+  const initialItemsMap = useMemo(() => {
+    const map = new Map<string, Item>();
+    for (const i of initialItems) map.set(i.id, i);
+    return map;
+  }, [initialItems]);
+
+  /** 判斷狀態 */
+  const getItemStatus = useCallback(
+    (item: Item) => {
+      if (deletedIds.has(item.id)) return 'deleted' as const;
+      const original = initialItemsMap.get(item.id);
+      if (!original) return 'new' as const;
+      if (JSON.stringify(original) !== JSON.stringify(item)) return 'modified' as const;
+      return 'unchanged' as const;
+    },
+    [initialItemsMap, deletedIds],
+  );
+
+  // WebSocket 同步
   useCharacterWebSocket(characterId, (event: BaseEvent) => {
     if (event.type === 'role.updated') {
       const payload = (event as RoleUpdatedEvent).payload;
@@ -81,8 +112,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     }
   });
 
-  // 新增道具
-  const handleAddItem = () => {
+  const handleAddItem = useCallback(() => {
     const newItem: Item = {
       id: `item-${Date.now()}`,
       name: '',
@@ -96,10 +126,9 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     };
     setEditingItem(newItem);
     setIsWizardOpen(true);
-  };
+  }, []);
 
-  // 編輯道具
-  const handleEditItem = (item: Item) => {
+  const handleEditItem = useCallback((item: Item) => {
     const rawEffects = getItemEffects({ ...item });
     const effects = rawEffects.map((effect) =>
       effect.type === 'stat_change' && !effect.statChangeTarget
@@ -108,17 +137,17 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     );
     setEditingItem({ ...item, effects });
     setIsWizardOpen(true);
-  };
+  }, []);
 
-  /** Wizard 儲存回呼 — 接收已驗證+正規化的道具資料 */
-  const handleWizardSave = (savedData: Item) => {
-    const existingIndex = items.findIndex((i) => i.id === savedData.id);
-    if (existingIndex >= 0) {
-      const updatedItems = [...items];
-      updatedItems[existingIndex] = savedData;
-      setItems(updatedItems);
-    } else {
-      // 新增道具：如果數量 > 1，產生多張獨立的道具卡
+  const handleWizardSave = useCallback((savedData: Item) => {
+    setItems((prev) => {
+      const existingIndex = prev.findIndex((i) => i.id === savedData.id);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = savedData;
+        return updated;
+      }
+      // 新增：如果數量 > 1，產生多張獨立卡
       const quantity = savedData.quantity || 1;
       if (quantity > 1) {
         const newItems: Item[] = Array.from({ length: quantity }, (_, i) => ({
@@ -127,25 +156,31 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
           quantity: 1,
           usageCount: 0,
         }));
-        setItems([...items, ...newItems]);
         toast.success(`已新增 ${quantity} 張「${savedData.name}」道具卡`);
-      } else {
-        setItems([...items, { ...savedData, quantity: 1 }]);
+        return [...prev, ...newItems];
       }
-    }
+      return [...prev, { ...savedData, quantity: 1 }];
+    });
     setEditingItem(null);
-  };
+  }, []);
 
-  // 刪除道具
-  const handleRemoveItem = (itemId: string) => {
-    setItems(items.filter((i) => i.id !== itemId));
-  };
+  const handleSoftDelete = useCallback((itemId: string) => {
+    setDeletedIds((prev) => new Set(prev).add(itemId));
+  }, []);
 
-  // 儲存所有變更
+  const handleRestore = useCallback((itemId: string) => {
+    setDeletedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(itemId);
+      return next;
+    });
+  }, []);
+
+  // TODO: 待 StickySaveBar registerSaveHandler 接線後啟用
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const result = await updateCharacter(characterId, { items });
+      const result = await updateCharacter(characterId, { items: effectiveItems });
       if (result.success) {
         toast.success('道具已儲存');
         resetDirty();
@@ -160,155 +195,61 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     }
   };
 
-  // 分類道具
-  const consumables = items.filter((i) => i.type === 'consumable');
-  const equipment = items.filter((i) => i.type === 'equipment');
-
   const isNew = editingItem ? !items.find((i) => i.id === editingItem.id) : true;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>🎒 道具管理</CardTitle>
-            <CardDescription>管理角色的道具，設定效果與使用限制</CardDescription>
-          </div>
-          <SaveButton isDirty={isDirty} isLoading={isLoading} type="button" onClick={handleSave} />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* 消耗品 */}
-        <div className="space-y-3">
-          <h4 className="font-medium flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            消耗品 ({consumables.length})
-          </h4>
-          {consumables.length === 0 ? (
-            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
-              尚無消耗品
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {consumables.map((item) => (
-                <GmItemCard key={item.id} item={item} onEdit={() => handleEditItem(item)} onRemove={() => handleRemoveItem(item.id)} />
-              ))}
-            </div>
-          )}
-        </div>
+    <div className="space-y-6">
+      <h2 className={GM_SECTION_TITLE_CLASS}>
+        <span className="w-1 h-5 bg-primary rounded-full" />
+        道具管理
+      </h2>
 
-        {/* 裝備 */}
-        <div className="space-y-3">
-          <h4 className="font-medium flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            裝備/道具 ({equipment.length})
-          </h4>
-          {equipment.length === 0 ? (
-            <div className="text-center py-6 rounded-lg bg-muted/30 text-muted-foreground">
-              尚無裝備
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {equipment.map((item) => (
-                <GmItemCard key={item.id} item={item} onEdit={() => handleEditItem(item)} onRemove={() => handleRemoveItem(item.id)} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 新增道具按鈕 */}
-        <Button onClick={handleAddItem} variant="outline" className="w-full">
-          <Plus className="mr-2 h-4 w-4" />
-          新增道具
-        </Button>
-
-        {/* 道具編輯 Wizard */}
-        {editingItem && (
-          <AbilityEditWizard
-            mode="item"
-            open={isWizardOpen}
-            onOpenChange={setIsWizardOpen}
-            initialData={editingItem}
-            isNew={isNew}
-            stats={stats}
-            randomContestMaxValue={randomContestMaxValue}
-            onSave={(data) => handleWizardSave(data as Item)}
+      {items.length === 0 ? (
+        <GmEmptyState
+          icon={<Package className="h-10 w-10" />}
+          title="尚無道具"
+          description="目前這個角色的背包還是空的，快來為他增添一些冒險物資吧。"
+          actionLabel="新增第一個道具"
+          onAction={handleAddItem}
+          disabled={isLoading}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+          <DashedAddButton
+            label="新增道具"
+            onClick={handleAddItem}
+            disabled={isLoading}
+            variant="card"
+            className="min-h-[180px]"
           />
-        )}
 
-        {/* 使用說明 */}
-        <div className="mt-6 p-4 bg-info/10 rounded-lg text-sm text-foreground">
-          <h4 className="font-medium mb-2">💡 使用說明</h4>
-          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-            <li><strong>消耗品</strong>：使用後數量減 1，數量為 0 時消失</li>
-            <li><strong>裝備/道具</strong>：使用後不消耗數量</li>
-            <li><strong>使用限制</strong>：可設定使用次數上限與冷卻時間</li>
-            <li><strong>效果</strong>：可設定數值變化、增益或自訂效果</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── GM 道具卡片元件 ────────────────────────────────────────────────────────────
-
-interface GmItemCardProps {
-  item: Item;
-  onEdit: () => void;
-  onRemove: () => void;
-}
-
-function GmItemCard({ item, onEdit, onRemove }: GmItemCardProps) {
-  return (
-    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium truncate">{item.name || '未命名道具'}</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-          {hasItemEffects(item) && (
-            <Badge variant="secondary" className="text-xs">
-              <Zap className="h-3 w-3 mr-1" />
-              {getItemEffects(item).length} 個效果
-            </Badge>
-          )}
-          {item.checkType && item.checkType !== 'none' && (
-            <Badge variant="outline" className="text-xs">
-              {item.checkType === 'contest' ? '對抗檢定' : item.checkType === 'random_contest' ? '隨機對抗檢定' : '隨機檢定'}
-            </Badge>
-          )}
-          {item.tags && item.tags.length > 0 && item.tags.map((tag) => (
-            <Badge key={tag} variant="outline" className="text-xs">
-              {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
-            </Badge>
+          {items.map((item) => (
+            <AbilityCard
+              key={item.id}
+              ability={item}
+              mode="item"
+              status={getItemStatus(item)}
+              onEdit={() => handleEditItem(item)}
+              onRemove={() => handleSoftDelete(item.id)}
+              onRestore={() => handleRestore(item.id)}
+              disabled={isLoading}
+            />
           ))}
-          {item.usageLimit != null && (
-            <Badge variant="outline" className="text-xs">
-              {item.usageLimit > 0
-                ? `${(item.usageLimit || 0) - (item.usageCount || 0)} / ${item.usageLimit} 次`
-                : '無限次'}
-            </Badge>
-          )}
-          {item.cooldown != null && item.cooldown > 0 && (
-            <Badge variant="outline" className="text-xs">
-              <Clock className="h-3 w-3 mr-1" />
-              {item.cooldown}s
-            </Badge>
-          )}
         </div>
-        {item.description && (
-          <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{item.description}</p>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" onClick={onRemove}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      )}
+
+      {editingItem && (
+        <AbilityEditWizard
+          mode="item"
+          open={isWizardOpen}
+          onOpenChange={setIsWizardOpen}
+          initialData={editingItem}
+          isNew={isNew}
+          stats={stats}
+          randomContestMaxValue={randomContestMaxValue}
+          onSave={(data) => handleWizardSave(data as Item)}
+        />
+      )}
     </div>
   );
 }

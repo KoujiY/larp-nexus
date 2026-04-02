@@ -6,7 +6,6 @@
  *   - applyItemTransfer()   — 執行道具移除／偷竊的 DB 操作與 WebSocket 通知
  *
  * 各 executor 自行負責的差異邏輯：
- *   - $unset tasks.$[].gmNotes（只有 skill / contest executor 需要）
  *   - log 記錄（action 名稱各不相同）
  *   - 最終 role.updated / character.affected 的 stats 通知時機
  */
