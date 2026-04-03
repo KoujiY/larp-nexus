@@ -59,9 +59,9 @@ export default async function ProfilePage() {
       maxWidth="xl"
       contentMaxWidth="md"
     >
-      <div className="space-y-8 py-4">
+      <div className="space-y-10 py-4">
         {/* Header：頭貼 + 名稱 */}
-        <header className="flex items-center gap-6 mb-4">
+        <header className="flex items-center gap-6">
           <div className="relative group cursor-pointer shrink-0">
             <div className="w-20 h-20 rounded-full bg-muted-foreground/30 flex items-center justify-center text-white text-3xl font-bold shadow-sm">
               {avatarInitial}
