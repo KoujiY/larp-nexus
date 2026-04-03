@@ -31,8 +31,8 @@ import {
 
 type CreateCharacterButtonProps = {
   gameId: string;
-  /** 'button'（預設）= header 按鈕；'card' = grid 內的空狀態卡片 */
-  variant?: 'button' | 'card';
+  /** 'button'（預設）= header 按鈕；'card' = grid 內的虛線框卡片；'empty-state' = GmEmptyState 內嵌 DashedAddButton */
+  variant?: 'button' | 'card' | 'empty-state';
 };
 
 export function CreateCharacterButton({ gameId, variant = 'button' }: CreateCharacterButtonProps) {
@@ -84,6 +84,12 @@ export function CreateCharacterButton({ gameId, variant = 'button' }: CreateChar
       label="建立新角色"
       onClick={() => setOpen(true)}
       className="min-h-[180px] py-5"
+    />
+  ) : variant === 'empty-state' ? (
+    <DashedAddButton
+      label="建立第一個角色"
+      onClick={() => setOpen(true)}
+      className="max-w-xs py-4"
     />
   ) : (
     <Button

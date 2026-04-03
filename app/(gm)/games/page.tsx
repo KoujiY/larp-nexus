@@ -38,7 +38,7 @@ export default async function GamesPage() {
           title="尚無劇本"
           description="建立您的第一個劇本，開始編織冒險的篇章"
         >
-          <CreateGameButton />
+          <CreateGameButton variant="empty-state" />
         </GmEmptyState>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">

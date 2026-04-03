@@ -100,7 +100,7 @@ export default async function GamePage({ params }: GamePageProps) {
               title="尚未建立任何角色"
               description="開始為你的劇本建立角色吧，每個角色都可以擁有獨立的背景故事、道具與技能。"
             >
-              <CreateCharacterButton gameId={game.id} variant="card" />
+              <CreateCharacterButton gameId={game.id} variant="empty-state" />
             </GmEmptyState>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
