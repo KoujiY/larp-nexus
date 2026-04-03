@@ -18,6 +18,18 @@ Game Active → [Runtime created from Baseline snapshot]
 Game Ended → [Runtime deleted, Baseline preserved]
 ```
 
+## GM 端資料讀取策略
+
+GM 端查詢角色資料時，必須根據 `game.isActive` 決定資料來源：
+
+| 函式 | 檔案 | 行為 |
+|------|------|------|
+| `getCharacterData()` | `app/actions/characters.ts` | 自動根據 `isActive` 回傳 Runtime 或 Baseline |
+| `getCharactersByGameId()` | `app/actions/characters.ts` | 查詢 Baseline 後，若 `isActive` 則覆蓋 Runtime 資料（name、stats 等） |
+| `getGameItems()` | `app/actions/games.ts` | 查詢 Baseline 後，若 `isActive` 則覆蓋 Runtime 的 name + items |
+
+**覆蓋模式**：先查 Baseline 取得所有角色 ID，再查 Runtime 建立 `Map<refId, runtimeData>`，逐一覆蓋。回傳的 `id` 始終使用 Baseline `_id`（確保路由一致性）。
+
 ## Player Access Modes
 
 | Mode | Condition | Data Source | Interactions |
