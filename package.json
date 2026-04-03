@@ -1,6 +1,6 @@
 {
   "name": "larp-nexus",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
@@ -15,6 +15,7 @@
     "test:connection": "tsx scripts/test-connection.ts",
     "test:sendmail": "tsx scripts/test-sendmail.ts",
     "migrate:phase10": "tsx scripts/migrate-phase10.ts",
+    "migrate:phase-e": "tsx scripts/migrate-phase-e.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
