@@ -10,7 +10,7 @@ The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs**
 **Narrative Group（敘事）**
 | Tab | Component | Content |
 |-----|-----------|---------|
-| 基本設定 | `basic-settings-tab.tsx` | Name, description, personality, PIN lock |
+| 基本設定 | `basic-settings-tab.tsx` | Name, description, slogan, personality, PIN lock |
 | 背景故事 | `background-story-tab.tsx` | Background blocks + relationships |
 | 隱藏資訊 | `secrets-tab.tsx` | Secrets with reveal conditions |
 
@@ -39,6 +39,7 @@ interface CharacterData {
   gameId: string;
   name: string;
   description: string;
+  slogan?: string;
   imageUrl?: string;
   hasPinLock: boolean;
   publicInfo?: PublicInfo;
@@ -53,7 +54,7 @@ interface CharacterData {
 ```
 
 ## Related Knowledge
-- [basic-info.md](./basic-info.md) — name, description, PIN
+- [basic-info.md](./basic-info.md) — name, description, slogan, personality, PIN
 - [public-info.md](./public-info.md) — player's pre-game knowledge
 - [hidden-info.md](./hidden-info.md) — what character doesn't know about themselves
 - [stats.md](./stats.md) — numeric stats and temporary effects

@@ -8,8 +8,10 @@ Component: `components/gm/character-edit-form.tsx`
 
 ### 1. 基本設定
 - **Name** (`name`): Character display name
-- **Description** (`description`): Brief character description shown on GM card list
-- **PIN**: 4-digit lock. If `hasPinLock=true`, player must enter PIN to view character card. Set days before game event.
+- **Description** (`description`): Brief character description shown on GM card list (public intro for others)
+- **Slogan** (`slogan`, optional): One-line roleplay hint shown on player character card hero section. May contain spoilers about the character's true nature — intended for the player only, not other participants
+- **Personality** (`personality`): Character behavior guidelines and personality traits (stored in `publicInfo.personality`)
+- **PIN**: 4-6 digit lock. If `hasPinLock=true`, player must enter PIN to view character card. Set days before game event.
 
 ### 2. 公開資訊 (Public Info)
 See [public-info.md](./public-info.md)
