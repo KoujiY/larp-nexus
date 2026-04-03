@@ -6,6 +6,7 @@ import { UploadCharacterImageButton } from './upload-character-image-button';
 import { GenerateQRCodeButton } from './generate-qrcode-button';
 import { ViewPinButton } from './view-pin-button';
 import Link from 'next/link';
+import { NavLink } from '@/components/shared/nav-link';
 import { User } from 'lucide-react';
 import Image from 'next/image';
 
@@ -18,7 +19,7 @@ export function CharacterCard({ character, gameId }: CharacterCardProps) {
   return (
     <div className="group bg-card rounded-xl overflow-hidden border border-border/40 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5">
       {/* 可點擊區域 — 導航至編輯頁 */}
-      <Link href={`/games/${gameId}/characters/${character.id}`} className="block">
+      <NavLink href={`/games/${gameId}/characters/${character.id}`} className="block rounded-t-xl overflow-hidden" showOverlay>
         {/* 角色圖片 */}
         {character.imageUrl ? (
           <div className="relative aspect-16/10 w-full overflow-hidden bg-muted">
@@ -35,7 +36,7 @@ export function CharacterCard({ character, gameId }: CharacterCardProps) {
             <span className="text-[9px] text-muted-foreground/30 tracking-widest mt-1">尚無圖片</span>
           </div>
         )}
-      </Link>
+      </NavLink>
 
       {/* 卡片資訊區 */}
       <div className="px-4 py-3">

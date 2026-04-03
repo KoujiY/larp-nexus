@@ -1,5 +1,7 @@
-import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+'use client';
+
+import { NavLink } from '@/components/shared/nav-link';
+import { ChevronRight, Loader2 } from 'lucide-react';
 
 interface BreadcrumbItem {
   label: string;
@@ -30,9 +32,16 @@ export function GmBreadcrumb({ items }: GmBreadcrumbProps) {
                   {item.label}
                 </span>
               ) : (
-                <Link href={item.href} className="transition-colors hover:text-foreground">
-                  {item.label}
-                </Link>
+                <NavLink
+                  href={item.href}
+                  className="transition-colors hover:text-foreground inline-flex items-center gap-1"
+                  render={(isPending) => (
+                    <>
+                      <span>{item.label}</span>
+                      {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                    </>
+                  )}
+                />
               )}
             </li>
           );

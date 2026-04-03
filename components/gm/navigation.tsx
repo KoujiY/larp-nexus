@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { logout } from '@/app/actions/auth';
+import { NavLink } from '@/components/shared/nav-link';
 import {
   BookOpen,
   Settings,
@@ -15,6 +16,7 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -151,7 +153,7 @@ function ExpandedNavigation({ onToggle }: { onToggle?: () => void }) {
             pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
-            <Link
+            <NavLink
               key={item.href}
               href={item.href}
               className={cn(
@@ -160,10 +162,17 @@ function ExpandedNavigation({ onToggle }: { onToggle?: () => void }) {
                   ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 font-bold'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
               )}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              <span>{item.label}</span>
-            </Link>
+              render={(isPending) => (
+                <>
+                  {isPending ? (
+                    <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
+                  ) : (
+                    <item.icon className="h-5 w-5 shrink-0" />
+                  )}
+                  <span>{item.label}</span>
+                </>
+              )}
+            />
           );
         })}
       </div>
@@ -258,7 +267,7 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
             return (
               <Tooltip key={item.href}>
                 <TooltipTrigger asChild>
-                  <Link
+                  <NavLink
                     href={item.href}
                     className={cn(
                       'flex items-center justify-center w-12 h-12 rounded-xl transition-all active:scale-95',
@@ -266,9 +275,14 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                     )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                  </Link>
+                    render={(isPending) =>
+                      isPending ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <item.icon className="h-5 w-5" />
+                      )
+                    }
+                  />
                 </TooltipTrigger>
                 <TooltipContent side="right">{item.label}</TooltipContent>
               </Tooltip>

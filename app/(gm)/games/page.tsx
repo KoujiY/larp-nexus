@@ -2,7 +2,7 @@ import { getGames } from '@/app/actions/games';
 import { PageLayout } from '@/components/gm/page-layout';
 import { GmEmptyState } from '@/components/gm/gm-empty-state';
 import { CreateGameButton } from '@/components/gm/create-game-button';
-import Link from 'next/link';
+import { NavLink } from '@/components/shared/nav-link';
 import { redirect } from 'next/navigation';
 import { BookOpen, Users } from 'lucide-react';
 
@@ -87,7 +87,7 @@ type GameCardProps = {
 
 function GameCard({ game }: GameCardProps) {
   return (
-    <Link href={`/games/${game.id}`} className="block group">
+    <NavLink href={`/games/${game.id}`} className="block group rounded-xl overflow-hidden" showOverlay>
       <div className="game-card relative bg-card border border-border/40 p-6 rounded-xl flex flex-col h-[280px] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_20px_50px_-20px_oklch(var(--primary)/0.15)]">
         {/* 頂部：標題 + 狀態 Badge */}
         <div className="flex justify-between items-start mb-6">
@@ -128,6 +128,6 @@ function GameCard({ game }: GameCardProps) {
           </div>
         </div>
       </div>
-    </Link>
+    </NavLink>
   );
 }
