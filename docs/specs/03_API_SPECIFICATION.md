@@ -195,12 +195,12 @@ interface UpdateGameInput {
 
 #### `deleteGame(gameId: string)`
 
-刪除劇本（軟刪除或硬刪除）。
+刪除劇本及所有關聯資料（硬刪除）。
 
 **參數**
 ```typescript
 {
-  gameId: string;
+  gameId: string;  // 必須為有效 ObjectId 格式
 }
 ```
 
@@ -209,12 +209,16 @@ interface UpdateGameInput {
 {
   success: boolean;
   message?: string;
+  error?: string;  // VALIDATION_ERROR | NOT_FOUND | DELETE_FAILED
 }
 ```
 
-**認證需求**：需 GM Session + 權限驗證
+**認證需求**：需 GM Session + 劇本所有權驗證（`gmUserId` 比對）
 
-**注意**：刪除劇本時，需同時刪除相關角色卡
+**刪除順序**（子集合先刪，Game 最後刪，降低孤兒風險）：
+1. 收集該劇本下所有 Character ID
+2. 平行刪除：Character、CharacterRuntime、GameRuntime（`refId`）、Log、PendingEvent（`targetGameId` + `targetCharacterId`）
+3. 刪除 Game 本體
 
 ---
 
@@ -1418,6 +1422,8 @@ Server Action：檢查 Game Code 是否可用（全局唯一性）。
 Server Action：檢查 PIN 是否在同遊戲內可用。
 
 **實作位置**：`app/actions/characters.ts`
+
+**認證需求**：需 GM Session + 劇本所有權驗證（`Game.findOne({ _id: gameId, gmUserId })`）
 
 **邏輯**：查詢 `Character.findOne({ gameId, pin, _id: { $ne: excludeCharacterId } })`
 

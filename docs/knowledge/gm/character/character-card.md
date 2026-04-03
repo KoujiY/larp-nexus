@@ -29,6 +29,7 @@ The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs**
 - **Empty states**: `GmEmptyState` component with icon + title + action button
 - **Shared styles**: `lib/styles/gm-form.ts` — label, input, badge, scrollbar, section, accent card
 - **Shared components**: `GmInfoLine` (label:value), `GmEmptyState`, `DashedAddButton`, `IconActionButton`
+- **Form guard**: `useFormGuard` hook（`hooks/use-form-guard.ts`）— 所有 Tab 共用。透過 module-level ref-counting + `history.pushState` monkey-patch 攔截 Next.js client-side 導航。已知限制：若引入會 patch pushState 的第三方 SDK 可能衝突；瀏覽器 Navigation API 成熟後可替代（截至 2026-04 Firefox 尚未支持）
 
 ## Core Data Model
 

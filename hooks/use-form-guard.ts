@@ -40,6 +40,14 @@ function defaultCompare<T>(a: T, b: T): boolean {
 
 // ---------------------------------------------------------------------------
 // Module-level navigation guard：引用計數防止多 instance 重複攔截 pushState
+//
+// ⚠️ 已知限制（2026-04-03 評估）：
+// - 使用 module-level 可變狀態 + history.pushState monkey-patch
+// - 若未來引入會 patch pushState 的第三方 SDK（analytics、A/B testing 等），
+//   可能產生互相覆蓋的衝突（後 patch 者的 deactivate 會吃掉先 patch 者）
+// - Next.js App Router 不提供 routeChangeStart 事件，monkey-patch 是目前唯一手段
+// - 瀏覽器 Navigation API 可取代此做法，但 Firefox 尚未支持（截至 2026-04）
+// - 當前專案無衝突 SDK（Pusher 為 WebSocket，不碰 pushState），暫不重寫
 // ---------------------------------------------------------------------------
 let guardRefCount = 0;
 let originalPushState: typeof history.pushState | null = null;
