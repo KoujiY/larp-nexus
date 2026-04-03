@@ -2,16 +2,17 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Sparkles, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import {
+  GM_DIALOG_CONTENT_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 import type { CharacterTabKey, CharacterDirtyState } from '@/types/gm-edit';
 
 /** Tab key → 中文名稱對照 */
@@ -125,30 +126,41 @@ export function StickySaveBar({
 
       {/* 捨棄變更確認 Dialog */}
       <Dialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>捨棄所有變更？</DialogTitle>
-            <DialogDescription>
-              這將回復所有分頁的未儲存變更，包含已標記刪除的項目也會被復原。此操作無法還原。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
+        <DialogContent
+          className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[400px] p-0 gap-0')}
+          showCloseButton={false}
+        >
+          <div className="p-8 space-y-6">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-destructive/15 flex items-center justify-center">
+                <AlertTriangle className="h-8 w-8 text-destructive" />
+              </div>
+              <DialogTitle className="text-2xl font-bold tracking-tight">捨棄所有變更？</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                這將回復所有分頁的未儲存變更，包含已標記刪除的項目也會被復原。此操作無法還原。
+              </p>
+            </div>
+          </div>
+
+          <div className="px-8 pb-8 pt-0 flex gap-3">
+            <button
+              type="button"
               onClick={() => setShowDiscardDialog(false)}
+              className={cn(GM_CANCEL_BUTTON_CLASS, 'flex-1 py-3')}
             >
               取消
-            </Button>
-            <Button
-              variant="destructive"
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 onDiscardAll();
                 setShowDiscardDialog(false);
               }}
+              className="flex-1 py-3 px-4 rounded-lg text-sm font-bold cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/10 transition-all active:scale-[0.98]"
             >
               捨棄所有變更
-            </Button>
-          </DialogFooter>
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -8,12 +8,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { PlayCircle, StopCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -107,20 +104,29 @@ export function GameLifecycleControls({
             開始遊戲
           </Button>
 
-          {/* 開始遊戲確認對話框（保持 shadcn 預設樣式） */}
+          {/* 開始遊戲確認對話框 */}
           <Dialog open={showStartDialog} onOpenChange={setShowStartDialog}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>開始遊戲</DialogTitle>
-                <DialogDescription>
-                  確認要開始遊戲嗎？系統將複製當前設定作為遊戲進行中的狀態。
-                </DialogDescription>
-              </DialogHeader>
+            <DialogContent
+              className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[400px] p-0 gap-0')}
+              showCloseButton={false}
+            >
+              <div className="p-8 space-y-6">
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-success/15 flex items-center justify-center">
+                    <PlayCircle className="h-8 w-8 text-success" />
+                  </div>
+                  <DialogTitle className="text-2xl font-bold tracking-tight">開始遊戲</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    確認要開始遊戲嗎？系統將複製當前設定作為遊戲進行中的狀態。
+                  </DialogDescription>
+                </div>
 
-              <div className="py-4 space-y-4">
-                <div className="p-4 rounded-lg bg-warning/10 text-foreground text-sm border border-warning/30">
-                  <p className="font-semibold mb-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 text-warning" />注意事項</p>
-                  <ul className="list-disc list-inside space-y-1 text-xs">
+                <div className="bg-muted/50 border border-border/20 rounded-xl p-5 shadow-sm">
+                  <p className="font-semibold text-sm mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 text-warning" />
+                    注意事項
+                  </p>
+                  <ul className="list-disc text-sm text-muted-foreground space-y-1.5 ml-4">
                     <li>遊戲開始後，玩家可以開始進行遊戲操作</li>
                     <li>對設定資料的修改不會影響進行中的遊戲</li>
                     <li>如果已有進行中的遊戲，現有進度將被覆蓋</li>
@@ -128,24 +134,24 @@ export function GameLifecycleControls({
                 </div>
               </div>
 
-              <DialogFooter>
-                <Button
+              <div className="px-8 pb-8 pt-0 flex gap-3">
+                <button
                   type="button"
-                  variant="outline"
                   onClick={() => setShowStartDialog(false)}
                   disabled={isLoading}
+                  className={cn(GM_CANCEL_BUTTON_CLASS, 'flex-1 py-3')}
                 >
                   取消
-                </Button>
-                <Button
+                </button>
+                <button
                   type="button"
                   onClick={handleStartGame}
                   disabled={isLoading}
-                  className="bg-success text-success-foreground hover:bg-success/90"
+                  className="flex-1 py-3 px-4 rounded-lg text-sm font-bold cursor-pointer bg-success text-success-foreground hover:bg-success/90 shadow-lg shadow-success/10 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {isLoading ? '開始中...' : '確認開始'}
-                </Button>
-              </DialogFooter>
+                </button>
+              </div>
             </DialogContent>
           </Dialog>
         </>
@@ -169,14 +175,11 @@ export function GameLifecycleControls({
               className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[400px] p-0 gap-0')}
               showCloseButton={false}
             >
-              {/* 頂部漸層條 */}
-              <div className="h-1.5 w-full bg-linear-to-br from-primary to-primary/80 rounded-t-xl" />
-
               <div className="p-8 space-y-6">
                 {/* 居中警告 */}
                 <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center">
-                    <AlertTriangle className="h-8 w-8 text-primary" />
+                  <div className="w-16 h-16 rounded-full bg-destructive/15 flex items-center justify-center">
+                    <AlertTriangle className="h-8 w-8 text-destructive" />
                   </div>
                   <DialogTitle className="text-2xl font-bold tracking-tight">確定要結束遊戲？</DialogTitle>
 

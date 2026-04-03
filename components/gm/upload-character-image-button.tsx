@@ -3,18 +3,25 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { uploadCharacterImage } from '@/app/actions/characters';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Upload } from 'lucide-react';
+import { Upload, AlertTriangle } from 'lucide-react';
 import { IconActionButton } from '@/components/gm/icon-action-button';
+import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_DIALOG_CONTENT_CLASS,
+  GM_DIALOG_HEADER_CLASS,
+  GM_DIALOG_TITLE_CLASS,
+  GM_DIALOG_BODY_CLASS,
+  GM_DIALOG_FOOTER_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+  GM_CTA_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
 interface UploadCharacterImageButtonProps {
   characterId: string;
@@ -108,79 +115,84 @@ export function UploadCharacterImageButton({
         size="sm"
       />
       <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>上傳角色圖片</DialogTitle>
-          <DialogDescription>
-            選擇一張圖片作為角色卡的封面（最大 5MB）
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="image">選擇圖片</Label>
-            <input
-              ref={fileInputRef}
-              id="image"
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              disabled={isLoading}
-              className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-lg file:border-0
-                file:text-sm file:font-semibold
-                file:bg-primary file:text-primary-foreground
-                hover:file:bg-primary/90
-                file:cursor-pointer cursor-pointer"
-            />
+        <DialogContent
+          className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[480px] p-0 gap-0')}
+          showCloseButton={false}
+        >
+          <div className={GM_DIALOG_HEADER_CLASS}>
+            <DialogTitle className={GM_DIALOG_TITLE_CLASS}>上傳角色圖片</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground/70 mt-1">
+              選擇一張圖片作為角色卡的封面（最大 5MB）
+            </DialogDescription>
           </div>
 
-          {preview && (
+          <div className={GM_DIALOG_BODY_CLASS}>
             <div className="space-y-2">
-              <Label>預覽</Label>
-              <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="w-full h-full object-contain"
-                />
+              <label className={GM_LABEL_CLASS}>選擇圖片</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={isLoading}
+                className="block w-full text-sm text-muted-foreground
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-lg file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-primary file:text-primary-foreground
+                  hover:file:bg-primary/90
+                  file:cursor-pointer cursor-pointer"
+              />
+            </div>
+
+            {preview && (
+              <div className="space-y-2">
+                <label className={GM_LABEL_CLASS}>預覽</label>
+                <div className="relative w-full h-64 bg-muted rounded-xl overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={preview}
+                    alt="Preview"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {error && (
-            <div className="p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
-              {error}
-            </div>
-          )}
+            {error && (
+              <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-sm text-foreground flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-          {!process.env.NEXT_PUBLIC_BLOB_TOKEN_CONFIGURED && (
-            <div className="p-3 rounded-lg bg-warning/10 text-foreground text-sm border border-warning/30">
-              ⚠️ 提示：圖片上傳功能需要配置 Vercel Blob Token
-            </div>
-          )}
-        </div>
+            {!process.env.NEXT_PUBLIC_BLOB_TOKEN_CONFIGURED && (
+              <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 text-sm text-foreground flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+                <span>圖片上傳功能需要配置 Vercel Blob Token</span>
+              </div>
+            )}
+          </div>
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={isLoading}
-          >
-            取消
-          </Button>
-          <Button
-            type="button"
-            onClick={handleUpload}
-            disabled={isLoading || !selectedFile}
-          >
-            {isLoading ? '上傳中...' : '上傳圖片'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <div className={GM_DIALOG_FOOTER_CLASS}>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              disabled={isLoading}
+              className={GM_CANCEL_BUTTON_CLASS}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={isLoading || !selectedFile}
+              className={GM_CTA_BUTTON_CLASS}
+            >
+              {isLoading ? '上傳中...' : '上傳圖片'}
+            </button>
+          </div>
+        </DialogContent>
       </Dialog>
     </>
   );
