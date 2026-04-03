@@ -35,16 +35,34 @@ npm run test         # 運行測試
 
 ### React 模式（MANDATORY）
 
-**1. localStorage 初始化：使用 lazy initializer，禁止 useEffect + setState**
-```tsx
-// ❌ 禁止：useEffect 中呼叫 setState 會造成 cascading renders
-const [val, setVal] = useState(null);
-useEffect(() => { setVal(localStorage.getItem(KEY)); }, []);
+**1. localStorage 初始化：依「是否影響 DOM 結構」選擇策略**
 
-// ✅ 正確：lazy initializer 同步讀取，SSR 安全
-const [val, setVal] = useState(() => {
-  if (typeof window === 'undefined') return defaultValue;
-  return localStorage.getItem(KEY);
+判斷準則：**這個值會不會讓 server 和 client 產出不同的 DOM 結構？**
+
+**1a. 值只影響顯示內容（文字、className）→ lazy initializer**
+```tsx
+// ✅ theme 只影響 className，不改變元件樹
+const [theme, setTheme] = useState(() => {
+  if (typeof window === 'undefined') return 'light';
+  return localStorage.getItem('theme') ?? 'light';
+});
+```
+
+**1b. 值決定條件渲染（不同元件樹 `x ? <A/> : <B/>`）→ useEffect**
+```tsx
+// ✅ collapsed 決定渲染 CollapsedNav 或 ExpandedNav（不同 DOM 結構），
+//    初始值必須與 server 一致，hydration 後再讀 localStorage
+const [collapsed, setCollapsed] = useState(false);
+useEffect(() => {
+  if (localStorage.getItem(KEY) === 'true') setCollapsed(true);
+}, []);
+```
+
+```tsx
+// ❌ lazy initializer 在條件渲染場景會造成 hydration mismatch
+const [collapsed, setCollapsed] = useState(() => {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(KEY) === 'true'; // client 讀到 true → DOM 不同 → mismatch
 });
 ```
 
