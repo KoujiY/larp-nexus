@@ -6,22 +6,6 @@ import type { CharacterDocument } from '@/lib/db/models/Character';
 import type { CharacterRuntimeDocument } from '@/lib/db/models/CharacterRuntime';
 
 /**
- * Phase 10.4.1: 取得角色資料（自動判斷 Baseline/Runtime）
- *
- * 邏輯：
- * 1. 查詢 Baseline Character，取得 gameId
- * 2. 查詢 Game，取得 isActive
- * 3. 如果 isActive = true：
- *    - 查詢 CharacterRuntime (type: 'runtime')
- *    - 如果找到 Runtime，返回 Runtime
- *    - 如果找不到 Runtime（異常情況），返回 Baseline（並記錄警告）
- * 4. 如果 isActive = false：
- *    - 返回 Baseline Character
- *
- * @param characterId - Baseline Character ID
- * @returns Baseline Character 或 Runtime Character
- */
-/**
  * Phase 10.4.3: 從角色文件取得 Baseline Character ID
  *
  * 當角色文件可能是 Runtime 或 Baseline 時，此函數確保回傳的是 Baseline ID。
@@ -41,6 +25,15 @@ export function getBaselineCharacterId(
   return doc._id.toString();
 }
 
+/**
+ * 取得角色資料（自動判斷 Baseline/Runtime）
+ *
+ * 遊戲進行中（isActive=true）時回傳 Runtime，否則回傳 Baseline。
+ * 找不到 Runtime 時降級回傳 Baseline 並記錄警告。
+ *
+ * @param characterId - Baseline Character ID
+ * @returns Baseline Character 或 Runtime Character
+ */
 export async function getCharacterData(
   characterId: string
 ): Promise<CharacterDocument | CharacterRuntimeDocument> {

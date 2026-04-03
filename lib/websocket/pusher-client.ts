@@ -2,6 +2,11 @@ import Pusher from 'pusher-js';
 
 let cachedClient: Pusher | null = null;
 
+/**
+ * 取得 Pusher 客戶端實例（singleton）
+ *
+ * 僅在瀏覽器環境有效；缺少環境變數時回傳 null 並停用 WebSocket。
+ */
 export function getPusherClient(): Pusher | null {
   if (typeof window === 'undefined') return null;
   if (cachedClient) return cachedClient;

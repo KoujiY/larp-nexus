@@ -115,6 +115,12 @@ function mapDefenderResult(
 
 // ─── 主要 factory ─────────────────────────────────────────────────────────────
 
+/**
+ * 建立技能相關 WebSocket 事件的通知映射器
+ *
+ * @param characterId - 當前角色 ID，用於判斷攻/守方視角
+ * @returns 包含 skill.used / skill.cooldown / skill.contest 映射函數的物件
+ */
 export function createSkillEventMappers(characterId: string) {
   /**
    * 映射技能對抗檢定事件

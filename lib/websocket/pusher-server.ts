@@ -9,6 +9,11 @@ const cluster = process.env.PUSHER_CLUSTER;
 
 const isConfigured = Boolean(appId && key && secret && cluster);
 
+/**
+ * 取得 Pusher 伺服器端實例（singleton）
+ *
+ * 缺少環境變數時回傳 null，所有 WebSocket 推送將靜默跳過。
+ */
 export function getPusherServer(): Pusher | null {
   if (!isConfigured) return null;
   if (!pusherServerInstance) {
@@ -23,6 +28,7 @@ export function getPusherServer(): Pusher | null {
   return pusherServerInstance;
 }
 
+/** 檢查 Pusher 環境變數是否已完整設定 */
 export function isPusherEnabled(): boolean {
   return isConfigured;
 }
