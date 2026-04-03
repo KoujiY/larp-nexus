@@ -2,7 +2,7 @@
 
 ## Location
 Character edit page → 📝 基本資訊 tab
-Component: `components/gm/character-edit-form.tsx`
+Component: `components/gm/character-edit-tabs.tsx` → 📝 基本資訊 tab → `basic-settings-tab.tsx`
 
 ## Three Card Sections
 

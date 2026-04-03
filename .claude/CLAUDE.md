@@ -118,17 +118,23 @@ docs/             # 文檔
 
 ### 新功能開發
 1. 讀取相關知識庫文件（`docs/knowledge/`）
-2. `/plan` 規劃實作步驟
-3. `/tdd` 測試驅動實作
-4. `/code-review` 審查程式碼
-5. 更新知識庫（若邏輯有變動）
-6. Commit & PR
+2. 更新開發規劃文件（需求定義、影響範圍、欄位釐清）
+3. `/plan` 規劃實作步驟
+4. `/tdd` 測試驅動實作
+5. `/code-review` 審查程式碼
+6. 更新知識庫（反映實作結果）
+7. Commit（按 type 拆分）& PR
 
 ### Bug 修復
 1. 讀取相關知識庫文件理解現行邏輯
 2. 實作修復
 3. 補回歸測試
 4. `/code-review` 審查
+
+### Commit 前檢查（MANDATORY）
+1. **按 type 拆分**：`feat` / `docs` / `fix` / `refactor` 等不同類型不混在同一 commit
+2. **知識庫同步**：此次變更是否需要更新 `docs/knowledge/` 下的對應文件
+3. **開發規劃同步**：是否需要在 `NEXT_DEVELOPMENT_PLAN.md` 標記項目完成
 
 ## 知識庫 (Knowledge Base)
 
