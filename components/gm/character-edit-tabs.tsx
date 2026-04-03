@@ -13,6 +13,7 @@ import { ItemsEditForm } from '@/components/gm/items-edit-form';
 import { SkillsEditForm } from '@/components/gm/skills-edit-form';
 import { StickySaveBar } from '@/components/gm/sticky-save-bar';
 import { useCharacterEditState } from '@/hooks/use-character-edit-state';
+import { cn } from '@/lib/utils';
 import type { CharacterData } from '@/types/character';
 import type { CharacterTabKey } from '@/types/gm-edit';
 
@@ -74,6 +75,8 @@ export function CharacterEditTabs({
     dirtyTabKeys,
     isSaving,
     registerDirty,
+    registerSaveHandler,
+    registerDiscardHandler,
     saveAll,
     discardAll,
   } = useCharacterEditState();
@@ -138,7 +141,7 @@ export function CharacterEditTabs({
 
         {/* === Tab 內容 === */}
 
-        <TabsContent value="basic" className="space-y-6">
+        <TabsContent value="basic" forceMount className="space-y-6 data-[state=inactive]:hidden">
           <BasicSettingsTab
             character={character}
             gameId={gameId}
@@ -150,10 +153,12 @@ export function CharacterEditTabs({
                 deleted: 0,
               })
             }
+            onRegisterSave={(h) => registerSaveHandler('basic', h)}
+            onRegisterDiscard={(h) => registerDiscardHandler('basic', h)}
           />
         </TabsContent>
 
-        <TabsContent value="background" className={isFullHeightTab ? 'flex-1 min-h-0 mt-6' : 'space-y-6'}>
+        <TabsContent value="background" forceMount className={cn('data-[state=inactive]:hidden', isFullHeightTab ? 'flex-1 min-h-0 mt-6' : 'space-y-6')}>
           <BackgroundStoryTab
             character={character}
             gameCharacters={gameCharacters}
@@ -165,10 +170,12 @@ export function CharacterEditTabs({
                 deleted: 0,
               })
             }
+            onRegisterSave={(h) => registerSaveHandler('background', h)}
+            onRegisterDiscard={(h) => registerDiscardHandler('background', h)}
           />
         </TabsContent>
 
-        <TabsContent value="secrets" className={isFullHeightTab ? 'flex-1 min-h-0 mt-6' : 'space-y-6'}>
+        <TabsContent value="secrets" forceMount className={cn('data-[state=inactive]:hidden', isFullHeightTab ? 'flex-1 min-h-0 mt-6' : 'space-y-6')}>
           <SecretsTab
             character={character}
             gameId={gameId}
@@ -180,10 +187,12 @@ export function CharacterEditTabs({
                 deleted: 0,
               })
             }
+            onRegisterSave={(h) => registerSaveHandler('secrets', h)}
+            onRegisterDiscard={(h) => registerDiscardHandler('secrets', h)}
           />
         </TabsContent>
 
-        <TabsContent value="stats" className="space-y-6">
+        <TabsContent value="stats" forceMount className="space-y-6 data-[state=inactive]:hidden">
           <StatsEditForm
             characterId={character.id}
             initialStats={character.stats || []}
@@ -195,11 +204,13 @@ export function CharacterEditTabs({
                 deleted: 0,
               })
             }
+            onRegisterSave={(h) => registerSaveHandler('stats', h)}
+            onRegisterDiscard={(h) => registerDiscardHandler('stats', h)}
           />
           <TemporaryEffectsCard characterId={character.id} />
         </TabsContent>
 
-        <TabsContent value="tasks">
+        <TabsContent value="tasks" forceMount className="data-[state=inactive]:hidden">
           <TasksEditForm
             characterId={character.id}
             gameId={gameId}
@@ -216,10 +227,12 @@ export function CharacterEditTabs({
                 deleted: 0,
               })
             }
+            onRegisterSave={(h) => registerSaveHandler('tasks', h)}
+            onRegisterDiscard={(h) => registerDiscardHandler('tasks', h)}
           />
         </TabsContent>
 
-        <TabsContent value="items">
+        <TabsContent value="items" forceMount className="data-[state=inactive]:hidden">
           <ItemsEditForm
             characterId={character.id}
             initialItems={character.items || []}
@@ -233,10 +246,12 @@ export function CharacterEditTabs({
                 deleted: 0,
               })
             }
+            onRegisterSave={(h) => registerSaveHandler('items', h)}
+            onRegisterDiscard={(h) => registerDiscardHandler('items', h)}
           />
         </TabsContent>
 
-        <TabsContent value="skills">
+        <TabsContent value="skills" forceMount className="data-[state=inactive]:hidden">
           <SkillsEditForm
             characterId={character.id}
             initialSkills={character.skills || []}
@@ -250,6 +265,8 @@ export function CharacterEditTabs({
                 deleted: 0,
               })
             }
+            onRegisterSave={(h) => registerSaveHandler('skills', h)}
+            onRegisterDiscard={(h) => registerDiscardHandler('skills', h)}
           />
         </TabsContent>
       </Tabs>

@@ -38,12 +38,48 @@ function defaultCompare<T>(a: T, b: T): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+// ---------------------------------------------------------------------------
+// Module-level navigation guard：引用計數防止多 instance 重複攔截 pushState
+// ---------------------------------------------------------------------------
+let guardRefCount = 0;
+let originalPushState: typeof history.pushState | null = null;
+
+function activateNavigationGuard() {
+  guardRefCount++;
+  if (guardRefCount > 1) return; // 已由其他 instance 啟動
+
+  originalPushState = history.pushState.bind(history);
+  const saved = originalPushState;
+
+  // 攔截 Next.js App Router 的 client-side 導航
+  history.pushState = function (
+    state: unknown,
+    title: string,
+    url?: string | URL | null,
+  ) {
+    if (window.confirm('你有未儲存的變更，確定要離開嗎？')) {
+      saved(state, title, url);
+    }
+  };
+}
+
+function deactivateNavigationGuard() {
+  guardRefCount--;
+  if (guardRefCount > 0) return; // 還有其他 instance 在使用
+  if (originalPushState) {
+    history.pushState = originalPushState;
+    originalPushState = null;
+  }
+}
+
 /**
  * 表單未儲存變更保護 Hook
  *
  * 追蹤表單的 dirty state，並在有未儲存變更時：
  * 1. 註冊 `beforeunload` 事件（攔截瀏覽器關閉/重新整理）
- * 2. 回傳 `isDirty` 供視覺提示使用
+ * 2. 攔截 `history.pushState`（攔截 Next.js client-side 導航）
+ * 3. 監聽 `popstate`（攔截瀏覽器上一頁/下一頁）
+ * 4. 回傳 `isDirty` 供視覺提示使用
  *
  * @example
  * ```tsx
@@ -81,18 +117,36 @@ export function useFormGuard<T>({
     return manualDirty || !compareFn(initialData, currentData);
   }, [enabled, manualDirty, initialData, currentData, compareFn]);
 
-  // L1: beforeunload 攔截（瀏覽器關閉、重新整理、手動輸入 URL）
+  // 離開保護：beforeunload + pushState 攔截 + popstate 監聽
   useEffect(() => {
     if (!isDirty) return;
 
-    const handler = (e: BeforeUnloadEvent) => {
+    // L1: 瀏覽器關閉、重新整理、手動輸入 URL
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      // 現代瀏覽器忽略自訂訊息，但仍需設定 returnValue
       e.returnValue = '';
     };
+    window.addEventListener('beforeunload', onBeforeUnload);
 
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
+    // L2: Next.js client-side 導航（pushState）
+    activateNavigationGuard();
+
+    // L3: 瀏覽器上一頁/下一頁
+    const onPopState = () => {
+      const confirmed = window.confirm('你有未儲存的變更，確定要離開嗎？');
+      if (!confirmed) {
+        // 取消返回：暫時恢復原始 pushState 再推回當前路徑
+        const saved = originalPushState ?? history.pushState.bind(history);
+        saved(null, '', window.location.href);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('popstate', onPopState);
+      deactivateNavigationGuard();
+    };
   }, [isDirty]);
 
   /** 重置 dirty 狀態（儲存成功後呼叫） */

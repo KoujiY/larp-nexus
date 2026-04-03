@@ -12,11 +12,14 @@ import { cn } from '@/lib/utils';
 import { GM_SECTION_TITLE_CLASS, GM_STATUS_BADGE_BASE, GM_BADGE_VARIANTS } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
 import type { Stat } from '@/types/character';
+import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 
 interface StatsEditFormProps {
   characterId: string;
   initialStats: Stat[];
   onDirtyChange?: (dirty: boolean) => void;
+  onRegisterSave?: RegisterSaveHandler;
+  onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 type StatStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
@@ -28,7 +31,7 @@ type StatStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
  * 有 maxValue 時顯示 `/ max` 與百分比水印。
  * 支援檢視 / 編輯模式切換、軟刪除（可復原）、狀態 badge。
  */
-export function StatsEditForm({ characterId, initialStats, onDirtyChange }: StatsEditFormProps) {
+export function StatsEditForm({ characterId, initialStats, onDirtyChange, onRegisterSave, onRegisterDiscard }: StatsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stat[]>(initialStats);
@@ -125,8 +128,7 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange }: Stat
     [],
   );
 
-  // TODO: 待 StickySaveBar registerSaveHandler 接線後啟用
-  const handleSave = async () => {
+  const save = useCallback(async (options?: SaveHandlerOptions) => {
     const activeStats = effectiveStats;
     const invalidStats = activeStats.filter((s) => !s.name.trim());
     if (invalidStats.length > 0) {
@@ -138,7 +140,7 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange }: Stat
     try {
       const result = await updateCharacter(characterId, { stats: activeStats });
       if (result.success) {
-        toast.success('數值已儲存');
+        if (!options?.silent) toast.success('數值已儲存');
         resetDirty();
         router.refresh();
       } else {
@@ -149,7 +151,15 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange }: Stat
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [characterId, effectiveStats, resetDirty, router]);
+
+  const discard = useCallback(() => {
+    setStats(initialStats);
+    setDeletedIds(new Set());
+  }, [initialStats]);
+
+  useEffect(() => { onRegisterSave?.(save); }, [onRegisterSave, save]);
+  useEffect(() => { onRegisterDiscard?.(discard); }, [onRegisterDiscard, discard]);
 
   /** 所有可見 stats（含軟刪除的） */
   const visibleStats = stats;
@@ -239,57 +249,75 @@ interface StatCardProps {
  */
 function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, disabled }: StatCardProps) {
   const [isEditing, setIsEditing] = useState(false);
-  /** 進入編輯前的快照，用於取消還原 */
-  const [snapshot, setSnapshot] = useState<Stat | null>(null);
+  /** 編輯中的本地暫存，確認後才推給父層 */
+  const [draft, setDraft] = useState<Stat | null>(null);
   const isDeleted = status === 'deleted';
-  const hasMax = stat.maxValue !== undefined && stat.maxValue !== null;
-  const percent = hasMax && stat.maxValue! > 0
-    ? Math.round((stat.value / stat.maxValue!) * 100)
+
+  /** 顯示用的資料：編輯中用 draft，否則用 prop */
+  const displayStat = draft ?? stat;
+  const hasMax = displayStat.maxValue !== undefined && displayStat.maxValue !== null;
+  const percent = hasMax && displayStat.maxValue! > 0
+    ? Math.round((displayStat.value / displayStat.maxValue!) * 100)
     : undefined;
 
   /** 新增的 stat 自動進入編輯模式 */
   useEffect(() => {
     if (status === 'new' && !stat.name) {
       setIsEditing(true);
-      setSnapshot({ ...stat });
+      setDraft({ ...stat });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** 開始編輯 — 儲存快照 */
+  /** 更新 draft 的某個欄位 */
+  const updateDraft = useCallback(
+    (field: keyof Stat, value: string | number | undefined) => {
+      setDraft((prev) => {
+        if (!prev) return prev;
+        if (field === 'value' || field === 'maxValue') {
+          const numValue = value === '' || value === undefined ? undefined : Number(value);
+          return { ...prev, [field]: field === 'value' ? (numValue ?? 0) : numValue };
+        }
+        return { ...prev, [field]: value };
+      });
+    },
+    [],
+  );
+
+  /** 開始編輯 — 複製到 draft */
   const startEditing = useCallback(() => {
-    setSnapshot({ ...stat });
+    setDraft({ ...stat });
     setIsEditing(true);
   }, [stat]);
 
-  /** 完成編輯 */
+  /** 完成編輯 — 將 draft 推給父層 */
   const confirmEdit = useCallback(() => {
-    setSnapshot(null);
+    if (draft) {
+      onChange(draft.id, 'name', draft.name);
+      onChange(draft.id, 'value', draft.value);
+      onChange(draft.id, 'maxValue', draft.maxValue);
+    }
+    setDraft(null);
     setIsEditing(false);
-  }, []);
+  }, [draft, onChange]);
 
-  /** 取消編輯 — 新增的 stat 直接移除，既有的還原快照 */
+  /** 取消編輯 — 新增的 stat 直接移除，既有的丟棄 draft */
   const cancelEdit = useCallback(() => {
     if (status === 'new') {
       onHardRemove(stat.id);
       return;
     }
-    if (snapshot) {
-      onChange(stat.id, 'name', snapshot.name);
-      onChange(stat.id, 'value', snapshot.value);
-      onChange(stat.id, 'maxValue', snapshot.maxValue);
-    }
-    setSnapshot(null);
+    setDraft(null);
     setIsEditing(false);
-  }, [status, snapshot, stat.id, onChange, onHardRemove]);
+  }, [status, stat.id, onHardRemove]);
 
   /** 切換 maxValue 有無 */
   const toggleMaxValue = useCallback(() => {
     if (hasMax) {
-      onChange(stat.id, 'maxValue', undefined);
+      updateDraft('maxValue', undefined);
     } else {
-      onChange(stat.id, 'maxValue', 100);
+      updateDraft('maxValue', 100);
     }
-  }, [hasMax, stat.id, onChange]);
+  }, [hasMax, updateDraft]);
 
   /** 編輯模式 input 共用樣式 */
   const editInputClass = 'bg-muted/30 border border-border/30 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40';
@@ -371,8 +399,8 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
       {isEditing && !isDeleted ? (
         <input
           type="text"
-          value={stat.name}
-          onChange={(e) => onChange(stat.id, 'name', e.target.value)}
+          value={displayStat.name}
+          onChange={(e) => updateDraft('name', e.target.value)}
           placeholder="數值名稱"
           disabled={disabled}
           className={cn(
@@ -389,7 +417,7 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
           'text-xs font-extrabold uppercase tracking-[0.2em] mb-1',
           isDeleted ? 'text-muted-foreground/50 line-through' : 'text-muted-foreground',
         )}>
-          {stat.name || '未命名'}
+          {displayStat.name || '未命名'}
         </p>
       )}
 
@@ -398,8 +426,8 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
         {isEditing && !isDeleted ? (
           <input
             type="number"
-            value={stat.value}
-            onChange={(e) => onChange(stat.id, 'value', e.target.value)}
+            value={displayStat.value}
+            onChange={(e) => updateDraft('value', e.target.value)}
             disabled={disabled}
             className={cn(
               editInputClass,
@@ -413,7 +441,7 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
             'text-6xl font-black',
             isDeleted ? 'text-muted-foreground/30' : 'text-primary',
           )}>
-            {stat.value}
+            {displayStat.value}
           </span>
         )}
         {hasMax && (
@@ -425,9 +453,9 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
             {isEditing && !isDeleted ? (
               <input
                 type="number"
-                value={stat.maxValue ?? ''}
+                value={displayStat.maxValue ?? ''}
                 onChange={(e) =>
-                  onChange(stat.id, 'maxValue', e.target.value === '' ? undefined : e.target.value)
+                  updateDraft('maxValue', e.target.value === '' ? undefined : e.target.value)
                 }
                 disabled={disabled}
                 placeholder="上限"
@@ -439,7 +467,7 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
                 )}
               />
             ) : (
-              <span> {stat.maxValue}</span>
+              <span> {displayStat.maxValue}</span>
             )}
           </span>
         )}

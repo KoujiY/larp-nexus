@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { Game, Character } from '@/lib/db/models';
+import { Game, Character, CharacterRuntime } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
@@ -426,18 +426,34 @@ export async function getGameItems(
       };
     }
 
-    // 取得該劇本所有角色及其道具
-    const characters = await Character.find({ gameId })
+    // 取得該劇本所有角色及其道具（遊戲進行中讀 Runtime）
+    const baselineCharacters = await Character.find({ gameId })
       .select('_id name items')
       .lean();
 
+    // 遊戲進行中時，用 Runtime 資料覆蓋
+    let runtimeMap: Map<string, { name: string; items: typeof baselineCharacters[number]['items'] }> | null = null;
+    if (game.isActive) {
+      const runtimeCharacters = await CharacterRuntime.find({ gameId, type: 'runtime' })
+        .select('refId name items')
+        .lean();
+      runtimeMap = new Map(
+        runtimeCharacters.map((rc) => [
+          rc.refId.toString(),
+          { name: rc.name, items: rc.items },
+        ])
+      );
+    }
+
     const items: GameItemInfo[] = [];
-    for (const char of characters) {
-      const charItems = char.items || [];
+    for (const baseline of baselineCharacters) {
+      const runtime = runtimeMap?.get(baseline._id.toString());
+      const charName = runtime?.name ?? baseline.name;
+      const charItems = runtime?.items ?? baseline.items ?? [];
       for (const item of charItems) {
         items.push({
-          characterId: char._id.toString(),
-          characterName: char.name,
+          characterId: baseline._id.toString(),
+          characterName: charName,
           itemId: item.id,
           itemName: item.name,
         });

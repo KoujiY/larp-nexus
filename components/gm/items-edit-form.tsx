@@ -11,6 +11,7 @@ import { GM_SECTION_TITLE_CLASS } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
 import { Package } from 'lucide-react';
 import type { Item, Stat } from '@/types/character';
+import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 import type { BaseEvent, RoleUpdatedEvent, InventoryUpdatedEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { AbilityEditWizard } from './ability-edit-wizard';
@@ -22,6 +23,8 @@ interface ItemsEditFormProps {
   stats: Stat[];
   randomContestMaxValue?: number;
   onDirtyChange?: (dirty: boolean) => void;
+  onRegisterSave?: RegisterSaveHandler;
+  onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 /**
@@ -31,7 +34,7 @@ interface ItemsEditFormProps {
  * 新增卡片排在 grid 第一位。
  * 空狀態使用 GmEmptyState 共用元件。
  */
-export function ItemsEditForm({ characterId, initialItems, stats, randomContestMaxValue = 100, onDirtyChange }: ItemsEditFormProps) {
+export function ItemsEditForm({ characterId, initialItems, stats, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: ItemsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<Item[]>(initialItems);
@@ -176,13 +179,12 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     });
   }, []);
 
-  // TODO: 待 StickySaveBar registerSaveHandler 接線後啟用
-  const handleSave = async () => {
+  const save = useCallback(async (options?: SaveHandlerOptions) => {
     setIsLoading(true);
     try {
       const result = await updateCharacter(characterId, { items: effectiveItems });
       if (result.success) {
-        toast.success('道具已儲存');
+        if (!options?.silent) toast.success('道具已儲存');
         resetDirty();
         router.refresh();
       } else {
@@ -193,7 +195,15 @@ export function ItemsEditForm({ characterId, initialItems, stats, randomContestM
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [characterId, effectiveItems, resetDirty, router]);
+
+  const discard = useCallback(() => {
+    setItems(initialItems);
+    setDeletedIds(new Set());
+  }, [initialItems]);
+
+  useEffect(() => { onRegisterSave?.(save); }, [onRegisterSave, save]);
+  useEffect(() => { onRegisterDiscard?.(discard); }, [onRegisterDiscard, discard]);
 
   const isNew = editingItem ? !items.find((i) => i.id === editingItem.id) : true;
 

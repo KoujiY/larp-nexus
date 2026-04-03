@@ -35,7 +35,7 @@ export function PillToggle<T extends string>({
           className={cn(
             'flex-1 py-2 text-xs font-bold rounded-md transition-all',
             value === option.value
-              ? 'bg-white shadow-sm text-foreground'
+              ? 'bg-background shadow-sm text-foreground'
               : 'text-muted-foreground opacity-60 hover:opacity-100',
           )}
         >

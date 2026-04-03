@@ -43,3 +43,12 @@ export const EMPTY_DIRTY_INFO: TabDirtyInfo = {
   modified: 0,
   deleted: 0,
 } as const;
+
+/** Tab save handler 的選項 */
+export type SaveHandlerOptions = { silent?: boolean };
+
+/** Tab 向 StickySaveBar 註冊 save handler 的回調型別 */
+export type RegisterSaveHandler = (handler: (options?: SaveHandlerOptions) => Promise<void>) => void;
+
+/** Tab 向 StickySaveBar 註冊 discard handler 的回調型別 */
+export type RegisterDiscardHandler = (handler: () => void) => void;

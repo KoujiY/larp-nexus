@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,23 @@ export function StickySaveBar({
   onDiscardAll,
 }: StickySaveBarProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  /** 全部儲存 + 延遲 toast（等 exit 動畫結束後才顯示） */
+  const handleSaveAll = useCallback(async () => {
+    const tabCount = dirtyTabCount;
+    const tabNames = dirtyTabKeys.map((key) => TAB_LABELS[key]).join('、');
+
+    await onSaveAll();
+
+    // 清除先前可能殘留的 timer
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+
+    // 等待 exit 動畫結束（spring damping=25, stiffness=300 ≈ 400ms）
+    toastTimerRef.current = setTimeout(() => {
+      toast.success(`已儲存 ${tabCount} 個分頁的變更 (${tabNames})`);
+    }, 400);
+  }, [dirtyTabCount, dirtyTabKeys, onSaveAll]);
 
   /** 組裝摘要文字 */
   const summaryText = `${dirtyTabCount} 個分頁有未儲存的變更 (${dirtyTabKeys
@@ -82,7 +100,13 @@ export function StickySaveBar({
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed bottom-8 left-1/2 z-50 w-full max-w-4xl -translate-x-1/2 px-6 md:pl-32"
           >
-            <div className="rounded-2xl bg-[oklch(0.15_0.02_260)] text-white shadow-2xl backdrop-blur-xl">
+            <div className={cn(
+              'rounded-2xl shadow-2xl backdrop-blur-xl',
+              // 淺色：深底白字
+              'bg-[oklch(0.15_0.02_260)] text-white',
+              // 暗色：亮底深字
+              'dark:bg-[oklch(0.95_0.01_80)] dark:text-[oklch(0.15_0.02_260)]',
+            )}>
               <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-6">
                 {/* 左側：icon + 摘要 + 詳細 */}
                 <div className="flex items-start gap-4">
@@ -93,7 +117,7 @@ export function StickySaveBar({
                     <p className="text-sm font-bold uppercase tracking-widest">
                       {summaryText}
                     </p>
-                    <p className="mt-1 text-xs text-white/50">
+                    <p className="mt-1 text-xs opacity-50">
                       {detailText}
                     </p>
                   </div>
@@ -105,15 +129,19 @@ export function StickySaveBar({
                     type="button"
                     onClick={() => setShowDiscardDialog(true)}
                     disabled={isSaving}
-                    className="rounded-lg border border-white/20 px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50"
+                    className={cn(
+                      'cursor-pointer rounded-lg border px-6 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50',
+                      'border-white/20 text-white/70 hover:bg-white/10',
+                      'dark:border-[oklch(0.15_0.02_260)]/20 dark:text-[oklch(0.15_0.02_260)]/70 dark:hover:bg-[oklch(0.15_0.02_260)]/10',
+                    )}
                   >
                     捨棄變更
                   </button>
                   <button
                     type="button"
-                    onClick={onSaveAll}
+                    onClick={handleSaveAll}
                     disabled={isSaving}
-                    className="rounded-lg bg-linear-to-tr from-primary to-primary/80 px-8 py-2.5 text-xs font-bold uppercase tracking-widest text-primary-foreground shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+                    className="cursor-pointer rounded-lg bg-linear-to-tr from-primary to-primary/80 px-8 py-2.5 text-xs font-bold uppercase tracking-widest text-primary-foreground shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
                   >
                     {isSaving ? '儲存中...' : '全部儲存'}
                   </button>

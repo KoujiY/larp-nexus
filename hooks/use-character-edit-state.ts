@@ -5,11 +5,12 @@ import type {
   CharacterTabKey,
   TabDirtyInfo,
   CharacterDirtyState,
+  SaveHandlerOptions,
 } from '@/types/gm-edit';
 import { EMPTY_DIRTY_INFO } from '@/types/gm-edit';
 
 /** 各 Tab 的 save handler 型別 */
-type TabSaveHandler = () => Promise<void>;
+type TabSaveHandler = (options?: SaveHandlerOptions) => Promise<void>;
 
 /** 各 Tab 的 discard handler 型別 */
 type TabDiscardHandler = () => void;
@@ -110,13 +111,13 @@ export function useCharacterEditState() {
     [dirtyState]
   );
 
-  /** 全部儲存：依序呼叫所有 dirty Tab 的 save handler */
+  /** 全部儲存：依序呼叫所有 dirty Tab 的 save handler（傳 silent 抑制個別 toast） */
   const saveAll = useCallback(async () => {
     setIsSaving(true);
     try {
       const promises = dirtyTabKeys.map((key) => {
         const handler = saveHandlers.get(key);
-        return handler ? handler() : Promise.resolve();
+        return handler ? handler({ silent: true }) : Promise.resolve();
       });
       await Promise.all(promises);
     } finally {
@@ -140,7 +141,7 @@ export function useCharacterEditState() {
     });
   }, [discardHandlers]);
 
-  // beforeunload 攔截
+  // beforeunload 攔截（安全網 — pushState / popstate 由各 Tab 的 useFormGuard 統一處理）
   useEffect(() => {
     if (!hasDirty) return;
     const handler = (e: BeforeUnloadEvent) => {

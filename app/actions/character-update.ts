@@ -549,24 +549,31 @@ export async function updateCharacter(
           JSON.stringify(beforeState.secretInfo || {}));
 
     const statsChanged = changedStats.length > 0;
-    const skillsOrTasksChanged =
-      (data.skills !== undefined &&
-        JSON.stringify(data.skills) !==
-          JSON.stringify(beforeState.skills || [])) ||
-      (data.tasks !== undefined &&
-        JSON.stringify(data.tasks) !== JSON.stringify(beforeState.tasks || []));
+    const itemsChanged =
+      data.items !== undefined &&
+      JSON.stringify(data.items) !==
+        JSON.stringify(beforeState.items || []);
+
+    const skillsChanged =
+      data.skills !== undefined &&
+      JSON.stringify(data.skills) !==
+        JSON.stringify(beforeState.skills || []);
+
+    const tasksChanged =
+      data.tasks !== undefined &&
+      JSON.stringify(data.tasks) !== JSON.stringify(beforeState.tasks || []);
 
     // WebSocket：角色更新（不包含單純的道具變動）
-    if (basicChanged || statsChanged || skillsOrTasksChanged) {
+    if (basicChanged || statsChanged || itemsChanged || skillsChanged || tasksChanged) {
       emitRoleUpdated(characterId, {
         characterId,
         updates: {
           name: updatedCharacter.name,
           avatar: updatedCharacter.imageUrl,
           publicInfo: serializePublicInfo(updatedCharacter.publicInfo),
-          items: cleanItems as unknown as Record<string, unknown>[],
+          items: itemsChanged ? (cleanItems as unknown as Record<string, unknown>[]) : undefined,
           stats: statsChanged ? (changedStats as unknown as Record<string, unknown>[]) : undefined,
-          skills: cleanSkills as unknown as Record<string, unknown>[],
+          skills: skillsChanged ? (cleanSkills as unknown as Record<string, unknown>[]) : undefined,
         },
       }).catch((error) => console.error("Failed to emit role.updated", error));
     }
@@ -597,23 +604,44 @@ export async function updateCharacter(
         .catch((error) => console.error("[character-update] Failed to execute chain reveal for secrets", error));
     }
 
-    // Phase 10.6: 記錄 GM 更新角色日誌
-    await writeLog({
-      gameId: updatedCharacter.gameId.toString(),
-      characterId,
-      actorType: "gm",
-      actorId: gmUserId,
-      action: "gm_update",
-      details: {
-        characterName: updatedCharacter.name,
-        updatedFields: Object.keys(updateData),
-        hasStatsChange: statsChanged,
-        hasItemsChange: inventoryDiffs.length > 0,
-        hasSkillsChange: data.skills !== undefined,
-        hasTasksChange: data.tasks !== undefined,
-        hasSecretReveal: hasManualSecretReveal,
-      },
-    });
+    // Phase 10.6: 記錄 GM 更新角色日誌（只記錄實際變動的欄位）
+    const changedFields: string[] = [];
+    if (data.name !== undefined && data.name !== beforeState.name) changedFields.push('name');
+    if (data.description !== undefined && data.description !== beforeState.description) changedFields.push('description');
+    if (data.hasPinLock !== undefined && data.hasPinLock !== beforeState.hasPinLock) changedFields.push('hasPinLock');
+    if (data.pin !== undefined) changedFields.push('pin');
+    if (data.publicInfo !== undefined) {
+      const beforePub = beforeState.publicInfo || {};
+      // 只比對 data.publicInfo 中實際傳入的子欄位，避免部分更新 vs 完整結構的誤判
+      const publicInfoChanged = Object.keys(data.publicInfo).some(
+        (key) => JSON.stringify((data.publicInfo as Record<string, unknown>)[key]) !== JSON.stringify((beforePub as Record<string, unknown>)[key])
+      );
+      if (publicInfoChanged) changedFields.push('publicInfo');
+    }
+    if (data.secretInfo !== undefined && JSON.stringify(data.secretInfo) !== JSON.stringify(beforeState.secretInfo || {})) changedFields.push('secretInfo');
+    if (statsChanged) changedFields.push('stats');
+    if (itemsChanged) changedFields.push('items');
+    if (skillsChanged) changedFields.push('skills');
+    if (tasksChanged) changedFields.push('tasks');
+
+    if (changedFields.length > 0) {
+      await writeLog({
+        gameId: updatedCharacter.gameId.toString(),
+        characterId,
+        actorType: "gm",
+        actorId: gmUserId,
+        action: "gm_update",
+        details: {
+          characterName: updatedCharacter.name,
+          updatedFields: changedFields,
+          hasStatsChange: statsChanged,
+          hasItemsChange: inventoryDiffs.length > 0,
+          hasSkillsChange: skillsChanged,
+          hasTasksChange: tasksChanged,
+          hasSecretReveal: hasManualSecretReveal,
+        },
+      });
+    }
 
     return {
       success: true,

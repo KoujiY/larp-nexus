@@ -39,11 +39,14 @@ import {
 import { toast } from 'sonner';
 import type { CharacterData, BackgroundBlock, Relationship } from '@/types/character';
 import type { GameCharacterSummary } from '@/components/gm/character-edit-tabs';
+import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 
 interface BackgroundStoryTabProps {
   character: CharacterData;
   gameCharacters: GameCharacterSummary[];
   onDirtyChange?: (dirty: boolean) => void;
+  onRegisterSave?: RegisterSaveHandler;
+  onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 /**
@@ -53,6 +56,8 @@ export function BackgroundStoryTab({
   character,
   gameCharacters,
   onDirtyChange,
+  onRegisterSave,
+  onRegisterDiscard,
 }: BackgroundStoryTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -136,10 +141,9 @@ export function BackgroundStoryTab({
     });
   };
 
-  // ── Submit ──
+  // ── Save / Discard ──
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = useCallback(async (options?: SaveHandlerOptions) => {
     setIsLoading(true);
 
     try {
@@ -151,7 +155,7 @@ export function BackgroundStoryTab({
       });
 
       if (result.success) {
-        toast.success('背景故事已儲存');
+        if (!options?.silent) toast.success('背景故事已儲存');
         resetDirty();
         router.refresh();
       } else {
@@ -163,7 +167,19 @@ export function BackgroundStoryTab({
     } finally {
       setIsLoading(false);
     }
+  }, [character.id, formData, resetDirty, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await save();
   };
+
+  const discard = useCallback(() => {
+    setFormData(initialData);
+  }, [initialData]);
+
+  useEffect(() => { onRegisterSave?.(save); }, [onRegisterSave, save]);
+  useEffect(() => { onRegisterDiscard?.(discard); }, [onRegisterDiscard, discard]);
 
   return (
     <form onSubmit={handleSubmit} className="h-full">

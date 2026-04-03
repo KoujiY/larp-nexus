@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 import { Pencil, Trash2, Undo2, ChevronDown, Lock, ListChecks } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/types/character';
+import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 
 type TaskStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
 
@@ -47,6 +48,8 @@ interface TasksEditFormProps {
   initialTasks: Task[];
   secrets: SecretOption[];
   onDirtyChange?: (dirty: boolean) => void;
+  onRegisterSave?: RegisterSaveHandler;
+  onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 /**
@@ -55,7 +58,7 @@ interface TasksEditFormProps {
  * 各欄為獨立卡片容器，header 固定 + body 可捲動。
  * 任務卡片支援點擊展開/收合、軟刪除（可復原）、狀態 badge。
  */
-export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDirtyChange }: TasksEditFormProps) {
+export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDirtyChange, onRegisterSave, onRegisterDiscard }: TasksEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -179,13 +182,12 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
     });
   }, []);
 
-  // TODO: 待 StickySaveBar registerSaveHandler 接線後啟用
-  const handleSave = async () => {
+  const save = useCallback(async (options?: SaveHandlerOptions) => {
     setIsLoading(true);
     try {
       const result = await updateCharacter(characterId, { tasks: effectiveTasks });
       if (result.success) {
-        toast.success('任務已儲存');
+        if (!options?.silent) toast.success('任務已儲存');
         resetDirty();
         router.refresh();
       } else {
@@ -196,7 +198,15 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [characterId, effectiveTasks, resetDirty, router]);
+
+  const discard = useCallback(() => {
+    setTasks(initialTasks);
+    setDeletedIds(new Set());
+  }, [initialTasks]);
+
+  useEffect(() => { onRegisterSave?.(save); }, [onRegisterSave, save]);
+  useEffect(() => { onRegisterDiscard?.(discard); }, [onRegisterDiscard, discard]);
 
   const normalTasks = tasks.filter((t) => !t.isHidden);
   const hiddenTasks = tasks.filter((t) => t.isHidden);

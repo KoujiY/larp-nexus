@@ -11,6 +11,7 @@ import { GM_SECTION_TITLE_CLASS } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
 import { Zap } from 'lucide-react';
 import type { Skill, Stat } from '@/types/character';
+import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 import { AbilityEditWizard } from './ability-edit-wizard';
 
 interface SkillsEditFormProps {
@@ -19,6 +20,8 @@ interface SkillsEditFormProps {
   stats: Stat[];
   randomContestMaxValue?: number;
   onDirtyChange?: (dirty: boolean) => void;
+  onRegisterSave?: RegisterSaveHandler;
+  onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 /**
@@ -28,7 +31,7 @@ interface SkillsEditFormProps {
  * 新增卡片排在 grid 第一位。
  * 空狀態使用 GmEmptyState 共用元件。
  */
-export function SkillsEditForm({ characterId, initialSkills, stats, randomContestMaxValue = 100, onDirtyChange }: SkillsEditFormProps) {
+export function SkillsEditForm({ characterId, initialSkills, stats, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: SkillsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [skills, setSkills] = useState<Skill[]>(initialSkills);
@@ -123,13 +126,12 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
     });
   }, []);
 
-  // TODO: 待 StickySaveBar registerSaveHandler 接線後啟用
-  const handleSaveAll = async () => {
+  const save = useCallback(async (options?: SaveHandlerOptions) => {
     setIsLoading(true);
     try {
       const result = await updateCharacter(characterId, { skills: effectiveSkills });
       if (result.success) {
-        toast.success('技能儲存成功');
+        if (!options?.silent) toast.success('技能儲存成功');
         resetDirty();
         router.refresh();
       } else {
@@ -140,7 +142,15 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [characterId, effectiveSkills, resetDirty, router]);
+
+  const discard = useCallback(() => {
+    setSkills(initialSkills);
+    setDeletedIds(new Set());
+  }, [initialSkills]);
+
+  useEffect(() => { onRegisterSave?.(save); }, [onRegisterSave, save]);
+  useEffect(() => { onRegisterDiscard?.(discard); }, [onRegisterDiscard, discard]);
 
   const isNew = editingSkill ? !skills.find((s) => s.id === editingSkill.id) : true;
 

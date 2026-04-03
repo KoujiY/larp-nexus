@@ -42,6 +42,7 @@ import {
 import { toast } from 'sonner';
 import type { CharacterData, Secret } from '@/types/character';
 import { normalizeSecretContent } from '@/types/character';
+import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 
 type SecretStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
 
@@ -49,12 +50,14 @@ interface SecretsTabProps {
   character: CharacterData;
   gameId: string;
   onDirtyChange?: (dirty: boolean) => void;
+  onRegisterSave?: RegisterSaveHandler;
+  onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 /**
  * Tab 3：隱藏資訊（列表 + 詳情面板）
  */
-export function SecretsTab({ character, gameId, onDirtyChange }: SecretsTabProps) {
+export function SecretsTab({ character, gameId, onDirtyChange, onRegisterSave, onRegisterDiscard }: SecretsTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
@@ -193,10 +196,9 @@ export function SecretsTab({ character, gameId, onDirtyChange }: SecretsTabProps
     });
   }, [editingSecretIndex]);
 
-  // ── Submit ──
+  // ── Save / Discard ──
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = useCallback(async (options?: SaveHandlerOptions) => {
     setIsLoading(true);
 
     try {
@@ -214,7 +216,7 @@ export function SecretsTab({ character, gameId, onDirtyChange }: SecretsTabProps
       });
 
       if (result.success) {
-        toast.success('隱藏資訊已儲存');
+        if (!options?.silent) toast.success('隱藏資訊已儲存');
         resetDirty();
         router.refresh();
       } else {
@@ -226,7 +228,22 @@ export function SecretsTab({ character, gameId, onDirtyChange }: SecretsTabProps
     } finally {
       setIsLoading(false);
     }
+  }, [character.id, effectiveSecrets, resetDirty, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await save();
   };
+
+  const discard = useCallback(() => {
+    setSecrets(initialSecrets);
+    setDeletedIds(new Set());
+    setEditingSecretIndex(null);
+    setSelectedIdx(undefined);
+  }, [initialSecrets]);
+
+  useEffect(() => { onRegisterSave?.(save); }, [onRegisterSave, save]);
+  useEffect(() => { onRegisterDiscard?.(discard); }, [onRegisterDiscard, discard]);
 
   // ── 空狀態 ──
   if (secrets.length === 0) {

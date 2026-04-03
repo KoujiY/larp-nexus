@@ -27,17 +27,20 @@ import {
 } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
 import type { CharacterData } from '@/types/character';
+import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 
 interface BasicSettingsTabProps {
   character: CharacterData;
   gameId: string;
   onDirtyChange?: (dirty: boolean) => void;
+  onRegisterSave?: RegisterSaveHandler;
+  onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 /**
  * Tab 1：基本設定（名稱、描述、PIN、人格特質）
  */
-export function BasicSettingsTab({ character, gameId, onDirtyChange }: BasicSettingsTabProps) {
+export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterSave, onRegisterDiscard }: BasicSettingsTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>('idle');
@@ -70,10 +73,9 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange }: BasicSett
 
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
-  // ── Submit ──
+  // ── Save / Discard ──
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = useCallback(async (options?: SaveHandlerOptions) => {
     setIsLoading(true);
 
     try {
@@ -97,7 +99,7 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange }: BasicSett
       const result = await updateCharacter(character.id, updateData);
 
       if (result.success) {
-        toast.success('基本設定已儲存');
+        if (!options?.silent) toast.success('基本設定已儲存');
         resetDirty();
         router.refresh();
         setFormData((prev) => ({ ...prev, pin: '' }));
@@ -110,7 +112,19 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange }: BasicSett
     } finally {
       setIsLoading(false);
     }
+  }, [character.id, formData, resetDirty, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await save();
   };
+
+  const discard = useCallback(() => {
+    setFormData(initialData);
+  }, [initialData]);
+
+  useEffect(() => { onRegisterSave?.(save); }, [onRegisterSave, save]);
+  useEffect(() => { onRegisterDiscard?.(discard); }, [onRegisterDiscard, discard]);
 
   const update = <K extends keyof typeof formData>(key: K, value: (typeof formData)[K]) => {
     setFormData((prev) => ({ ...prev, [key]: value }));

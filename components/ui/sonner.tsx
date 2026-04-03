@@ -18,6 +18,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       position="top-center"
       closeButton
       duration={5000}
+      expand
+      visibleToasts={5}
+      gap={8}
       className="toaster group"
       icons={{
         warning: <TriangleAlertIcon className="size-4" />,

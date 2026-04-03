@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { put } from '@vercel/blob';
-import { Character, Game } from '@/lib/db/models';
+import { Character, CharacterRuntime, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10: 統一讀取
@@ -104,13 +104,31 @@ export async function getCharactersByGameId(
       };
     }
 
-    const characters = await Character.find({ gameId })
+    // 永遠需要 Baseline Characters（ID、排序依據、fallback）
+    const baselineCharacters = await Character.find({ gameId })
       .sort({ createdAt: -1 })
       .lean();
 
+    // 遊戲進行中時，用 Runtime 資料覆蓋 Baseline
+    // Runtime 的 refId 對應 Baseline 的 _id
+    let runtimeMap: Map<string, typeof baselineCharacters[number]> | null = null;
+    if (game.isActive) {
+      const runtimeCharacters = await CharacterRuntime.find({
+        gameId,
+        type: 'runtime',
+      }).lean();
+
+      runtimeMap = new Map(
+        runtimeCharacters.map((rc) => [rc.refId.toString(), rc as unknown as typeof baselineCharacters[number]])
+      );
+    }
+
     return {
       success: true,
-      data: characters.map((char) => {
+      data: baselineCharacters.map((baseline) => {
+        // 遊戲進行中：優先使用 Runtime 資料，找不到則 fallback 至 Baseline
+        const char = runtimeMap?.get(baseline._id.toString()) ?? baseline;
+
         // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
         const cleanSecretInfo = char.secretInfo?.secrets
           ? {
@@ -131,8 +149,9 @@ export async function getCharactersByGameId(
         const cleanSkills = cleanSkillData(char.skills);
 
         return {
-          id: char._id.toString(),
-          gameId: char.gameId.toString(),
+          // 永遠使用 Baseline ID（與 getCharacterById 一致）
+          id: baseline._id.toString(),
+          gameId: baseline.gameId.toString(),
           name: char.name,
           description: char.description,
           imageUrl: char.imageUrl,
