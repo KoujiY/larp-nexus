@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { Game, Character, CharacterRuntime } from '@/lib/db/models';
+import { Game, Character, CharacterRuntime, GameRuntime, Log, PendingEvent } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
@@ -372,7 +372,14 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
       };
     }
 
-    // TODO: 同時刪除關聯的角色（Phase 2-6 實作）
+    // 刪除關聯資料：角色、Runtime、日誌、待處理事件
+    await Promise.all([
+      Character.deleteMany({ gameId }),
+      CharacterRuntime.deleteMany({ gameId }),
+      GameRuntime.deleteMany({ refId: gameId }),
+      Log.deleteMany({ gameId }),
+      PendingEvent.deleteMany({ gameId }),
+    ]);
 
     revalidatePath('/games');
 
