@@ -6,6 +6,7 @@ import { Game, Character, CharacterRuntime, GameRuntime, Log, PendingEvent } fro
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
+import mongoose from 'mongoose';
 import type { GameData } from '@/types/game';
 // Phase 10: Game Code 生成邏輯
 import {
@@ -361,9 +362,14 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
       };
     }
 
-    await dbConnect();
-    const game = await Game.findOneAndDelete({ _id: gameId, gmUserId });
+    if (!mongoose.Types.ObjectId.isValid(gameId)) {
+      return { success: false, error: 'VALIDATION_ERROR', message: '無效的劇本 ID' };
+    }
 
+    await dbConnect();
+
+    // 先確認劇本存在且屬於當前 GM
+    const game = await Game.findOne({ _id: gameId, gmUserId });
     if (!game) {
       return {
         success: false,
@@ -372,14 +378,23 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
       };
     }
 
-    // 刪除關聯資料：角色、Runtime、日誌、待處理事件
+    // 先收集 character IDs，用於清理 character-level PendingEvent
+    const characterIds = await Character.find({ gameId }).select('_id').lean();
+    const characterIdStrings = characterIds.map((c) => c._id.toString());
+
+    // 先刪除子集合，最後刪除 Game 本體（降低孤兒風險）
     await Promise.all([
       Character.deleteMany({ gameId }),
       CharacterRuntime.deleteMany({ gameId }),
       GameRuntime.deleteMany({ refId: gameId }),
       Log.deleteMany({ gameId }),
-      PendingEvent.deleteMany({ gameId }),
+      PendingEvent.deleteMany({ targetGameId: gameId }),
+      ...(characterIdStrings.length > 0
+        ? [PendingEvent.deleteMany({ targetCharacterId: { $in: characterIdStrings } })]
+        : []),
     ]);
+
+    await Game.deleteOne({ _id: gameId });
 
     revalidatePath('/games');
 
