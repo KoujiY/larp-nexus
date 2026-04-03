@@ -216,28 +216,28 @@ export function validateSkills(skills: Array<{
         message: 'Skill 必須包含 id 和 name',
       };
     }
-    if (skill.checkType === 'contest' && !skill.contestConfig) {
+    if ((skill.checkType === 'contest' || skill.checkType === 'random_contest') && !skill.contestConfig) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
         message: `技能 ${skill.name} 設定為對抗檢定但沒有 contestConfig`,
       };
     }
-    if (skill.checkType === 'random') {
-      if (!skill.randomConfig || !skill.randomConfig.maxValue || skill.randomConfig.threshold === undefined) {
-        return {
-          success: false,
-          error: 'VALIDATION_ERROR',
-          message: `技能 ${skill.name} 設定為隨機檢定但 randomConfig 不完整`,
-        };
-      }
-      if (skill.randomConfig.threshold > skill.randomConfig.maxValue) {
-        return {
-          success: false,
-          error: 'VALIDATION_ERROR',
-          message: `技能 ${skill.name} 的 threshold 不能超過 maxValue`,
-        };
-      }
+    if ((skill.checkType === 'random' || skill.checkType === 'random_contest') && (
+      !skill.randomConfig || !skill.randomConfig.maxValue || skill.randomConfig.threshold === undefined
+    )) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: `技能 ${skill.name} 設定為隨機檢定但 randomConfig 不完整`,
+      };
+    }
+    if (skill.randomConfig && skill.randomConfig.threshold > skill.randomConfig.maxValue) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: `技能 ${skill.name} 的 threshold 不能超過 maxValue`,
+      };
     }
   }
 
@@ -292,28 +292,28 @@ export function validateItems(items: Array<{
         message: `道具 ${item.name} 的 quantity 不能為負數`,
       };
     }
-    if (item.checkType === 'contest' && !item.contestConfig) {
+    if ((item.checkType === 'contest' || item.checkType === 'random_contest') && !item.contestConfig) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
         message: `道具 ${item.name} 設定為對抗檢定但沒有 contestConfig`,
       };
     }
-    if (item.checkType === 'random') {
-      if (!item.randomConfig || !item.randomConfig.maxValue || item.randomConfig.threshold === undefined) {
-        return {
-          success: false,
-          error: 'VALIDATION_ERROR',
-          message: `道具 ${item.name} 設定為隨機檢定但 randomConfig 不完整`,
-        };
-      }
-      if (item.randomConfig.threshold > item.randomConfig.maxValue) {
-        return {
-          success: false,
-          error: 'VALIDATION_ERROR',
-          message: `道具 ${item.name} 的 threshold 不能超過 maxValue`,
-        };
-      }
+    if ((item.checkType === 'random' || item.checkType === 'random_contest') && (
+      !item.randomConfig || !item.randomConfig.maxValue || item.randomConfig.threshold === undefined
+    )) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: `道具 ${item.name} 設定為隨機檢定但 randomConfig 不完整`,
+      };
+    }
+    if (item.randomConfig && item.randomConfig.threshold > item.randomConfig.maxValue) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: `道具 ${item.name} 的 threshold 不能超過 maxValue`,
+      };
     }
   }
 
