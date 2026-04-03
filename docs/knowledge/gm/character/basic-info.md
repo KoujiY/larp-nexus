@@ -19,7 +19,8 @@ See [hidden-info.md](./hidden-info.md)
 
 ## PIN Management Rules
 - GM sets PIN when creating/editing character
-- PIN is hashed before storage (`pinHash` field)
-- Plain PIN is never stored
+- PIN is stored in plaintext (4 digits, `pin` field) — this is intentional for LARP game convenience
+- Player API never returns PIN; only GM Server Actions can read it
+- Same-game PIN uniqueness enforced via sparse compound index (`gameId + pin`)
 - Recommend distributing PIN to players days before game — enables preview mode
 - **Do not reuse the same Game Code across different game sessions** (security risk)

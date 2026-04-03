@@ -25,5 +25,5 @@
 
 ## Refactoring Note
 - Phase A（已完成）：Character/CharacterRuntime schema 透過 `createBaseCharacterSchemaFields()` factory 共用，消除 ~1292 行重複。
-- Phase D（進行中）：Game `publicInfo` 從 `{ worldSetting, intro, chapters }` 改為 `{ blocks: BackgroundBlock[] }`，與角色背景共用同一段落結構。
+- Phase D（已完成）：Game `publicInfo` 從 `{ worldSetting, intro, chapters }` 改為 `{ blocks: BackgroundBlock[] }`，Character `publicInfo.background` 從 `string` 改為 `BackgroundBlock[]`，兩者共用同一段落結構。PIN 從 4-6 位數字縮減為固定 4 位數字。
 - 詳見 `docs/refactoring/REFACTOR_PROGRESS.md`。
