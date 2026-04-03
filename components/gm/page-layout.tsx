@@ -1,12 +1,17 @@
 import { ReactNode } from 'react';
 import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
 
+type MaxWidthKey = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+
 interface PageLayoutProps {
   /** 全寬頂部插槽（例如環境橫幅），不受 maxWidth 限制 */
   topSlot?: ReactNode;
   header: ReactNode;
   children: ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+  /** Header 與 Content 共用的最大寬度（預設 lg） */
+  maxWidth?: MaxWidthKey;
+  /** Content 區域獨立最大寬度，不傳時 fallback 到 maxWidth */
+  contentMaxWidth?: MaxWidthKey;
 }
 
 const maxWidthClasses = {
@@ -23,6 +28,7 @@ export function PageLayout({
   header,
   children,
   maxWidth = 'lg',
+  contentMaxWidth,
 }: PageLayoutProps) {
   return (
     <div className="flex flex-col h-full">
@@ -40,7 +46,7 @@ export function PageLayout({
 
       {/* Content Area */}
       <div className={`flex-1 overflow-y-auto bg-background ${GM_SCROLLBAR_CLASS}`}>
-        <div className={`mx-auto px-6 py-6 ${maxWidthClasses[maxWidth]}`}>
+        <div className={`mx-auto px-6 py-6 ${maxWidthClasses[contentMaxWidth ?? maxWidth]}`}>
           {children}
         </div>
       </div>
