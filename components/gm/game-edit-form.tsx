@@ -149,7 +149,7 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
               </div>
               <div>
                 <label className={GM_LABEL_CLASS}>最大檢定值</label>
-                <div className="max-w-[120px]">
+                <div className="w-full sm:max-w-[120px]">
                   <Input
                     type="number"
                     min={1}

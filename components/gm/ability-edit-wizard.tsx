@@ -440,7 +440,7 @@ export function AbilityEditWizard({
         {/* 檢定類型卡片選擇 */}
         <div>
           <label className={cn(LABEL_CLASS, 'mb-6')}>檢定類型選擇</label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {CHECK_TYPE_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               const selected = checkType === opt.value;

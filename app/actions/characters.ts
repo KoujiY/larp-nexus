@@ -789,7 +789,12 @@ export async function checkPinAvailability(
   excludeCharacterId?: string
 ): Promise<ApiResponse<{ isAvailable: boolean }>> {
   try {
-    // 驗證 PIN 格式（4-6 位數字）
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
+    // 驗證 PIN 格式（4 位數字）
     const pinRegex = /^\d{4}$/;
     const trimmedPin = pin.trim();
 

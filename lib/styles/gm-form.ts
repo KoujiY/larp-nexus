@@ -23,12 +23,6 @@ export const GM_ERROR_RING_CLASS = 'ring-2 ring-destructive';
 /** 必填錯誤訊息（absolute 定位，避免推開下方元件） */
 export const GM_ERROR_TEXT_CLASS = 'absolute left-0 top-full text-xs text-destructive font-medium mt-1.5';
 
-/**
- * 自訂 scrollbar 樣式（GM 側）
- *
- * 窄 1.5px 圓角 thumb，track 透明，thumb 使用 border 色。
- * 用於 overflow-y-auto 容器的 className。
- */
 /** Section 標題：accent bar + text-lg font-bold */
 export const GM_SECTION_TITLE_CLASS =
   'text-lg font-bold flex items-center gap-2';
@@ -37,6 +31,12 @@ export const GM_SECTION_TITLE_CLASS =
 export const GM_SECTION_CARD_CLASS =
   'bg-card p-8 rounded-xl shadow-sm border border-border/5';
 
+/**
+ * 自訂 scrollbar 樣式（GM 側）
+ *
+ * 窄 1.5px 圓角 thumb，track 透明，thumb 使用 primary 色。
+ * 用於 overflow-y-auto 容器的 className。
+ */
 export const GM_SCROLLBAR_CLASS =
   '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-primary/70';
 

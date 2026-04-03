@@ -69,7 +69,7 @@ export function CharacterStatusOverview({ characters }: CharacterStatusOverviewP
         <button
           type="button"
           onClick={() => scroll('left')}
-          className="cursor-pointer absolute -left-2.5 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 w-6 h-10 rounded-lg bg-background/80 backdrop-blur-sm border border-border/20 shadow-sm flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:border-primary/30 transition-colors"
+          className="cursor-pointer absolute -left-1 sm:-left-2.5 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 min-w-[44px] min-h-[44px] w-8 h-10 rounded-lg bg-background/80 backdrop-blur-sm border border-border/20 shadow-sm flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:border-primary/30 transition-colors"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </button>
@@ -88,7 +88,7 @@ export function CharacterStatusOverview({ characters }: CharacterStatusOverviewP
         <button
           type="button"
           onClick={() => scroll('right')}
-          className="cursor-pointer absolute -right-2.5 translate-x-1/2 top-1/2 -translate-y-1/2 z-10 w-6 h-10 rounded-lg bg-background/80 backdrop-blur-sm border border-border/20 shadow-sm flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:border-primary/30 transition-colors"
+          className="cursor-pointer absolute -right-1 sm:-right-2.5 translate-x-1/2 top-1/2 -translate-y-1/2 z-10 min-w-[44px] min-h-[44px] w-8 h-10 rounded-lg bg-background/80 backdrop-blur-sm border border-border/20 shadow-sm flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:border-primary/30 transition-colors"
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </button>
@@ -163,7 +163,7 @@ function CharacterStatusCard({ character }: { character: CharacterData }) {
   return (
     <div
       ref={cardRef}
-      className="w-[200px] shrink-0"
+      className="w-[160px] sm:w-[200px] shrink-0"
       onMouseEnter={hasExtra ? () => setExpanded(true) : undefined}
       onMouseLeave={hasExtra ? () => setExpanded(false) : undefined}
     >

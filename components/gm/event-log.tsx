@@ -69,7 +69,7 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
             重新讀取
           </button>
           <Select value={characterFilter} onValueChange={setCharacterFilter}>
-            <SelectTrigger className="h-auto border-none bg-muted rounded-lg px-3 py-1.5 text-xs font-bold w-[120px]">
+            <SelectTrigger className="h-auto border-none bg-muted rounded-lg px-3 py-1.5 text-xs font-bold w-auto sm:w-[120px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

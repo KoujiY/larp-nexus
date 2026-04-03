@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 /**
  * useFormGuard Hook 的參數
  */
-interface UseFormGuardOptions<T> {
+type UseFormGuardOptions<T> = {
   /** 表單初始資料（從 props 或 Server 取得的原始值） */
   initialData: T;
   /** 表單當前資料（使用者修改後的值） */
@@ -14,19 +14,19 @@ interface UseFormGuardOptions<T> {
   compareFn?: (initial: T, current: T) => boolean;
   /** 是否啟用保護（預設 true，儲存中可暫時關閉） */
   enabled?: boolean;
-}
+};
 
 /**
  * useFormGuard Hook 的回傳值
  */
-interface UseFormGuardReturn {
+type UseFormGuardReturn = {
   /** 表單是否有未儲存的變更 */
   isDirty: boolean;
   /** 手動重置 dirty 狀態（儲存成功後呼叫） */
   resetDirty: () => void;
   /** 手動設定 dirty 狀態（二層儲存場景：Dialog 確認後手動標記） */
   markDirty: () => void;
-}
+};
 
 /**
  * 預設深比較函數
@@ -117,21 +117,15 @@ export function useFormGuard<T>({
     return manualDirty || !compareFn(initialData, currentData);
   }, [enabled, manualDirty, initialData, currentData, compareFn]);
 
-  // 離開保護：beforeunload + pushState 攔截 + popstate 監聽
+  // 離開保護：pushState 攔截 + popstate 監聽
+  // 注意：beforeunload 由 useCharacterEditState 統一管理，此處不重複註冊
   useEffect(() => {
     if (!isDirty) return;
 
-    // L1: 瀏覽器關閉、重新整理、手動輸入 URL
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-
-    // L2: Next.js client-side 導航（pushState）
+    // L1: Next.js client-side 導航（pushState）
     activateNavigationGuard();
 
-    // L3: 瀏覽器上一頁/下一頁
+    // L2: 瀏覽器上一頁/下一頁
     const onPopState = () => {
       const confirmed = window.confirm('你有未儲存的變更，確定要離開嗎？');
       if (!confirmed) {
@@ -143,7 +137,6 @@ export function useFormGuard<T>({
     window.addEventListener('popstate', onPopState);
 
     return () => {
-      window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('popstate', onPopState);
       deactivateNavigationGuard();
     };

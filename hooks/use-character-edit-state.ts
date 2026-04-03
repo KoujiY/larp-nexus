@@ -115,11 +115,14 @@ export function useCharacterEditState() {
   const saveAll = useCallback(async () => {
     setIsSaving(true);
     try {
-      const promises = dirtyTabKeys.map((key) => {
-        const handler = saveHandlers.get(key);
-        return handler ? handler({ silent: true }) : Promise.resolve();
-      });
-      await Promise.all(promises);
+      const results = await Promise.allSettled(
+        dirtyTabKeys.map((key) => {
+          const handler = saveHandlers.get(key);
+          return handler ? handler({ silent: true }) : Promise.resolve();
+        }),
+      );
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+      return { failedCount };
     } finally {
       setIsSaving(false);
     }

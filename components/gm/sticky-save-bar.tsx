@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,15 +27,15 @@ const TAB_LABELS: Record<CharacterTabKey, string> = {
   skills: '技能',
 };
 
-interface StickySaveBarProps {
+type StickySaveBarProps = {
   dirtyState: CharacterDirtyState;
   hasDirty: boolean;
   dirtyTabKeys: CharacterTabKey[];
   dirtyTabCount: number;
   isSaving: boolean;
-  onSaveAll: () => Promise<void>;
+  onSaveAll: () => Promise<{ failedCount: number }>;
   onDiscardAll: () => void;
-}
+};
 
 /**
  * Sticky Save Bar — 角色編輯頁底部浮動儲存列
@@ -56,19 +56,30 @@ export function StickySaveBar({
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Unmount 時清除殘留 timer
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   /** 全部儲存 + 延遲 toast（等 exit 動畫結束後才顯示） */
   const handleSaveAll = useCallback(async () => {
     const tabCount = dirtyTabCount;
     const tabNames = dirtyTabKeys.map((key) => TAB_LABELS[key]).join('、');
 
-    await onSaveAll();
+    const { failedCount } = await onSaveAll();
 
     // 清除先前可能殘留的 timer
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
 
     // 等待 exit 動畫結束（spring damping=25, stiffness=300 ≈ 400ms）
     toastTimerRef.current = setTimeout(() => {
-      toast.success(`已儲存 ${tabCount} 個分頁的變更 (${tabNames})`);
+      if (failedCount === 0) {
+        toast.success(`已儲存 ${tabCount} 個分頁的變更 (${tabNames})`);
+      } else {
+        toast.error(`${failedCount} 個分頁儲存失敗，請重試`);
+      }
     }, 400);
   }, [dirtyTabCount, dirtyTabKeys, onSaveAll]);
 
@@ -98,7 +109,7 @@ export function StickySaveBar({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-8 left-1/2 z-50 w-full max-w-4xl -translate-x-1/2 px-6 md:pl-32"
+            className="fixed bottom-8 left-1/2 z-50 w-full max-w-4xl -translate-x-1/2 px-3 sm:px-6 md:pl-32"
           >
             <div className={cn(
               'rounded-2xl shadow-2xl backdrop-blur-xl',

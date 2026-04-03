@@ -67,8 +67,9 @@ export function RuntimeConsoleWsListener({
       switch (event.type) {
         case 'role.updated': {
           const payload = (event as RoleUpdatedEvent).payload;
-          if (payload.updates.stats) {
-            cb(characterId, payload.updates.stats as unknown as Stat[]);
+          const rawStats = payload.updates.stats;
+          if (Array.isArray(rawStats) && rawStats.length > 0 && 'name' in rawStats[0]) {
+            cb(characterId, rawStats as unknown as Stat[]);
           }
           break;
         }

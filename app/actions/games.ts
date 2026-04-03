@@ -573,6 +573,11 @@ export async function checkGameCodeAvailability(
   gameCode: string
 ): Promise<ApiResponse<{ isAvailable: boolean }>> {
   try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
     // 驗證 Game Code 格式（6 位英數字）
     const gameCodeRegex = /^[A-Z0-9]{6}$/;
     const trimmedCode = gameCode.trim().toUpperCase();

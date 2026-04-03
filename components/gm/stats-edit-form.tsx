@@ -432,7 +432,7 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
             className={cn(
               editInputClass,
               'text-center text-5xl font-black text-primary',
-              'w-[100px]',
+              'w-[80px] sm:w-[100px]',
               '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
             )}
           />
@@ -462,7 +462,7 @@ function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, d
                 className={cn(
                   editInputClass,
                   'text-center text-lg font-bold text-muted-foreground/50',
-                  'w-[60px] ml-1',
+                  'w-[50px] sm:w-[60px] ml-1',
                   '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
                 )}
               />
