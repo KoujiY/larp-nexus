@@ -281,18 +281,33 @@ docs/knowledge/
 
 ## Phase E: Test Coverage + Cleanup
 
-- [ ] Add component tests (post-UI stabilization)
-- [ ] Add E2E tests for critical user flows
-- [ ] Remove unused Jotai dependency (or adopt it)
-- [ ] Resolve lib/utils.ts vs lib/utils/ ambiguity
-- [ ] Complete JSDoc coverage
-- [ ] Final `/code-review`
 - [x] 清理功能性死碼：`app/unlock/page.tsx`、`app/actions/unlock.ts`、`lib/game/get-characters-by-pin.ts` ✅ 2026-03-26
-- [ ] 清理 `components/gm/save-button.tsx`（Phase D 前的舊元件，目前無人使用）
-- [ ] 拆分 `app/actions/character-update.ts`（`updateCharacter` 460 行，超出 50 行函式上限）
-- [ ] 拆分 `app/actions/characters.ts`（833 行，超出 800 行檔案上限）
-- [ ] `deleteGame` 補刪關聯角色（既有 TODO，刪除劇本後 Character/CharacterRuntime 文件成為孤兒）
-- [ ] `useFormGuard` module-level mutable state 評估替代方案（ref-counting + pushState monkey-patch 在第三方 SDK 共存時可能衝突）
+- [x] 清理死碼：`components/gm/save-button.tsx`、`store/` 目錄（Jotai atoms 無消費端）、`adjustCharacterStat`/`setCharacterStat`（無呼叫端）✅ 2026-04-03
+- [x] 清理 utils 死碼：`validators.ts` 10+ 未使用 schema、`date.ts` 2 個未使用函數、`qr-code.ts` 1 個未使用函數 ✅ 2026-04-03
+- [x] 刪除死碼元件：`check-config-section.tsx`、`edit-form-card.tsx`、`effect-editor.tsx`、`tags-section.tsx`、`usage-limit-section.tsx`（Phase D 重設計後零引用）✅ 2026-04-03
+- [x] 刪除死碼 hook：`hooks/use-effect-target.ts`（零引用）✅ 2026-04-03
+- [x] 移除 Jotai 依賴（`pnpm remove jotai`）✅ 2026-04-03
+- [x] 解決 `lib/utils.ts` vs `lib/utils/` 路徑歧義：`cn()` 移入 `lib/utils/index.ts`，刪除 `lib/utils.ts` ✅ 2026-04-03
+- [x] 拆分 `app/actions/character-update.ts`（667→335 行）→ `character-update-types.ts`（150 行）+ `character-update-side-effects.ts`（189 行）✅ 2026-04-03
+- [x] 縮減 `app/actions/characters.ts`（838→647 行，刪除死碼 `adjustCharacterStat`/`setCharacterStat`，移除未使用 import）✅ 2026-04-03
+- [x] `deleteGame` 補刪關聯資料：Character、CharacterRuntime、GameRuntime、Log、PendingEvent（`Promise.all` 平行刪除）✅ 2026-04-03
+- [x] `useFormGuard` module-level mutable state 評估 → 暫不重寫（無衝突 SDK、Navigation API 未成熟），已加註解記錄限制 ✅ 2026-04-03
+- [x] Final `/code-review` ✅ 2026-04-03
+  - [x] CRITICAL: `deleteGame` 刪除順序修正（子集合先刪、Game 最後刪）+ PendingEvent 欄位名修正（`gameId` → `targetGameId`）+ character-level PendingEvent 清理
+  - [x] HIGH: `checkPinAvailability` 加入 Game 所有權驗證（修復 IDOR 漏洞）
+  - [x] HIGH: `ValidationError` 被 `withAction` 吞掉 → 加入明確 try-catch 回傳正確 error code
+  - [x] HIGH: `InventoryDiff` 重複定義 → 刪除副本，import from canonical source
+  - [x] HIGH: `cleanItems`/`cleanSkills` 從 `unknown[]` 改為 `MongoItem[]`/`MongoSkill[]`
+  - [x] HIGH: `uploadCharacterImage` 直接 mutation → `findByIdAndUpdate`；`getCharacterById` mutation → spread
+  - [x] MEDIUM: `file.name` 未消毒 → 字元白名單 `replace(/[^a-zA-Z0-9._-]/g, '_')`
+  - [x] MEDIUM: `pin` changedFields 誤報 → 加入 `!== beforeState.pin` 比較
+  - [x] MEDIUM: `gameId` 未做 ObjectId 格式驗證 → 加入 `mongoose.Types.ObjectId.isValid()` 前置檢查
+  - [x] MEDIUM: `random_contest` checkType 驗證補完（skills/items 同時檢查 contestConfig + randomConfig）
+  - [x] MEDIUM: `processExpiredEffects` 失敗阻斷讀取 → 獨立 try-catch 降級回傳 stale data
+  - [x] 抽取 `serializeCharacterDoc` 共用函數，消除 3 處序列化重複（~75 行）
+- [x] Complete JSDoc coverage — 所有 `lib/`、`app/actions/`、`hooks/` 的 exported functions 補齊 JSDoc ✅ 2026-04-04
+- [x] Add component tests — 設置 jsdom + @testing-library/react 基礎設施，新增 3 個測試檔（PinUnlock 19 tests、useContestDialogState 12 tests、useFormGuard 12 tests），總測試數 213→256 ✅ 2026-04-04
+- [ ] Add E2E tests for critical user flows
 - [ ] 合併至 `main`（全部 Phase 完成後執行）
 
 ---
