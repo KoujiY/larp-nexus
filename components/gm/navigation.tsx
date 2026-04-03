@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -83,10 +83,15 @@ export function MobileHeader() {
 
 /** 桌面版可收合/展開的側邊欄，含外層 aside 容器 */
 export function DesktopSidebar() {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
-  });
+  // 初始值必須與 server 一致（false），hydration 後才讀 localStorage，
+  // 避免 server/client DOM 結構不同導致 hydration mismatch
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true') {
+      setCollapsed(true);
+    }
+  }, []);
 
   const toggleCollapsed = () => {
     const next = !collapsed;
