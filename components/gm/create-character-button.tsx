@@ -1,96 +1,56 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createCharacter, checkPinAvailability } from '@/app/actions/characters'; // Phase 10.9.3
+import { createCharacter } from '@/app/actions/characters';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Lock } from 'lucide-react';
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
+import { PinField, type PinCheckStatus } from '@/components/gm/pin-field';
+import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_INPUT_CLASS,
+  GM_DIALOG_CONTENT_CLASS,
+  GM_DIALOG_HEADER_CLASS,
+  GM_DIALOG_TITLE_CLASS,
+  GM_DIALOG_BODY_CLASS,
+  GM_DIALOG_FOOTER_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+  GM_CTA_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
-interface CreateCharacterButtonProps {
+type CreateCharacterButtonProps = {
   gameId: string;
   /** 'button'（預設）= header 按鈕；'card' = grid 內的空狀態卡片 */
   variant?: 'button' | 'card';
-}
+};
 
 export function CreateCharacterButton({ gameId, variant = 'button' }: CreateCharacterButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPin, setShowPin] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     hasPinLock: false,
     pin: '',
   });
+  const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>('idle');
 
-  // Phase 10.9.3: PIN 即時檢查狀態
-  const [pinCheckStatus, setPinCheckStatus] = useState<
-    'idle' | 'checking' | 'available' | 'unavailable' | 'invalid'
-  >('idle');
-
-  // Phase 10.9.3: PIN 即時檢查（防抖 500ms）
-  const checkPin = useCallback(
-    async (pin: string) => {
-      const trimmedPin = pin.trim();
-
-      // 驗證格式（4-6 位數字）
-      if (!trimmedPin || trimmedPin.length < 4 || !/^\d{4,6}$/.test(trimmedPin)) {
-        setPinCheckStatus('invalid');
-        return;
-      }
-
-      setPinCheckStatus('checking');
-
-      try {
-        const result = await checkPinAvailability(gameId, trimmedPin);
-        if (result.success && result.data) {
-          setPinCheckStatus(result.data.isAvailable ? 'available' : 'unavailable');
-        } else {
-          setPinCheckStatus('invalid');
-        }
-      } catch (err) {
-        console.error('Error checking PIN:', err);
-        setPinCheckStatus('invalid');
-      }
-    },
-    [gameId]
-  );
-
-  // Phase 10.9.3: 當對話框關閉時，重置 PIN 檢查狀態
-  useEffect(() => {
-    if (!open) {
-      setPinCheckStatus('idle');
-    }
-  }, [open]);
-
-  // Phase 10.9.3: 當 PIN 變更時，觸發即時檢查（防抖 500ms）
-  useEffect(() => {
-    if (!formData.hasPinLock || !formData.pin) {
-      setPinCheckStatus('idle');
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      checkPin(formData.pin);
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [formData.hasPinLock, formData.pin, checkPin]);
+  const handlePinStatusChange = useCallback((status: PinCheckStatus) => {
+    setPinCheckStatus(status);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +66,7 @@ export function CreateCharacterButton({ gameId, variant = 'button' }: CreateChar
       if (result.success) {
         setOpen(false);
         setFormData({ name: '', description: '', hasPinLock: false, pin: '' });
+        setPinCheckStatus('idle');
         router.refresh();
       } else {
         setError(result.message || '建立失敗');
@@ -138,176 +99,136 @@ export function CreateCharacterButton({ gameId, variant = 'button' }: CreateChar
     <>
       {trigger}
       <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>新增角色</DialogTitle>
-            <DialogDescription>
-              建立新的角色卡，稍後可上傳圖片並生成 QR Code
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                角色名稱 <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                placeholder="例：艾莉西亞"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, name: e.target.value }))
-                }
-                disabled={isLoading}
-                required
-                autoFocus
-              />
+        <DialogContent
+          className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[520px] p-0 gap-0')}
+          showCloseButton={false}
+        >
+          <form onSubmit={handleSubmit}>
+            {/* Header */}
+            <div className={GM_DIALOG_HEADER_CLASS}>
+              <DialogTitle className={GM_DIALOG_TITLE_CLASS}>新增角色</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground/70 mt-1">
+                建立後可在編輯頁面設定詳細資訊
+              </DialogDescription>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">角色描述</Label>
-              <Textarea
-                id="description"
-                placeholder="角色的背景、性格、技能等..."
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                disabled={isLoading}
-                rows={6}
-                className="resize-none max-h-[200px] overflow-y-auto"
-              />
-              <p className="text-xs text-muted-foreground">
-                可輸入多行文字，建議不超過 500 字
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between py-2 px-3 rounded-lg border">
-              <div className="space-y-0.5">
-                <Label htmlFor="hasPinLock">PIN 解鎖</Label>
-                <p className="text-sm text-muted-foreground">
-                  啟用後玩家需輸入 PIN 才能查看角色卡
-                </p>
-              </div>
-              <Switch
-                id="hasPinLock"
-                checked={formData.hasPinLock}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, hasPinLock: checked }))
-                }
-                disabled={isLoading}
-              />
-            </div>
-
-            {formData.hasPinLock && (
+            {/* Body */}
+            <div className={cn(GM_DIALOG_BODY_CLASS, 'max-h-[calc(90vh-200px)] overflow-y-auto')}>
+              {/* 角色名稱 */}
               <div className="space-y-2">
-                <Label htmlFor="pin">
-                  PIN 碼（4-6 位數字） <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="pin"
-                    type={showPin ? 'text' : 'password'}
-                    inputMode="numeric"
-                    pattern="[0-9]{4,6}"
-                    placeholder="例：1234"
+                <label className={GM_LABEL_CLASS}>
+                  角色名稱 <span className="text-primary text-base ml-1 leading-none">*</span>
+                </label>
+                <Input
+                  placeholder="例如：流浪騎士 艾德溫"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  disabled={isLoading}
+                  required
+                  autoFocus
+                  className={cn(GM_INPUT_CLASS, 'h-12')}
+                />
+              </div>
+
+              {/* 角色描述 */}
+              <div className="space-y-2">
+                <label className={GM_LABEL_CLASS}>角色描述</label>
+                <Textarea
+                  placeholder="描述角色的初步背景或核心特質..."
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  disabled={isLoading}
+                  rows={3}
+                  className={cn(GM_INPUT_CLASS, 'h-auto py-4 resize-none')}
+                />
+              </div>
+
+              {/* PIN 開關區塊 */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                      <Lock className="h-5 w-5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold">啟用 PIN 解鎖</span>
+                      <span className="text-[11px] text-muted-foreground/60">
+                        防止其他玩家誤觸或窺探內容
+                      </span>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={formData.hasPinLock}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, hasPinLock: checked }))
+                    }
+                    disabled={isLoading}
+                    className="cursor-pointer"
+                  />
+                </div>
+
+                {/* PIN 輸入欄位（條件顯示） */}
+                {formData.hasPinLock && (
+                  <PinField
+                    gameId={gameId}
                     value={formData.pin}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        pin: e.target.value.replace(/\D/g, '').slice(0, 6)
-                      }))
+                    onChange={(value) =>
+                      setFormData((prev) => ({ ...prev, pin: value }))
                     }
                     disabled={isLoading}
                     required={formData.hasPinLock}
-                    className="pr-20"
+                    placeholder="輸入 4 位數字"
+                    idleHint="請記住此 PIN 碼，玩家需要此碼才能查看角色卡"
+                    onStatusChange={handlePinStatusChange}
                   />
-                  {/* Phase 10.9.3: PIN 檢查狀態指示器 */}
-                  <div className="absolute right-12 top-1/2 -translate-y-1/2">
-                    {pinCheckStatus === 'checking' && (
-                      <span className="text-gray-400 text-sm">⏳</span>
-                    )}
-                    {pinCheckStatus === 'available' && (
-                      <span className="text-success text-sm">✓</span>
-                    )}
-                    {pinCheckStatus === 'unavailable' && (
-                      <span className="text-destructive text-sm">✗</span>
-                    )}
-                    {pinCheckStatus === 'invalid' && (
-                      <span className="text-warning text-sm">⚠</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPin(!showPin)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    tabIndex={-1}
-                  >
-                    {showPin ? '🙈' : '👁️'}
-                  </button>
+                )}
+              </div>
+
+              {/* 全域錯誤 */}
+              {error && (
+                <div className="p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
+                  {error}
                 </div>
-                {/* Phase 10.9.3: PIN 檢查狀態提示 */}
-                {pinCheckStatus === 'checking' && (
-                  <p className="text-xs text-gray-500">檢查中...</p>
-                )}
-                {pinCheckStatus === 'available' && (
-                  <p className="text-xs text-success">此 PIN 可以使用</p>
-                )}
-                {pinCheckStatus === 'unavailable' && (
-                  <p className="text-xs text-destructive">
-                    此 PIN 在本遊戲中已被使用，請使用其他 PIN
-                  </p>
-                )}
-                {pinCheckStatus === 'invalid' && (
-                  <p className="text-xs text-warning">
-                    PIN 格式錯誤（需要 4-6 位數字）
-                  </p>
-                )}
-                {pinCheckStatus === 'idle' && (
-                  <p className="text-xs text-muted-foreground">
-                    請記住此 PIN 碼，玩家需要此碼才能查看角色卡
-                  </p>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
-            {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
-                {error}
-              </div>
-            )}
-          </div>
+            {/* Footer */}
+            <div className={GM_DIALOG_FOOTER_CLASS}>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                disabled={isLoading}
+                className={GM_CANCEL_BUTTON_CLASS}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  isLoading ||
+                  (formData.hasPinLock &&
+                    (pinCheckStatus === 'checking' ||
+                      pinCheckStatus === 'unavailable' ||
+                      pinCheckStatus === 'invalid'))
+                }
+                className={GM_CTA_BUTTON_CLASS}
+              >
+                {isLoading ? '建立中...' : '建立角色'}
+              </button>
+            </div>
+          </form>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isLoading}
-            >
-              取消
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                isLoading ||
-                (formData.hasPinLock &&
-                  (pinCheckStatus === 'checking' ||
-                    pinCheckStatus === 'unavailable' ||
-                    pinCheckStatus === 'invalid'))
-              }
-            >
-              {isLoading ? '建立中...' : '建立角色'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+          {/* 底部漸層裝飾線 */}
+          <div className="h-1 w-full bg-linear-to-r from-transparent via-primary/20 to-transparent" />
+        </DialogContent>
       </Dialog>
     </>
   );
 }
-

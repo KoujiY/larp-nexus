@@ -27,9 +27,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    if (!/^\d{4,6}$/.test(pin)) {
+    if (!/^\d{4}$/.test(pin)) {
       return NextResponse.json(
-        { success: false, message: 'PIN 碼格式錯誤（需為 4-6 位數字）' },
+        { success: false, message: 'PIN 碼格式錯誤（需為 4 位數字）' },
         { status: 400 }
       );
     }

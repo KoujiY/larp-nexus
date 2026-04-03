@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -74,10 +74,18 @@ export function MobileHeader() {
 
 /** 桌面版可收合/展開的側邊欄，含外層 aside 容器 */
 export function DesktopSidebar() {
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
-  });
+  // NOTE: 此處例外使用 useEffect + setState，因為 collapsed 狀態會切換
+  // 完全不同的子樹（CollapsedNavigation vs ExpandedNavigation），
+  // lazy initializer 在 SSR 時回傳 false 但 client 可能回傳 true，
+  // 導致 hydration mismatch。必須先以 server 預設值 render，mount 後再讀取。
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (stored === 'true') {
+      setCollapsed(true);
+    }
+  }, []);
 
   const toggleCollapsed = () => {
     const next = !collapsed;

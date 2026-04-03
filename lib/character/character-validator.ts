@@ -52,11 +52,11 @@ export function validateCharacterData(data: {
       characterSchema.shape.hasPinLock.parse(data.hasPinLock);
     }
     if (data.pin !== undefined && data.pin !== null && data.pin !== '') {
-      if (!/^\d{4,6}$/.test(data.pin)) {
+      if (!/^\d{4}$/.test(data.pin)) {
         return {
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'PIN 碼必須為 4-6 位數字',
+          message: 'PIN 碼必須為 4 位數字',
         };
       }
     }

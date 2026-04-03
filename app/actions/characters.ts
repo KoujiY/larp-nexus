@@ -295,11 +295,11 @@ export async function createCharacter(data: {
           message: '啟用 PIN 鎖必須設定 PIN 碼',
         };
       }
-      if (!/^\d{4,6}$/.test(validated.pin)) {
+      if (!/^\d{4}$/.test(validated.pin)) {
         return {
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'PIN 碼必須為 4-6 位數字',
+          message: 'PIN 碼必須為 4 位數字',
         };
       }
     }
@@ -771,14 +771,14 @@ export async function checkPinAvailability(
 ): Promise<ApiResponse<{ isAvailable: boolean }>> {
   try {
     // 驗證 PIN 格式（4-6 位數字）
-    const pinRegex = /^\d{4,6}$/;
+    const pinRegex = /^\d{4}$/;
     const trimmedPin = pin.trim();
 
     if (!pinRegex.test(trimmedPin)) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: 'PIN 碼必須為 4-6 位數字',
+        message: 'PIN 碼必須為 4 位數字',
       };
     }
 

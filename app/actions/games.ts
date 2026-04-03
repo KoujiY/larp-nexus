@@ -136,6 +136,7 @@ export async function createGame(data: {
   name: string;
   description?: string;
   gameCode?: string; // Phase 10: 可選的 Game Code
+  randomContestMaxValue?: number; // Phase D P7: 最大檢定值
 }): Promise<ApiResponse<GameData>> {
   try {
     const gmUserId = await getCurrentGMUserId();
@@ -188,6 +189,9 @@ export async function createGame(data: {
       description: validated.description || '',
       gameCode, // Phase 10: 加入 Game Code
       isActive: false, // Phase 10: 預設為待機狀態（false）
+      ...(data.randomContestMaxValue && data.randomContestMaxValue > 0
+        ? { randomContestMaxValue: data.randomContestMaxValue }
+        : {}),
     });
 
     revalidatePath('/games');

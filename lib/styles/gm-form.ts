@@ -40,6 +40,37 @@ export const GM_SECTION_CARD_CLASS =
 export const GM_SCROLLBAR_CLASS =
   '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-primary/70';
 
+// ─── Dialog 共用樣式 ──────────────────────────────────
+
+/** GM Dialog 內容容器：warm cream 背景、無 border、大圓角 */
+export const GM_DIALOG_CONTENT_CLASS =
+  'bg-[oklch(0.975_0.008_80)] dark:bg-card border-none rounded-xl shadow-2xl';
+
+/** GM Dialog Header 區域 padding */
+export const GM_DIALOG_HEADER_CLASS = 'px-8 pt-8 pb-6';
+
+/** GM Dialog 標題：放大加粗 */
+export const GM_DIALOG_TITLE_CLASS = 'text-2xl font-bold tracking-tight';
+
+/** GM Dialog 表單區域 padding */
+export const GM_DIALOG_BODY_CLASS = 'px-8 pb-6 space-y-6';
+
+/** GM Dialog Footer 底色帶 */
+export const GM_DIALOG_FOOTER_CLASS =
+  'px-8 py-6 bg-muted/30 flex items-center justify-end gap-4';
+
+/** GM 取消按鈕（ghost 風格） */
+export const GM_CANCEL_BUTTON_CLASS =
+  'px-6 py-2.5 rounded-lg text-sm font-bold cursor-pointer text-muted-foreground hover:bg-muted transition-colors';
+
+/** GM CTA 按鈕（漸層 + scale） */
+export const GM_CTA_BUTTON_CLASS =
+  'px-8 py-2.5 rounded-lg text-sm font-bold cursor-pointer bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none';
+
+/** GM Input 錯誤狀態：紅色背景 + 紅色文字 */
+export const GM_INPUT_ERROR_CLASS =
+  'bg-destructive/10 text-destructive focus-visible:ring-destructive';
+
 // ─── Badge 樣式系統 ──────────────────────────────────
 
 /**

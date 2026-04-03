@@ -3,26 +3,35 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createGame, checkGameCodeAvailability } from '@/app/actions/games';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-// Phase 10: Game Code 生成和驗證
 import {
   generateGameCodeClient,
   isValidGameCodeFormat,
 } from '@/lib/game/generate-game-code-client';
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
-import { Plus } from 'lucide-react';
+import { Plus, Check, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_INPUT_CLASS,
+  GM_INPUT_ERROR_CLASS,
+  GM_DIALOG_CONTENT_CLASS,
+  GM_DIALOG_HEADER_CLASS,
+  GM_DIALOG_TITLE_CLASS,
+  GM_DIALOG_BODY_CLASS,
+  GM_DIALOG_FOOTER_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+  GM_CTA_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
 type CreateGameButtonProps = {
   /** 顯示模式：預設 header 按鈕，card 模式為虛線框卡片 */
@@ -37,28 +46,28 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    gameCode: '', // Phase 10: Game Code
+    gameCode: '',
+    randomContestMaxValue: 100,
   });
 
-  // Phase 10: Game Code 即時檢查狀態
+  // Game Code 即時檢查狀態
   const [gameCodeCheckStatus, setGameCodeCheckStatus] = useState<
     'idle' | 'checking' | 'available' | 'unavailable' | 'invalid'
   >('idle');
 
-  // Phase 10: 當對話框打開時，自動生成一個隨機的 Game Code
+  // 當對話框打開時，自動生成一個隨機的 Game Code
   useEffect(() => {
     if (open && !formData.gameCode) {
       const newGameCode = generateGameCodeClient();
       setFormData((prev) => ({ ...prev, gameCode: newGameCode }));
-      setGameCodeCheckStatus('idle'); // 新生成的 Code 預設為 idle，等待使用者編輯後再檢查
+      setGameCodeCheckStatus('idle');
     }
   }, [open, formData.gameCode]);
 
-  // Phase 10: Game Code 即時檢查（防抖 500ms）
+  // Game Code 即時檢查（防抖 500ms）
   const checkGameCode = useCallback(async (code: string) => {
     const trimmedCode = code.trim().toUpperCase();
 
-    // 驗證格式
     if (!isValidGameCodeFormat(trimmedCode)) {
       setGameCodeCheckStatus('invalid');
       return;
@@ -81,7 +90,7 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
     }
   }, []);
 
-  // Phase 10: 當 Game Code 變更時，觸發即時檢查（防抖 500ms）
+  // 當 Game Code 變更時，觸發即時檢查（防抖 500ms）
   useEffect(() => {
     if (!formData.gameCode) {
       setGameCodeCheckStatus('idle');
@@ -101,14 +110,18 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
     setError(null);
 
     try {
-      const result = await createGame(formData);
+      const result = await createGame({
+        name: formData.name,
+        description: formData.description,
+        gameCode: formData.gameCode,
+        randomContestMaxValue: formData.randomContestMaxValue,
+      });
 
       if (result.success && result.data) {
         setOpen(false);
-        setFormData({ name: '', description: '', gameCode: '' }); // Phase 10: 重置 gameCode
-        setGameCodeCheckStatus('idle'); // Phase 10: 重置檢查狀態
+        setFormData({ name: '', description: '', gameCode: '', randomContestMaxValue: 100 });
+        setGameCodeCheckStatus('idle');
         router.refresh();
-        // 導向到新建立的劇本頁面
         router.push(`/games/${result.data.id}`);
       } else {
         setError(result.message || '建立失敗');
@@ -120,6 +133,8 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
       setIsLoading(false);
     }
   };
+
+  const isGameCodeError = gameCodeCheckStatus === 'unavailable' || gameCodeCheckStatus === 'invalid';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -138,22 +153,27 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[520px] p-0 gap-0')}
+        showCloseButton={false}
+      >
         <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>建立新劇本</DialogTitle>
-            <DialogDescription>
+          {/* Header */}
+          <div className={GM_DIALOG_HEADER_CLASS}>
+            <DialogTitle className={GM_DIALOG_TITLE_CLASS}>建立新劇本</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
               建立一個新的 LARP 劇本，開始管理角色與事件
             </DialogDescription>
-          </DialogHeader>
+          </div>
 
-          <div className="space-y-4 py-4">
+          {/* Body */}
+          <div className={cn(GM_DIALOG_BODY_CLASS, 'max-h-[calc(90vh-200px)] overflow-y-auto')}>
+            {/* 劇本名稱 */}
             <div className="space-y-2">
-              <Label htmlFor="name">
+              <label className={GM_LABEL_CLASS}>
                 劇本名稱 <span className="text-destructive">*</span>
-              </Label>
+              </label>
               <Input
-                id="name"
                 placeholder="例：末日餘暉"
                 value={formData.name}
                 onChange={(e) =>
@@ -162,17 +182,15 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
                 disabled={isLoading}
                 required
                 autoFocus
+                className={cn(GM_INPUT_CLASS, 'h-12')}
               />
             </div>
 
-            {/* Phase 10: Game Code 欄位 */}
+            {/* 遊戲代碼 */}
             <div className="space-y-2">
-              <Label htmlFor="gameCode">
-                遊戲代碼 <span className="text-destructive">*</span>
-              </Label>
+              <label className={GM_LABEL_CLASS}>遊戲代碼</label>
               <div className="relative">
                 <Input
-                  id="gameCode"
                   placeholder="ABC123"
                   value={formData.gameCode}
                   onChange={(e) => {
@@ -182,51 +200,53 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
                   disabled={isLoading}
                   required
                   maxLength={6}
-                  className="pr-10 font-mono"
+                  className={cn(
+                    GM_INPUT_CLASS,
+                    'h-12 pr-10 font-mono font-bold',
+                    isGameCodeError && GM_INPUT_ERROR_CLASS,
+                  )}
                 />
                 {/* 檢查狀態指示器 */}
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                   {gameCodeCheckStatus === 'checking' && (
-                    <span className="text-gray-400 text-sm">⏳</span>
+                    <Loader2 className="h-[18px] w-[18px] text-muted-foreground animate-spin" />
                   )}
                   {gameCodeCheckStatus === 'available' && (
-                    <span className="text-success text-sm">✓</span>
+                    <Check className="h-[18px] w-[18px] text-success" />
                   )}
                   {gameCodeCheckStatus === 'unavailable' && (
-                    <span className="text-destructive text-sm">✗</span>
+                    <X className="h-[18px] w-[18px] text-destructive" />
                   )}
                   {gameCodeCheckStatus === 'invalid' && (
-                    <span className="text-warning text-sm">⚠</span>
+                    <AlertTriangle className="h-[18px] w-[18px] text-warning" />
                   )}
                 </div>
               </div>
               {/* 檢查狀態提示 */}
-              {gameCodeCheckStatus === 'checking' && (
-                <p className="text-xs text-gray-500">檢查中...</p>
-              )}
-              {gameCodeCheckStatus === 'available' && (
-                <p className="text-xs text-success">此代碼可以使用</p>
-              )}
-              {gameCodeCheckStatus === 'unavailable' && (
-                <p className="text-xs text-destructive">此代碼已被使用，請使用其他代碼</p>
-              )}
-              {gameCodeCheckStatus === 'invalid' && (
-                <p className="text-xs text-warning">
-                  代碼格式錯誤（需要 6 位英數字）
-                </p>
-              )}
-              {gameCodeCheckStatus === 'idle' && (
-                <p className="text-xs text-muted-foreground">
-                  6 位英數字，玩家將使用此代碼進入遊戲
-                </p>
-              )}
+              <p className="text-xs min-h-5">
+                {gameCodeCheckStatus === 'checking' && (
+                  <span className="text-muted-foreground">檢查中...</span>
+                )}
+                {gameCodeCheckStatus === 'available' && (
+                  <span className="font-medium text-success">此代碼可以使用</span>
+                )}
+                {gameCodeCheckStatus === 'unavailable' && (
+                  <span className="font-medium text-destructive">此代碼已被其他劇本使用，請換一個</span>
+                )}
+                {gameCodeCheckStatus === 'invalid' && (
+                  <span className="text-warning">代碼格式錯誤（需要 6 位英數字）</span>
+                )}
+                {gameCodeCheckStatus === 'idle' && (
+                  <span className="text-muted-foreground">6 位英數字，玩家將使用此代碼進入遊戲</span>
+                )}
+              </p>
             </div>
 
+            {/* 劇本描述 */}
             <div className="space-y-2">
-              <Label htmlFor="description">劇本描述（選填）</Label>
+              <label className={GM_LABEL_CLASS}>劇本描述</label>
               <Textarea
-                id="description"
-                placeholder="簡短描述這個劇本的主題與背景..."
+                placeholder="輸入關於此劇本的詳細背景或介紹..."
                 value={formData.description}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -236,13 +256,32 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
                 }
                 disabled={isLoading}
                 rows={5}
-                className="resize-none max-h-[150px] overflow-y-auto"
+                className={cn(GM_INPUT_CLASS, 'h-auto py-4 resize-none')}
               />
-              <p className="text-xs text-muted-foreground">
-                建議不超過 300 字
+            </div>
+
+            {/* 最大檢定值 */}
+            <div className="space-y-2">
+              <label className={GM_LABEL_CLASS}>最大檢定值</label>
+              <Input
+                type="number"
+                value={formData.randomContestMaxValue}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    randomContestMaxValue: parseInt(e.target.value, 10) || 100,
+                  }))
+                }
+                disabled={isLoading}
+                min={1}
+                className={cn(GM_INPUT_CLASS, 'h-12')}
+              />
+              <p className="text-[11px] text-muted-foreground/60 font-medium tracking-wide">
+                對抗檢定時的擲骰上限值（預設 100）
               </p>
             </div>
 
+            {/* 全域錯誤 */}
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
                 {error}
@@ -250,16 +289,17 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
             )}
           </div>
 
-          <DialogFooter>
-            <Button
+          {/* Footer */}
+          <div className={GM_DIALOG_FOOTER_CLASS}>
+            <button
               type="button"
-              variant="outline"
               onClick={() => setOpen(false)}
               disabled={isLoading}
+              className={GM_CANCEL_BUTTON_CLASS}
             >
               取消
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
               disabled={
                 isLoading ||
@@ -267,13 +307,13 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
                 gameCodeCheckStatus === 'unavailable' ||
                 gameCodeCheckStatus === 'invalid'
               }
+              className={GM_CTA_BUTTON_CLASS}
             >
               {isLoading ? '建立中...' : '建立劇本'}
-            </Button>
-          </DialogFooter>
+            </button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
-

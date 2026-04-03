@@ -63,8 +63,8 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
   }, [open, loadCurrentPin]);
 
   const handleSave = async () => {
-    if (!/^\d{4,6}$/.test(editPin)) {
-      toast.error('PIN 碼必須為 4-6 位數字');
+    if (!/^\d{4}$/.test(editPin)) {
+      toast.error('PIN 碼必須為 4 位數字');
       return;
     }
 
@@ -131,7 +131,7 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
               <>
                 <div className="space-y-2">
                   <Label htmlFor="pin">
-                    PIN 碼 <span className="text-xs text-muted-foreground">（4-6 位數字）</span>
+                    PIN 碼 <span className="text-xs text-muted-foreground">（4 位數字）</span>
                   </Label>
                   <div className="relative">
                     <Input

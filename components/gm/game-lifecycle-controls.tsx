@@ -16,21 +16,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { PlayCircle, StopCircle, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_INPUT_CLASS,
+  GM_DIALOG_CONTENT_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
-interface GameLifecycleControlsProps {
+type GameLifecycleControlsProps = {
   gameId: string;
   isActive: boolean;
-}
+};
 
 /**
- * Phase 10.3.4: 遊戲生命週期控制組件
+ * 遊戲生命週期控制組件
  *
- * 功能：
- * - 顯示開始遊戲按鈕（當 isActive = false）
- * - 顯示結束遊戲按鈕（當 isActive = true）
- * - 確認對話框（含快照名稱輸入）
- * - Loading 狀態管理
- * - Toast 提示
+ * - 開始遊戲按鈕（isActive = false）：保持 shadcn 預設 Dialog 樣式
+ * - 結束遊戲按鈕（isActive = true）：使用設計稿新樣式
  */
 export function GameLifecycleControls({
   gameId,
@@ -42,9 +45,7 @@ export function GameLifecycleControls({
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [snapshotName, setSnapshotName] = useState('');
 
-  /**
-   * 開始遊戲處理函數
-   */
+  /** 開始遊戲處理函數 */
   const handleStartGame = async () => {
     setIsLoading(true);
 
@@ -66,9 +67,7 @@ export function GameLifecycleControls({
     }
   };
 
-  /**
-   * 結束遊戲處理函數
-   */
+  /** 結束遊戲處理函數 */
   const handleEndGame = async () => {
     setIsLoading(true);
 
@@ -96,7 +95,7 @@ export function GameLifecycleControls({
 
   return (
     <div className="flex items-center gap-2">
-      {/* 開始遊戲按鈕 */}
+      {/* 開始遊戲按鈕（保持原樣式） */}
       {!isActive && (
         <>
           <Button
@@ -108,7 +107,7 @@ export function GameLifecycleControls({
             開始遊戲
           </Button>
 
-          {/* 開始遊戲確認對話框 */}
+          {/* 開始遊戲確認對話框（保持 shadcn 預設樣式） */}
           <Dialog open={showStartDialog} onOpenChange={setShowStartDialog}>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
@@ -164,65 +163,74 @@ export function GameLifecycleControls({
             結束遊戲
           </Button>
 
-          {/* 結束遊戲確認對話框 */}
+          {/* 結束遊戲確認對話框（新設計） */}
           <Dialog open={showEndDialog} onOpenChange={setShowEndDialog}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>結束遊戲</DialogTitle>
-                <DialogDescription>
-                  確認要結束遊戲嗎？系統將保存當前遊戲狀態為快照。
-                </DialogDescription>
-              </DialogHeader>
+            <DialogContent
+              className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[400px] p-0 gap-0')}
+              showCloseButton={false}
+            >
+              {/* 頂部漸層條 */}
+              <div className="h-1.5 w-full bg-linear-to-br from-primary to-primary/80 rounded-t-xl" />
 
-              <div className="space-y-4 py-4">
-                {/* 快照名稱輸入 */}
+              <div className="p-8 space-y-6">
+                {/* 居中警告 */}
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center">
+                    <AlertTriangle className="h-8 w-8 text-primary" />
+                  </div>
+                  <DialogTitle className="text-2xl font-bold tracking-tight">確定要結束遊戲？</DialogTitle>
+
+                  {/* 警告清單卡片 */}
+                  <div className="w-full bg-muted/50 border border-border/20 rounded-xl p-5 shadow-sm">
+                    <ul className="list-disc text-[15px] font-semibold text-muted-foreground space-y-2 text-left inline-block">
+                      <li className="ml-4">所有 Runtime 資料將被封存為快照</li>
+                      <li className="ml-4">玩家將無法繼續使用道具和技能</li>
+                      <li className="ml-4">系統將切回 Baseline 設定模式</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 快照名稱 */}
                 <div className="space-y-2">
-                  <Label htmlFor="snapshotName">快照名稱（可選）</Label>
+                  <label className={GM_LABEL_CLASS}>
+                    快照名稱（選填）
+                  </label>
                   <Input
-                    id="snapshotName"
-                    placeholder="例：第一章結束"
+                    placeholder="自動命名：遊戲結束快照"
                     value={snapshotName}
                     onChange={(e) => setSnapshotName(e.target.value)}
                     disabled={isLoading}
                     maxLength={100}
+                    className={cn(GM_INPUT_CLASS, 'h-12')}
                   />
                   <p className="text-xs text-muted-foreground">
                     留空將使用時間戳作為快照名稱
                   </p>
                 </div>
-
-                {/* 警告訊息 */}
-                <div className="p-4 rounded-lg bg-destructive/10 text-foreground text-sm border border-destructive/20">
-                  <p className="font-semibold mb-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 text-destructive" />注意事項</p>
-                  <ul className="list-disc list-inside space-y-1 text-xs">
-                    <li>遊戲結束後，玩家將無法繼續遊戲操作</li>
-                    <li>當前遊戲狀態將被保存為快照</li>
-                    <li>可以重新開始遊戲，但會從設定資料重新開始</li>
-                  </ul>
-                </div>
               </div>
 
-              <DialogFooter>
-                <Button
+              {/* Footer */}
+              <div className="px-8 pb-8 pt-0 flex gap-3">
+                <button
                   type="button"
-                  variant="outline"
                   onClick={() => {
                     setShowEndDialog(false);
                     setSnapshotName('');
                   }}
                   disabled={isLoading}
+                  className={cn(GM_CANCEL_BUTTON_CLASS, 'flex-1 py-3')}
                 >
                   取消
-                </Button>
-                <Button
+                </button>
+                <button
                   type="button"
-                  variant="destructive"
                   onClick={handleEndGame}
                   disabled={isLoading}
+                  className="flex-1 py-3 px-4 rounded-lg text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/10 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  {isLoading ? '結束中...' : '確認結束'}
-                </Button>
-              </DialogFooter>
+                  {isLoading ? '結束中...' : '結束遊戲'}
+                </button>
+              </div>
             </DialogContent>
           </Dialog>
         </>

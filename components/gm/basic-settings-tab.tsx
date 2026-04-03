@@ -13,13 +13,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
-import { checkPinAvailability } from '@/app/actions/characters';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Check, X, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PinField, type PinCheckStatus } from '@/components/gm/pin-field';
 import {
   GM_LABEL_CLASS,
   GM_INPUT_CLASS,
@@ -35,16 +34,17 @@ interface BasicSettingsTabProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-type PinCheckStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'invalid';
-
 /**
  * Tab 1：基本設定（名稱、描述、PIN、人格特質）
  */
 export function BasicSettingsTab({ character, gameId, onDirtyChange }: BasicSettingsTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [showPin, setShowPin] = useState(false);
   const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>('idle');
+
+  const handlePinStatusChange = useCallback((status: PinCheckStatus) => {
+    setPinCheckStatus(status);
+  }, []);
 
   const initialData = useMemo(() => ({
     name: character.name,
@@ -69,40 +69,6 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange }: BasicSett
   });
 
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
-
-  // ── PIN 即時檢查 ──
-
-  const checkPin = useCallback(
-    async (pin: string) => {
-      const trimmedPin = pin.trim();
-      if (!trimmedPin || trimmedPin.length < 4 || !/^\d{4,6}$/.test(trimmedPin)) {
-        setPinCheckStatus('invalid');
-        return;
-      }
-      setPinCheckStatus('checking');
-      try {
-        const result = await checkPinAvailability(gameId, trimmedPin, character.id);
-        if (result.success && result.data) {
-          setPinCheckStatus(result.data.isAvailable ? 'available' : 'unavailable');
-        } else {
-          setPinCheckStatus('invalid');
-        }
-      } catch (err) {
-        console.error('Error checking PIN:', err);
-        setPinCheckStatus('invalid');
-      }
-    },
-    [gameId, character.id],
-  );
-
-  useEffect(() => {
-    if (!formData.hasPinLock || !formData.pin) {
-      setPinCheckStatus('idle');
-      return;
-    }
-    const timeoutId = setTimeout(() => { checkPin(formData.pin); }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [formData.hasPinLock, formData.pin, checkPin]);
 
   // ── Submit ──
 
@@ -216,66 +182,22 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange }: BasicSett
 
         {/* PIN 輸入 */}
         {formData.hasPinLock && (
-          <div className="pt-4 border-t border-border/15 space-y-3">
-            <div className="relative max-w-xs">
-              <Input
-                type={showPin ? 'text' : 'password'}
-                inputMode="numeric"
-                pattern="[0-9]{4,6}"
-                placeholder={character.hasPinLock ? '留空保持不變' : '4-6 位數字'}
-                value={formData.pin}
-                onChange={(e) =>
-                  update('pin', e.target.value.replace(/\D/g, '').slice(0, 6))
-                }
-                disabled={isLoading}
-                required={formData.hasPinLock && !character.hasPinLock}
-                className={GM_INPUT_CLASS}
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="cursor-pointer text-muted-foreground/50 hover:text-primary transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPin ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
-                </button>
-                {pinCheckStatus === 'checking' && (
-                  <span className="text-muted-foreground text-sm animate-pulse">…</span>
-                )}
-                {pinCheckStatus === 'available' && (
-                  <Check className="h-[18px] w-[18px] text-success" />
-                )}
-                {pinCheckStatus === 'unavailable' && (
-                  <X className="h-[18px] w-[18px] text-destructive" />
-                )}
-                {pinCheckStatus === 'invalid' && (
-                  <AlertTriangle className="h-[18px] w-[18px] text-warning" />
-                )}
-              </div>
-            </div>
-            {/* 狀態提示文字（固定位置，避免版面跳動） */}
-            <p className="text-xs">
-              {pinCheckStatus === 'available' && (
-                <span className="font-semibold text-success">✓ PIN 碼可用</span>
-              )}
-              {pinCheckStatus === 'unavailable' && (
-                <span className="font-semibold text-destructive">此 PIN 已被使用</span>
-              )}
-              {pinCheckStatus === 'invalid' && (
-                <span className="text-warning">PIN 格式錯誤（需要 4-6 位數字）</span>
-              )}
-              {pinCheckStatus === 'idle' && (
-                <span className="text-muted-foreground">
-                  {character.hasPinLock
-                    ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
-                    : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'}
-                </span>
-              )}
-              {pinCheckStatus === 'checking' && (
-                <span className="text-muted-foreground">檢查中...</span>
-              )}
-            </p>
+          <div className="pt-4 border-t border-border/15 max-w-xs">
+            <PinField
+              gameId={gameId}
+              excludeCharacterId={character.id}
+              value={formData.pin}
+              onChange={(value) => update('pin', value)}
+              disabled={isLoading}
+              required={formData.hasPinLock && !character.hasPinLock}
+              placeholder={character.hasPinLock ? '留空保持不變' : '4-6 位數字'}
+              idleHint={
+                character.hasPinLock
+                  ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
+                  : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'
+              }
+              onStatusChange={handlePinStatusChange}
+            />
           </div>
         )}
       </section>
