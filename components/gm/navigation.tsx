@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -20,12 +20,21 @@ import {
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { usePlayerTheme } from '@/components/player/player-theme-context';
+import {
+  GM_DIALOG_CONTENT_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
 type NavItem = {
   href: string;
@@ -74,18 +83,10 @@ export function MobileHeader() {
 
 /** 桌面版可收合/展開的側邊欄，含外層 aside 容器 */
 export function DesktopSidebar() {
-  // NOTE: 此處例外使用 useEffect + setState，因為 collapsed 狀態會切換
-  // 完全不同的子樹（CollapsedNavigation vs ExpandedNavigation），
-  // lazy initializer 在 SSR 時回傳 false 但 client 可能回傳 true，
-  // 導致 hydration mismatch。必須先以 server 預設值 render，mount 後再讀取。
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (stored === 'true') {
-      setCollapsed(true);
-    }
-  }, []);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
+  });
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -117,10 +118,7 @@ function ExpandedNavigation({ onToggle }: { onToggle?: () => void }) {
   const pathname = usePathname();
   const { isDark, toggleTheme, mounted } = usePlayerTheme();
   const themeResolved = mounted ? isDark : false;
-
-  const handleLogout = async () => {
-    await logout();
-  };
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   return (
     <nav className="flex flex-col h-full p-6">
@@ -198,13 +196,18 @@ function ExpandedNavigation({ onToggle }: { onToggle?: () => void }) {
         {/* Logout */}
         <button
           type="button"
-          onClick={handleLogout}
+          onClick={() => setShowLogoutDialog(true)}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
         >
           <LogOut className="h-5 w-5 shrink-0" />
           <span className="font-medium">登出</span>
         </button>
       </div>
+
+      <LogoutConfirmDialog
+        open={showLogoutDialog}
+        onOpenChange={setShowLogoutDialog}
+      />
     </nav>
   );
 }
@@ -217,10 +220,7 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
   const pathname = usePathname();
   const { isDark, toggleTheme, mounted } = usePlayerTheme();
   const themeResolved = mounted ? isDark : false;
-
-  const handleLogout = async () => {
-    await logout();
-  };
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -310,7 +310,7 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => setShowLogoutDialog(true)}
                 className="flex items-center justify-center w-12 h-12 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all cursor-pointer"
               >
                 <LogOut className="h-5 w-5" />
@@ -319,7 +319,73 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
             <TooltipContent side="right">登出系統</TooltipContent>
           </Tooltip>
         </div>
+
+        <LogoutConfirmDialog
+          open={showLogoutDialog}
+          onOpenChange={setShowLogoutDialog}
+        />
       </nav>
     </TooltipProvider>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Logout Confirm Dialog
+// ─────────────────────────────────────────────
+
+type LogoutConfirmDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+/** 登出確認 Dialog — 避免 GM 誤觸登出 */
+function LogoutConfirmDialog({ open, onOpenChange }: LogoutConfirmDialogProps) {
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsLoggingOut(true);
+    await logout();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[400px] p-0 gap-0')}
+        showCloseButton={false}
+      >
+        <div className="p-8 space-y-6">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-destructive/15 flex items-center justify-center">
+              <LogOut className="h-8 w-8 text-destructive" />
+            </div>
+            <DialogTitle className="text-2xl font-bold tracking-tight">
+              確定要登出嗎？
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              登出後需要重新透過 Magic Link 登入。未儲存的變更將會遺失。
+            </p>
+          </div>
+        </div>
+
+        <div className="px-8 pb-8 pt-0 flex gap-3">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            disabled={isLoggingOut}
+            className={cn(GM_CANCEL_BUTTON_CLASS, 'flex-1 py-3')}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={isLoggingOut}
+            className="flex-1 py-3 px-4 rounded-lg text-sm font-bold cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/10 transition-all active:scale-[0.98] disabled:opacity-50"
+          >
+            {isLoggingOut ? '登出中...' : '確認登出'}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

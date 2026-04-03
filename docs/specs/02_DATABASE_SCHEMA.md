@@ -1,7 +1,7 @@
 # 資料庫 Schema 設計
 
-## 版本：v1.4
-## 更新日期：2026-03-04（Phase 10 遊戲狀態分層）
+## 版本：v1.5
+## 更新日期：2026-04-03（Phase D 重構同步：publicInfo BackgroundBlock 結構、PIN 4 位數字）
 ## 資料庫：MongoDB Atlas
 
 ---
@@ -59,9 +59,9 @@ db.gm_users.createIndex({ email: 1 }, { unique: true });
 
 ### 2.2 games
 
-劇本資料，包含公開資訊、章節等。
+劇本資料，包含公開資訊等。
 
-**Phase 3 擴展**：加入 `publicInfo`（世界觀、前導故事、章節）
+**Phase 3 擴展**：加入 `publicInfo`（使用 BackgroundBlock[] 統一結構）
 
 ```typescript
 interface Game {
@@ -74,14 +74,11 @@ interface Game {
   // Phase 10：Game Code 系統
   gameCode: string;                   // 唯一遊戲代碼（6 位英數字，自動生成）
   
-  // Phase 3 擴展：公開資訊
+  // Phase 3 擴展 → Phase D 重構：公開資訊（BackgroundBlock 統一結構）
   publicInfo?: {
-    intro: string;                    // 前導故事
-    worldSetting: string;             // 世界觀
-    chapters: Array<{
-      title: string;
+    blocks: Array<{
+      type: 'title' | 'body';         // title = 段落標題，body = 段落內文
       content: string;
-      order: number;
     }>;
   };
   
@@ -101,7 +98,7 @@ db.games.createIndex({ createdAt: -1 });
 // Phase 10: gameCode 欄位層級 unique: true（Schema 定義中設定，無需額外 createIndex）
 ```
 
-#### 範例文件（Phase 3）
+#### 範例文件
 
 ```json
 {
@@ -110,20 +107,13 @@ db.games.createIndex({ createdAt: -1 });
   "name": "迷霧莊園",
   "description": "一場神秘的謀殺案即將展開...",
   "isActive": true,
+  "gameCode": "ABC123",
   "publicInfo": {
-    "intro": "1920年代，一座古老的莊園...",
-    "worldSetting": "歐洲古典莊園，充滿神秘色彩",
-    "chapters": [
-      {
-        "title": "序章：邀請函",
-        "content": "你收到了一封神秘的邀請函...",
-        "order": 1
-      },
-      {
-        "title": "第一章：抵達",
-        "content": "馬車緩緩駛入莊園...",
-        "order": 2
-      }
+    "blocks": [
+      { "type": "title", "content": "序章：邀請函" },
+      { "type": "body", "content": "1920年代，你收到了一封神秘的邀請函，邀請你前往一座古老的莊園..." },
+      { "type": "title", "content": "世界觀" },
+      { "type": "body", "content": "歐洲古典莊園，充滿神秘色彩，四處瀰漫著不安的氣息。" }
     ]
   },
   "createdAt": ISODate("2025-11-29T10:00:00Z"),
@@ -146,11 +136,14 @@ interface Character {
   
   // PIN 鎖定機制
   hasPinLock: boolean;              // 是否需要 PIN
-  pin?: string;                     // PIN 明文（4-6 位數字，僅 GM 可查看）
+  pin?: string;                     // PIN 明文（4 位數字，僅 GM 可查看）
   
-  // 公開資訊（PIN 解鎖後可見）- Phase 3
+  // 公開資訊（PIN 解鎖後可見）- Phase 3 → Phase D 重構
   publicInfo: {
-    background: string;             // 角色背景
+    background: Array<{             // 角色背景（BackgroundBlock 統一結構）
+      type: 'title' | 'body';       // title = 段落標題，body = 段落內文
+      content: string;
+    }>;
     personality: string;            // 性格特徵
     relationships: Array<{
       targetName: string;           // 關係對象
@@ -186,7 +179,6 @@ interface Character {
     completedAt?: Date;             // 完成時間
     
     // GM 專用欄位（玩家端不顯示）
-    gmNotes?: string;               // GM 筆記
     revealCondition?: string;       // 揭露條件描述（僅 GM 參考）
     
     createdAt: Date;                // 建立時間
@@ -377,7 +369,9 @@ db.characters.createIndex({ gameId: 1, pin: 1 }, { unique: true, sparse: true, p
   "hasPinLock": true,
   "pin": "1234",
   "publicInfo": {
-    "background": "莊園的女主人，優雅高貴...",
+    "background": [
+      { "type": "body", "content": "莊園的女主人，優雅高貴，出身名門望族。" }
+    ],
     "personality": "表面溫柔，實則心機深沉",
     "relationships": [
       {
@@ -607,7 +601,7 @@ gm_users (1) ──< (N) games ──< (N) characters
 ### 4.3 characters
 
 - `name`：必填，長度 1-50 字元
-- `pin`：當 `hasPinLock=true` 時必填，格式為 4-6 位數字（明文儲存）
+- `pin`：當 `hasPinLock=true` 時必填，格式為 4 位數字（明文儲存）
 - `wsChannelId`：必填，格式 `character-{ObjectId}`
 - `secretInfo.isUnlocked`：預設 false
 
@@ -739,7 +733,7 @@ if (!character.secretInfo.isUnlocked) {
 
 ## 附註
 
-- **PIN 儲存方式**：採用明文儲存（4-6 位數字），僅 GM 可透過 Server Action 查看
+- **PIN 儲存方式**：採用明文儲存（4 位數字），僅 GM 可透過 Server Action 查看
   - **理由**：此系統為 LARP 遊戲輔助工具，PIN 主要用於防止玩家誤看其他角色卡，而非防止黑客攻擊
   - **安全措施**：玩家端 API 不會回傳 PIN，只有 GM 端 Server Action 可取得
 - `wsChannelId` 格式統一為 `character-{ObjectId}`

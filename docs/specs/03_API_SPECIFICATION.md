@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.8
-## 更新日期：2026-03-04（Phase 10 Game Lifecycle + Unlock Actions）
+## 版本：v1.9
+## 更新日期：2026-04-03（Phase D 重構同步：publicInfo BackgroundBlock 結構、PIN 4 位數字）
 
 ---
 
@@ -126,12 +126,9 @@ interface CreateGameInput {
   coverImage?: string;  // Blob URL
   gameCode?: string;    // Phase 10: 可選的 Game Code（6 位英數字）
   publicInfo: {
-    intro: string;
-    worldSetting: string;
-    chapters: Array<{
-      title: string;
+    blocks: Array<{
+      type: 'title' | 'body';   // title = 段落標題，body = 段落內文
       content: string;
-      order: number;
     }>;
   };
 }
@@ -175,12 +172,9 @@ interface UpdateGameInput {
   description?: string;
   coverImage?: string;
   publicInfo?: {
-    intro?: string;
-    worldSetting?: string;
-    chapters?: Array<{
-      title: string;
+    blocks?: Array<{
+      type: 'title' | 'body';
       content: string;
-      order: number;
     }>;
   };
   status?: 'draft' | 'active' | 'completed';
@@ -264,9 +258,12 @@ interface CreateCharacterInput {
   name: string;
   avatar?: string;  // Blob URL
   hasPinLock: boolean;
-  pin?: string;  // PIN 碼（4-6 位數字，明文儲存）
+  pin?: string;  // PIN 碼（4 位數字，明文儲存）
   publicInfo: {
-    background: string;
+    background: Array<{          // BackgroundBlock 統一結構
+      type: 'title' | 'body';
+      content: string;
+    }>;
     personality: string;
     relationships: Array<{
       targetName: string;
@@ -359,9 +356,12 @@ interface UpdateCharacterInput {
   name?: string;
   avatar?: string;
   hasPinLock?: boolean;
-  pin?: string;  // 若要更新 PIN（4-6 位數字，明文儲存）
+  pin?: string;  // 若要更新 PIN（4 位數字，明文儲存）
   publicInfo?: {
-    background?: string;
+    background?: Array<{         // BackgroundBlock 統一結構
+      type: 'title' | 'body';
+      content: string;
+    }>;
     personality?: string;
     relationships?: Array<{
       targetName: string;
@@ -948,14 +948,11 @@ interface PushEventInput {
     "name": "迷霧莊園",
     "description": "一場神秘的謀殺案即將展開...",
     "publicInfo": {
-      "intro": "1920年代，一座古老的莊園...",
-      "worldSetting": "歐洲古典莊園，充滿神秘色彩",
-      "chapters": [
-        {
-          "title": "序章：邀請函",
-          "content": "你收到了一封神秘的邀請函...",
-          "order": 1
-        }
+      "blocks": [
+        { "type": "title", "content": "序章：邀請函" },
+        { "type": "body", "content": "1920年代，你收到了一封神秘的邀請函..." },
+        { "type": "title", "content": "世界觀" },
+        { "type": "body", "content": "歐洲古典莊園，充滿神秘色彩" }
       ]
     }
   }
@@ -998,7 +995,9 @@ interface PushEventInput {
     "imageUrl": "https://...",
     "hasPinLock": true,
     "publicInfo": {
-      "background": "...",
+      "background": [
+        { "type": "body", "content": "莊園的女主人，優雅高貴..." }
+      ],
       "personality": "...",
       "relationships": [...]
     },
@@ -1428,7 +1427,7 @@ Server Action：檢查 PIN 是否在同遊戲內可用。
 
 Game Code 和 PIN 的格式驗證已在各表單元件中以 inline 正則實作：
 - Game Code：`/^[A-Z0-9]{6}$/i`（6 位英數字）
-- PIN：`/^[0-9]{4,6}$/`（4-6 位數字）
+- PIN：`/^\d{4}$/`（4 位數字）
 
 ---
 
@@ -1499,7 +1498,7 @@ Game Code 和 PIN 的格式驗證已在各表單元件中以 inline 正則實作
 ```typescript
 {
   gameCode: string;  // 6 碼英數字
-  pin: string;       // 4-6 碼數字
+  pin: string;       // 4 碼數字
 }
 ```
 
