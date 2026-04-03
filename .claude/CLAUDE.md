@@ -97,7 +97,7 @@ docs/             # 文檔
   ├── knowledge/  # 原子化知識庫（主要參考）
   ├── specs/      # 技術規格（詳細 API/WebSocket 規格）
   ├── archive/    # 歷史文件（唯讀參考）
-  └── refactoring/ # 重構進度追蹤
+  └── refactoring/ # 開發規劃（NEXT_DEVELOPMENT_PLAN.md）
 ```
 
 ## 開發工具
@@ -173,12 +173,11 @@ docs/knowledge/
 **常見陷阱**：Next.js `page.tsx` 不需要 import 即可作為路由存在，靜態分析工具無法偵測「已無入口導航的頁面」，必須人工確認。
 
 ## 文件同步規則
-- 完成一個開發步驟後，**必須立即**更新重構進度文件 `docs/refactoring/REFACTOR_PROGRESS.md`（將對應項目從 `[ ]` 改為 `[x]`）
-- 若進度文件中的狀態與 codebase 實際狀態不一致，應優先修正文件
 - 新增或刪除檔案時，檢查是否有其他文件（包含知識庫）引用了該路徑，一併更新
+- 若有對應的開發規劃文件（如 `docs/refactoring/NEXT_DEVELOPMENT_PLAN.md`），完成項目後更新完成狀態
 
 ## 架構文檔參考
-- 重構進度：`docs/refactoring/REFACTOR_PROGRESS.md`
+- 開發規劃：`docs/refactoring/NEXT_DEVELOPMENT_PLAN.md`
 - API 規範：`docs/specs/03_API_SPECIFICATION.md`
 - WebSocket 事件：`docs/specs/04_WEBSOCKET_EVENTS.md`
 - 資料模型：`docs/knowledge/architecture/data-models.md`
