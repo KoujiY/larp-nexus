@@ -152,6 +152,7 @@ export async function getPublicCharacter(
         gameId: character.gameId.toString(),
         name: character.name,
         description: character.description,
+        slogan: character.slogan || undefined,
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
         publicInfo: character.publicInfo,

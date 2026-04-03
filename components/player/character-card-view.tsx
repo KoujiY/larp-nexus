@@ -309,15 +309,15 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         {/* 漸層 scrim：統一遮罩，讓文字在兩種背景下都易讀 */}
         <div className="absolute inset-0 bg-linear-to-b from-transparent via-background/40 to-background/85 z-10 pointer-events-none" />
 
-        {/* 角色名稱、個性、描述 overlay（壓在圖片上，顏色為主題金色） */}
+        {/* 角色名稱 + 標語 overlay（壓在圖片上，顏色為主題金色） */}
         <div className="absolute bottom-12 left-0 w-full px-8 z-20">
           <h1 className="text-5xl font-extrabold tracking-tight text-primary [text-shadow:0_2px_8px_rgba(0,0,0,0.8)]">
             {character.name}
           </h1>
-          {character.description && (
+          {character.slogan && (
             <div className="mt-6 max-w-lg">
               <p className="text-muted-foreground/90 text-sm leading-relaxed font-light italic">
-                {character.description}
+                {character.slogan}
               </p>
             </div>
           )}

@@ -71,6 +71,7 @@ type SkillEffect = {
 export type UpdateCharacterInput = {
   name?: string;
   description?: string;
+  slogan?: string;
   hasPinLock?: boolean;
   pin?: string;
   publicInfo?: {

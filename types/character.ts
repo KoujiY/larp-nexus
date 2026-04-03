@@ -8,6 +8,7 @@ export interface CharacterData {
   gameId: string;
   name: string;
   description: string;
+  slogan?: string;
   imageUrl?: string;
   hasPinLock: boolean;
   publicInfo?: PublicInfo;
@@ -357,6 +358,8 @@ export interface CreateCharacterInput {
 
 export interface UpdateCharacterInput {
   name?: string;
+  description?: string;
+  slogan?: string;
   avatar?: string;
   hasPinLock?: boolean;
   pin?: string;

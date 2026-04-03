@@ -19,6 +19,7 @@ export interface CharacterDocumentBase {
   gameId: mongoose.Types.ObjectId;
   name: string;
   description: string;
+  slogan?: string;
   imageUrl?: string;
   hasPinLock: boolean;
   pin?: string;

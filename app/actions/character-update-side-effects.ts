@@ -83,6 +83,7 @@ export async function emitUpdateSideEffects({
   const basicChanged =
     (data.name !== undefined && data.name !== beforeState.name) ||
     (data.description !== undefined && data.description !== beforeState.description) ||
+    (data.slogan !== undefined && data.slogan !== beforeState.slogan) ||
     (data.hasPinLock !== undefined && data.hasPinLock !== beforeState.hasPinLock) ||
     (data.publicInfo !== undefined &&
       JSON.stringify(data.publicInfo) !== JSON.stringify(beforeState.publicInfo || {})) ||

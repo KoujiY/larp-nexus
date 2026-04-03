@@ -32,6 +32,7 @@ function serializeCharacterDoc(
     gameId: overrides?.gameId ?? String(raw.gameId),
     name: raw.name as string,
     description: raw.description as string,
+    slogan: (raw.slogan as string) || undefined,
     imageUrl: raw.imageUrl as string | undefined,
     hasPinLock: raw.hasPinLock as boolean,
     publicInfo: serializePublicInfo(raw.publicInfo as Record<string, unknown>),

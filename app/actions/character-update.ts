@@ -168,6 +168,7 @@ export async function updateCharacter(
         gameId: updatedCharacter.gameId.toString(),
         name: updatedCharacter.name,
         description: updatedCharacter.description,
+        slogan: updatedCharacter.slogan || undefined,
         imageUrl: updatedCharacter.imageUrl,
         hasPinLock: updatedCharacter.hasPinLock,
         publicInfo: serializePublicInfo(updatedCharacter.publicInfo),
@@ -211,6 +212,7 @@ function buildUpdateData(
   // Basic fields
   if (data.name !== undefined) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
+  if (data.slogan !== undefined) updateData.slogan = data.slogan;
   if (data.hasPinLock !== undefined) updateData.hasPinLock = data.hasPinLock;
   if (data.pin !== undefined) updateData.pin = data.pin;
 

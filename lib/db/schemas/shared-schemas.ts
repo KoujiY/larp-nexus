@@ -264,6 +264,7 @@ export function createBaseCharacterSchemaFields() {
     gameId: { type: Schema.Types.ObjectId, ref: 'Game', required: true },
     name: { type: String, required: true, maxlength: 100 },
     description: { type: String, default: '' },
+    slogan: { type: String, default: '' },
     imageUrl: { type: String },
     hasPinLock: { type: Boolean, default: false },
     pin: { type: String },
