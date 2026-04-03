@@ -13,10 +13,16 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.test.ts', '**/*.test.tsx'],
     exclude: ['node_modules', '.next', 'e2e'],
+    // 元件測試使用 per-file `@vitest-environment jsdom` 註解切換環境
+    environmentMatchGlobs: [
+      ['**/__tests__/**/*.component.test.tsx', 'jsdom'],
+      ['components/**/*.test.tsx', 'jsdom'],
+    ],
+    setupFiles: ['./test-setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      include: ['lib/**', 'app/actions/**'],
+      include: ['lib/**', 'app/actions/**', 'components/**', 'hooks/**'],
       exclude: ['**/*.test.ts', '**/*.test.tsx', '**/*.d.ts'],
     },
   },
