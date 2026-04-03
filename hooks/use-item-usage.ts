@@ -8,7 +8,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { toast } from 'sonner';
+import { notify } from '@/lib/notify';
 import { canUseItem } from '@/lib/utils/item-validators';
 import type { Item } from '@/types/character';
 
@@ -23,6 +23,7 @@ export interface UseItemUsageOptions {
       contestId?: string;
       checkPassed?: boolean;
       checkResult?: number;
+      attackerValue?: number;
       needsTargetItemSelection?: boolean;
       targetCharacterId?: string;
     };
@@ -34,6 +35,7 @@ export interface UseItemUsageOptions {
       contestId?: string;
       checkPassed?: boolean;
       checkResult?: number;
+      attackerValue?: number;
       needsTargetItemSelection?: boolean;
       targetCharacterId?: string;
     };
@@ -54,9 +56,7 @@ export interface UseItemUsageOptions {
 export interface UseItemUsageReturn {
   isUsing: boolean;
   checkResult: number | undefined;
-  useResult: { success: boolean; message: string } | null;
   handleUseItem: () => Promise<void>;
-  setUseResult: (result: { success: boolean; message: string } | null) => void;
   setCheckResult: (result: number | undefined) => void;
 }
 
@@ -80,7 +80,6 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
 
   const [isUsing, setIsUsing] = useState(false);
   const [checkResult, setCheckResult] = useState<number | undefined>(undefined);
-  const [useResult, setUseResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleUseItem = useCallback(async () => {
     if (!selectedItem || !onUseItem) return;
@@ -92,7 +91,7 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
 
     // 檢查是否需要選擇目標角色
     if (requiresTarget && !selectedTargetId) {
-      toast.error('請先選擇目標角色');
+      notify.error('請先選擇目標角色');
       return;
     }
 
@@ -107,13 +106,12 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
     if (selectedItem.checkType === 'random' && selectedItem.randomConfig) {
       finalCheckResult = Math.floor(Math.random() * selectedItem.randomConfig.maxValue) + 1;
       setCheckResult(finalCheckResult);
-      toast.info(`骰出結果：${finalCheckResult}`);
     }
 
     // 對抗檢定必須有目標角色
     if (selectedItem.checkType === 'contest' || selectedItem.checkType === 'random_contest') {
       if (!selectedTargetId) {
-        toast.error('對抗檢定需要選擇目標角色');
+        notify.error('對抗檢定需要選擇目標角色');
         return;
       }
     }
@@ -129,7 +127,6 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
       if (result.success) {
         // 非對抗偷竊/移除：使用成功後需要選擇目標道具
         if (result.data?.needsTargetItemSelection && result.data?.targetCharacterId) {
-          setUseResult({ success: true, message: result.message || '使用成功，請選擇目標道具' });
           // 清除目標選擇狀態（target character 已確定，不需要保留）
           if (onClearTargetState) {
             onClearTargetState();
@@ -145,7 +142,6 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
             });
           }
           // 不關閉 dialog，等待目標道具選擇完成
-          // 不刷新頁面，避免 dialog 被關閉
           if (onSuccess) {
             onSuccess(result);
           }
@@ -154,34 +150,12 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
 
         // 如果不是對抗檢定，處理成功結果
         if (!result.data?.contestId) {
-          if (result.data?.checkPassed === false) {
-            // 非對抗檢定的檢定失敗
-            setUseResult({ success: false, message: '檢定失敗，道具未生效' });
-            toast.warning('檢定失敗，道具未生效');
-            // 檢定失敗也清除目標選擇狀態，避免下次開啟時被鎖死
-            if (onClearTargetState) {
-              onClearTargetState();
-            }
-            // 檢定失敗時關閉 dialog
-            if (onCloseDialog) {
-              setTimeout(() => {
-                onCloseDialog();
-              }, 2000);
-            }
-          } else {
-            // 檢定成功或無檢定
-            setUseResult({ success: true, message: result.message || '道具使用成功' });
-            toast.success(result.message || '道具使用成功');
-            // 道具使用成功後，清除目標選擇狀態
-            if (onClearTargetState) {
-              onClearTargetState();
-            }
-            // 使用成功時關閉 dialog
-            if (onCloseDialog) {
-              setTimeout(() => {
-                onCloseDialog();
-              }, 1500);
-            }
+          // 清除目標選擇狀態並關閉 dialog（結果透過通知面板呈現）
+          if (onClearTargetState) {
+            onClearTargetState();
+          }
+          if (onCloseDialog) {
+            onCloseDialog();
           }
         }
 
@@ -197,17 +171,13 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
         }
       } else {
         console.error('道具使用失敗:', result);
-        setUseResult({ success: false, message: result.message || '道具使用失敗' });
-        toast.error(result.message || '道具使用失敗');
-        // 使用失敗也清除目標選擇狀態
+        notify.error(result.message || '道具使用失敗');
+        // 使用失敗清除目標選擇狀態並關閉 dialog
         if (onClearTargetState) {
           onClearTargetState();
         }
-        // 使用失敗時關閉 dialog
         if (onCloseDialog) {
-          setTimeout(() => {
-            onCloseDialog();
-          }, 2000);
+          onCloseDialog();
         }
 
         if (onError) {
@@ -217,8 +187,7 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
     } catch (error) {
       console.error('道具使用錯誤:', error);
       const errorMessage = error instanceof Error ? error.message : '道具使用失敗，請稍後再試';
-      setUseResult({ success: false, message: errorMessage });
-      toast.error(errorMessage);
+      notify.error(errorMessage);
       // 異常也清除目標選擇狀態
       if (onClearTargetState) {
         onClearTargetState();
@@ -247,9 +216,7 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
   return {
     isUsing,
     checkResult,
-    useResult,
     handleUseItem,
-    setUseResult,
     setCheckResult,
   };
 }

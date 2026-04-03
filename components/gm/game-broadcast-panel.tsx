@@ -1,13 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { pushEvent } from '@/app/actions/events';
+import { PillToggle } from '@/components/gm/pill-toggle';
 import {
   Select,
   SelectTrigger,
@@ -15,13 +12,22 @@ import {
   SelectItem,
   SelectValue,
 } from '@/components/ui/select';
+import { GM_LABEL_CLASS } from '@/lib/styles/gm-form';
 
 interface GameBroadcastPanelProps {
   gameId: string;
   characters: Array<{ id: string; name: string }>;
+  /** 廣播成功後的回呼（用於刷新 Event Log） */
+  onBroadcastSent?: () => void;
 }
 
-export function GameBroadcastPanel({ gameId, characters }: GameBroadcastPanelProps) {
+/**
+ * Runtime 控制台 — 快速廣播面板
+ *
+ * 支援全體廣播和指定角色推播。
+ * 視覺風格：自製 pill toggle + GM 表單樣式 + gradient 發送按鈕
+ */
+export function GameBroadcastPanel({ gameId, characters, onBroadcastSent }: GameBroadcastPanelProps) {
   const [type, setType] = useState<'broadcast' | 'character'>('broadcast');
   const [targetCharacterId, setTargetCharacterId] = useState('');
   const [title, setTitle] = useState('');
@@ -51,76 +57,93 @@ export function GameBroadcastPanel({ gameId, characters }: GameBroadcastPanelPro
         setMessage('');
         setTitle('');
         if (type === 'character') setTargetCharacterId('');
+        onBroadcastSent?.();
       } else {
         toast.error(res.message || '推送失敗');
       }
     });
   };
 
+  const canSubmit = title.trim() && (type === 'broadcast' || targetCharacterId.trim());
+
   return (
-    <div className="space-y-4 border rounded-lg p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">即時推播</h3>
-          <p className="text-sm text-muted-foreground">推送給劇本內玩家或單一角色</p>
-        </div>
+    <div className="bg-card p-6 rounded-xl border border-border/40 shadow-sm">
+      {/* Header */}
+      <h3 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
+        <Megaphone className="h-5 w-5 text-primary" />
+        快速廣播
+      </h3>
+
+      {/* Mode Toggle */}
+      <div className="mb-6">
+        <PillToggle
+          options={[
+            { value: 'broadcast', label: '全體廣播' },
+            { value: 'character', label: '指定角色' },
+          ]}
+          value={type}
+          onValueChange={setType}
+        />
       </div>
 
-      <Tabs value={type} onValueChange={(v) => setType(v as 'broadcast' | 'character')}>
-        <TabsList className="w-full">
-          <TabsTrigger value="broadcast" className="w-1/2">劇本廣播</TabsTrigger>
-          <TabsTrigger value="character" className="w-1/2">單一角色</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="broadcast" className="mt-4 space-y-3">
-          <div className="space-y-2">
-            <Label>
-              標題 <span className="text-red-500">*</span>
-            </Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：系統公告" />
-          </div>
-          <div className="space-y-2">
-            <Label>訊息</Label>
-            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="要推送的內容（可留空）" />
-          </div>
-          <Button onClick={handleSubmit} disabled={isPending || !title.trim()}>推送廣播</Button>
-        </TabsContent>
-
-        <TabsContent value="character" className="mt-4 space-y-3">
-          <div className="space-y-2">
-            <Label>
-              目標角色 <span className="text-red-500">*</span>
-            </Label>
+      {/* Form */}
+      <div className="space-y-4">
+        {/* 指定角色模式：角色選擇 */}
+        {type === 'character' && (
+          <div>
+            <label className={GM_LABEL_CLASS}>目標角色</label>
             <Select
               value={targetCharacterId}
-              onValueChange={(v) => setTargetCharacterId(v)}
+              onValueChange={setTargetCharacterId}
             >
-              <SelectTrigger className="w-full justify-between text-left">
+              <SelectTrigger className="w-full bg-muted border-none rounded-lg h-10 text-sm font-semibold focus:ring-1 focus:ring-primary">
                 <SelectValue placeholder="選擇角色" />
               </SelectTrigger>
               <SelectContent>
                 {characters.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.name} ({c.id.slice(0, 6)})
+                    {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>
-              標題 <span className="text-red-500">*</span>
-            </Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：密語提醒" />
-          </div>
-          <div className="space-y-2">
-            <Label>訊息</Label>
-            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="要推送的內容（可留空）" />
-          </div>
-          <Button onClick={handleSubmit} disabled={isPending || !title.trim() || !targetCharacterId.trim()}>推送給角色</Button>
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {/* 標題 */}
+        <div>
+          <label className={GM_LABEL_CLASS}>標題</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="輸入廣播標題..."
+            className="w-full bg-muted border-none rounded-lg text-sm px-4 py-2.5 focus:ring-1 focus:ring-primary focus:outline-none"
+          />
+        </div>
+
+        {/* 訊息 */}
+        <div>
+          <label className={GM_LABEL_CLASS}>訊息內容</label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="在此輸入要傳送給玩家的訊息..."
+            rows={4}
+            className="w-full bg-muted border-none rounded-lg text-sm px-4 py-2.5 focus:ring-1 focus:ring-primary focus:outline-none resize-none"
+          />
+        </div>
+
+        {/* 發送按鈕 */}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isPending || !canSubmit}
+          className="w-full py-3 bg-gradient-to-br from-primary to-primary/70 text-primary-foreground font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isPending ? '發送中...' : '發送廣播'}
+        </button>
+      </div>
     </div>
   );
 }
-

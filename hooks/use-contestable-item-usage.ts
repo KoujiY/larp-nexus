@@ -8,21 +8,21 @@
 'use client';
 
 import { useCallback } from 'react';
-import { toast } from 'sonner';
 import { useContestState } from '@/hooks/use-contest-state';
 import { useContestDialogState } from '@/hooks/use-contest-dialog-state';
+import type { AttackerWaitingDisplayData } from '@/hooks/use-contest-dialog-state';
 
 export interface UseContestableItemUsageOptions {
   characterId: string;
   sourceType: 'skill' | 'item';
   sourceId: string;
   selectedTargetId: string | undefined;
-  setUseResult: (result: { success: boolean; message: string } | null) => void;
-  setLastToastId?: (id: string | number | undefined) => void;
+  /** 對抗開始時的回呼（關閉 bottom sheet、開啟等待 dialog 等） */
+  onContestStarted?: () => void;
 }
 
 export interface UseContestableItemUsageReturn {
-  handleContestStarted: (contestId: string, message?: string) => void;
+  handleContestStarted: (contestId: string, displayData?: AttackerWaitingDisplayData) => void;
 }
 
 /**
@@ -37,8 +37,7 @@ export function useContestableItemUsage(
     sourceType,
     sourceId,
     selectedTargetId,
-    setUseResult,
-    setLastToastId,
+    onContestStarted,
   } = options;
 
   const { addPendingContest, updateContestDialog } = useContestState(characterId);
@@ -46,35 +45,21 @@ export function useContestableItemUsage(
 
   /**
    * 處理對抗檢定開始
-   * 統一設置對抗檢定狀態、dialog 狀態和使用結果
+   * 設置對抗檢定狀態、dialog 狀態，並通知呼叫方關閉 bottom sheet
    */
   const handleContestStarted = useCallback(
-    (contestId: string, message?: string) => {
+    (contestId: string, displayData?: AttackerWaitingDisplayData) => {
       // 記錄正在進行的對抗檢定狀態
       addPendingContest(sourceId, sourceType, contestId);
-      
+
       // 更新 dialog 狀態
       updateContestDialog(sourceId, true, selectedTargetId);
-      
-      // 設置統一的 Dialog 狀態，確保重新整理後能正確恢復
-      setAttackerWaitingDialog(contestId, sourceType, sourceId);
-      
-      // 設置使用結果訊息
-      const resultMessage = message || '對抗檢定請求已發送，等待防守方回應...';
-      setUseResult({
-        success: true,
-        message: resultMessage,
-      });
-      
-      // 顯示 toast 通知
-      const toastId = toast.info(resultMessage, {
-        duration: 5000,
-      });
-      
-      // 如果有設置 toast ID 的回調，保存 toast ID
-      if (setLastToastId) {
-        setLastToastId(toastId);
-      }
+
+      // 設置統一的 Dialog 狀態（含顯示資料），確保重新整理後能正確恢復
+      setAttackerWaitingDialog(contestId, sourceType, sourceId, displayData);
+
+      // 通知呼叫方（關閉 bottom sheet 等）
+      onContestStarted?.();
     },
     [
       sourceId,
@@ -83,8 +68,7 @@ export function useContestableItemUsage(
       addPendingContest,
       updateContestDialog,
       setAttackerWaitingDialog,
-      setUseResult,
-      setLastToastId,
+      onContestStarted,
     ]
   );
 

@@ -2,10 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { Game, Character } from '@/lib/db/models';
+import { Game, Character, CharacterRuntime, GameRuntime, Log, PendingEvent } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import type { ApiResponse } from '@/types/api';
+import mongoose from 'mongoose';
 import type { GameData } from '@/types/game';
 // Phase 10: Game Code 生成邏輯
 import {
@@ -40,6 +41,16 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
       .sort({ createdAt: -1 })
       .lean();
 
+    // 一次查完所有劇本的角色數量（避免 N+1）
+    const gameIds = games.map((g) => g._id);
+    const counts = await Character.aggregate<{ _id: string; count: number }>([
+      { $match: { gameId: { $in: gameIds } } },
+      { $group: { _id: '$gameId', count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(
+      counts.map((c) => [c._id.toString(), c.count]),
+    );
+
     return {
       success: true,
       data: games.map((game) => ({
@@ -51,6 +62,7 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
         isActive: game.isActive,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
+        characterCount: countMap.get(game._id.toString()) ?? 0,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
       })),
@@ -125,6 +137,7 @@ export async function createGame(data: {
   name: string;
   description?: string;
   gameCode?: string; // Phase 10: 可選的 Game Code
+  randomContestMaxValue?: number; // Phase D P7: 最大檢定值
 }): Promise<ApiResponse<GameData>> {
   try {
     const gmUserId = await getCurrentGMUserId();
@@ -177,6 +190,9 @@ export async function createGame(data: {
       description: validated.description || '',
       gameCode, // Phase 10: 加入 Game Code
       isActive: false, // Phase 10: 預設為待機狀態（false）
+      ...(data.randomContestMaxValue && data.randomContestMaxValue > 0
+        ? { randomContestMaxValue: data.randomContestMaxValue }
+        : {}),
     });
 
     revalidatePath('/games');
@@ -227,12 +243,9 @@ export async function updateGame(
     description?: string;
     isActive?: boolean;
     publicInfo?: {
-      intro?: string;
-      worldSetting?: string;
-      chapters?: Array<{
-        title: string;
+      blocks?: Array<{
+        type: 'title' | 'body';
         content: string;
-        order: number;
       }>;
     };
     // Phase 7.6: 隨機對抗檢定設定
@@ -262,14 +275,12 @@ export async function updateGame(
     if (data.description !== undefined) updateData.description = data.description;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     
-    // Phase 3: 處理 publicInfo 更新
+    // 處理 publicInfo 更新（BackgroundBlock[] 結構）
     if (data.publicInfo !== undefined) {
       const currentGame = await Game.findOne({ _id: gameId, gmUserId });
       const currentPublicInfo = currentGame?.publicInfo || {};
       updateData.publicInfo = {
-        intro: data.publicInfo.intro ?? currentPublicInfo.intro ?? '',
-        worldSetting: data.publicInfo.worldSetting ?? currentPublicInfo.worldSetting ?? '',
-        chapters: data.publicInfo.chapters ?? currentPublicInfo.chapters ?? [],
+        blocks: data.publicInfo.blocks ?? currentPublicInfo.blocks ?? [],
       };
     }
     
@@ -351,9 +362,14 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
       };
     }
 
-    await dbConnect();
-    const game = await Game.findOneAndDelete({ _id: gameId, gmUserId });
+    if (!mongoose.Types.ObjectId.isValid(gameId)) {
+      return { success: false, error: 'VALIDATION_ERROR', message: '無效的劇本 ID' };
+    }
 
+    await dbConnect();
+
+    // 先確認劇本存在且屬於當前 GM
+    const game = await Game.findOne({ _id: gameId, gmUserId });
     if (!game) {
       return {
         success: false,
@@ -362,7 +378,23 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
       };
     }
 
-    // TODO: 同時刪除關聯的角色（Phase 2-6 實作）
+    // 先收集 character IDs，用於清理 character-level PendingEvent
+    const characterIds = await Character.find({ gameId }).select('_id').lean();
+    const characterIdStrings = characterIds.map((c) => c._id.toString());
+
+    // 先刪除子集合，最後刪除 Game 本體（降低孤兒風險）
+    await Promise.all([
+      Character.deleteMany({ gameId }),
+      CharacterRuntime.deleteMany({ gameId }),
+      GameRuntime.deleteMany({ refId: gameId }),
+      Log.deleteMany({ gameId }),
+      PendingEvent.deleteMany({ targetGameId: gameId }),
+      ...(characterIdStrings.length > 0
+        ? [PendingEvent.deleteMany({ targetCharacterId: { $in: characterIdStrings } })]
+        : []),
+    ]);
+
+    await Game.deleteOne({ _id: gameId });
 
     revalidatePath('/games');
 
@@ -416,18 +448,34 @@ export async function getGameItems(
       };
     }
 
-    // 取得該劇本所有角色及其道具
-    const characters = await Character.find({ gameId })
+    // 取得該劇本所有角色及其道具（遊戲進行中讀 Runtime）
+    const baselineCharacters = await Character.find({ gameId })
       .select('_id name items')
       .lean();
 
+    // 遊戲進行中時，用 Runtime 資料覆蓋
+    let runtimeMap: Map<string, { name: string; items: typeof baselineCharacters[number]['items'] }> | null = null;
+    if (game.isActive) {
+      const runtimeCharacters = await CharacterRuntime.find({ gameId, type: 'runtime' })
+        .select('refId name items')
+        .lean();
+      runtimeMap = new Map(
+        runtimeCharacters.map((rc) => [
+          rc.refId.toString(),
+          { name: rc.name, items: rc.items },
+        ])
+      );
+    }
+
     const items: GameItemInfo[] = [];
-    for (const char of characters) {
-      const charItems = char.items || [];
+    for (const baseline of baselineCharacters) {
+      const runtime = runtimeMap?.get(baseline._id.toString());
+      const charName = runtime?.name ?? baseline.name;
+      const charItems = runtime?.items ?? baseline.items ?? [];
       for (const item of charItems) {
         items.push({
-          characterId: char._id.toString(),
-          characterName: char.name,
+          characterId: baseline._id.toString(),
+          characterName: charName,
           itemId: item.id,
           itemName: item.name,
         });
@@ -547,6 +595,11 @@ export async function checkGameCodeAvailability(
   gameCode: string
 ): Promise<ApiResponse<{ isAvailable: boolean }>> {
   try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
     // 驗證 Game Code 格式（6 位英數字）
     const gameCodeRegex = /^[A-Z0-9]{6}$/;
     const trimmedCode = gameCode.trim().toUpperCase();

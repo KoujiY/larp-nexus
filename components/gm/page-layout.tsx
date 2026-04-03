@@ -1,9 +1,17 @@
 import { ReactNode } from 'react';
+import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
+
+type MaxWidthKey = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
 
 interface PageLayoutProps {
+  /** 全寬頂部插槽（例如環境橫幅），不受 maxWidth 限制 */
+  topSlot?: ReactNode;
   header: ReactNode;
   children: ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+  /** Header 與 Content 共用的最大寬度（預設 lg） */
+  maxWidth?: MaxWidthKey;
+  /** Content 區域獨立最大寬度，不傳時 fallback 到 maxWidth */
+  contentMaxWidth?: MaxWidthKey;
 }
 
 const maxWidthClasses = {
@@ -16,13 +24,18 @@ const maxWidthClasses = {
 };
 
 export function PageLayout({
+  topSlot,
   header,
   children,
   maxWidth = 'lg',
+  contentMaxWidth,
 }: PageLayoutProps) {
   return (
     <div className="flex flex-col h-full">
-      {/* Header Area - 統一高度與 logo 區塊對齊 */}
+      {/* 全寬頂部插槽（環境橫幅等） */}
+      {topSlot}
+
+      {/* Header Area */}
       <div className="border-b bg-card">
         <div className={`mx-auto px-6 py-8 min-h-[112px] flex items-center ${maxWidthClasses[maxWidth]}`}>
           <div className="w-full">
@@ -32,12 +45,11 @@ export function PageLayout({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-background">
-        <div className={`mx-auto px-6 py-6 ${maxWidthClasses[maxWidth]}`}>
+      <div className={`flex-1 overflow-y-auto bg-background ${GM_SCROLLBAR_CLASS}`}>
+        <div className={`mx-auto px-6 py-6 ${maxWidthClasses[contentMaxWidth ?? maxWidth]}`}>
           {children}
         </div>
       </div>
     </div>
   );
 }
-

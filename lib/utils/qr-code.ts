@@ -35,13 +35,6 @@ export function generateCharacterUrl(characterId: string): string {
 }
 
 /**
- * 生成 Magic Link URL
- */
-export function generateMagicLinkUrl(token: string): string {
-  return `${getBaseUrl()}/verify?token=${token}`;
-}
-
-/**
  * 生成劇本公開資訊頁面 URL
  */
 export function generateGamePublicUrl(gameId: string): string {

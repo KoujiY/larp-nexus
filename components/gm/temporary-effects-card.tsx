@@ -1,6 +1,6 @@
 /**
- * Phase 8.6: GM 端時效性效果卡片
- * 顯示角色所有活躍的時效性效果，包含倒數計時
+ * Phase 8.6: GM 端時效性效果區塊
+ * 顯示角色所有活躍的時效性效果，包含倒數計時與進度條
  */
 
 'use client';
@@ -8,9 +8,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getTemporaryEffects, checkExpiredEffects } from '@/app/actions/temporary-effects';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Clock, Zap, Package } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { GM_SECTION_TITLE_CLASS } from '@/lib/styles/gm-form';
+import { GmEmptyState } from '@/components/gm/gm-empty-state';
 import type { TemporaryEffect } from '@/types/character';
 import type { BaseEvent } from '@/types/event';
 
@@ -19,25 +20,17 @@ interface TemporaryEffectsCardProps {
 }
 
 /**
- * 時效性效果卡片組件
- *
- * @param characterId - 角色 ID
+ * 時效性效果區塊
  */
 export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps) {
   const [effects, setEffects] = useState<Array<TemporaryEffect & { remainingSeconds: number }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * 載入時效性效果
-   * 初次載入顯示 loading 狀態，後續刷新保持顯示舊資料以避免閃爍
-   */
   const loadEffects = useCallback(async () => {
     try {
       setError(null);
-
       const result = await getTemporaryEffects(characterId);
-
       if (result.success && result.data) {
         setEffects(result.data.effects);
       } else {
@@ -47,37 +40,22 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
       console.error('[TemporaryEffectsCard] loadEffects error:', err);
       setError('載入時發生錯誤');
     } finally {
-      // 無論初次或後續載入，完成後都關閉 loading
       setIsLoading(false);
     }
   }, [characterId]);
 
-  /**
-   * 初始載入效果列表
-   */
   useEffect(() => {
     loadEffects();
   }, [loadEffects]);
 
-  /**
-   * 監聽 WebSocket 事件，當角色受到技能/道具影響或效果過期時重新載入效果列表
-   */
   useCharacterWebSocket(characterId, (event: BaseEvent) => {
     if (event.type === 'character.affected' || event.type === 'skill.used' || event.type === 'effect.expired') {
-      console.log('[TemporaryEffectsCard] 收到相關事件，重新載入效果列表', { type: event.type });
       loadEffects();
     }
   });
 
-  /**
-   * 防止重複觸發過期檢查
-   */
   const isCheckingExpiredRef = useRef(false);
 
-  /**
-   * 每秒更新倒數計時
-   * 當有效果倒數歸零時，主動觸發伺服器端過期檢查
-   */
   useEffect(() => {
     if (effects.length === 0) return;
 
@@ -88,12 +66,7 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
           remainingSeconds: Math.max(0, effect.remainingSeconds - 1),
         }));
 
-        // 檢查是否有效果剛好歸零
         const hasNewlyExpired = updated.some((effect) => effect.remainingSeconds <= 0);
-
-        // 如果有效果歸零，主動觸發伺服器端過期檢查
-        // 不在此處呼叫 loadEffects，避免因客戶端/伺服器時間差導致已移除的效果重新出現
-        // 伺服器處理完成後會透過 WebSocket effect.expired 事件觸發 loadEffects
         if (hasNewlyExpired && !isCheckingExpiredRef.current) {
           isCheckingExpiredRef.current = true;
           setTimeout(async () => {
@@ -112,198 +85,149 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
     return () => clearInterval(timer);
   }, [effects.length, characterId]);
 
-  /**
-   * 格式化剩餘時間（HH:MM:SS 或 MM:SS）
-   */
+  /** 格式化剩餘時間 */
   const formatRemainingTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-
     if (hours > 0) {
       return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
-
     return `${minutes}:${String(secs).padStart(2, '0')}`;
   };
 
-  /**
-   * 取得變化量顯示文字
-   */
+  /** 取得變化量顯示文字 */
   const getChangeText = (effect: TemporaryEffect): string => {
     const { statChangeTarget, deltaValue, deltaMax } = effect;
-
     if (statChangeTarget === 'value' && deltaValue !== undefined) {
       return deltaValue > 0 ? `+${deltaValue}` : `${deltaValue}`;
     }
-
     if (statChangeTarget === 'maxValue' && deltaMax !== undefined) {
       return deltaMax > 0 ? `最大值 +${deltaMax}` : `最大值 ${deltaMax}`;
     }
-
     return '未知變化';
   };
 
-  /**
-   * 取得效果圖示
-   */
-  const getEffectIcon = (sourceType: 'skill' | 'item') => {
-    return sourceType === 'skill' ? (
-      <Zap className="h-4 w-4" />
-    ) : (
-      <Package className="h-4 w-4" />
-    );
-  };
-
-  /**
-   * 渲染：載入中
-   */
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>⏳ 時效性效果</CardTitle>
-          <CardDescription>載入中...</CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="space-y-6">
+        <h2 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          進行中的時效性效果
+        </h2>
+        <p className="text-sm text-muted-foreground">載入中...</p>
+      </div>
     );
   }
 
-  /**
-   * 渲染：錯誤
-   */
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>⏳ 時效性效果</CardTitle>
-          <CardDescription className="text-destructive">{error}</CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="space-y-6">
+        <h2 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          進行中的時效性效果
+        </h2>
+        <p className="text-sm text-destructive">{error}</p>
+      </div>
     );
   }
 
-  /**
-   * 渲染：無活躍效果
-   */
   if (effects.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>⏳ 時效性效果</CardTitle>
-          <CardDescription>目前沒有活躍的時效性效果</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <Clock className="h-12 w-12 mx-auto mb-2 opacity-20" />
-            <p className="text-sm">當玩家使用帶有持續時間的技能或道具時，效果會顯示在這裡</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <h2 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          進行中的時效性效果
+        </h2>
+        <GmEmptyState
+          icon={<Clock className="h-10 w-10" />}
+          title="目前沒有進行中的效果"
+          description="當玩家使用帶有持續時間的技能或道具時，效果會顯示在這裡。"
+        />
+      </div>
     );
   }
 
-  /**
-   * 渲染：效果列表
-   */
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>⏳ 時效性效果</CardTitle>
-        <CardDescription>
-          目前有 {effects.length} 個活躍效果
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {effects.map((effect) => (
-          <div
-            key={effect.id}
-            className="p-4 bg-muted/50 rounded-lg border border-muted space-y-2"
-          >
-            {/* 第一行：來源資訊 + 剩餘時間 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {/* 來源類型圖示 */}
-                <Badge variant="outline" className="flex items-center gap-1">
-                  {getEffectIcon(effect.sourceType)}
-                  <span className="text-xs">
+    <div className="space-y-6">
+      <h2 className={GM_SECTION_TITLE_CLASS}>
+        <span className="w-1 h-5 bg-primary rounded-full" />
+        進行中的時效性效果
+      </h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {effects.map((effect) => {
+          // 估算進度（假設初始 duration 來自 effect，fallback 用 remainingSeconds）
+          const totalDuration = effect.duration ?? effect.remainingSeconds;
+          const progressPercent = totalDuration > 0
+            ? Math.round((effect.remainingSeconds / totalDuration) * 100)
+            : 0;
+          const isUrgent = effect.remainingSeconds < 60;
+
+          return (
+            <div
+              key={effect.id}
+              className="relative overflow-hidden bg-card p-6 rounded-2xl shadow-sm border border-border/10 hover:shadow-md transition-shadow"
+            >
+              {/* 上方：來源 + 效果值 */}
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-1">
                     {effect.sourceType === 'skill' ? '技能' : '道具'}
+                  </p>
+                  <h3 className="text-xl font-extrabold text-foreground">
+                    {effect.sourceName}
+                  </h3>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-1">
+                    {effect.targetStat}
+                  </p>
+                  <span className="flex items-center gap-1 text-primary text-sm font-bold">
+                    {effect.sourceType === 'skill' ? (
+                      <Zap className="h-4 w-4" />
+                    ) : (
+                      <Package className="h-4 w-4" />
+                    )}
+                    {getChangeText(effect)}
                   </span>
-                </Badge>
-
-                {/* 來源名稱 */}
-                <span className="font-medium text-sm">{effect.sourceName}</span>
+                </div>
               </div>
 
-              {/* 剩餘時間 */}
-              <Badge
-                variant={effect.remainingSeconds < 60 ? 'destructive' : 'secondary'}
-                className="flex items-center gap-1"
-              >
-                <Clock className="h-3 w-3" />
-                <span className="font-mono text-xs">
-                  {formatRemainingTime(effect.remainingSeconds)}
-                </span>
-              </Badge>
-            </div>
+              {/* 進度條 */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className={cn(
+                    'font-bold uppercase tracking-wider',
+                    isUrgent ? 'text-destructive' : 'text-foreground',
+                  )}>
+                    剩餘 {formatRemainingTime(effect.remainingSeconds)}
+                  </span>
+                  <span className="text-muted-foreground font-medium">
+                    {progressPercent}%
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all duration-500',
+                      isUrgent
+                        ? 'bg-destructive'
+                        : 'bg-linear-to-r from-primary to-primary/60',
+                    )}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
 
-            {/* 第二行：效果詳情 */}
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
               {/* 施放者 */}
-              <div className="flex items-center gap-1">
-                <span>施放者:</span>
-                <span className="font-medium text-foreground">
-                  {effect.sourceCharacterName}
-                </span>
-              </div>
-
-              {/* 目標數值 */}
-              <div className="flex items-center gap-1">
-                <span>數值:</span>
-                <span className="font-medium text-foreground">
-                  {effect.targetStat}
-                </span>
-              </div>
-
-              {/* 變化量 */}
-              <div className="flex items-center gap-1">
-                <span>變化:</span>
-                <span
-                  className={`font-medium ${
-                    (effect.deltaValue || 0) > 0 || (effect.deltaMax || 0) > 0
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                  }`}
-                >
-                  {getChangeText(effect)}
-                </span>
+              <div className="mt-3 text-[11px] text-muted-foreground">
+                施放者：<span className="font-medium text-foreground">{effect.sourceCharacterName}</span>
               </div>
             </div>
-
-            {/* 預留空間：未來擴展功能（暫停、延長時間按鈕） */}
-            {/* <div className="flex items-center gap-2 mt-2">
-              <Button size="sm" variant="outline" disabled>
-                <Pause className="h-3 w-3 mr-1" />
-                暫停
-              </Button>
-              <Button size="sm" variant="outline" disabled>
-                <Plus className="h-3 w-3 mr-1" />
-                延長時間
-              </Button>
-            </div> */}
-          </div>
-        ))}
-
-        {/* 使用說明 */}
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-800">
-          <h5 className="font-medium mb-1">💡 說明</h5>
-          <ul className="list-disc list-inside space-y-0.5 text-blue-700">
-            <li>時效性效果會在倒數結束後自動恢復數值</li>
-            <li>剩餘時間少於 1 分鐘時會以紅色標示</li>
-            <li>效果過期後會自動從列表中移除</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
+          );
+        })}
+      </div>
+    </div>
   );
 }

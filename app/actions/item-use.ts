@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import dbConnect from '@/lib/db/mongodb';
+import { withAction } from '@/lib/actions/action-wrapper';
+import { validatePlayerAccess } from '@/lib/auth/session';
 import type { CharacterDocument } from '@/lib/db/models';
 import { emitItemTransferred, emitItemUsed, emitRoleUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
@@ -40,8 +41,11 @@ export async function useItem(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  try {
-    await dbConnect();
+  return withAction(async () => {
+    // 驗證玩家是否已解鎖此角色（防止未授權操作）
+    if (!(await validatePlayerAccess(characterId))) {
+      return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
+    }
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
@@ -98,24 +102,6 @@ export async function useItem(
           error: 'TARGET_IN_CONTEST',
           message: '目標角色正在進行對抗檢定，暫時無法對其使用道具',
         };
-      }
-    } else if (targetCharacterId && targetCharacterId !== characterId) {
-      // Phase 8: 即使道具不需要目標，如果選擇了目標角色，也要檢查目標是否在對抗中
-      // Phase 10.4: 使用統一的讀取函數（如果角色不存在則忽略錯誤）
-      try {
-        targetCharacter = await getCharacterData(targetCharacterId);
-        if (targetCharacter.gameId.toString() === character.gameId.toString()) {
-          const targetContestStatus = isCharacterInContest(targetCharacterId);
-          if (targetContestStatus.inContest) {
-            return {
-              success: false,
-              error: 'TARGET_IN_CONTEST',
-              message: '目標角色正在進行對抗檢定，暫時無法對其使用道具',
-            };
-          }
-        }
-      } catch {
-        // 目標角色不存在或其他錯誤，忽略（這是可選的檢查）
       }
     }
 
@@ -286,7 +272,7 @@ export async function useItem(
           defenderValue: checkResultData.defenderValue,
           preliminaryResult: checkResultData.preliminaryResult,
         },
-        message: `對抗檢定請求已發送給 ${targetCharacterName}，等待回應...`,
+        message: `已對 ${targetCharacterName} 發起對抗檢定`,
       };
     }
 
@@ -419,8 +405,6 @@ export async function useItem(
       console.error('Failed to emit item.used event', error);
     });
 
-    // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
-
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';
     if (checkPassed) {
@@ -443,14 +427,7 @@ export async function useItem(
       },
       message: toastMessage,
     };
-  } catch (error) {
-    console.error('Error using item:', error);
-    return {
-      success: false,
-      error: 'USE_FAILED',
-      message: `無法使用道具：${error instanceof Error ? error.message : '未知錯誤'}`,
-    };
-  }
+  });
 }
 
 /**
@@ -462,14 +439,18 @@ export async function transferItem(
   targetCharacterId: string,
   quantity: number
 ): Promise<ApiResponse<{ transferred: boolean; transferredQuantity: number }>> {
-  try {
-    await dbConnect();
+  return withAction(async () => {
 
-    if (quantity <= 0) {
+    // 驗證玩家是否已解鎖此角色（防止未授權操作）
+    if (!(await validatePlayerAccess(characterId))) {
+      return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
+    }
+
+    if (!Number.isInteger(quantity) || quantity <= 0) {
       return {
         success: false,
         error: 'INVALID_QUANTITY',
-        message: '轉移數量必須大於 0',
+        message: '轉移數量必須為正整數',
       };
     }
 
@@ -621,7 +602,6 @@ export async function transferItem(
       }).catch((error: unknown) => {
         console.error('[transferItem] Failed to emit role.updated (target character items)', error);
       });
-    } else {
     }
 
     // Phase 7.7: 道具轉移後，為接收方觸發自動揭露評估（items_acquired）
@@ -639,12 +619,5 @@ export async function transferItem(
       },
       message: `已將 ${quantity} 個「${sourceItem.name}」轉移給 ${targetCharacter.name}`,
     };
-  } catch (error) {
-    console.error('Error transferring item:', error);
-    return {
-      success: false,
-      error: 'TRANSFER_FAILED',
-      message: `無法轉移道具：${error instanceof Error ? error.message : '未知錯誤'}`,
-    };
-  }
+  });
 }

@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 import { emitGameBroadcast } from '@/lib/websocket/events';
+import { writeLog } from '@/lib/logs/write-log';
+import dbConnect from '@/lib/db/mongodb';
 import type { ApiResponse } from '@/types/api';
 
 type PushEventInput = {
@@ -36,6 +38,8 @@ export async function pushEvent(input: PushEventInput): Promise<ApiResponse<{ pu
 
     const { type, gameId, targetCharacterId, title, message, data } = input;
 
+    await dbConnect();
+
     if (type === 'broadcast') {
       // Phase 9: 使用 emitGameBroadcast 確保同時寫入 pending events
       await emitGameBroadcast(gameId, {
@@ -44,6 +48,15 @@ export async function pushEvent(input: PushEventInput): Promise<ApiResponse<{ pu
         message,
         priority: 'normal',
         data,
+      });
+
+      // 寫入 Log（game-level，單筆）
+      await writeLog({
+        gameId,
+        actorType: 'gm',
+        actorId: gmUserId,
+        action: 'broadcast',
+        details: { title, message },
       });
     } else if (type === 'character' && targetCharacterId) {
       await pusher.trigger(`private-character-${targetCharacterId}`, 'role.message', {
@@ -57,6 +70,16 @@ export async function pushEvent(input: PushEventInput): Promise<ApiResponse<{ pu
           data,
           style: 'info',
         },
+      });
+
+      // 寫入 Log（角色層級，單筆）
+      await writeLog({
+        gameId,
+        characterId: targetCharacterId,
+        actorType: 'gm',
+        actorId: gmUserId,
+        action: 'character_message',
+        details: { title, message },
       });
     } else {
       return { success: false, error: 'INVALID_TARGET', message: '目標參數錯誤' };

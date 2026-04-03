@@ -73,8 +73,14 @@ export interface Character {
   updatedAt: Date;
 }
 
+/** 角色背景區塊（標題或內文） */
+export interface BackgroundBlock {
+  type: 'title' | 'body';
+  content: string;
+}
+
 export interface PublicInfo {
-  background: string;
+  background: BackgroundBlock[];
   personality: string;
   relationships: Relationship[];
 }
@@ -169,11 +175,18 @@ export interface SecretInfo {
 export interface Secret {
   id: string;
   title: string;
-  content: string;
+  /** 內容：支援多段落（string[] 為新格式，string 為舊格式向後相容） */
+  content: string | string[];
   isRevealed: boolean;
   revealCondition?: string;
   autoRevealCondition?: AutoRevealCondition;  // Phase 7.7: 結構化自動揭露條件
   revealedAt?: Date;
+}
+
+/** 將 Secret.content 正規化為 string[]（向後相容舊的 string 格式） */
+export function normalizeSecretContent(content: string | string[]): string[] {
+  if (Array.isArray(content)) return content;
+  return content ? [content] : [''];
 }
 
 /**
@@ -191,7 +204,6 @@ export interface Task {
   status: 'pending' | 'in-progress' | 'completed' | 'failed';
   completedAt?: Date;
   // GM 專用欄位（玩家端不顯示）
-  gmNotes?: string;
   revealCondition?: string;
   autoRevealCondition?: AutoRevealCondition;  // Phase 7.7: 結構化自動揭露條件
   createdAt: Date;
@@ -363,7 +375,6 @@ export interface CreateTaskInput {
   title: string;
   description: string;
   isHidden?: boolean;
-  gmNotes?: string;
   revealCondition?: string;
 }
 

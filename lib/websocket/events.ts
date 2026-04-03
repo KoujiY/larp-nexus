@@ -58,14 +58,17 @@ async function trigger(channel: string, eventName: EventName, payload: BaseEvent
   }
 }
 
+/** 推送「技能使用」事件到角色頻道 */
 export async function emitSkillUsed(characterId: string, payload: SkillUsedEvent['payload']) {
   await trigger(`private-character-${characterId}`, 'skill.used', payload);
 }
 
+/** 推送「道具使用」事件到角色頻道 */
 export async function emitItemUsed(characterId: string, payload: ItemUsedEvent['payload']) {
   await trigger(`private-character-${characterId}`, 'item.used', payload);
 }
 
+/** 推送「角色資料更新」事件，同時寫入 pending events 供離線補送 */
 export async function emitRoleUpdated(characterId: string, payload: RoleUpdatedEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（離線時可補送數值變更通知）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -77,10 +80,12 @@ export async function emitRoleUpdated(characterId: string, payload: RoleUpdatedE
   ]);
 }
 
+/** 推送「技能冷卻更新」事件到角色頻道 */
 export async function emitSkillCooldown(characterId: string, payload: SkillCooldownEvent['payload']) {
   await trigger(`private-character-${characterId}`, 'skill.cooldown', payload);
 }
 
+/** 推送「技能對抗」事件到攻防雙方頻道，同時寫入 pending events */
 export async function emitSkillContest(attackerId: string, defenderId: string, payload: SkillContestEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（雙頻道：攻擊方 + 防守方）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -96,6 +101,7 @@ export async function emitSkillContest(attackerId: string, defenderId: string, p
   ]);
 }
 
+/** 推送「角色受影響」事件（效果命中、數值變更等），同時寫入 pending events */
 export async function emitCharacterAffected(targetCharacterId: string, payload: CharacterAffectedEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -107,6 +113,7 @@ export async function emitCharacterAffected(targetCharacterId: string, payload: 
   ]);
 }
 
+/** 推送「道具轉移」事件到轉出方與接收方雙頻道，同時寫入 pending events */
 export async function emitItemTransferred(fromCharacterId: string, toCharacterId: string, payload: ItemTransferredEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（雙頻道：轉出方 + 接收方）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -122,6 +129,7 @@ export async function emitItemTransferred(fromCharacterId: string, toCharacterId
   ]);
 }
 
+/** 推送「GM 廣播」事件到遊戲頻道（全體玩家可見），同時寫入 game-level pending event */
 export async function emitGameBroadcast(gameId: string, payload: GameBroadcastEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（game-level，使用 targetGameId）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -133,6 +141,7 @@ export async function emitGameBroadcast(gameId: string, payload: GameBroadcastEv
   ]);
 }
 
+/** 推送「任務狀態更新」事件到角色頻道，同時寫入 pending events */
 export async function emitTaskUpdated(characterId: string, payload: TaskUpdatedEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -144,6 +153,7 @@ export async function emitTaskUpdated(characterId: string, payload: TaskUpdatedE
   ]);
 }
 
+/** 推送「道具欄變更」事件到角色頻道（道具新增/移除/數量變動），同時寫入 pending events */
 export async function emitInventoryUpdated(characterId: string, payload: InventoryUpdatedEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -157,6 +167,7 @@ export async function emitInventoryUpdated(characterId: string, payload: Invento
 
 // Phase 7.7: 自動揭露條件 + 道具展示事件
 
+/** 推送「秘密揭露」事件到角色頻道，同時寫入 pending events */
 export async function emitSecretRevealed(characterId: string, payload: SecretRevealedEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -168,6 +179,7 @@ export async function emitSecretRevealed(characterId: string, payload: SecretRev
   ]);
 }
 
+/** 推送「隱藏任務揭露」事件到角色頻道，同時寫入 pending events */
 export async function emitTaskRevealed(characterId: string, payload: TaskRevealedEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -179,6 +191,7 @@ export async function emitTaskRevealed(characterId: string, payload: TaskReveale
   ]);
 }
 
+/** 推送「道具展示」事件到展示方與被展示方雙頻道，同時寫入 pending events */
 export async function emitItemShowcased(fromCharacterId: string, toCharacterId: string, payload: ItemShowcasedEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（雙頻道：展示方 + 被展示方）
   // Phase 11: 注入 _eventId 用於跨通道去重
@@ -196,6 +209,7 @@ export async function emitItemShowcased(fromCharacterId: string, toCharacterId: 
 
 // Phase 8: 時效性效果過期事件
 
+/** 推送「時效性效果過期」事件到角色頻道，同時寫入 pending events */
 export async function emitEffectExpired(characterId: string, payload: EffectExpiredEvent['payload']) {
   // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
   // Phase 11: 注入 _eventId 用於跨通道去重

@@ -1,20 +1,30 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { getCharacterPin } from '@/app/actions/characters';
 import { updateCharacter } from '@/app/actions/character-update';
 import { toast } from 'sonner';
+import { Eye, EyeOff, Copy, Loader2 } from 'lucide-react';
+import { IconActionButton } from '@/components/gm/icon-action-button';
+import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_INPUT_CLASS,
+  GM_DIALOG_CONTENT_CLASS,
+  GM_DIALOG_HEADER_CLASS,
+  GM_DIALOG_TITLE_CLASS,
+  GM_DIALOG_BODY_CLASS,
+  GM_DIALOG_FOOTER_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+  GM_CTA_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
 interface ViewPinButtonProps {
   characterId: string;
@@ -62,8 +72,8 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
   }, [open, loadCurrentPin]);
 
   const handleSave = async () => {
-    if (!/^\d{4,6}$/.test(editPin)) {
-      toast.error('PIN 碼必須為 4-6 位數字');
+    if (!/^\d{4}$/.test(editPin)) {
+      toast.error('PIN 碼必須為 4 位數字');
       return;
     }
 
@@ -100,65 +110,70 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex-1">
-          🔑 檢視 PIN
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[450px]">
-        <DialogHeader>
-          <DialogTitle>角色 PIN 碼</DialogTitle>
-          <DialogDescription>
-            <strong>{characterName}</strong> 的 PIN 碼管理
-          </DialogDescription>
-        </DialogHeader>
-
-        {isFetching ? (
-          <div className="py-8 text-center text-muted-foreground">
-            載入中...
+    <>
+      <IconActionButton
+        icon={<Eye className="h-[18px] w-[18px]" />}
+        label="檢視 PIN"
+        onClick={() => setOpen(true)}
+        size="sm"
+      />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[440px] p-0 gap-0')}
+          showCloseButton={false}
+        >
+          <div className={GM_DIALOG_HEADER_CLASS}>
+            <DialogTitle className={GM_DIALOG_TITLE_CLASS}>角色 PIN 碼</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground/70 mt-1">
+              <strong className="text-foreground">{characterName}</strong> 的 PIN 碼管理
+            </DialogDescription>
           </div>
-        ) : (
-          <div className="space-y-4 py-4">
-            {!currentPin ? (
-              <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
-                ⚠️ 此角色尚未設定 PIN 碼
+
+          <div className={GM_DIALOG_BODY_CLASS}>
+            {isFetching ? (
+              <div className="py-8 flex flex-col items-center space-y-3">
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                <p className="text-muted-foreground text-sm">載入中...</p>
+              </div>
+            ) : !currentPin ? (
+              <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 text-sm text-foreground flex items-start gap-3">
+                <Eye className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+                <span>此角色尚未設定 PIN 碼</span>
               </div>
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="pin">
-                    PIN 碼 <span className="text-xs text-muted-foreground">（4-6 位數字）</span>
-                  </Label>
+                  <label className={GM_LABEL_CLASS}>
+                    PIN 碼（4 位數字）
+                  </label>
                   <div className="relative">
                     <Input
-                      id="pin"
                       type={showPin ? 'text' : 'password'}
                       inputMode="numeric"
                       value={isEditing ? editPin : currentPin}
-                      onChange={(e) => setEditPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setEditPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                       disabled={!isEditing || isLoading}
-                      className="pr-24 text-lg font-mono"
+                      className={cn(GM_INPUT_CLASS, 'pr-20 text-lg font-mono h-12')}
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-1">
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setShowPin(!showPin)}
-                        className="text-muted-foreground hover:text-foreground p-1"
+                        className="cursor-pointer text-muted-foreground/50 hover:text-primary transition-colors"
                         title={showPin ? '隱藏 PIN' : '顯示 PIN'}
                         tabIndex={-1}
                       >
-                        {showPin ? '🙈' : '👁️'}
+                        {showPin ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                       </button>
                       {!isEditing && (
                         <button
                           type="button"
                           onClick={handleCopy}
-                          className="text-muted-foreground hover:text-foreground p-1"
+                          className="cursor-pointer text-muted-foreground/50 hover:text-primary transition-colors"
                           title="複製 PIN"
                           tabIndex={-1}
                         >
-                          📋
+                          <Copy className="h-[18px] w-[18px]" />
                         </button>
                       )}
                     </div>
@@ -166,9 +181,9 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
                 </div>
 
                 {!isEditing && (
-                  <div className="p-3 rounded-lg bg-blue-50 text-blue-800 text-sm border border-blue-200">
-                    💡 <strong>提示</strong>
-                    <p className="mt-1">
+                  <div className="p-4 rounded-xl bg-info/10 border border-info/20 text-sm text-foreground">
+                    <p className="font-semibold mb-1">提示</p>
+                    <p className="text-muted-foreground">
                       您可以將此 PIN 碼複製並傳送給玩家，玩家需要此碼才能查看角色卡。
                     </p>
                   </div>
@@ -176,50 +191,48 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
               </>
             )}
           </div>
-        )}
 
-        <div className="flex space-x-2">
-          {isEditing ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancel}
-                disabled={isLoading}
-                className="flex-1"
-              >
-                取消
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSave}
-                disabled={isLoading || editPin.length < 4}
-                className="flex-1"
-              >
-                {isLoading ? '儲存中...' : '儲存'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                className="flex-1"
-              >
-                關閉
-              </Button>
-              <Button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="flex-1"
-              >
-                ✏️ 編輯 PIN
-              </Button>
-            </>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+          <div className={cn(GM_DIALOG_FOOTER_CLASS, 'gap-3')}>
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={isLoading}
+                  className={cn(GM_CANCEL_BUTTON_CLASS, 'flex-1 py-3')}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isLoading || editPin.length < 4}
+                  className={cn(GM_CTA_BUTTON_CLASS, 'flex-1 py-3')}
+                >
+                  {isLoading ? '儲存中...' : '儲存'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className={cn(GM_CANCEL_BUTTON_CLASS, 'flex-1 py-3')}
+                >
+                  關閉
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className={cn(GM_CTA_BUTTON_CLASS, 'flex-1 py-3')}
+                >
+                  編輯 PIN
+                </button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

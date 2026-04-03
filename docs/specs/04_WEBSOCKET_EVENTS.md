@@ -74,7 +74,9 @@ interface RoleUpdatedEvent extends BaseEvent {
     "characterId": "507f1f77bcf86cd799439013",
     "updates": {
       "publicInfo": {
-        "background": "更新後的背景故事..."
+        "background": [
+          { "type": "body", "content": "更新後的背景故事..." }
+        ]
       }
     }
   }

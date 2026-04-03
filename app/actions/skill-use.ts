@@ -1,6 +1,7 @@
 'use server';
 
-import dbConnect from '@/lib/db/mongodb';
+import { withAction } from '@/lib/actions/action-wrapper';
+import { validatePlayerAccess } from '@/lib/auth/session';
 import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleSkillCheck } from '@/lib/skill/check-handler';
@@ -35,8 +36,11 @@ export async function useSkill(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  try {
-    await dbConnect();
+  return withAction(async () => {
+    // 驗證玩家是否已解鎖此角色（防止未授權操作）
+    if (!(await validatePlayerAccess(characterId))) {
+      return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
+    }
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
@@ -70,8 +74,8 @@ export async function useSkill(
 
     // Phase 6.5: 驗證目標角色（如果需要）
     let targetCharacter = null;
-    const requiresTarget = skill.effects?.some((effect: Record<string, unknown>) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
-    const hasItemTakeOrSteal = skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
+    const requiresTarget = skill.effects?.some((effect) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
+    const hasItemTakeOrSteal = skill.effects?.some((e) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
 
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -104,7 +108,7 @@ export async function useSkill(
       }
 
       // 驗證目標類型匹配
-      const effectWithTarget = skill.effects?.find((e: Record<string, unknown>) => e.requiresTarget);
+      const effectWithTarget = skill.effects?.find((e) => e.requiresTarget);
       const targetType = effectWithTarget && 'targetType' in effectWithTarget
         ? (effectWithTarget.targetType as string)
         : undefined;
@@ -251,7 +255,7 @@ export async function useSkill(
           defenderValue: checkResultData.defenderValue,
           preliminaryResult: checkResultData.preliminaryResult,
         },
-        message: `對抗檢定請求已發送給 ${targetCharacterName}，等待回應...`,
+        message: `已對 ${targetCharacterName} 發起對抗檢定`,
       };
     }
 
@@ -281,7 +285,7 @@ export async function useSkill(
           needsTargetItemSelection: true,
           targetCharacterId,
         },
-        message: `技能使用成功，請選擇要${skill.effects?.some((e: Record<string, unknown>) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+        message: `技能使用成功，請選擇要${skill.effects?.some((e) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
       };
     }
 
@@ -377,8 +381,6 @@ export async function useSkill(
         .catch((error) => console.error('[skill-use] Failed to execute auto-reveal', error));
     }
 
-    // Step 9: needsTargetItemSelection 已在效果執行前提前返回，此處不再需要
-
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';
     if (checkPassed) {
@@ -401,12 +403,5 @@ export async function useSkill(
       },
       message: toastMessage,
     };
-  } catch (error) {
-    console.error('Error using skill:', error);
-    return {
-      success: false,
-      error: 'USE_FAILED',
-      message: `無法使用技能：${error instanceof Error ? error.message : '未知錯誤'}`,
-    };
-  }
+  });
 }

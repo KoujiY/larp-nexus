@@ -3,15 +3,47 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { put } from '@vercel/blob';
-import { Character, Game } from '@/lib/db/models';
+import { Character, CharacterRuntime, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10: 統一讀取
-import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10: 統一寫入
+import { serializePublicInfo } from '@/lib/character/normalize-background';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
 import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
+
+/**
+ * 將原始角色文件序列化為可傳遞給 Client Component 的 CharacterData
+ *
+ * 統一清理 _id、序列化 publicInfo、確保 boolean 預設值等。
+ * 被 getCharactersByGameId、getCharacterById、createCharacter 共用。
+ */
+function serializeCharacterDoc(
+  raw: Record<string, unknown>,
+  overrides?: { id?: string; gameId?: string },
+): CharacterData {
+  const cleanSecretInfo = (raw.secretInfo as Record<string, unknown> | undefined)?.secrets
+    ? { secrets: cleanSecretData((raw.secretInfo as { secrets: unknown[] }).secrets as Parameters<typeof cleanSecretData>[0]) }
+    : undefined;
+
+  return {
+    id: overrides?.id ?? String(raw._id ?? raw.id),
+    gameId: overrides?.gameId ?? String(raw.gameId),
+    name: raw.name as string,
+    description: raw.description as string,
+    imageUrl: raw.imageUrl as string | undefined,
+    hasPinLock: raw.hasPinLock as boolean,
+    publicInfo: serializePublicInfo(raw.publicInfo as Record<string, unknown>),
+    secretInfo: cleanSecretInfo,
+    tasks: cleanTaskData(raw.tasks as Parameters<typeof cleanTaskData>[0]),
+    items: cleanItemData(raw.items as Parameters<typeof cleanItemData>[0]),
+    stats: cleanStatData(raw.stats as Parameters<typeof cleanStatData>[0]),
+    skills: cleanSkillData(raw.skills as Parameters<typeof cleanSkillData>[0]),
+    createdAt: raw.createdAt as string,
+    updatedAt: raw.updatedAt as string,
+  } as CharacterData;
+}
 
 /**
  * Character 驗證 Schema
@@ -103,48 +135,35 @@ export async function getCharactersByGameId(
       };
     }
 
-    const characters = await Character.find({ gameId })
+    // 永遠需要 Baseline Characters（ID、排序依據、fallback）
+    const baselineCharacters = await Character.find({ gameId })
       .sort({ createdAt: -1 })
       .lean();
 
+    // 遊戲進行中時，用 Runtime 資料覆蓋 Baseline
+    // Runtime 的 refId 對應 Baseline 的 _id
+    let runtimeMap: Map<string, typeof baselineCharacters[number]> | null = null;
+    if (game.isActive) {
+      const runtimeCharacters = await CharacterRuntime.find({
+        gameId,
+        type: 'runtime',
+      }).lean();
+
+      runtimeMap = new Map(
+        runtimeCharacters.map((rc) => [rc.refId.toString(), rc as unknown as typeof baselineCharacters[number]])
+      );
+    }
+
     return {
       success: true,
-      data: characters.map((char) => {
-        // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
-        const cleanSecretInfo = char.secretInfo?.secrets
-          ? {
-              secrets: cleanSecretData(char.secretInfo.secrets),
-            }
-          : undefined;
+      data: baselineCharacters.map((baseline) => {
+        // 遊戲進行中：優先使用 Runtime 資料，找不到則 fallback 至 Baseline
+        const char = runtimeMap?.get(baseline._id.toString()) ?? baseline;
 
-        // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
-        const cleanTasks = cleanTaskData(char.tasks);
-
-        // 清理 items 中的 _id
-        const cleanItems = cleanItemData(char.items);
-
-        // 清理 stats 中的 _id
-        const cleanStats = cleanStatData(char.stats);
-
-        // 清理 skills 中的 _id
-        const cleanSkills = cleanSkillData(char.skills);
-
-        return {
-          id: char._id.toString(),
-          gameId: char.gameId.toString(),
-          name: char.name,
-          description: char.description,
-          imageUrl: char.imageUrl,
-          hasPinLock: char.hasPinLock,
-          publicInfo: char.publicInfo,
-          secretInfo: cleanSecretInfo,
-          tasks: cleanTasks,
-          items: cleanItems,
-          stats: cleanStats,
-          skills: cleanSkills,
-          createdAt: char.createdAt,
-          updatedAt: char.updatedAt,
-        };
+        return serializeCharacterDoc(char, {
+          id: baseline._id.toString(),
+          gameId: baseline.gameId.toString(),
+        });
       }),
     };
   } catch (error) {
@@ -204,53 +223,30 @@ export async function getCharacterById(
     // Phase 8: 處理過期的時效性效果並恢復數值
     // processExpiredEffects 同時查詢 Character + CharacterRuntime，
     // 並透過 document.constructor 自動寫入正確的 collection
-    await processExpiredEffects(characterId);
-    await cleanupOldExpiredEffects(characterId);
+    // 寫入失敗不應阻斷讀取，因此獨立 try-catch
+    let characterWithUpdates = character;
+    try {
+      await processExpiredEffects(characterId);
+      await cleanupOldExpiredEffects(characterId);
 
-    // 重新讀取以取得過期檢查後的最新資料
-    const updatedDoc = await getCharacterData(characterId);
-    const updatedCharacter = JSON.parse(JSON.stringify(updatedDoc));
-    character.stats = updatedCharacter.stats;
-    character.temporaryEffects = updatedCharacter.temporaryEffects;
-
-    // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
-    const cleanSecretInfo = character.secretInfo?.secrets
-      ? {
-          secrets: cleanSecretData(character.secretInfo.secrets),
-        }
-      : undefined;
-
-    // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
-    const cleanTasks = cleanTaskData(character.tasks);
-
-    // 清理 items 中的 _id
-    const cleanItems = cleanItemData(character.items);
-
-    // 清理 stats 中的 _id
-    const cleanStats = cleanStatData(character.stats);
-
-    // 清理 skills 中的 _id
-    const cleanSkills = cleanSkillData(character.skills);
+      // 重新讀取以取得過期檢查後的最新資料
+      const updatedDoc = await getCharacterData(characterId);
+      const updatedCharacter = JSON.parse(JSON.stringify(updatedDoc));
+      characterWithUpdates = {
+        ...character,
+        stats: updatedCharacter.stats,
+        temporaryEffects: updatedCharacter.temporaryEffects,
+      };
+    } catch (expiredError) {
+      console.error('Failed to process expired effects, returning stale data:', expiredError);
+    }
 
     return {
       success: true,
-      data: {
-        // Phase 10: 永遠回傳 Baseline Character ID（與玩家端一致）
+      data: serializeCharacterDoc(characterWithUpdates, {
         id: characterId,
         gameId: baselineCharacter.gameId.toString(),
-        name: character.name,
-        description: character.description,
-        imageUrl: character.imageUrl,
-        hasPinLock: character.hasPinLock,
-        publicInfo: character.publicInfo,
-        secretInfo: cleanSecretInfo,
-        tasks: cleanTasks,
-        items: cleanItems,
-        stats: cleanStats,
-        skills: cleanSkills,
-        createdAt: character.createdAt,
-        updatedAt: character.updatedAt,
-      },
+      }),
     };
   } catch (error) {
     console.error('Error fetching character:', error);
@@ -294,11 +290,11 @@ export async function createCharacter(data: {
           message: '啟用 PIN 鎖必須設定 PIN 碼',
         };
       }
-      if (!/^\d{4,6}$/.test(validated.pin)) {
+      if (!/^\d{4}$/.test(validated.pin)) {
         return {
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'PIN 碼必須為 4-6 位數字',
+          message: 'PIN 碼必須為 4 位數字',
         };
       }
     }
@@ -351,43 +347,9 @@ export async function createCharacter(data: {
     // 轉換為純 JavaScript 物件，避免循環引用
     const characterObj = character.toObject();
 
-    // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
-    const cleanSecretInfo = characterObj.secretInfo?.secrets
-      ? {
-          secrets: cleanSecretData(characterObj.secretInfo.secrets),
-        }
-      : undefined;
-
-    // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
-    const cleanTasks = cleanTaskData(characterObj.tasks);
-
-    // 清理 items 中的 _id
-    const cleanItems = cleanItemData(characterObj.items);
-
-    // 清理 stats 中的 _id
-    const cleanStats = cleanStatData(characterObj.stats);
-
-    // 清理 skills 中的 _id
-    const cleanSkills = cleanSkillData(characterObj.skills);
-
     return {
       success: true,
-      data: {
-        id: characterObj._id.toString(),
-        gameId: characterObj.gameId.toString(),
-        name: characterObj.name,
-        description: characterObj.description,
-        imageUrl: characterObj.imageUrl,
-        hasPinLock: characterObj.hasPinLock,
-        publicInfo: characterObj.publicInfo,
-        secretInfo: cleanSecretInfo,
-        tasks: cleanTasks,
-        items: cleanItems,
-        stats: cleanStats,
-        skills: cleanSkills,
-        createdAt: characterObj.createdAt,
-        updatedAt: characterObj.updatedAt,
-      },
+      data: serializeCharacterDoc(characterObj),
       message: '角色建立成功',
     };
   } catch (error) {
@@ -478,14 +440,14 @@ export async function uploadCharacterImage(
       };
     }
 
-    // 上傳到 Vercel Blob
-    const blob = await put(`characters/${characterId}/${Date.now()}-${file.name}`, file, {
+    // 上傳到 Vercel Blob（消毒檔名，防止路徑注入）
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const blob = await put(`characters/${characterId}/${Date.now()}-${safeName}`, file, {
       access: 'public',
     });
 
-    // 更新角色圖片 URL
-    character.imageUrl = blob.url;
-    await character.save();
+    // 更新角色圖片 URL（使用 findByIdAndUpdate 避免 mutation）
+    await Character.findByIdAndUpdate(characterId, { imageUrl: blob.url });
 
     revalidatePath(`/games/${character.gameId.toString()}`);
 
@@ -566,196 +528,6 @@ export async function deleteCharacter(
 }
 
 /**
- * Phase 4: 調整角色數值
- * 用於快速增減單一數值（不需要重新儲存整個 stats 陣列）
- * Phase 10: 使用 getCharacterData/updateCharacterData 自動判斷 Baseline/Runtime
- */
-export async function adjustCharacterStat(
-  characterId: string,
-  statId: string,
-  delta: number
-): Promise<ApiResponse<{ newValue: number }>> {
-  try {
-    const gmUserId = await getCurrentGMUserId();
-    if (!gmUserId) {
-      return {
-        success: false,
-        error: 'UNAUTHORIZED',
-        message: '請先登入',
-      };
-    }
-
-    await dbConnect();
-
-    // 驗證 Baseline Character 存在（用於權限檢查）
-    const baselineCharacter = await Character.findById(characterId).lean();
-    if (!baselineCharacter) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到此角色',
-      };
-    }
-
-    // 驗證 Game 擁有權
-    const game = await Game.findOne({ _id: baselineCharacter.gameId, gmUserId });
-    if (!game) {
-      return {
-        success: false,
-        error: 'UNAUTHORIZED',
-        message: '無權編輯此角色',
-      };
-    }
-
-    // Phase 10: 使用統一讀取（遊戲進行中讀取 Runtime）
-    const characterDoc = await getCharacterData(characterId);
-    const stats = characterDoc.stats || [];
-
-    // 找到目標統計
-    const statIndex = stats.findIndex((s: { id: string }) => s.id === statId);
-    if (statIndex === -1) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到此統計項目',
-      };
-    }
-
-    const stat = stats[statIndex];
-    const newValue = Math.max(0, stat.value + delta); // 確保不低於 0
-
-    // Phase 10: 使用統一寫入（遊戲進行中寫入 Runtime）
-    const updatePath = `stats.${statIndex}.value`;
-    await updateCharacterData(characterId, {
-      $set: { [updatePath]: newValue },
-    });
-
-    revalidatePath(`/games/${baselineCharacter.gameId.toString()}`);
-
-    return {
-      success: true,
-      data: { newValue },
-      message: `數值已調整為 ${newValue}`,
-    };
-  } catch (error) {
-    console.error('Error adjusting character stat:', error);
-    return {
-      success: false,
-      error: 'UPDATE_FAILED',
-      message: '無法調整數值',
-    };
-  }
-}
-
-/**
- * Phase 4: 設定角色數值為特定值
- * Phase 10: 使用 getCharacterData/updateCharacterData 自動判斷 Baseline/Runtime
- */
-export async function setCharacterStat(
-  characterId: string,
-  statId: string,
-  newValue: number
-): Promise<ApiResponse<{ newValue: number }>> {
-  try {
-    const gmUserId = await getCurrentGMUserId();
-    if (!gmUserId) {
-      return {
-        success: false,
-        error: 'UNAUTHORIZED',
-        message: '請先登入',
-      };
-    }
-
-    await dbConnect();
-
-    // 驗證 Baseline Character 存在（用於權限檢查）
-    const baselineCharacter = await Character.findById(characterId).lean();
-    if (!baselineCharacter) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到此角色',
-      };
-    }
-
-    // 驗證 Game 擁有權
-    const game = await Game.findOne({ _id: baselineCharacter.gameId, gmUserId });
-    if (!game) {
-      return {
-        success: false,
-        error: 'UNAUTHORIZED',
-        message: '無權編輯此角色',
-      };
-    }
-
-    // Phase 10: 使用統一讀取（遊戲進行中讀取 Runtime）
-    const characterDoc = await getCharacterData(characterId);
-    const stats = characterDoc.stats || [];
-
-    // 找到目標統計
-    const statIndex = stats.findIndex((s: { id: string }) => s.id === statId);
-    if (statIndex === -1) {
-      return {
-        success: false,
-        error: 'NOT_FOUND',
-        message: '找不到此統計項目',
-      };
-    }
-
-    const stat = stats[statIndex];
-
-    // 計算最終值
-    let finalValue = Math.max(0, newValue); // 確保不低於 0
-    if (stat.maxValue !== undefined && stat.maxValue !== null) {
-      finalValue = Math.min(finalValue, stat.maxValue); // 確保不超過最大值
-    }
-
-    // Phase 10: 使用統一寫入（遊戲進行中寫入 Runtime）
-    const updatePath = `stats.${statIndex}.value`;
-    await updateCharacterData(characterId, {
-      $set: { [updatePath]: finalValue },
-    });
-
-    revalidatePath(`/games/${baselineCharacter.gameId.toString()}`);
-
-    // WebSocket 事件
-    const statUpdatePayload = [
-      {
-        id: stat.id,
-        name: stat.name,
-        value: finalValue,
-        maxValue: stat.maxValue,
-        deltaValue: finalValue - stat.value,
-      },
-    ];
-
-    // 使用 import 的 emitRoleUpdated 函數
-    const { emitRoleUpdated } = await import('@/lib/websocket/events');
-    emitRoleUpdated(characterId, {
-      characterId,
-      updates: {
-        stats: statUpdatePayload,
-      },
-    }).catch((error) => console.error('Failed to emit role.updated (stat)', error));
-
-    return {
-      success: true,
-      data: { newValue: finalValue },
-      message: `數值已設定為 ${finalValue}`,
-    };
-  } catch (error) {
-    console.error('Error setting character stat:', error);
-    return {
-      success: false,
-      error: 'UPDATE_FAILED',
-      message: '無法設定數值',
-    };
-  }
-}
-
-// 使用道具和技能函數已移動到 item-use.ts 和 skill-use.ts
-
-/**
  * Phase 10.9.2: 檢查 PIN 是否可用（前端即時檢查用）
  *
  * @param gameId - 遊戲 ID
@@ -769,19 +541,30 @@ export async function checkPinAvailability(
   excludeCharacterId?: string
 ): Promise<ApiResponse<{ isAvailable: boolean }>> {
   try {
-    // 驗證 PIN 格式（4-6 位數字）
-    const pinRegex = /^\d{4,6}$/;
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
+    // 驗證 PIN 格式（4 位數字）
+    const pinRegex = /^\d{4}$/;
     const trimmedPin = pin.trim();
 
     if (!pinRegex.test(trimmedPin)) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: 'PIN 碼必須為 4-6 位數字',
+        message: 'PIN 碼必須為 4 位數字',
       };
     }
 
     await dbConnect();
+
+    // 驗證 Game 所有權
+    const game = await Game.findOne({ _id: gameId, gmUserId });
+    if (!game) {
+      return { success: false, error: 'UNAUTHORIZED', message: '無權存取此遊戲' };
+    }
 
     // 建立查詢條件
     const query: Record<string, unknown> = {

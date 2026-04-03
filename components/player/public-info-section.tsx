@@ -16,7 +16,7 @@ export function PublicInfoSection({ publicInfo }: PublicInfoSectionProps) {
   return (
     <div className="space-y-6">
       {/* 角色背景 */}
-      {publicInfo.background && (
+      {publicInfo.background && publicInfo.background.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center text-lg">
@@ -24,10 +24,18 @@ export function PublicInfoSection({ publicInfo }: PublicInfoSectionProps) {
               角色背景
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap leading-relaxed">
-              {publicInfo.background}
-            </p>
+          <CardContent className="space-y-4">
+            {publicInfo.background.map((block, index) =>
+              block.type === 'title' ? (
+                <h3 key={index} className="text-primary font-bold text-xl">
+                  {block.content}
+                </h3>
+              ) : (
+                <p key={index} className="whitespace-pre-wrap leading-relaxed">
+                  {block.content}
+                </p>
+              )
+            )}
           </CardContent>
         </Card>
       )}

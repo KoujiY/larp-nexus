@@ -1,141 +1,5 @@
 import { normalizeTags } from './utils/tags';
-import type { AutoRevealCondition } from '@/types/character';
-
-// MongoDB lean() 返回的類型（可能包含 _id）
-interface MongoSecret {
-  id: string;
-  title: string;
-  content: string;
-  isRevealed: boolean;
-  revealCondition?: string;
-  // Phase 7.7: 自動揭露條件
-  autoRevealCondition?: AutoRevealCondition;
-  revealedAt?: Date;
-  _id?: unknown;
-}
-
-interface MongoTask {
-  id: string;
-  title: string;
-  description: string;
-  isHidden: boolean;
-  isRevealed: boolean;
-  revealedAt?: Date;
-  status: 'pending' | 'in-progress' | 'completed' | 'failed';
-  completedAt?: Date;
-  gmNotes?: string;
-  revealCondition?: string;
-  // Phase 7.7: 自動揭露條件
-  autoRevealCondition?: AutoRevealCondition;
-  createdAt: Date;
-  _id?: unknown;
-}
-
-interface MongoItem {
-  id: string;
-  name: string;
-  description: string;
-  imageUrl?: string;
-  type: 'consumable' | 'equipment';
-  quantity: number;
-  // 使用效果（重構：改為陣列，支援多個效果）
-  effects?: Array<{
-    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-    targetType?: 'self' | 'other' | 'any';
-    requiresTarget?: boolean;
-    targetStat?: string;
-    value?: number;
-    statChangeTarget?: 'value' | 'maxValue';
-    syncValue?: boolean;
-    targetItemId?: string;
-    duration?: number;
-    description?: string;
-  }>;
-  // 向後兼容：保留 effect 欄位（單一效果），但優先使用 effects
-  /** @deprecated 使用 effects 陣列代替 */
-  effect?: {
-    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-    targetType?: 'self' | 'other' | 'any';
-    requiresTarget?: boolean;
-    targetStat?: string;
-    value?: number;
-    statChangeTarget?: 'value' | 'maxValue';
-    syncValue?: boolean;
-    targetItemId?: string;
-    duration?: number;
-    description?: string;
-  };
-  // Phase 7.6: 標籤系統
-  tags?: string[];
-  // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
-  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
-  contestConfig?: {
-    relatedStat: string;
-    opponentMaxItems?: number;
-    opponentMaxSkills?: number;
-    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
-  };
-  randomConfig?: {
-    maxValue: number;
-    threshold: number;
-  };
-  usageLimit?: number;
-  usageCount?: number;
-  cooldown?: number;
-  lastUsedAt?: Date;
-  isTransferable: boolean;
-  acquiredAt: Date;
-  _id?: unknown;
-}
-
-interface MongoStat {
-  id: string;
-  name: string;
-  value: number;
-  maxValue?: number;
-  _id?: unknown;
-}
-
-interface MongoSkill {
-  id: string;
-  name: string;
-  description: string;
-  iconUrl?: string;
-  // Phase 7.6: 標籤系統
-  tags?: string[];
-  // Phase 7.6: 擴展為包含 random_contest
-  checkType: 'none' | 'contest' | 'random' | 'random_contest';
-  contestConfig?: {
-    relatedStat: string;
-    opponentMaxItems?: number;
-    opponentMaxSkills?: number;
-    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
-  };
-  randomConfig?: {
-    maxValue: number;
-    threshold: number;
-  };
-  usageLimit?: number;
-  usageCount?: number;
-  cooldown?: number;
-  lastUsedAt?: Date;
-  effects?: Array<{
-    type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
-          'task_reveal' | 'task_complete' | 'custom';
-    targetType?: 'self' | 'other' | 'any';
-    requiresTarget?: boolean;
-    targetStat?: string;
-    value?: number;
-    statChangeTarget?: 'value' | 'maxValue';
-    syncValue?: boolean;
-    duration?: number; // Phase 8: 時效性效果持續時間（秒）
-    targetItemId?: string;
-    targetTaskId?: string;
-    targetCharacterId?: string;
-    description?: string;
-  }>;
-  _id?: unknown;
-}
+import type { MongoSecret, MongoTask, MongoItem, MongoStat, MongoSkill } from '@/lib/db/types/mongo-helpers';
 
 /**
  * 清理技能資料 - 移除無效的技能和效果，並確保必要的欄位存在
@@ -170,7 +34,6 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
           duration: effect.duration, // Phase 8: 時效性效果持續時間（秒）
           targetItemId: effect.targetItemId,
           targetTaskId: effect.targetTaskId,
-          targetCharacterId: effect.targetCharacterId,
           description: effect.description,
         })),
     }));
@@ -179,58 +42,7 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
 /**
  * 清理道具資料 - 移除無效的道具
  */
-export function cleanItemData(items: MongoItem[] | undefined): Array<{
-  id: string;
-  name: string;
-  description: string;
-  imageUrl?: string;
-  type: 'consumable' | 'equipment';
-  quantity: number;
-  effects?: Array<{
-    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-    targetType?: 'self' | 'other' | 'any';
-    requiresTarget?: boolean;
-    targetStat?: string;
-    value?: number;
-    statChangeTarget?: 'value' | 'maxValue';
-    syncValue?: boolean;
-    targetItemId?: string;
-    duration?: number;
-    description?: string;
-  }>;
-  effect?: {
-    type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-    targetType?: 'self' | 'other' | 'any';
-    requiresTarget?: boolean;
-    targetStat?: string;
-    value?: number;
-    statChangeTarget?: 'value' | 'maxValue';
-    syncValue?: boolean;
-    targetItemId?: string;
-    duration?: number;
-    description?: string;
-  };
-  // Phase 7.6: 標籤系統
-  tags?: string[];
-  // Phase 8: 檢定系統（Phase 7.6: 擴展為包含 random_contest）
-  checkType?: 'none' | 'contest' | 'random' | 'random_contest';
-  contestConfig?: {
-    relatedStat: string;
-    opponentMaxItems?: number;
-    opponentMaxSkills?: number;
-    tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail';
-  };
-  randomConfig?: {
-    maxValue: number;
-    threshold: number;
-  };
-  usageLimit?: number;
-  usageCount?: number;
-  cooldown?: number;
-  lastUsedAt?: Date;
-  isTransferable: boolean;
-  acquiredAt: Date;
-}> {
+export function cleanItemData(items: MongoItem[] | undefined): MongoItem[] {
   return (items || [])
     .filter((item): item is MongoItem => Boolean(item && item.id))
     .map((item) => {
@@ -346,7 +158,6 @@ export function cleanTaskData(tasks: MongoTask[] | undefined): MongoTask[] {
       revealedAt: task.revealedAt,
       status: task.status,
       completedAt: task.completedAt,
-      gmNotes: task.gmNotes,
       revealCondition: task.revealCondition,
       // Phase 7.7: 保留自動揭露條件（GM 端需要顯示）
       autoRevealCondition: task.autoRevealCondition,

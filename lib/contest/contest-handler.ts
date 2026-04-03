@@ -14,16 +14,7 @@ import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-charact
 import type { CharacterDocument } from '@/lib/db/models';
 import type { SkillContestEvent } from '@/types/event';
 import { getItemEffects } from '@/lib/item/get-item-effects';
-
-/**
- * 技能類型
- */
-type SkillType = NonNullable<CharacterDocument['skills']>[number];
-
-/**
- * 道具類型
- */
-type ItemType = NonNullable<CharacterDocument['items']>[number];
+import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
  * 檢定結果

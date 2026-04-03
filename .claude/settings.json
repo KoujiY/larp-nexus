@@ -42,5 +42,20 @@
   "attribution": {
     "commit": "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>",
     "pr": "🤖 Generated with Claude Code"
+  },
+
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run type-check 2>&1 | tail -3 && npm run lint 2>&1 | tail -3 || true",
+            "statusMessage": "型別檢查與 lint 驗證中..."
+          }
+        ]
+      }
+    ]
   }
 }

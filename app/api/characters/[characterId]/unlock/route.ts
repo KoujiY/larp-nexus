@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Character } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
+import { getSession } from '@/lib/auth/session';
 
 interface RouteContext {
   params: Promise<{
@@ -26,9 +27,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    if (!/^\d{4,6}$/.test(pin)) {
+    if (!/^\d{4}$/.test(pin)) {
       return NextResponse.json(
-        { success: false, message: 'PIN 碼格式錯誤（需為 4-6 位數字）' },
+        { success: false, message: 'PIN 碼格式錯誤（需為 4 位數字）' },
         { status: 400 }
       );
     }
@@ -70,7 +71,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // PIN 正確
+    // PIN 正確：將 characterId 寫入 session，供 Server Action（useItem / useSkill / transferItem）授權驗證
+    const session = await getSession();
+    const existing = session.unlockedCharacterIds ?? [];
+    if (!existing.includes(characterId)) {
+      session.unlockedCharacterIds = [...existing, characterId];
+      await session.save();
+    }
+
     return NextResponse.json({
       success: true,
       message: '解鎖成功',

@@ -8,6 +8,7 @@ import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import type { ApiResponse } from '@/types/api';
 import type { CharacterDocument } from '@/lib/db/models';
+import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
  * Phase 8: 選擇目標道具後執行效果
@@ -104,8 +105,6 @@ export async function selectTargetItemForContest(
     }
 
     // Phase 9: 根據是否是防守方選擇，從對應的角色身上找到技能或道具
-    type SkillType = NonNullable<CharacterDocument['skills']>[number];
-    type ItemType = NonNullable<CharacterDocument['items']>[number];
     let source: SkillType | ItemType | null = null;
     let actualSourceType: 'skill' | 'item'; // 實際使用的技能/道具類型（用於效果執行）
     

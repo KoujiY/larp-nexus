@@ -3,21 +3,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateGameCode, checkGameCodeAvailability } from '@/app/actions/games';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Copy, Edit } from 'lucide-react';
+import { Copy, Pencil, Check, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { IconActionButton } from '@/components/gm/icon-action-button';
 import { isValidGameCodeFormat } from '@/lib/game/generate-game-code-client';
+import { cn } from '@/lib/utils';
+import {
+  GM_LABEL_CLASS,
+  GM_INPUT_CLASS,
+  GM_DIALOG_CONTENT_CLASS,
+  GM_DIALOG_HEADER_CLASS,
+  GM_DIALOG_TITLE_CLASS,
+  GM_DIALOG_BODY_CLASS,
+  GM_DIALOG_FOOTER_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+  GM_CTA_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
 interface GameCodeSectionProps {
   gameId: string;
@@ -144,51 +152,45 @@ export function GameCodeSection({ gameId, gameCode, className = '' }: GameCodeSe
   };
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {/* Game Code 顯示 */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-lg">
-        <span className="text-xs text-muted-foreground">遊戲代碼</span>
-        <span className="text-2xl font-bold font-mono tracking-wider text-primary">
-          {gameCode}
-        </span>
+    <div className={`inline-flex items-center gap-3 px-4 py-2 bg-muted/50 border border-border/30 rounded-xl ${className}`}>
+      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Game Code:</span>
+      <span className="text-xl font-black font-mono tracking-tight text-foreground">
+        {gameCode}
+      </span>
+      <div className="flex items-center gap-1 border-l border-border/30 ml-2 pl-3">
+        <IconActionButton
+          icon={<Copy className="h-4 w-4" />}
+          label="複製遊戲代碼"
+          onClick={handleCopyGameCode}
+          size="sm"
+        />
+        <IconActionButton
+          icon={<Pencil className="h-4 w-4" />}
+          label="編輯遊戲代碼"
+          onClick={() => setOpen(true)}
+          size="sm"
+        />
       </div>
-
-      {/* 複製按鈕 */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleCopyGameCode}
-        className="shrink-0"
-      >
-        <Copy className="h-4 w-4 mr-2" />
-        複製
-      </Button>
-
-      {/* 編輯對話框 */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="shrink-0">
-            <Edit className="h-4 w-4 mr-2" />
-            編輯
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent
+          className={cn(GM_DIALOG_CONTENT_CLASS, 'sm:max-w-[480px] p-0 gap-0')}
+          showCloseButton={false}
+        >
           <form onSubmit={handleSubmit}>
-            <DialogHeader>
-              <DialogTitle>編輯遊戲代碼</DialogTitle>
-              <DialogDescription>
-                修改此劇本的遊戲代碼。請注意，更改代碼後玩家需要使用新代碼進入遊戲。
+            <div className={GM_DIALOG_HEADER_CLASS}>
+              <DialogTitle className={GM_DIALOG_TITLE_CLASS}>編輯遊戲代碼</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground/70 mt-1">
+                更改代碼後玩家需要使用新代碼進入遊戲
               </DialogDescription>
-            </DialogHeader>
+            </div>
 
-            <div className="space-y-4 py-4">
+            <div className={GM_DIALOG_BODY_CLASS}>
               <div className="space-y-2">
-                <Label htmlFor="gameCode">
-                  新遊戲代碼 <span className="text-red-500">*</span>
-                </Label>
+                <label className={GM_LABEL_CLASS}>
+                  新遊戲代碼 <span className="text-primary text-base ml-1 leading-none">*</span>
+                </label>
                 <div className="relative">
                   <Input
-                    id="gameCode"
                     placeholder="ABC123"
                     value={newGameCode}
                     onChange={(e) => {
@@ -198,81 +200,76 @@ export function GameCodeSection({ gameId, gameCode, className = '' }: GameCodeSe
                     disabled={isLoading}
                     required
                     maxLength={6}
-                    className="pr-10 font-mono text-lg"
+                    className={cn(GM_INPUT_CLASS, 'pr-12 font-mono text-lg h-12')}
                   />
-                  {/* 檢查狀態指示器 */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {gameCodeCheckStatus === 'checking' && (
-                      <span className="text-gray-400 text-sm">⏳</span>
+                      <Loader2 className="h-[18px] w-[18px] text-muted-foreground animate-spin" />
                     )}
                     {gameCodeCheckStatus === 'available' && (
-                      <span className="text-green-600 text-sm">✓</span>
+                      <Check className="h-[18px] w-[18px] text-success" />
                     )}
                     {gameCodeCheckStatus === 'unavailable' && (
-                      <span className="text-red-600 text-sm">✗</span>
+                      <X className="h-[18px] w-[18px] text-destructive" />
                     )}
                     {gameCodeCheckStatus === 'invalid' && (
-                      <span className="text-orange-600 text-sm">⚠</span>
+                      <AlertTriangle className="h-[18px] w-[18px] text-warning" />
                     )}
                   </div>
                 </div>
-                {/* 檢查狀態提示 */}
-                {gameCodeCheckStatus === 'checking' && (
-                  <p className="text-xs text-gray-500">檢查中...</p>
-                )}
-                {gameCodeCheckStatus === 'available' && (
-                  <p className="text-xs text-green-600">此代碼可以使用</p>
-                )}
-                {gameCodeCheckStatus === 'unavailable' && (
-                  <p className="text-xs text-red-600">此代碼已被使用，請使用其他代碼</p>
-                )}
-                {gameCodeCheckStatus === 'invalid' && (
-                  <p className="text-xs text-orange-600">
-                    代碼格式錯誤（需要 6 位英數字）
-                  </p>
-                )}
-                {gameCodeCheckStatus === 'idle' && newGameCode === gameCode && (
-                  <p className="text-xs text-muted-foreground">
-                    當前代碼：{gameCode}
-                  </p>
-                )}
-                {gameCodeCheckStatus === 'idle' && newGameCode !== gameCode && (
-                  <p className="text-xs text-muted-foreground">
-                    6 位英數字，玩家將使用此代碼進入遊戲
-                  </p>
-                )}
+                <p className="text-xs min-h-5">
+                  {gameCodeCheckStatus === 'checking' && (
+                    <span className="text-muted-foreground">檢查中...</span>
+                  )}
+                  {gameCodeCheckStatus === 'available' && (
+                    <span className="font-semibold text-success">此代碼可以使用</span>
+                  )}
+                  {gameCodeCheckStatus === 'unavailable' && (
+                    <span className="font-semibold text-destructive">此代碼已被使用</span>
+                  )}
+                  {gameCodeCheckStatus === 'invalid' && (
+                    <span className="text-warning">代碼格式錯誤（需要 6 位英數字）</span>
+                  )}
+                  {gameCodeCheckStatus === 'idle' && newGameCode === gameCode && (
+                    <span className="text-muted-foreground">當前代碼：{gameCode}</span>
+                  )}
+                  {gameCodeCheckStatus === 'idle' && newGameCode !== gameCode && (
+                    <span className="text-muted-foreground">6 位英數字，玩家將使用此代碼進入遊戲</span>
+                  )}
+                </p>
               </div>
 
-              {/* 警告訊息 */}
               {newGameCode !== gameCode && (
-                <div className="p-3 rounded-lg bg-orange-50 text-orange-800 text-sm border border-orange-200">
-                  ⚠️ 更改遊戲代碼後，玩家需要使用新代碼才能進入遊戲。請確認玩家已知悉新代碼。
+                <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 text-sm text-foreground flex items-start gap-3">
+                  <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+                  <span>更改遊戲代碼後，玩家需要使用新代碼才能進入遊戲。請確認玩家已知悉新代碼。</span>
                 </div>
               )}
             </div>
 
-            <DialogFooter>
-              <Button
+            <div className={GM_DIALOG_FOOTER_CLASS}>
+              <button
                 type="button"
-                variant="outline"
                 onClick={() => setOpen(false)}
                 disabled={isLoading}
+                className={GM_CANCEL_BUTTON_CLASS}
               >
                 取消
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
                 disabled={
                   isLoading ||
                   gameCodeCheckStatus === 'checking' ||
                   gameCodeCheckStatus === 'unavailable' ||
                   gameCodeCheckStatus === 'invalid' ||
-                  newGameCode === gameCode // 如果跟原本一樣，不允許提交
+                  newGameCode === gameCode
                 }
+                className={GM_CTA_BUTTON_CLASS}
               >
                 {isLoading ? '更新中...' : '確認更新'}
-              </Button>
-            </DialogFooter>
+              </button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

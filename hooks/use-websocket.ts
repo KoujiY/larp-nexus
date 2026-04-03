@@ -28,6 +28,14 @@ const CHARACTER_EVENT_TYPES = [
 
 const GAME_EVENT_TYPES = ['game.broadcast', 'game.started', 'game.reset', 'game.ended'] as const;
 
+/**
+ * 訂閱角色專屬 Pusher 頻道（`private-character-{id}`）
+ *
+ * 使用 ref 持有 handler 避免重新訂閱，cleanup 時只 unbind 不 unsubscribe（多元件共享頻道）。
+ *
+ * @param characterId - Baseline Character ID
+ * @param onEvent - 收到事件時的回呼
+ */
 export function useCharacterWebSocket(characterId: string, onEvent?: EventHandler) {
   const handlerRef = useRef<EventHandler | undefined>(onEvent);
 
@@ -85,6 +93,14 @@ export function useCharacterWebSocket(characterId: string, onEvent?: EventHandle
   }, [characterId]);
 }
 
+/**
+ * 訂閱遊戲層級 Pusher 頻道（`private-game-{id}`）
+ *
+ * 用於接收 game.broadcast / game.started / game.ended 等全域事件。
+ *
+ * @param gameId - Game ID
+ * @param onEvent - 收到事件時的回呼
+ */
 export function useGameWebSocket(gameId: string, onEvent?: EventHandler) {
   const handlerRef = useRef<EventHandler | undefined>(onEvent);
 

@@ -12,6 +12,22 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 /**
  * 對抗檢定 Dialog 狀態
  */
+/** 攻擊方等待 Dialog 的顯示資料（持久化用） */
+export interface AttackerWaitingDisplayData {
+  /** 攻擊方數值 */
+  attackerValue: number;
+  /** 防守方名稱 */
+  defenderName: string;
+  /** 技能或道具名稱 */
+  sourceName: string;
+  /** 檢定類型 */
+  checkType: 'contest' | 'random_contest';
+  /** 關聯數值名稱（contest 類型時） */
+  relatedStat?: string;
+  /** 隨機對抗上限值（random_contest 類型時） */
+  randomContestMaxValue?: number;
+}
+
 export interface ContestDialogState {
   /** Dialog 類型 */
   type: 'attacker_waiting' | 'defender_response' | 'target_item_selection';
@@ -23,6 +39,8 @@ export interface ContestDialogState {
   sourceId: string;
   /** 防守方 ID（用於選擇目標道具） */
   targetCharacterId?: string;
+  /** 攻擊方等待 Dialog 顯示資料 */
+  waitingDisplayData?: AttackerWaitingDisplayData;
   /** 時間戳（用於過期檢查） */
   timestamp: number;
 }
@@ -141,13 +159,15 @@ export function useContestDialogState(characterId: string) {
   const setAttackerWaitingDialog = useCallback((
     contestId: string,
     sourceType: 'skill' | 'item',
-    sourceId: string
+    sourceId: string,
+    displayData?: AttackerWaitingDisplayData
   ) => {
     setDialogState({
       type: 'attacker_waiting',
       contestId,
       sourceType,
       sourceId,
+      waitingDisplayData: displayData,
       timestamp: Date.now(),
     });
   }, []);
