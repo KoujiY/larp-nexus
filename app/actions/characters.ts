@@ -14,6 +14,38 @@ import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecre
 import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
 
 /**
+ * 將原始角色文件序列化為可傳遞給 Client Component 的 CharacterData
+ *
+ * 統一清理 _id、序列化 publicInfo、確保 boolean 預設值等。
+ * 被 getCharactersByGameId、getCharacterById、createCharacter 共用。
+ */
+function serializeCharacterDoc(
+  raw: Record<string, unknown>,
+  overrides?: { id?: string; gameId?: string },
+): CharacterData {
+  const cleanSecretInfo = (raw.secretInfo as Record<string, unknown> | undefined)?.secrets
+    ? { secrets: cleanSecretData((raw.secretInfo as { secrets: unknown[] }).secrets as Parameters<typeof cleanSecretData>[0]) }
+    : undefined;
+
+  return {
+    id: overrides?.id ?? String(raw._id ?? raw.id),
+    gameId: overrides?.gameId ?? String(raw.gameId),
+    name: raw.name as string,
+    description: raw.description as string,
+    imageUrl: raw.imageUrl as string | undefined,
+    hasPinLock: raw.hasPinLock as boolean,
+    publicInfo: serializePublicInfo(raw.publicInfo as Record<string, unknown>),
+    secretInfo: cleanSecretInfo,
+    tasks: cleanTaskData(raw.tasks as Parameters<typeof cleanTaskData>[0]),
+    items: cleanItemData(raw.items as Parameters<typeof cleanItemData>[0]),
+    stats: cleanStatData(raw.stats as Parameters<typeof cleanStatData>[0]),
+    skills: cleanSkillData(raw.skills as Parameters<typeof cleanSkillData>[0]),
+    createdAt: raw.createdAt as string,
+    updatedAt: raw.updatedAt as string,
+  } as CharacterData;
+}
+
+/**
  * Character 驗證 Schema
  */
 const characterSchema = z.object({
@@ -128,42 +160,10 @@ export async function getCharactersByGameId(
         // 遊戲進行中：優先使用 Runtime 資料，找不到則 fallback 至 Baseline
         const char = runtimeMap?.get(baseline._id.toString()) ?? baseline;
 
-        // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
-        const cleanSecretInfo = char.secretInfo?.secrets
-          ? {
-              secrets: cleanSecretData(char.secretInfo.secrets),
-            }
-          : undefined;
-
-        // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
-        const cleanTasks = cleanTaskData(char.tasks);
-
-        // 清理 items 中的 _id
-        const cleanItems = cleanItemData(char.items);
-
-        // 清理 stats 中的 _id
-        const cleanStats = cleanStatData(char.stats);
-
-        // 清理 skills 中的 _id
-        const cleanSkills = cleanSkillData(char.skills);
-
-        return {
-          // 永遠使用 Baseline ID（與 getCharacterById 一致）
+        return serializeCharacterDoc(char, {
           id: baseline._id.toString(),
           gameId: baseline.gameId.toString(),
-          name: char.name,
-          description: char.description,
-          imageUrl: char.imageUrl,
-          hasPinLock: char.hasPinLock,
-          publicInfo: serializePublicInfo(char.publicInfo),
-          secretInfo: cleanSecretInfo,
-          tasks: cleanTasks,
-          items: cleanItems,
-          stats: cleanStats,
-          skills: cleanSkills,
-          createdAt: char.createdAt,
-          updatedAt: char.updatedAt,
-        };
+        });
       }),
     };
   } catch (error) {
@@ -223,53 +223,30 @@ export async function getCharacterById(
     // Phase 8: 處理過期的時效性效果並恢復數值
     // processExpiredEffects 同時查詢 Character + CharacterRuntime，
     // 並透過 document.constructor 自動寫入正確的 collection
-    await processExpiredEffects(characterId);
-    await cleanupOldExpiredEffects(characterId);
+    // 寫入失敗不應阻斷讀取，因此獨立 try-catch
+    let characterWithUpdates = character;
+    try {
+      await processExpiredEffects(characterId);
+      await cleanupOldExpiredEffects(characterId);
 
-    // 重新讀取以取得過期檢查後的最新資料
-    const updatedDoc = await getCharacterData(characterId);
-    const updatedCharacter = JSON.parse(JSON.stringify(updatedDoc));
-    character.stats = updatedCharacter.stats;
-    character.temporaryEffects = updatedCharacter.temporaryEffects;
-
-    // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
-    const cleanSecretInfo = character.secretInfo?.secrets
-      ? {
-          secrets: cleanSecretData(character.secretInfo.secrets),
-        }
-      : undefined;
-
-    // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
-    const cleanTasks = cleanTaskData(character.tasks);
-
-    // 清理 items 中的 _id
-    const cleanItems = cleanItemData(character.items);
-
-    // 清理 stats 中的 _id
-    const cleanStats = cleanStatData(character.stats);
-
-    // 清理 skills 中的 _id
-    const cleanSkills = cleanSkillData(character.skills);
+      // 重新讀取以取得過期檢查後的最新資料
+      const updatedDoc = await getCharacterData(characterId);
+      const updatedCharacter = JSON.parse(JSON.stringify(updatedDoc));
+      characterWithUpdates = {
+        ...character,
+        stats: updatedCharacter.stats,
+        temporaryEffects: updatedCharacter.temporaryEffects,
+      };
+    } catch (expiredError) {
+      console.error('Failed to process expired effects, returning stale data:', expiredError);
+    }
 
     return {
       success: true,
-      data: {
-        // Phase 10: 永遠回傳 Baseline Character ID（與玩家端一致）
+      data: serializeCharacterDoc(characterWithUpdates, {
         id: characterId,
         gameId: baselineCharacter.gameId.toString(),
-        name: character.name,
-        description: character.description,
-        imageUrl: character.imageUrl,
-        hasPinLock: character.hasPinLock,
-        publicInfo: serializePublicInfo(character.publicInfo),
-        secretInfo: cleanSecretInfo,
-        tasks: cleanTasks,
-        items: cleanItems,
-        stats: cleanStats,
-        skills: cleanSkills,
-        createdAt: character.createdAt,
-        updatedAt: character.updatedAt,
-      },
+      }),
     };
   } catch (error) {
     console.error('Error fetching character:', error);
@@ -370,43 +347,9 @@ export async function createCharacter(data: {
     // 轉換為純 JavaScript 物件，避免循環引用
     const characterObj = character.toObject();
 
-    // 清理 secretInfo 中的 _id 以確保純物件可傳遞給 Client Component
-    const cleanSecretInfo = characterObj.secretInfo?.secrets
-      ? {
-          secrets: cleanSecretData(characterObj.secretInfo.secrets),
-        }
-      : undefined;
-
-    // 清理 tasks 中的 _id（確保 boolean 欄位有預設值）
-    const cleanTasks = cleanTaskData(characterObj.tasks);
-
-    // 清理 items 中的 _id
-    const cleanItems = cleanItemData(characterObj.items);
-
-    // 清理 stats 中的 _id
-    const cleanStats = cleanStatData(characterObj.stats);
-
-    // 清理 skills 中的 _id
-    const cleanSkills = cleanSkillData(characterObj.skills);
-
     return {
       success: true,
-      data: {
-        id: characterObj._id.toString(),
-        gameId: characterObj.gameId.toString(),
-        name: characterObj.name,
-        description: characterObj.description,
-        imageUrl: characterObj.imageUrl,
-        hasPinLock: characterObj.hasPinLock,
-        publicInfo: serializePublicInfo(characterObj.publicInfo),
-        secretInfo: cleanSecretInfo,
-        tasks: cleanTasks,
-        items: cleanItems,
-        stats: cleanStats,
-        skills: cleanSkills,
-        createdAt: characterObj.createdAt,
-        updatedAt: characterObj.updatedAt,
-      },
+      data: serializeCharacterDoc(characterObj),
       message: '角色建立成功',
     };
   } catch (error) {
@@ -497,14 +440,14 @@ export async function uploadCharacterImage(
       };
     }
 
-    // 上傳到 Vercel Blob
-    const blob = await put(`characters/${characterId}/${Date.now()}-${file.name}`, file, {
+    // 上傳到 Vercel Blob（消毒檔名，防止路徑注入）
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const blob = await put(`characters/${characterId}/${Date.now()}-${safeName}`, file, {
       access: 'public',
     });
 
-    // 更新角色圖片 URL
-    character.imageUrl = blob.url;
-    await character.save();
+    // 更新角色圖片 URL（使用 findByIdAndUpdate 避免 mutation）
+    await Character.findByIdAndUpdate(characterId, { imageUrl: blob.url });
 
     revalidatePath(`/games/${character.gameId.toString()}`);
 
@@ -616,6 +559,12 @@ export async function checkPinAvailability(
     }
 
     await dbConnect();
+
+    // 驗證 Game 所有權
+    const game = await Game.findOne({ _id: gameId, gmUserId });
+    if (!game) {
+      return { success: false, error: 'UNAUTHORIZED', message: '無權存取此遊戲' };
+    }
 
     // 建立查詢條件
     const query: Record<string, unknown> = {
