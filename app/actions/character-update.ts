@@ -100,8 +100,16 @@ export async function updateCharacter(
     }
 
     // ── 4. Build update data ─────────────────────
-    const { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds } =
-      buildUpdateData(data, beforeState);
+    let buildResult: ReturnType<typeof buildUpdateData>;
+    try {
+      buildResult = buildUpdateData(data, beforeState);
+    } catch (e) {
+      if (e instanceof ValidationError) {
+        return { success: false, error: e.code, message: e.message };
+      }
+      throw e;
+    }
+    const { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds } = buildResult;
 
     // ── 5. Persist to Mongoose ───────────────────
     // 清除被重置為未揭露的 viewedItems

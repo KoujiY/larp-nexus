@@ -9,30 +9,21 @@ import { serializePublicInfo } from '@/lib/character/normalize-background';
 import { emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { executeAutoReveal, executeChainRevealForSecrets } from '@/lib/reveal/auto-reveal-evaluator';
 import { writeLog } from '@/lib/logs/write-log';
-import type { MongoStat } from '@/lib/db/types/mongo-helpers';
+import type { MongoStat, MongoItem, MongoSkill } from '@/lib/db/types/mongo-helpers';
+import type { InventoryDiff } from '@/lib/character/field-updaters';
 import type { UpdateCharacterInput } from './character-update-types';
 
-/** 道具變動差異 */
-export type InventoryDiff = {
-  action: 'added' | 'updated' | 'deleted';
-  item: {
-    id: string;
-    name: string;
-    description: string;
-    imageUrl?: string;
-    acquiredAt?: string;
-  };
-};
+export type { InventoryDiff };
 
-type SideEffectParams = {
+export type SideEffectParams = {
   characterId: string;
   gmUserId: string;
   data: UpdateCharacterInput;
   beforeState: Record<string, unknown>;
   updatedCharacter: Record<string, unknown>;
   cleanStats: MongoStat[];
-  cleanItems: unknown[];
-  cleanSkills: unknown[];
+  cleanItems: MongoItem[];
+  cleanSkills: MongoSkill[];
   inventoryDiffs: InventoryDiff[];
   hasManualSecretReveal: boolean;
 };
@@ -151,7 +142,7 @@ export async function emitUpdateSideEffects({
   if (data.name !== undefined && data.name !== beforeState.name) changedFields.push('name');
   if (data.description !== undefined && data.description !== beforeState.description) changedFields.push('description');
   if (data.hasPinLock !== undefined && data.hasPinLock !== beforeState.hasPinLock) changedFields.push('hasPinLock');
-  if (data.pin !== undefined) changedFields.push('pin');
+  if (data.pin !== undefined && data.pin !== beforeState.pin) changedFields.push('pin');
   if (data.publicInfo !== undefined) {
     const beforePub = (beforeState.publicInfo || {}) as Record<string, unknown>;
     const publicInfoChanged = Object.keys(data.publicInfo).some(
