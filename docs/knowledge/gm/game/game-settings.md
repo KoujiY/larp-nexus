@@ -10,6 +10,7 @@ interface Game {
   gmUserId: ObjectId;
   name: string;
   description: string;
+  coverUrl?: string;           // Game cover image (Vercel Blob)
   isActive: boolean;           // Controls Runtime layer read/write
   gameCode: string;            // 6-char alphanumeric, unique, auto-generated
   publicInfo?: {
@@ -31,6 +32,14 @@ See [game-states.md](./game-states.md) for the full state machine.
 - Auto-generated 6-char alphanumeric code
 - Used by players on game day to unlock full access (Runtime mode)
 - **Do not reuse the same Game Code across different game sessions** — could allow players from a previous session to re-enter
+
+## Cover Image
+- Uploaded via `uploadGameCover` server action (`app/actions/games.ts`)
+- Stored in Vercel Blob at `games/{gameId}/{timestamp}-{filename}`
+- 前端壓縮 preset: `gameCover` (1200×800, quality 0.85, aspect 3:2)
+- 舊圖自動清理（上傳新圖時 `del(oldUrl)`）
+- 顯示位置：GM 劇本列表卡片、GM 編輯頁封面區、玩家世界觀 Hero 區
+- **不同步到 GameRuntime**：封面圖只從 Baseline `Game` 讀取，Runtime 不含此欄位
 
 ## Public Info
 The game's public info is accessible at `/g/[gameId]` — a public page all players can view regardless of their character card unlock state.

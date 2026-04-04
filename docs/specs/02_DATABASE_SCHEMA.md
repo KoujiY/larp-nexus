@@ -270,7 +270,7 @@ interface Character {
     id: string;                     // 唯一識別碼
     name: string;                   // 技能名稱
     description: string;            // 技能描述
-    iconUrl?: string;               // 技能圖示
+    imageUrl?: string;              // 技能圖片
     
     // 檢定系統
     checkType: 'none' | 'contest' | 'random' | 'random_contest';  // 檢定類型（Phase 7.6: 新增 random_contest）
