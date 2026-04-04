@@ -193,9 +193,9 @@ export function SkillDetailDialog({
           className="relative z-10 w-full h-full rounded-full overflow-hidden border border-primary/30 bg-background"
           style={{ boxShadow: '0 0 40px -10px rgba(254,197,106,0.35)' }}
         >
-          {selectedSkill.iconUrl ? (
+          {selectedSkill.imageUrl ? (
             <Image
-              src={selectedSkill.iconUrl}
+              src={selectedSkill.imageUrl}
               alt={selectedSkill.name}
               fill
               className="object-cover"

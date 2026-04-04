@@ -109,7 +109,7 @@ export interface MongoSkill {
   id: string;
   name: string;
   description: string;
-  iconUrl?: string;
+  imageUrl?: string;
   tags?: string[];
   checkType: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {

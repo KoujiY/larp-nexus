@@ -19,6 +19,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       closeButton
       duration={5000}
       expand
+      richColors
       visibleToasts={5}
       gap={8}
       className="toaster group"

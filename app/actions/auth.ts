@@ -152,6 +152,7 @@ export async function getCurrentGMUser() {
       id: gmUser._id.toString(),
       email: gmUser.email,
       displayName: gmUser.displayName,
+      avatarUrl: gmUser.avatarUrl as string | undefined,
       createdAt: gmUser.createdAt,
       lastLoginAt: gmUser.lastLoginAt,
     };

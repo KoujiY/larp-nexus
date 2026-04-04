@@ -22,7 +22,7 @@ export function updateCharacterSkills(skills: MongoSkill[]): MongoSkill[] {
       usageCount: skill.usageCount || 0,
       tags: normalizeTags(skill.tags),
     };
-    if (skill.iconUrl !== undefined) skillData.iconUrl = skill.iconUrl;
+    if (skill.imageUrl !== undefined) skillData.imageUrl = skill.imageUrl;
     if (skill.usageLimit !== undefined) skillData.usageLimit = skill.usageLimit;
     if (skill.cooldown !== undefined) skillData.cooldown = skill.cooldown;
     if (skill.lastUsedAt !== undefined) skillData.lastUsedAt = skill.lastUsedAt;

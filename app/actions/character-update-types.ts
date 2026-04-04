@@ -137,7 +137,7 @@ export type UpdateCharacterInput = {
     id: string;
     name: string;
     description: string;
-    iconUrl?: string;
+    imageUrl?: string;
     tags?: string[];
     checkType: CheckType;
     contestConfig?: ContestConfig;

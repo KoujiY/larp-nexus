@@ -213,6 +213,7 @@ export async function getPublicGame(
         id: game._id.toString(),
         name: game.name,
         description: game.description,
+        coverUrl: game.coverUrl,
         publicInfo: game.publicInfo,
         characters: characters.map((char) => ({
           id: char._id.toString(),

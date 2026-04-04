@@ -35,6 +35,7 @@ import {
 import type { MongoItem, MongoSecret, MongoTask } from "@/lib/db/types/mongo-helpers";
 import type { UpdateCharacterInput } from "./character-update-types";
 import { emitUpdateSideEffects, type InventoryDiff } from "./character-update-side-effects";
+import { deleteImagesFromBlob } from "@/lib/image/upload";
 
 /**
  * 更新角色（Server Action）
@@ -109,7 +110,7 @@ export async function updateCharacter(
       }
       throw e;
     }
-    const { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds } = buildResult;
+    const { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds, deletedImageUrls } = buildResult;
 
     // ── 5. Persist to Mongoose ───────────────────
     // 清除被重置為未揭露的 viewedItems
@@ -146,6 +147,12 @@ export async function updateCharacter(
     const cleanItems = cleanItemData(updatedCharacter.items);
     const cleanStats = cleanStatData(updatedCharacter.stats);
     const cleanSkills = cleanSkillData(updatedCharacter.skills);
+
+    // ── 6.5. Blob 圖片清理（被刪除的道具/技能圖片）──
+    if (deletedImageUrls.length > 0) {
+      // 不 await — fire-and-forget，避免拖慢主流程
+      deleteImagesFromBlob(deletedImageUrls).catch(() => {});
+    }
 
     // ── 7. Side effects (WS + auto-reveal + log) ─
     await emitUpdateSideEffects({
@@ -192,6 +199,7 @@ type BuildResult = {
   inventoryDiffs: InventoryDiff[];
   hasManualSecretReveal: boolean;
   unrevealedViewedItemIds: Set<string>;
+  deletedImageUrls: string[];
 };
 
 /**
@@ -208,6 +216,7 @@ function buildUpdateData(
   let hasManualSecretReveal = false;
   const unrevealedViewedItemIds = new Set<string>();
   let inventoryDiffs: InventoryDiff[] = [];
+  const deletedImageUrls: string[] = [];
 
   // Basic fields
   if (data.name !== undefined) updateData.name = data.name;
@@ -286,6 +295,13 @@ function buildUpdateData(
     const result = updateCharacterItems(data.items, currentItems);
     updateData.items = result.items;
     inventoryDiffs = result.inventoryDiffs;
+
+    // 收集被刪除道具的圖片 URL
+    for (const diff of inventoryDiffs) {
+      if (diff.action === "deleted" && diff.item.imageUrl) {
+        deletedImageUrls.push(diff.item.imageUrl);
+      }
+    }
   }
 
   // skills
@@ -294,10 +310,18 @@ function buildUpdateData(
     if (!validation.success) {
       throw new ValidationError(validation.error || "VALIDATION_ERROR", validation.message || "Skills 驗證失敗");
     }
+    // 收集被刪除技能的圖片 URL（比對 before snapshot）
+    const currentSkills = (beforeState.skills || []) as Array<{ id: string; imageUrl?: string }>;
+    const newSkillIds = new Set(data.skills.map((s) => s.id));
+    for (const oldSkill of currentSkills) {
+      if (!newSkillIds.has(oldSkill.id) && oldSkill.imageUrl) {
+        deletedImageUrls.push(oldSkill.imageUrl);
+      }
+    }
     updateData.skills = updateCharacterSkills(data.skills);
   }
 
-  return { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds };
+  return { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds, deletedImageUrls };
 }
 
 /** Validation error — 由 buildUpdateData 拋出，主函式 catch 後轉換為 API response */

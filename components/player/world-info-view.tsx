@@ -40,8 +40,18 @@ export function WorldInfoView({ game }: WorldInfoViewProps) {
 
       {/* ── Hero 區塊 ── */}
       <div className="relative w-full h-svh lg:h-auto lg:max-w-[1280px] lg:mx-auto lg:aspect-video lg:max-h-[720px] overflow-hidden">
-        {/* 漸層背景（未來替換為圖片） */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background" />
+        {/* 背景：封面圖或漸層 */}
+        {game.coverUrl ? (
+          <Image
+            src={game.coverUrl}
+            alt={game.name}
+            fill
+            className="object-cover"
+            priority
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background" />
+        )}
         {/* Overlay 漸層 */}
         <div
           className="absolute inset-0"

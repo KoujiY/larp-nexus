@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Game, Character, CharacterRuntime, GameRuntime, Log, PendingEvent } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
+import { uploadImageToBlob, deleteImagesFromBlob, collectCharacterImageUrls } from '@/lib/image/upload';
 import type { ApiResponse } from '@/types/api';
 import mongoose from 'mongoose';
 import type { GameData } from '@/types/game';
@@ -60,6 +61,7 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
         description: game.description,
         gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
+        coverUrl: game.coverUrl,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
         characterCount: countMap.get(game._id.toString()) ?? 0,
@@ -113,6 +115,7 @@ export async function getGameById(
         description: game.description,
         gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
+        coverUrl: game.coverUrl,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
         createdAt: game.createdAt,
@@ -206,6 +209,7 @@ export async function createGame(data: {
         description: game.description,
         gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
+        coverUrl: game.coverUrl,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
         createdAt: game.createdAt,
@@ -322,6 +326,7 @@ export async function updateGame(
         description: game.description,
         gameCode: game.gameCode, // Phase 10
         isActive: game.isActive,
+        coverUrl: game.coverUrl,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
         createdAt: game.createdAt,
@@ -378,9 +383,17 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
       };
     }
 
-    // 先收集 character IDs，用於清理 character-level PendingEvent
-    const characterIds = await Character.find({ gameId }).select('_id').lean();
-    const characterIdStrings = characterIds.map((c) => c._id.toString());
+    // 收集所有需要清理的圖片 URL（在刪除 DB 記錄之前）
+    const characters = await Character.find({ gameId })
+      .select('_id imageUrl items skills')
+      .lean();
+    const characterIdStrings = characters.map((c) => c._id.toString());
+
+    const allImageUrls: string[] = [];
+    if (game.coverUrl) allImageUrls.push(game.coverUrl);
+    for (const char of characters) {
+      allImageUrls.push(...collectCharacterImageUrls(char));
+    }
 
     // 先刪除子集合，最後刪除 Game 本體（降低孤兒風險）
     await Promise.all([
@@ -395,6 +408,9 @@ export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>
     ]);
 
     await Game.deleteOne({ _id: gameId });
+
+    // Blob 圖片清理（graceful degradation: 失敗不影響刪除結果）
+    await deleteImagesFromBlob(allImageUrls);
 
     revalidatePath('/games');
 
@@ -628,6 +644,54 @@ export async function checkGameCodeAvailability(
       error: 'CHECK_FAILED',
       message: '無法檢查 Game Code 可用性',
     };
+  }
+}
+
+/**
+ * 上傳劇本封面圖
+ *
+ * 前端已壓縮至 1200×800，後端只做驗證 + 上傳 + 舊圖清理。
+ * Blob 路徑：games/{gameId}/{ts}-{name}
+ * 封面圖僅寫入 Baseline，不同步至 Runtime。
+ */
+export async function uploadGameCover(
+  gameId: string,
+  formData: FormData,
+): Promise<ApiResponse<{ coverUrl: string }>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
+    await dbConnect();
+
+    const game = await Game.findOne({ _id: gameId, gmUserId });
+    if (!game) {
+      return { success: false, error: 'NOT_FOUND', message: '找不到此劇本' };
+    }
+
+    const uploadResult = await uploadImageToBlob(formData, {
+      pathPrefix: `games/${gameId}`,
+      oldImageUrl: game.coverUrl || undefined,
+    });
+
+    if (!uploadResult.success) {
+      return { success: false, error: 'VALIDATION_ERROR', message: uploadResult.error };
+    }
+
+    await Game.updateOne(
+      { _id: gameId },
+      { $set: { coverUrl: uploadResult.url } },
+    );
+
+    return {
+      success: true,
+      data: { coverUrl: uploadResult.url },
+    };
+  } catch (error) {
+    console.error('[uploadGameCover] Error:', error);
+    return { success: false, error: 'INTERNAL_ERROR', message: '上傳失敗，請稍後再試' };
   }
 }
 

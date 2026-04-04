@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -42,7 +41,6 @@ import {
   CheckCircle,
   FlaskConical,
   Shield,
-  ImagePlus,
   Ban,
   Swords,
   Dice5,
@@ -366,26 +364,10 @@ export function AbilityEditWizard({
           />
         </div>
 
-        {/* 圖片上傳預留區 */}
-        {isItemMode ? (
-          <div>
-            <label className={LABEL_CLASS}>道具圖片</label>
-            <div className="border-2 border-dashed border-border/30 rounded-xl p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground/50">
-              <ImagePlus className="h-8 w-8" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">圖片上傳</span>
-              <Badge variant="secondary" className="text-[10px]">即將推出</Badge>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <label className={LABEL_CLASS}>技能圖示</label>
-            <div className="border-2 border-dashed border-border/30 rounded-xl p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground/50">
-              <ImagePlus className="h-8 w-8" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">圖片上傳</span>
-              <Badge variant="secondary" className="text-[10px]">即將推出</Badge>
-            </div>
-          </div>
-        )}
+        {/* 圖片上傳提示 — 建立後可在卡片上傳 */}
+        <p className="text-[11px] text-muted-foreground/50 font-medium">
+          儲存後可在{isItemMode ? '道具' : '技能'}卡片上傳圖片
+        </p>
 
         {/* 道具類型選擇 */}
         {isItemMode && (
@@ -448,7 +430,7 @@ export function AbilityEditWizard({
                 <button
                   key={opt.value} type="button" onClick={() => handleCheckTypeSelect(opt.value)}
                   className={cn(
-                    'group relative p-5 rounded-xl transition-all flex flex-col items-center text-center gap-3 overflow-hidden',
+                    'group relative p-5 rounded-xl transition-all flex flex-col items-center text-center gap-3 overflow-hidden cursor-pointer',
                     selected ? 'bg-card border-2 border-primary shadow-md' : 'bg-card/60 border border-transparent hover:bg-card hover:shadow-md',
                   )}
                 >
@@ -665,7 +647,7 @@ export function AbilityEditWizard({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleDeleteEffect(index); }}
-                  className="p-1 text-muted-foreground/50 hover:text-destructive rounded transition-colors"
+                  className="p-1 text-muted-foreground/50 hover:text-destructive rounded transition-colors cursor-pointer"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -675,7 +657,7 @@ export function AbilityEditWizard({
           <div className="p-6 pt-3 shrink-0">
             <button
               type="button" onClick={handleAddEffect}
-              className="w-full py-3 px-4 border-2 border-dashed border-border/30 rounded-lg text-muted-foreground text-sm font-bold flex items-center justify-center gap-2 hover:border-primary hover:text-primary transition-all"
+              className="w-full py-3 px-4 border-2 border-dashed border-border/30 rounded-lg text-muted-foreground text-sm font-bold flex items-center justify-center gap-2 hover:border-primary hover:text-primary transition-all cursor-pointer"
             >
               <Plus className="h-4 w-4" />新增效果
             </button>
@@ -821,9 +803,9 @@ function WizardEffectPanel({
               key={scope} type="button" disabled={isDisabled}
               onClick={() => { if (!isContestType) onUpdate({ targetType: scope, requiresTarget: scope !== 'self' }); }}
               className={cn(
-                'px-6 py-2 rounded-lg text-sm font-bold transition-all',
+                'px-6 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer',
                 isSelected ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
-                isDisabled && 'opacity-30 cursor-not-allowed',
+                isDisabled && 'opacity-30 cursor-not-allowed!',
               )}
             >
               {label}
@@ -843,7 +825,7 @@ function WizardEffectPanel({
           <h2 className="text-xl font-bold text-foreground">效果配置</h2>
           <p className="text-muted-foreground text-sm mt-1">效果 {index + 1}</p>
         </div>
-        <button type="button" onClick={onDelete} className="p-2 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 rounded-full transition-all" title="刪除效果">
+        <button type="button" onClick={onDelete} className="p-2 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 rounded-full transition-all cursor-pointer" title="刪除效果">
           <Trash2 className="h-5 w-5" />
         </button>
       </div>

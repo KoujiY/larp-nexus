@@ -142,6 +142,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
       <CharacterEditTabs
         character={character}
         gameId={gameId}
+        gameIsActive={game.isActive}
         randomContestMaxValue={game.randomContestMaxValue}
         gameCharacters={gameCharacters}
       />

@@ -329,7 +329,7 @@ export interface Skill {
   id: string;
   name: string;
   description: string;
-  iconUrl?: string;
+  imageUrl?: string;
   // Phase 7.6: 標籤系統
   tags?: string[];
   // 檢定系統（Phase 7.6: 擴展為包含 random_contest）
@@ -408,7 +408,7 @@ export interface CreateItemInput {
 export interface CreateSkillInput {
   name: string;
   description: string;
-  iconUrl?: string;
+  imageUrl?: string;
   checkType: 'none' | 'stat' | 'random';
   checkThreshold?: number;
   relatedStat?: string;

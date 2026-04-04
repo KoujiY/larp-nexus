@@ -18,6 +18,8 @@ interface SkillsEditFormProps {
   characterId: string;
   initialSkills: Skill[];
   stats: Stat[];
+  /** 遊戲進行中時禁止上傳圖片（Runtime 新增的技能在 Baseline 找不到） */
+  gameIsActive?: boolean;
   randomContestMaxValue?: number;
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;
@@ -31,7 +33,7 @@ interface SkillsEditFormProps {
  * 新增卡片排在 grid 第一位。
  * 空狀態使用 GmEmptyState 共用元件。
  */
-export function SkillsEditForm({ characterId, initialSkills, stats, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: SkillsEditFormProps) {
+export function SkillsEditForm({ characterId, initialSkills, stats, gameIsActive = false, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: SkillsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [skills, setSkills] = useState<Skill[]>(initialSkills);
@@ -185,6 +187,8 @@ export function SkillsEditForm({ characterId, initialSkills, stats, randomContes
               key={skill.id}
               ability={skill}
               mode="skill"
+              characterId={characterId}
+              gameIsActive={gameIsActive}
               status={getSkillStatus(skill)}
               onEdit={() => handleEditSkill(skill)}
               onRemove={() => handleSoftDelete(skill.id)}

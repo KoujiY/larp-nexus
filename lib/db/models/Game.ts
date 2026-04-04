@@ -15,6 +15,8 @@ export interface GameDocument extends Document {
 
   isActive: boolean;
 
+  coverUrl?: string;
+
   // 公開資訊：使用 BackgroundBlock[] 統一結構
   publicInfo?: {
     blocks: Array<{
@@ -59,6 +61,9 @@ const GameSchema = new Schema<GameDocument>(
     isActive: {
       type: Boolean,
       default: false, // Phase 10: 預設為待機狀態（false）
+    },
+    coverUrl: {
+      type: String,
     },
     // 公開資訊：BackgroundBlock[] 統一結構
     publicInfo: {

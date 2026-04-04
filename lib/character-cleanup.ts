@@ -11,7 +11,7 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
       id: skill.id,
       name: skill.name,
       description: skill.description,
-      iconUrl: skill.iconUrl,
+      imageUrl: skill.imageUrl,
       // Phase 7.6: 標籤系統 - 使用統一的標準化函數
       tags: normalizeTags(skill.tags),
       checkType: skill.checkType,

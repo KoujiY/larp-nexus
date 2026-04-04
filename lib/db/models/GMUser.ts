@@ -17,6 +17,9 @@ const GMUserSchema = new Schema<GMUserDocument>(
       required: true,
       maxlength: 50,
     },
+    avatarUrl: {
+      type: String,
+    },
   },
   {
     timestamps: true,

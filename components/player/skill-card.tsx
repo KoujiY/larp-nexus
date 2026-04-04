@@ -77,10 +77,10 @@ export function SkillCard({
       <div className={`p-4 flex items-start gap-4${isOnCooldown ? ' opacity-60 grayscale-[0.5]' : ''}`}>
         {/* 技能圖示 */}
         <div className="w-14 h-14 rounded-lg bg-popover flex items-center justify-center relative overflow-hidden shrink-0 border border-border/10">
-          {skill.iconUrl ? (
+          {skill.imageUrl ? (
             <>
               <Image
-                src={skill.iconUrl}
+                src={skill.imageUrl}
                 alt={skill.name}
                 fill
                 className="object-cover"

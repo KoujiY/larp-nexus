@@ -167,7 +167,7 @@ function createSkillsSchemaField() {
       id: { type: String, required: true },
       name: { type: String, required: true },
       description: { type: String, default: '' },
-      iconUrl: { type: String },
+      imageUrl: { type: String },
       tags: { type: [String], default: [] },
       checkType: {
         type: String,

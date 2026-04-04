@@ -6,14 +6,18 @@
  * 收合時（固定高度）：狀態 badge + 類型標籤 + 名稱 + 描述 line-clamp-1 + footer badges
  * 展開時：完整描述 + 效果列表（左側邊線卡片）+ 檢定資訊 + 使用限制格 + 標籤
  *
- * 道具特有：右側漸淡圖片背景（有 imageUrl 時）
+ * 道具 / 技能共用：右側漸淡圖片背景（有 imageUrl 時）
  * 狀態系統：new / modified / deleted — 與 StatCard 對齊
  *
  * 展開內容設計參考玩家端 item-detail-dialog / skill-detail-dialog
  */
 
 import { useState, useCallback } from 'react';
-import { ChevronDown, Pencil, Trash2, Undo2, Clock } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { ChevronDown, Pencil, Trash2, Undo2, Clock, Upload } from 'lucide-react';
+import { uploadAbilityImage } from '@/app/actions/characters';
+import { ImageUploadDialog } from '@/components/shared/image-upload-dialog';
 import { cn } from '@/lib/utils';
 import { IconActionButton } from '@/components/gm/icon-action-button';
 import {
@@ -40,6 +44,10 @@ interface AbilityCardProps {
   ability: Item | Skill;
   /** 類型：item 或 skill */
   mode: 'item' | 'skill';
+  /** 角色 ID（圖片上傳用） */
+  characterId: string;
+  /** 遊戲進行中時隱藏上傳按鈕（Runtime 新增項目在 Baseline 找不到） */
+  gameIsActive?: boolean;
   /** 卡片狀態 */
   status?: AbilityStatus;
   /** 編輯按鈕事件 */
@@ -58,13 +66,17 @@ interface AbilityCardProps {
 export function AbilityCard({
   ability,
   mode,
+  characterId,
+  gameIsActive = false,
   status = 'unchanged',
   onEdit,
   onRemove,
   onRestore,
   disabled,
 }: AbilityCardProps) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const toggleExpand = useCallback(() => {
     setExpanded((prev) => !prev);
@@ -79,7 +91,7 @@ export function AbilityCard({
     ? item!.type === 'consumable' ? '消耗品' : '裝備'
     : '技能';
 
-  const imageUrl = item?.imageUrl;
+  const imageUrl = isItem ? item?.imageUrl : skill?.imageUrl;
   const effects = ability.effects ?? [];
   const tags = isItem ? (item!.tags ?? []) : (skill!.tags ?? []);
   const checkType = isItem ? item!.checkType : skill!.checkType;
@@ -124,6 +136,7 @@ export function AbilityCard({
   }
 
   return (
+    <>
     <div
       className={cn(
         'group relative bg-card rounded-xl shadow-sm overflow-hidden',
@@ -144,8 +157,8 @@ export function AbilityCard({
           className="absolute inset-y-0 right-0 w-1/2 bg-cover bg-center pointer-events-none"
           style={{
             backgroundImage: `url(${imageUrl})`,
-            maskImage: 'linear-gradient(to right, transparent, black 60%)',
-            WebkitMaskImage: 'linear-gradient(to right, transparent, black 60%)',
+            maskImage: 'linear-gradient(to right, transparent 10%, black 80%)',
+            WebkitMaskImage: 'linear-gradient(to right, transparent 10%, black 80%)',
             opacity: 0.15,
           }}
         />
@@ -192,6 +205,15 @@ export function AbilityCard({
               )
             ) : (
               <>
+                {!gameIsActive && (
+                  <IconActionButton
+                    icon={<Upload className="h-4 w-4" />}
+                    label="上傳圖片"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); setUploadOpen(true); }}
+                    disabled={disabled}
+                  />
+                )}
                 <IconActionButton
                   icon={<Pencil className="h-4 w-4" />}
                   label="編輯"
@@ -327,7 +349,27 @@ export function AbilityCard({
           </div>
         )}
       </div>
+
     </div>
+
+    {/* 圖片上傳 Dialog — 放在卡片外層，避免事件冒泡穿透 */}
+      <ImageUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        title={`上傳${isItem ? '道具' : '技能'}圖片`}
+        description={`選擇一張圖片作為${isItem ? '道具' : '技能'}卡的圖示`}
+        preset={isItem ? 'item' : 'skill'}
+        onUpload={async (formData) => {
+          const result = await uploadAbilityImage(characterId, ability.id, mode, formData);
+          return { success: result.success, error: result.success ? undefined : result.message };
+        }}
+        onError={(msg) => toast.error(msg)}
+        onSuccess={() => {
+          toast.success('圖片上傳成功');
+          router.refresh();
+        }}
+      />
+    </>
   );
 }
 

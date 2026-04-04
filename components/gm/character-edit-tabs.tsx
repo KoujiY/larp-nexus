@@ -42,6 +42,8 @@ export type GameCharacterSummary = {
 interface CharacterEditTabsProps {
   character: CharacterData;
   gameId: string;
+  /** 遊戲是否進行中（Runtime 模式） */
+  gameIsActive?: boolean;
   randomContestMaxValue?: number;
   /** 同劇本所有角色摘要（排除自身），用於 Tab 2 人物關係 */
   gameCharacters?: GameCharacterSummary[];
@@ -60,6 +62,7 @@ interface CharacterEditTabsProps {
 export function CharacterEditTabs({
   character,
   gameId,
+  gameIsActive = false,
   randomContestMaxValue,
   gameCharacters = [],
 }: CharacterEditTabsProps) {
@@ -237,6 +240,7 @@ export function CharacterEditTabs({
             characterId={character.id}
             initialItems={character.items || []}
             stats={character.stats || []}
+            gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>
               registerDirty('items', {
@@ -256,6 +260,7 @@ export function CharacterEditTabs({
             characterId={character.id}
             initialSkills={character.skills || []}
             stats={character.stats || []}
+            gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>
               registerDirty('skills', {

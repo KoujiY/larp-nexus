@@ -12,6 +12,7 @@ export interface GameData {
   description: string;
   gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
+  coverUrl?: string;
   publicInfo?: {
     blocks: BackgroundBlock[];
   };
@@ -30,6 +31,7 @@ export interface GamePublicData {
   id: string;
   name: string;
   description: string;
+  coverUrl?: string;
   publicInfo?: {
     blocks: BackgroundBlock[];
   };
@@ -56,6 +58,7 @@ export interface Game {
   description: string;
   gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
+  coverUrl?: string;
   publicInfo?: {
     blocks: BackgroundBlock[];
   };

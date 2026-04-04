@@ -307,7 +307,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         )}
 
         {/* 漸層 scrim：統一遮罩，讓文字在兩種背景下都易讀 */}
-        <div className="absolute inset-0 bg-linear-to-b from-transparent via-background/40 to-background/85 z-10 pointer-events-none" />
+        <div className="absolute inset-0 bg-linear-to-b from-transparent from-15% via-background/40 via-55% to-background/90 z-10 pointer-events-none" />
 
         {/* 角色名稱 + 標語 overlay（壓在圖片上，顏色為主題金色） */}
         <div className="absolute bottom-12 left-0 w-full px-8 z-20">
@@ -351,7 +351,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         </nav>
 
         {/* 分頁內容 */}
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 pt-4">
           <TabsContent value="info" className="mt-0">
             <InfoTab
               publicInfo={character.publicInfo}
