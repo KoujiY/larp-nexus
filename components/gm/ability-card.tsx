@@ -19,6 +19,7 @@ import { ChevronDown, Pencil, Trash2, Undo2, Clock, Upload } from 'lucide-react'
 import { uploadAbilityImage } from '@/app/actions/characters';
 import { ImageUploadDialog } from '@/components/shared/image-upload-dialog';
 import { cn } from '@/lib/utils';
+import { formatDuration } from '@/lib/utils/format-duration';
 import { IconActionButton } from '@/components/gm/icon-action-button';
 import {
   GM_ATTR_BADGE_BASE,
@@ -393,18 +394,6 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   any: '任意',
 };
 
-/** 格式化持續時間 */
-function formatDuration(seconds: number): string {
-  if (seconds >= 3600) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    return m > 0 ? `${h} 小時 ${m} 分鐘` : `${h} 小時`;
-  }
-  if (seconds >= 60) {
-    return `${Math.floor(seconds / 60)} 分鐘`;
-  }
-  return `${seconds} 秒`;
-}
 
 /**
  * 單一效果 — 左側邊線卡片
