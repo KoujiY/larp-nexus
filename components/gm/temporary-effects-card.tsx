@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getTemporaryEffects, checkExpiredEffects } from '@/app/actions/temporary-effects';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
-import { Clock, Zap, Package } from 'lucide-react';
+import { Clock, Zap, Package, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GM_SECTION_TITLE_CLASS } from '@/lib/styles/gm-form';
 import { GmEmptyState } from '@/components/gm/gm-empty-state';
@@ -173,7 +173,7 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-1">
-                    {effect.sourceType === 'skill' ? '技能' : '道具'}
+                    {effect.sourceType === 'skill' ? '技能' : effect.sourceType === 'preset_event' ? '預設事件' : '道具'}
                   </p>
                   <h3 className="text-xl font-extrabold text-foreground">
                     {effect.sourceName}
@@ -186,6 +186,8 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
                   <span className="flex items-center gap-1 text-primary text-sm font-bold">
                     {effect.sourceType === 'skill' ? (
                       <Zap className="h-4 w-4" />
+                    ) : effect.sourceType === 'preset_event' ? (
+                      <CalendarClock className="h-4 w-4" />
                     ) : (
                       <Package className="h-4 w-4" />
                     )}

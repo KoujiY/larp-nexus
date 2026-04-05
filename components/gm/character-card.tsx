@@ -13,9 +13,11 @@ import Image from 'next/image';
 interface CharacterCardProps {
   character: CharacterData;
   gameId: string;
+  /** 遊戲進行中時隱藏刪除按鈕 */
+  isActive?: boolean;
 }
 
-export function CharacterCard({ character, gameId }: CharacterCardProps) {
+export function CharacterCard({ character, gameId, isActive }: CharacterCardProps) {
   return (
     <div className="group bg-card rounded-xl overflow-hidden border border-border/40 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5">
       {/* 可點擊區域 — 導航至編輯頁 */}
@@ -64,11 +66,13 @@ export function CharacterCard({ character, gameId }: CharacterCardProps) {
             />
           )}
           <div className="flex-1" />
-          <DeleteCharacterButton
-            characterId={character.id}
-            characterName={character.name}
-            gameId={gameId}
-          />
+          {!isActive && (
+            <DeleteCharacterButton
+              characterId={character.id}
+              characterName={character.name}
+              gameId={gameId}
+            />
+          )}
         </div>
 
         {/* 底部連結 */}

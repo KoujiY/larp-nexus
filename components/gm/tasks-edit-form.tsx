@@ -213,7 +213,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
 
   return (
     <>
-      <div className="flex gap-6 h-full min-h-0">
+      <div className="flex items-start gap-6 h-full min-h-0">
         {/* ── 左欄：一般任務 ── */}
         <TaskColumn
           title="一般任務"

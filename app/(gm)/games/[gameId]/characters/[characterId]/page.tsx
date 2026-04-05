@@ -124,12 +124,16 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
                 characterName={character.name}
               />
             )}
-            <div className="mx-1 h-6 w-px bg-border/30" />
-            <DeleteCharacterButton
-              characterId={character.id}
-              characterName={character.name}
-              gameId={gameId}
-            />
+            {!game.isActive && (
+              <>
+                <div className="mx-1 h-6 w-px bg-border/30" />
+                <DeleteCharacterButton
+                  characterId={character.id}
+                  characterName={character.name}
+                  gameId={gameId}
+                />
+              </>
+            )}
           </div>
         </header>
       }

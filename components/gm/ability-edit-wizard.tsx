@@ -845,9 +845,10 @@ function WizardEffectPanel({
       {effect.type === 'stat_change' && (
         <>
           {targetScopeControl}
+          {/* Row 1: 數值名稱 + 變更量（±） */}
           <div className="grid grid-cols-2 gap-8">
             <div className="space-y-2">
-              <label className={LABEL_CLASS}>目標屬性</label>
+              <label className={LABEL_CLASS}>數值名稱</label>
               <Select
                 value={effect.targetStat || ''}
                 onValueChange={(value) => {
@@ -861,7 +862,7 @@ function WizardEffectPanel({
               </Select>
             </div>
             <div className="space-y-2">
-              <label className={LABEL_CLASS}>變化值</label>
+              <label className={LABEL_CLASS}>變更量（±）</label>
               <Input
                 type="number" value={effect.value || ''}
                 onChange={(e) => onUpdate({ value: e.target.value ? parseInt(e.target.value) : undefined })}
@@ -870,40 +871,54 @@ function WizardEffectPanel({
             </div>
           </div>
 
-          {hasMaxValue && (
-            <div className="grid grid-cols-2 gap-8">
+          {/* Row 2: 變更目標 + 同步當前值 toggle */}
+          <div className="grid grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <label className={LABEL_CLASS}>變更目標</label>
+              <Select value={statChangeTarget} onValueChange={(v: 'value' | 'maxValue') => onUpdate({ statChangeTarget: v, ...(v === 'value' ? { syncValue: undefined } : {}) })}>
+                <SelectTrigger className={PS}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="value">當前值</SelectItem>
+                  {hasMaxValue && <SelectItem value="maxValue">最大值</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+            {statChangeTarget === 'maxValue' && (
               <div className="space-y-2">
-                <label className={LABEL_CLASS}>作用目標</label>
-                <Select value={statChangeTarget} onValueChange={(v: 'value' | 'maxValue') => onUpdate({ statChangeTarget: v })}>
-                  <SelectTrigger className={PS}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="value">目前值</SelectItem>
-                    <SelectItem value="maxValue">最大值</SelectItem>
-                  </SelectContent>
-                </Select>
+                <label className={LABEL_CLASS}>同步當前值</label>
+                <div className="flex items-center gap-3 py-3">
+                  <Switch checked={Boolean(effect.syncValue)} onCheckedChange={(checked) => onUpdate({ syncValue: checked })} />
+                  <span className="text-xs text-muted-foreground">最大值變動時連帶調整當前值</span>
+                </div>
               </div>
-              {statChangeTarget === 'maxValue' && (
-                <div className="space-y-2">
-                  <label className={LABEL_CLASS}>同步目前值</label>
-                  <div className="flex items-center gap-3 py-3">
-                    <Switch checked={Boolean(effect.syncValue)} onCheckedChange={(checked) => onUpdate({ syncValue: checked })} />
-                    <span className="text-xs text-muted-foreground">最大值變動時連帶調整目前值</span>
-                  </div>
+            )}
+          </div>
+
+          {/* Row 3: 持續時間 */}
+          <div className="space-y-2">
+            <label className={LABEL_CLASS}>持續時間</label>
+            <div className="flex items-center gap-4">
+              <Select
+                value={(effect.duration ?? 0) > 0 ? 'timed' : 'permanent'}
+                onValueChange={(v) => onUpdate({ duration: v === 'permanent' ? undefined : 60 })}
+              >
+                <SelectTrigger className={cn(PS, 'w-[140px]')}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="permanent">永久</SelectItem>
+                  <SelectItem value="timed">限時</SelectItem>
+                </SelectContent>
+              </Select>
+              {(effect.duration ?? 0) > 0 && (
+                <div className="flex items-center gap-2 flex-1">
+                  <Input
+                    type="number" min={1}
+                    value={effect.duration}
+                    onChange={(e) => onUpdate({ duration: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className={cn(PI, 'w-24')}
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">秒</span>
                 </div>
               )}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className={LABEL_CLASS}>持續時間（分鐘）</label>
-            <div className="flex items-center gap-4">
-              <Input
-                type="number" min={0}
-                value={effect.duration !== undefined && effect.duration > 0 ? Math.round(effect.duration / 60) : ''}
-                onChange={(e) => { const m = e.target.value ? parseInt(e.target.value) : 0; onUpdate({ duration: m > 0 ? m * 60 : undefined }); }}
-                placeholder="0" className={cn(PI, 'flex-1')}
-              />
-              <span className="text-muted-foreground text-xs font-bold uppercase shrink-0">(0 = 永久)</span>
             </div>
           </div>
         </>

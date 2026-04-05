@@ -328,6 +328,15 @@ export async function createCharacter(data: {
       };
     }
 
+    // 遊戲進行中禁止新增角色
+    if (game.isActive) {
+      return {
+        success: false,
+        error: 'GAME_ACTIVE',
+        message: '遊戲進行中無法新增角色，請先結束遊戲',
+      };
+    }
+
     // 建立角色
     const characterData: Record<string, unknown> = {
       gameId: data.gameId,
@@ -568,6 +577,15 @@ export async function deleteCharacter(
         success: false,
         error: 'UNAUTHORIZED',
         message: '無權刪除此角色',
+      };
+    }
+
+    // 遊戲進行中禁止刪除角色
+    if (game.isActive) {
+      return {
+        success: false,
+        error: 'GAME_ACTIVE',
+        message: '遊戲進行中無法刪除角色，請先結束遊戲',
       };
     }
 
