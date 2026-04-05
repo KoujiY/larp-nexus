@@ -58,8 +58,8 @@ export interface GameRuntimeDocument extends Document {
     runtimeOnly?: boolean;
   }>;
 
-  // Snapshot 專屬欄位（���有 type='snapshot' 時使用）
-  snapshotName?: string; // 快���名稱
+  // Snapshot 專屬欄位（只有 type='snapshot' 時使用）
+  snapshotName?: string; // 快照名稱
   snapshotCreatedAt?: Date; // 快照建立時間
 
   createdAt: Date; // Runtime 建立時間

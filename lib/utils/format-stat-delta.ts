@@ -1,5 +1,5 @@
 /**
- * 數值變動格式化共���函數
+ * 數值變動格式化共用函數
  *
  * 統一 GM Event Log、玩家通知（role.updated / character.affected）
  * 的數值 delta 文字格式。

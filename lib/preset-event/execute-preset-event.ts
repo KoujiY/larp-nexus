@@ -143,7 +143,7 @@ async function executeBroadcast(
 ): Promise<ActionResult> {
   const targets = resolveTargets(action.broadcastTargets, charByBaselineId);
   if (targets.length === 0) {
-    return { actionId: action.id, type: 'broadcast', status: 'skipped', reason: '���有效目標' };
+    return { actionId: action.id, type: 'broadcast', status: 'skipped', reason: '無有效目標' };
   }
 
   const title = action.broadcastTitle || '';
@@ -191,7 +191,7 @@ async function executeStatChange(
     return { actionId: action.id, type: 'stat_change', status: 'skipped', reason: '無有效目標' };
   }
   if (!action.statName) {
-    return { actionId: action.id, type: 'stat_change', status: 'skipped', reason: '未���定數值名稱' };
+    return { actionId: action.id, type: 'stat_change', status: 'skipped', reason: '未指定數值名稱' };
   }
 
   const delta = action.statChangeValue ?? 0;

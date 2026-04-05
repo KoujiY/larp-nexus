@@ -74,7 +74,7 @@ export async function startGame(
     try {
       // 3.1 建立 GameRuntime（使用 findOneAndUpdate + upsert 確保唯一性）
       createdGameRuntime = await GameRuntime.findOneAndUpdate(
-        { refId: game._id, type: 'runtime' }, // ���詢條件
+        { refId: game._id, type: 'runtime' }, // 查詢條件
         {
           refId: game._id,
           type: 'runtime',
