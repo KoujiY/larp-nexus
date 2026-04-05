@@ -125,8 +125,12 @@ export function ActiveEffectsPanel({ effects, characterId, onEffectExpired }: Ac
       <div className="space-y-4">
         {activeEffects.map((effect) => {
           const isUrgent = effect.remainingSeconds < 60;
+          const isGmSource = effect.sourceType === 'preset_event';
           const isSelf = effect.sourceCharacterId === characterId;
-          const displayName = isSelf ? effect.sourceName : '未知來源';
+          // GM 預設事件：sourceName 為事件名稱時顯示，否則顯示未知來源
+          const displayName = isGmSource
+            ? (effect.sourceName && effect.sourceName !== '預設事件' ? effect.sourceName : '未知來源')
+            : isSelf ? effect.sourceName : '未知來源';
 
           return (
             <div

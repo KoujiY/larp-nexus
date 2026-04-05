@@ -11,6 +11,7 @@ import { Character } from '@/lib/db/models';
 import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import { emitEffectExpired, emitRoleUpdated } from '@/lib/websocket/events';
 import { getBaselineCharacterId } from '@/lib/game/get-character-data';
+import { writeLog } from '@/lib/logs/write-log';
 import type { TemporaryEffect } from '@/types/character';
 import type { CharacterDocument } from '@/lib/db/models/Character';
 
@@ -210,6 +211,29 @@ async function processExpiredEffect(
     statChangeTarget: effect.statChangeTarget,
     duration: effect.duration,
   });
+
+  // 寫入 Log，讓 GM 端歷史紀錄可見
+  const gameId = character.gameId?.toString();
+  if (gameId) {
+    await writeLog({
+      gameId,
+      characterId: channelId,
+      actorType: 'system',
+      actorId: 'system',
+      action: 'effect_expired',
+      details: {
+        effectId: effect.id,
+        sourceName: effect.sourceName,
+        sourceType: effect.sourceType,
+        targetStat: effect.targetStat,
+        statChangeTarget: effect.statChangeTarget,
+        restoredValue,
+        restoredMax,
+        deltaValue: effect.deltaValue,
+        deltaMax: effect.deltaMax,
+      },
+    });
+  }
 
   // 額外發送 role.updated 事件確保頁面刷新（belt-and-suspenders）
   emitRoleUpdated(channelId, {

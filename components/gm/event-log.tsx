@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useTransition } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ScrollText } from 'lucide-react';
+import { formatStatDeltaText } from '@/lib/utils/format-stat-delta';
 import { getGameLogs, type LogData } from '@/app/actions/logs';
 import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
 import {
@@ -57,7 +58,10 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
     <div className="bg-card rounded-xl border border-border/40 h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-border/40 flex justify-between items-center">
-        <h2 className="text-xl font-bold text-foreground">事件紀錄</h2>
+        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <ScrollText className="h-5 w-5 text-primary" />
+          歷史紀錄
+        </h2>
         <div className="flex gap-2">
           <button
             type="button"
@@ -145,13 +149,13 @@ const CATEGORY_BADGES: Record<EventCategory, CategoryBadge> = {
 };
 
 function getEventCategory(action: string, actorType: string): EventCategory {
-  if (action === 'game.broadcast' || action === 'broadcast') return 'gm';
+  if (action === 'game.broadcast' || action === 'broadcast' || action === 'character_message') return 'gm';
   if (action === 'game_start' || action === 'game_end') return 'system';
   if (action === 'item_use') return 'item';
   if (action === 'skill_use') return 'skill';
   if (action === 'contest_result') return 'combat';
   if (action === 'secret_reveal' || action === 'task_reveal') return 'reveal';
-  if (action === 'gm_update') return 'system';
+  if (action === 'stat_change' || action === 'gm_update' || action === 'effect_expired') return 'system';
   if (actorType === 'system') return 'system';
   return 'default';
 }
@@ -210,6 +214,7 @@ function EventDescription({ log }: { log: LogData }) {
   switch (log.action) {
     case 'game.broadcast':
     case 'broadcast':
+    case 'character_message':
       return (
         <>
           <span className="font-bold text-foreground">{str(d?.title, '廣播')}</span>
@@ -265,13 +270,22 @@ function EventDescription({ log }: { log: LogData }) {
     case 'task_reveal':
       return <span>隱藏任務「{str(d?.taskTitle)}」已揭露</span>;
 
-    case 'stat_change':
-      return (
-        <span>
-          {str(d?.statName, '數值')} 變更：{str(d?.oldValue)} → {str(d?.newValue)}
-          {d?.reason ? `（${str(d.reason)}）` : ''}
-        </span>
-      );
+    case 'stat_change': {
+      const statName = str(d?.statName, '數值');
+      const oldVal = Number(d?.oldValue ?? 0);
+      const newVal = Number(d?.newValue ?? 0);
+      const hasMaxChange = d?.oldMaxValue !== undefined && d?.newMaxValue !== undefined;
+      const reason = d?.reason ? `（${str(d.reason)}）` : '';
+
+      const text = formatStatDeltaText({
+        name: statName,
+        deltaValue: newVal - oldVal,
+        deltaMax: hasMaxChange ? Number(d?.newMaxValue ?? 0) - Number(d?.oldMaxValue ?? 0) : undefined,
+        newMax: hasMaxChange ? Number(d?.newMaxValue ?? 0) : undefined,
+      });
+
+      return <span>{text ?? `${statName} 無變動`}{reason}</span>;
+    }
 
     case 'gm_update': {
       const fields = formatUpdatedFields(d?.updatedFields);
@@ -281,6 +295,26 @@ function EventDescription({ log }: { log: LogData }) {
           {fields || '角色資料'}
         </span>
       );
+    }
+
+    case 'effect_expired': {
+      const targetStat = str(d?.targetStat, '數值');
+      const sourceName = str(d?.sourceName, '效果');
+
+      // 恢復訊息
+      let restoredText = '';
+      if (d?.statChangeTarget === 'maxValue' && d?.restoredMax !== undefined) {
+        restoredText = `${targetStat} 最大值已恢復至 ${str(d.restoredMax)}`;
+        if (d?.restoredValue !== undefined) {
+          restoredText += `，目前值 ${str(d.restoredValue)}`;
+        }
+      } else if (d?.restoredValue !== undefined) {
+        restoredText = `${targetStat} 已恢復至 ${str(d.restoredValue)}`;
+      } else {
+        restoredText = `${targetStat} 已恢復`;
+      }
+
+      return <span>{sourceName} 的效果已結束，{restoredText}</span>;
     }
 
     default:

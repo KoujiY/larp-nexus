@@ -20,6 +20,8 @@ interface RuntimeConsoleWsListenerProps {
   currentStatsMap: Map<string, Stat[]>;
   /** stat 變動時的回呼 */
   onStatUpdate: StatUpdateCallback;
+  /** 當有新事件需要刷新歷史紀錄時的回呼 */
+  onLogRefresh?: () => void;
 }
 
 const STAT_EVENTS = ['role.updated', 'character.affected', 'effect.expired'] as const;
@@ -42,10 +44,12 @@ export function RuntimeConsoleWsListener({
   characterIds,
   currentStatsMap,
   onStatUpdate,
+  onLogRefresh,
 }: RuntimeConsoleWsListenerProps) {
   // 透過 ref 存取最新的 statsMap 和 callback，避免放入 useEffect 依賴
   const statsMapRef = useRef(currentStatsMap);
   const callbackRef = useRef(onStatUpdate);
+  const logRefreshRef = useRef(onLogRefresh);
 
   useEffect(() => {
     statsMapRef.current = currentStatsMap;
@@ -54,6 +58,10 @@ export function RuntimeConsoleWsListener({
   useEffect(() => {
     callbackRef.current = onStatUpdate;
   }, [onStatUpdate]);
+
+  useEffect(() => {
+    logRefreshRef.current = onLogRefresh;
+  }, [onLogRefresh]);
 
   useEffect(() => {
     if (characterIds.length === 0) return;
@@ -104,6 +112,7 @@ export function RuntimeConsoleWsListener({
             };
           });
           cb(characterId, updated);
+          logRefreshRef.current?.();
           break;
         }
       }

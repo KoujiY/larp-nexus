@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { CharacterStatusOverview } from '@/components/gm/character-status-overview';
 import { EventLog } from '@/components/gm/event-log';
 import { GameBroadcastPanel } from '@/components/gm/game-broadcast-panel';
+import { PresetEventQuickPanel } from '@/components/gm/preset-event-quick-panel';
 import { RuntimeConsoleWsListener } from '@/components/gm/runtime-console-ws-listener';
 import type { CharacterData, Stat } from '@/types/character';
 
@@ -77,6 +78,7 @@ export function RuntimeConsole({ gameId, characters }: RuntimeConsoleProps) {
         characterIds={characterIds}
         currentStatsMap={currentStatsMap}
         onStatUpdate={handleStatUpdate}
+        onLogRefresh={handleBroadcastSent}
       />
 
       {/* 1. 角色狀態總覽 */}
@@ -93,7 +95,8 @@ export function RuntimeConsole({ gameId, characters }: RuntimeConsoleProps) {
             refreshKey={refreshKey}
           />
         </div>
-        <div className="lg:col-span-4 overflow-y-auto">
+        <div className="lg:col-span-4 overflow-y-auto space-y-6">
+          <PresetEventQuickPanel gameId={gameId} characters={characters} onExecuted={handleBroadcastSent} />
           <GameBroadcastPanel
             gameId={gameId}
             characters={characterSummaries}

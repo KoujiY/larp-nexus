@@ -72,7 +72,11 @@ export function createMiscEventMappers(characterId: string) {
    */
   const mapEffectExpired = (event: BaseEvent): Notification[] => {
     const payload = event.payload as EffectExpiredEvent['payload'];
-    const sourceName = payload.sourceName || (payload.sourceType === 'skill' ? '技能' : '道具');
+    // preset_event 來源且 showName 關閉時（sourceName 為 sentinel '預設事件'），顯示為「未知來源」
+    const isHiddenPresetEvent = payload.sourceType === 'preset_event' && (!payload.sourceName || payload.sourceName === '預設事件');
+    const sourceName = isHiddenPresetEvent
+      ? '未知來源'
+      : payload.sourceName || (payload.sourceType === 'skill' ? '技能' : '道具');
     const targetStat = payload.targetStat || '數值';
 
     // 建構恢復訊息
