@@ -149,7 +149,7 @@ export interface ViewedItem {
  */
 export interface TemporaryEffect {
   id: string;                           // 效果唯一識別碼（如 'teff-xxx-123'）
-  sourceType: 'skill' | 'item';        // 來源類型
+  sourceType: 'skill' | 'item' | 'preset_event';  // 來源類型
   sourceId: string;                     // 技能/道具 ID
   sourceCharacterId: string;            // 施放者角色 ID
   sourceCharacterName: string;          // 施放者角色名稱

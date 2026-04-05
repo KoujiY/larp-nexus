@@ -28,6 +28,29 @@ export interface GameDocument extends Document {
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number; // 隨機對抗檢定的上限值（劇本共通，預設 100）
 
+  // 預設事件（Baseline 定義，無執行狀態）
+  presetEvents?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    showName?: boolean;
+    actions: Array<{
+      id: string;
+      type: 'broadcast' | 'stat_change' | 'reveal_secret' | 'reveal_task';
+      broadcastTargets?: 'all' | string[];
+      broadcastTitle?: string;
+      broadcastMessage?: string;
+      statTargets?: 'all' | string[];
+      statName?: string;
+      statChangeTarget?: 'value' | 'maxValue';
+      statChangeValue?: number;
+      syncValue?: boolean;
+      duration?: number;
+      revealCharacterId?: string;
+      revealTargetId?: string;
+    }>;
+  }>;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +110,41 @@ const GameSchema = new Schema<GameDocument>(
       type: Number,
       default: 100,
     },
+    // 預設事件（Baseline 定義）
+    presetEvents: [
+      {
+        _id: false,
+        id: { type: String, required: true },
+        name: { type: String, required: true, maxlength: 100 },
+        description: { type: String, default: '', maxlength: 500 },
+        showName: { type: Boolean, default: false },
+        actions: [
+          {
+            _id: false,
+            id: { type: String, required: true },
+            type: {
+              type: String,
+              enum: ['broadcast', 'stat_change', 'reveal_secret', 'reveal_task'],
+              required: true,
+            },
+            // broadcast
+            broadcastTargets: { type: Schema.Types.Mixed }, // 'all' | string[]
+            broadcastTitle: { type: String },
+            broadcastMessage: { type: String },
+            // stat_change
+            statTargets: { type: Schema.Types.Mixed }, // 'all' | string[]
+            statName: { type: String },
+            statChangeTarget: { type: String, enum: ['value', 'maxValue'] },
+            statChangeValue: { type: Number },
+            syncValue: { type: Boolean },
+            duration: { type: Number },
+            // reveal_secret / reveal_task
+            revealCharacterId: { type: String },
+            revealTargetId: { type: String },
+          },
+        ],
+      },
+    ],
   },
   {
     timestamps: true,

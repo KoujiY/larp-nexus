@@ -11,7 +11,7 @@ import type { TemporaryEffect } from '@/types/character';
  * 來源資訊
  */
 export interface EffectSourceInfo {
-  sourceType: 'skill' | 'item';
+  sourceType: 'skill' | 'item' | 'preset_event';
   sourceId: string;
   sourceCharacterId: string;
   sourceCharacterName: string;

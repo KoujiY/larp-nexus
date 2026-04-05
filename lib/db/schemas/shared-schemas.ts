@@ -225,7 +225,7 @@ function createTemporaryEffectsSchemaField() {
     {
       _id: false,
       id: { type: String, required: true },
-      sourceType: { type: String, enum: ['skill', 'item'], required: true },
+      sourceType: { type: String, enum: ['skill', 'item', 'preset_event'], required: true },
       sourceId: { type: String, required: true },
       sourceCharacterId: { type: String, required: true },
       sourceCharacterName: { type: String, required: true },

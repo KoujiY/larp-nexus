@@ -265,7 +265,7 @@ export interface ItemShowcasedEvent extends BaseEvent<{
 export interface EffectExpiredEvent extends BaseEvent<{
   targetCharacterId: string;
   effectId: string;
-  sourceType: 'skill' | 'item';
+  sourceType: 'skill' | 'item' | 'preset_event';
   sourceId: string;
   sourceCharacterId: string;
   sourceCharacterName: string;

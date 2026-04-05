@@ -74,7 +74,7 @@ export async function startGame(
     try {
       // 3.1 建立 GameRuntime（使用 findOneAndUpdate + upsert 確保唯一性）
       createdGameRuntime = await GameRuntime.findOneAndUpdate(
-        { refId: game._id, type: 'runtime' }, // 查詢條件
+        { refId: game._id, type: 'runtime' }, // ���詢條件
         {
           refId: game._id,
           type: 'runtime',
@@ -85,6 +85,15 @@ export async function startGame(
           isActive: true,
           publicInfo: game.publicInfo,
           randomContestMaxValue: game.randomContestMaxValue,
+          // 複製預設事件，初始化執行狀態
+          presetEvents: (game.presetEvents || []).map(
+            (event: unknown) => {
+              const plain = typeof (event as { toObject?: unknown }).toObject === 'function'
+                ? (event as { toObject: () => Record<string, unknown> }).toObject()
+                : event as Record<string, unknown>;
+              return { ...plain, executionCount: 0, executedAt: undefined };
+            },
+          ),
         },
         {
           upsert: true, // 不存在則建立
