@@ -57,5 +57,6 @@ interface BaseEvent {
 - `components/gm/runtime-console-ws-listener.tsx` — 輕量 WebSocket 監聽器
   - 僅監聽 3 種 stat 相關事件：`role.updated`、`character.affected`、`effect.expired`
   - 從 event payload 直接解析 stat 變動，透過 callback 更新 client state（零 DB 查詢）
+  - `effect.expired` 額外觸發 `onLogRefresh` callback，自動刷新 GM 歷史紀錄面板
   - 使用 `useRef` 存取 `currentStatsMap` 和 `onStatUpdate`，避免 stat 更新時觸發頻道重新訂閱
   - Tab 切換離開控制台時自動 unmount → 清除所有訂閱（`GameEditTabs` 不使用 `forceMount`）

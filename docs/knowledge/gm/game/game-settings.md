@@ -17,6 +17,7 @@ interface Game {
     blocks: BackgroundBlock[];  // 與角色背景共用同一段落結構
   };
   randomContestMaxValue?: number;  // Default 100; shared across all characters in game
+  presetEvents?: PresetEvent[];    // 預設事件（見 preset-events.md）
 }
 
 // API 回傳型別（getGames 列表頁）

@@ -16,7 +16,7 @@
 - `lib/db/models/Character.ts` — Character mongoose model（Phase A 已重構，共用 `createBaseCharacterSchemaFields()` factory）
 - `lib/db/models/CharacterRuntime.ts` — CharacterRuntime mongoose model（與 Character.ts 共用 schema factory）
 - `lib/db/models/Game.ts` / `GameRuntime.ts` — Game mongoose model（`publicInfo.blocks: BackgroundBlock[]`）
-- TypeScript types: `types/character.ts`（含 `BackgroundBlock`）、`types/game.ts`、`types/event.ts`
+- TypeScript types: `types/character.ts`（含 `BackgroundBlock`）、`types/game.ts`（含 `PresetEvent`）、`types/event.ts`
 
 ## Baseline vs Runtime
 - **Baseline** (`characters`): GM's designed state. Editable anytime.

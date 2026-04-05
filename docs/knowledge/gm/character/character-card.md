@@ -45,6 +45,12 @@ The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs**
 
 **清理策略**：上傳新圖時自動刪除舊圖；刪除角色時批次清理所有關聯圖片；GM 編輯移除道具/技能時清理其圖片。詳見 `data-models.md` Vercel Blob 圖片生命週期。
 
+## Runtime 限制
+遊戲進行中（`isActive`）禁止新增或刪除角色：
+- `createCharacter` / `deleteCharacter` server action 偵測 `game.isActive` 直接回傳錯誤（`GAME_ACTIVE`）
+- UI：新增角色卡片改為「遊戲進行中無法新增角色」提示；刪除按鈕隱藏
+- 原因：`createCharacter` 只建立 Baseline，不建立 Runtime document，導致玩家端看不到新角色
+
 ## Core Data Model
 
 ```typescript

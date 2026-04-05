@@ -19,7 +19,7 @@ When a stat is modified by a timed skill/item, a `TemporaryEffect` is recorded o
 ```typescript
 interface TemporaryEffect {
   id: string;
-  sourceType: 'skill' | 'item';
+  sourceType: 'skill' | 'item' | 'preset_event';
   sourceName: string;
   effectType: 'stat_change';      // Only stat_change supported
   targetStat: string;
