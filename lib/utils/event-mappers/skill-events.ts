@@ -1,5 +1,5 @@
 /**
- * 技能/道具使用相關事件映射器
+ * 技能/物品使用相關事件映射器
  * mapSkillContest, mapSkillUsed, mapItemUsed
  */
 
@@ -101,7 +101,7 @@ function mapDefenderResult(
   }
 
   if (payload.itemName && hasDefenderItems) {
-    const prefix = `對 ${targetName} 使用 ${payload.itemName}，道具使用成功`;
+    const prefix = `對 ${targetName} 使用 ${payload.itemName}，物品使用成功`;
     return payload.effectsApplied.map((effect, idx) => ({
       id: `evt-${event.timestamp}-${idx}`,
       title,
@@ -152,13 +152,13 @@ export function createSkillEventMappers(characterId: string) {
       sourceType = 'skill';
       sourceName = payload.skillName;
     } else {
-      sourceName = sourceType === 'item' ? '未知道具' : '未知技能';
+      sourceName = sourceType === 'item' ? '未知物品' : '未知技能';
     }
 
-    const title = sourceType === 'item' ? '道具使用結果' : '技能使用結果';
-    const actionType = sourceType === 'item' ? '道具' : '技能';
+    const title = sourceType === 'item' ? '物品使用結果' : '技能使用結果';
+    const actionType = sourceType === 'item' ? '物品' : '技能';
 
-    // 若需選擇目標道具且尚無效果，跳過（等待完整通知）
+    // 若需選擇目標物品且尚無效果，跳過（等待完整通知）
     if (payload.needsTargetItemSelection === true && payload.result === 'attacker_wins' &&
         (!payload.effectsApplied || payload.effectsApplied.length === 0)) {
       return [];
@@ -226,7 +226,7 @@ export function createSkillEventMappers(characterId: string) {
   };
 
   /**
-   * 映射道具使用事件
+   * 映射物品使用事件
    */
   const mapItemUsed = (event: BaseEvent): Notification[] => {
     const payload = event.payload as ItemUsedEvent['payload'];
@@ -236,8 +236,8 @@ export function createSkillEventMappers(characterId: string) {
       return [];
     }
 
-    const title = '道具使用結果';
-    const itemName = payload.itemName || '道具';
+    const title = '物品使用結果';
+    const itemName = payload.itemName || '物品';
     const prefix = payload.targetCharacterName
       ? `對 ${payload.targetCharacterName} 使用 ${itemName}`
       : `使用 ${itemName}`;
@@ -247,14 +247,14 @@ export function createSkillEventMappers(characterId: string) {
         return payload.effectsApplied.map((effect, idx) => ({
           id: `evt-${event.timestamp}-${idx}`,
           title,
-          message: `${prefix}，道具使用成功，效果：${effect}`,
+          message: `${prefix}，物品使用成功，效果：${effect}`,
           type: event.type,
         }));
       }
-      return [{ id: `evt-${event.timestamp}`, title, message: `${prefix}，道具使用成功`, type: event.type }];
+      return [{ id: `evt-${event.timestamp}`, title, message: `${prefix}，物品使用成功`, type: event.type }];
     }
 
-    const failParts = [prefix, '道具使用失敗'];
+    const failParts = [prefix, '物品使用失敗'];
     if (payload.checkResult !== undefined) {
       failParts.push(`檢定結果：${payload.checkResult}`);
     }

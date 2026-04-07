@@ -198,7 +198,7 @@ describe('mapItemUsed', () => {
       effectsApplied: ['HP +30'],
     })
     const [notif] = mapItemUsed(event)
-    expect(notif.title).toBe('道具使用結果')
+    expect(notif.title).toBe('物品使用結果')
     expect(notif.message).toContain('回復藥水')
     expect(notif.message).toContain('成功')
     expect(notif.message).toContain('HP +30')

@@ -44,7 +44,7 @@ describe('mapItemTransferred', () => {
       toCharacterId: 'char-A',
     })
     const [notif] = mapItemTransferred(event)
-    expect(notif.title).toBe('道具獲得')
+    expect(notif.title).toBe('物品獲得')
     expect(notif.message).toContain('Bob')
     expect(notif.message).toContain('藥水')
     expect(notif.message).toContain('x2')
@@ -61,7 +61,7 @@ describe('mapItemTransferred', () => {
       toCharacterName: 'Bob',
     })
     const [notif] = mapItemTransferred(event)
-    expect(notif.title).toBe('道具轉移')
+    expect(notif.title).toBe('物品轉移')
     expect(notif.message).toContain('Bob')
   })
 
@@ -108,7 +108,7 @@ describe('mapInventoryUpdated', () => {
       action: 'added',
     })
     const [notif] = mapInventoryUpdated(event)
-    expect(notif.title).toBe('道具更新')
+    expect(notif.title).toBe('物品更新')
     expect(notif.message).toContain('弓箭')
     expect(notif.message).toContain('新增')
   })
