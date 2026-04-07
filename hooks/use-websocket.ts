@@ -24,6 +24,8 @@ const CHARACTER_EVENT_TYPES = [
   'item.showcased',
   // Phase 8: 時效性效果過期
   'effect.expired',
+  // 裝備切換（玩家端裝備/卸除 → GM 端需同步數值與道具卡）
+  'equipment.toggled',
 ] as const;
 
 const GAME_EVENT_TYPES = ['game.broadcast', 'game.started', 'game.reset', 'game.ended'] as const;

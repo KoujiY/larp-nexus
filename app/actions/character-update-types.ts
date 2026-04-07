@@ -117,7 +117,7 @@ export type UpdateCharacterInput = {
     name: string;
     description: string;
     imageUrl?: string;
-    type: 'consumable' | 'equipment';
+    type: 'consumable' | 'tool' | 'equipment';
     quantity: number;
     effects?: ItemEffect[];
     /** @deprecated 使用 effects 陣列代替 */
@@ -132,6 +132,8 @@ export type UpdateCharacterInput = {
     lastUsedAt?: Date;
     isTransferable: boolean;
     acquiredAt: Date;
+    equipped?: boolean;
+    statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
   }>;
   skills?: Array<{
     id: string;

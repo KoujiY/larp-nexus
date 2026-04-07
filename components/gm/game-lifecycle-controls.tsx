@@ -121,7 +121,7 @@ export function GameLifecycleControls({
                   <div className="w-full bg-muted/50 border border-border/20 rounded-xl p-5 shadow-sm">
                     <ul className="list-disc text-[15px] font-semibold text-muted-foreground space-y-2 text-left inline-block">
                       <li className="ml-4">遊戲開始後，玩家可以進行遊戲操作</li>
-                      <li className="ml-4">遊戲期間無法上傳道具及技能圖片，其餘圖片不受影響</li>
+                      <li className="ml-4">遊戲期間無法上傳物品及技能圖片，其餘圖片不受影響</li>
                       <li className="ml-4">除圖片外，遊戲期間的修改不會同步回 Baseline</li>
                     </ul>
                   </div>
@@ -182,7 +182,7 @@ export function GameLifecycleControls({
                   <div className="w-full bg-muted/50 border border-border/20 rounded-xl p-5 shadow-sm">
                     <ul className="list-disc text-[15px] font-semibold text-muted-foreground space-y-2 text-left inline-block">
                       <li className="ml-4">所有 Runtime 資料將被封存為快照</li>
-                      <li className="ml-4">玩家將無法繼續使用道具和技能</li>
+                      <li className="ml-4">玩家將無法繼續使用物品和技能</li>
                       <li className="ml-4">系統將切回 Baseline 設定模式</li>
                     </ul>
                   </div>

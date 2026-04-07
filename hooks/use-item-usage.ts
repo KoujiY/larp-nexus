@@ -170,8 +170,8 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
           onRouterRefresh();
         }
       } else {
-        console.error('道具使用失敗:', result);
-        notify.error(result.message || '道具使用失敗');
+        console.error('物品使用失敗:', result);
+        notify.error(result.message || '物品使用失敗');
         // 使用失敗清除目標選擇狀態並關閉 dialog
         if (onClearTargetState) {
           onClearTargetState();
@@ -181,12 +181,12 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
         }
 
         if (onError) {
-          onError(new Error(result.message || '道具使用失敗'));
+          onError(new Error(result.message || '物品使用失敗'));
         }
       }
     } catch (error) {
-      console.error('道具使用錯誤:', error);
-      const errorMessage = error instanceof Error ? error.message : '道具使用失敗，請稍後再試';
+      console.error('物品使用錯誤:', error);
+      const errorMessage = error instanceof Error ? error.message : '物品使用失敗，請稍後再試';
       notify.error(errorMessage);
       // 異常也清除目標選擇狀態
       if (onClearTargetState) {

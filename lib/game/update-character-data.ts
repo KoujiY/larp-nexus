@@ -4,6 +4,17 @@ import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import Game from '@/lib/db/models/Game';
 
 /**
+ * 更新選項（passthrough 至 Mongoose findOneAndUpdate）
+ *
+ * 目前僅開放 `arrayFilters`，用於針對陣列元素做 identity-based 更新
+ * （例如 `items.$[target].equipped` 搭配 `{ 'target.id': itemId }`），
+ * 以避免 index-based path 在並發寫入下發生 TOCTOU。
+ */
+export interface UpdateCharacterDataOptions {
+  arrayFilters?: Array<Record<string, unknown>>;
+}
+
+/**
  * Phase 10.4.2: 更新角色資料（自動判斷 Baseline/Runtime）
  *
  * 邏輯：
@@ -16,11 +27,13 @@ import Game from '@/lib/db/models/Game';
  *
  * @param characterId - Baseline Character ID
  * @param updates - 要更新的欄位（使用 MongoDB 更新語法，如 { $set: {...}, $push: {...} }）
+ * @param options - 可選的更新選項（arrayFilters 等）
  * @returns void
  */
 export async function updateCharacterData(
   characterId: string,
-  updates: Record<string, unknown>
+  updates: Record<string, unknown>,
+  options?: UpdateCharacterDataOptions
 ): Promise<void> {
   await dbConnect();
 
@@ -38,6 +51,15 @@ export async function updateCharacterData(
     throw new Error(`找不到遊戲：${gameId.toString()}`);
   }
 
+  // 組合 Mongoose 選項（new: true + 可選的 arrayFilters）
+  const mongooseOptions: {
+    new: boolean;
+    arrayFilters?: Array<Record<string, unknown>>;
+  } = { new: true };
+  if (options?.arrayFilters && options.arrayFilters.length > 0) {
+    mongooseOptions.arrayFilters = options.arrayFilters;
+  }
+
   // 步驟 3：如果 isActive = true，更新 Runtime
   if (game.isActive) {
     const result = await CharacterRuntime.findOneAndUpdate(
@@ -46,7 +68,7 @@ export async function updateCharacterData(
         type: 'runtime',
       },
       updates,
-      { new: true }
+      mongooseOptions
     );
 
     if (!result) {
@@ -63,5 +85,5 @@ export async function updateCharacterData(
   }
 
   // 步驟 4：如果 isActive = false，更新 Baseline
-  await Character.findByIdAndUpdate(characterId, updates, { new: true });
+  await Character.findByIdAndUpdate(characterId, updates, mongooseOptions);
 }

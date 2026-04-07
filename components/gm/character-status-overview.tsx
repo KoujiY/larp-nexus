@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getHealthStatus } from '@/lib/styles/health-status';
 import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
+import { computeEffectiveStats } from '@/lib/utils/compute-effective-stats';
 import type { CharacterData } from '@/types/character';
 import type { Stat } from '@/types/character';
 
@@ -104,7 +105,9 @@ function CharacterStatusCard({ character }: { character: CharacterData }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
 
-  const stats = character.stats ?? [];
+  const rawStats = character.stats ?? [];
+  const items = character.items ?? [];
+  const stats = items.length > 0 ? computeEffectiveStats(rawStats, items) : rawStats;
   const primaryStat = stats[0] ?? null;
   const extraStats = stats.slice(1);
   const hasExtra = extraStats.length > 0;

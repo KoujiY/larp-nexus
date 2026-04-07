@@ -17,6 +17,7 @@ import { writeLog } from '@/lib/logs/write-log';
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import type { ItemType } from '@/lib/db/types/character-types';
 import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effect-executor';
+import { computeEffectiveStats } from '@/lib/utils/compute-effective-stats';
 
 /**
  * 道具效果類型
@@ -201,9 +202,31 @@ export async function executeItemEffects(
   if (statUpdatePayload.length > 0) {
     const targetId = isAffectingOthers ? targetCharacterId! : characterId;
 
+    // 重新讀取目標角色的 DB 狀態
+    const updatedTargetDoc = await getCharacterData(targetId);
+    const targetObj = (updatedTargetDoc as { toObject?: () => Record<string, unknown> }).toObject
+      ? (updatedTargetDoc as { toObject: () => Record<string, unknown> }).toObject()
+      : JSON.parse(JSON.stringify(updatedTargetDoc));
+    const targetBaseStats = (targetObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
+
     if (isAffectingOthers && crossCharacterChanges.length > 0) {
       const sourceTags = item.tags || [];
       const hasStealthTag = sourceTags.includes('stealth');
+
+      // character.affected 用於通知顯示，newValue/newMax 使用含裝備加成的 effective 值
+      // 讓玩家端通知顯示與實際畫面一致
+      const targetEffectiveStats = computeEffectiveStats(
+        targetObj.stats as Parameters<typeof computeEffectiveStats>[0],
+        targetObj.items as Parameters<typeof computeEffectiveStats>[1],
+      );
+      const effectiveCrossChanges = crossCharacterChanges.map((c) => {
+        const eff = targetEffectiveStats.find((s) => s.name === c.name);
+        return {
+          ...c,
+          newValue: eff?.value ?? c.newValue,
+          newMax: eff?.maxValue ?? c.newMax,
+        };
+      });
 
       emitCharacterAffected(targetId, {
         targetCharacterId: targetId,
@@ -214,23 +237,26 @@ export async function executeItemEffects(
         sourceHasStealthTag: hasStealthTag,
         effectType: 'stat_change',
         changes: {
-          stats: crossCharacterChanges.map((c) => ({
+          stats: effectiveCrossChanges.map((c) => ({
             name: c.name, deltaValue: c.deltaValue,
             deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
           })),
         },
       }).catch((err) => console.error('[item-effect-executor] emitCharacterAffected failed', err));
-
-      emitRoleUpdated(targetId, {
-        characterId: targetId,
-        updates: {},
-      }).catch((err) => console.error('[item-effect-executor] emitRoleUpdated failed', err));
-    } else {
-      emitRoleUpdated(targetId, {
-        characterId: targetId,
-        updates: {},
-      }).catch((err) => console.error('[item-effect-executor] emitRoleUpdated failed', err));
     }
+
+    // role.updated 帶 DB base stats，讓 GM Console 的顯示層自行套用裝備加成
+    // 避免雙重計算（過去送 effective stats → overview 再算一次 → 裝備加成被加兩次）
+    // _statsSync: 玩家端不產生通知
+    emitRoleUpdated(targetId, {
+      characterId: targetId,
+      _statsSync: true,
+      updates: {
+        stats: targetBaseStats.map((s) => ({
+          id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,
+        })),
+      },
+    }).catch((err) => console.error('[item-effect-executor] emitRoleUpdated failed', err));
   }
 
   const updatedCharacter = await getCharacterData(characterId);

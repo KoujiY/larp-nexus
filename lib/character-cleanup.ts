@@ -125,6 +125,9 @@ export function cleanItemData(items: MongoItem[] | undefined): MongoItem[] {
         lastUsedAt: item.lastUsedAt,
         isTransferable: item.isTransferable,
         acquiredAt: item.acquiredAt,
+        // 裝備系統
+        equipped: item.equipped,
+        statBoosts: item.statBoosts,
       };
     });
 }

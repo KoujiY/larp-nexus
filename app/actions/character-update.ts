@@ -286,13 +286,15 @@ function buildUpdateData(
   }
 
   // items
+  // 先 normalize 再 validate：normalizer 會為 random_contest 等類型補齊遺漏的預設值，
+  // 讓過去被 bug 腐蝕的舊資料在下一次儲存時自動修復，而不是被驗證器永久擋下。
   if (data.items !== undefined) {
-    const validation = validateItems(data.items);
+    const currentItems = (beforeState.items || []) as MongoItem[];
+    const result = updateCharacterItems(data.items, currentItems);
+    const validation = validateItems(result.items as unknown as Parameters<typeof validateItems>[0]);
     if (!validation.success) {
       throw new ValidationError(validation.error || "VALIDATION_ERROR", validation.message || "Items 驗證失敗");
     }
-    const currentItems = (beforeState.items || []) as MongoItem[];
-    const result = updateCharacterItems(data.items, currentItems);
     updateData.items = result.items;
     inventoryDiffs = result.inventoryDiffs;
 
@@ -305,8 +307,10 @@ function buildUpdateData(
   }
 
   // skills
+  // 先 normalize 再 validate（同上理由）
   if (data.skills !== undefined) {
-    const validation = validateSkills(data.skills);
+    const normalizedSkills = updateCharacterSkills(data.skills);
+    const validation = validateSkills(normalizedSkills as unknown as Parameters<typeof validateSkills>[0]);
     if (!validation.success) {
       throw new ValidationError(validation.error || "VALIDATION_ERROR", validation.message || "Skills 驗證失敗");
     }
@@ -318,7 +322,7 @@ function buildUpdateData(
         deletedImageUrls.push(oldSkill.imageUrl);
       }
     }
-    updateData.skills = updateCharacterSkills(data.skills);
+    updateData.skills = normalizedSkills;
   }
 
   return { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds, deletedImageUrls };

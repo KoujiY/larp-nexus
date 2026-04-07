@@ -33,6 +33,12 @@ import {
 } from '@/components/ui/select';
 import { WizardStepper } from './wizard-stepper';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   ChevronLeft,
   ChevronRight,
   Save,
@@ -41,6 +47,7 @@ import {
   CheckCircle,
   FlaskConical,
   Shield,
+  KeyRound,
   Ban,
   Swords,
   Dice5,
@@ -53,7 +60,7 @@ import { toast } from 'sonner';
 import { validateCheckConfig, type CheckType } from '@/lib/utils/check-config-validators';
 import { normalizeCheckConfig } from '@/lib/utils/check-config-normalizers';
 import { getItemEffects } from '@/lib/item/get-item-effects';
-import type { Item, Skill, ItemEffect, SkillEffect, Stat, ContestConfig } from '@/types/character';
+import type { Item, Skill, ItemEffect, SkillEffect, Stat, StatBoost, ContestConfig } from '@/types/character';
 import { cn } from '@/lib/utils';
 import {
   GM_LABEL_CLASS,
@@ -80,7 +87,6 @@ type AbilityEditWizardProps = {
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const STEP_LABELS = ['基本資訊', '檢定系統', '使用限制', '效果設計'];
-const TOTAL_STEPS = 4;
 
 /** 向下相容別名 — 統一由 gm-form.ts 匯出 */
 const LABEL_CLASS = GM_LABEL_CLASS;
@@ -100,8 +106,8 @@ const CHECK_TYPE_OPTIONS: { value: CheckType; label: string; icon: typeof Ban }[
 const EFFECT_TYPE_LABELS: Record<string, string> = {
   stat_change: '數值變更',
   custom: '自訂效果',
-  item_take: '移除道具',
-  item_steal: '竊取道具',
+  item_take: '移除物品',
+  item_steal: '竊取物品',
   task_reveal: '揭露任務',
   task_complete: '完成任務',
 };
@@ -150,8 +156,14 @@ export function AbilityEditWizard({
   const isItemMode = mode === 'item';
   const itemData = data as Item;
   const skillData = data as Skill;
+  const isEquipmentType = isItemMode && itemData.type === 'equipment';
   const checkType = (data.checkType || 'none') as CheckType;
   const isContestType = checkType === 'contest' || checkType === 'random_contest';
+  const stepLabels = isEquipmentType
+    ? ['基本資訊', '檢定系統', '使用限制', '加成設定']
+    : STEP_LABELS;
+  // 以 stepLabels.length 為唯一真相來源，避免硬編碼常數與動態標籤脫鉤
+  const totalSteps = stepLabels.length;
 
   const updateData = (patch: Partial<Item & Skill>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -248,33 +260,41 @@ export function AbilityEditWizard({
   const handleNext = () => {
     if (currentStep === 0 && !data.name.trim()) {
       setShowNameError(true);
-      toast.error(`${isItemMode ? '道具' : '技能'}名稱不可為空`);
+      toast.error(`${isItemMode ? '物品' : '技能'}名稱不可為空`);
       nameFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    setCurrentStep((prev) => Math.min(prev + 1, TOTAL_STEPS - 1));
+    setCurrentStep((prev) => Math.min(prev + 1, totalSteps - 1));
   };
 
   const handleBack = () => setCurrentStep((prev) => Math.max(prev - 1, 0));
 
   const handleSave = () => {
     if (!data.name.trim()) {
-      toast.error(`${isItemMode ? '道具' : '技能'}名稱不可為空`);
+      toast.error(`${isItemMode ? '物品' : '技能'}名稱不可為空`);
       setCurrentStep(0);
       setShowNameError(true);
       requestAnimationFrame(() => nameFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
       return;
     }
-    const validation = validateCheckConfig(checkType, data.contestConfig, data.randomConfig);
-    if (!validation.valid) {
-      toast.error(validation.errorMessage);
-      setCurrentStep(1);
-      return;
+    if (!isEquipmentType) {
+      const validation = validateCheckConfig(checkType, data.contestConfig, data.randomConfig);
+      if (!validation.valid) {
+        toast.error(validation.errorMessage);
+        setCurrentStep(1);
+        return;
+      }
     }
-    const configPatch = normalizeCheckConfig(checkType, data.contestConfig, data.randomConfig);
-    const finalData = isItemMode
-      ? { ...itemData, effects: getItemEffects(itemData), ...configPatch }
-      : { ...skillData, ...configPatch };
+    const configPatch = isEquipmentType ? {} : normalizeCheckConfig(checkType, data.contestConfig, data.randomConfig);
+    let finalData: Item | Skill;
+    if (isEquipmentType) {
+      // 裝備：清除 effects/check 相關欄位，保留 statBoosts
+      finalData = { ...itemData, effects: [], checkType: 'none', contestConfig: undefined, randomConfig: undefined, usageLimit: 0, cooldown: 0, equipped: itemData.equipped ?? false, statBoosts: itemData.statBoosts ?? [] };
+    } else if (isItemMode) {
+      finalData = { ...itemData, effects: getItemEffects(itemData), ...configPatch };
+    } else {
+      finalData = { ...skillData, ...configPatch };
+    }
     onSave(finalData);
     onOpenChange(false);
   };
@@ -289,8 +309,8 @@ export function AbilityEditWizard({
           : '數值變更';
       case 'custom':
         return effect.description ? `自訂: ${effect.description.slice(0, 15)}` : '自訂效果';
-      case 'item_take': return '移除道具';
-      case 'item_steal': return '竊取道具';
+      case 'item_take': return '移除物品';
+      case 'item_steal': return '竊取物品';
       case 'task_reveal': return '揭露任務';
       case 'task_complete': return '完成任務';
       default: return '未知效果';
@@ -330,11 +350,11 @@ export function AbilityEditWizard({
         {/* 名稱 + 數量 */}
         <div className={cn('grid gap-8', isItemMode ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1')}>
           <div ref={nameFieldRef} className={cn('relative', isItemMode ? 'md:col-span-2' : '')}>
-            <label className={LABEL_CLASS}>{isItemMode ? '道具' : '技能'}名稱 *</label>
+            <label className={LABEL_CLASS}>{isItemMode ? '物品' : '技能'}名稱 *</label>
             <Input
               value={data.name}
               onChange={(e) => { updateData({ name: e.target.value }); if (showNameError) setShowNameError(false); }}
-              placeholder={isItemMode ? '輸入道具名稱...' : '輸入技能名稱...'}
+              placeholder={isItemMode ? '輸入物品名稱...' : '輸入技能名稱...'}
               className={cn(INPUT_CLASS, showNameError && !data.name.trim() && GM_ERROR_RING_CLASS)}
             />
             {showNameError && !data.name.trim() && (
@@ -343,7 +363,7 @@ export function AbilityEditWizard({
           </div>
           {isItemMode && (
             <div>
-              <label className={LABEL_CLASS}>道具數量</label>
+              <label className={LABEL_CLASS}>物品數量</label>
               <Input
                 type="number" min={1} value={itemData.quantity}
                 onChange={(e) => updateData({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
@@ -355,45 +375,48 @@ export function AbilityEditWizard({
 
         {/* 描述 */}
         <div>
-          <label className={LABEL_CLASS}>{isItemMode ? '道具' : '技能'}描述</label>
+          <label className={LABEL_CLASS}>{isItemMode ? '物品' : '技能'}描述</label>
           <Textarea
             value={data.description}
             onChange={(e) => updateData({ description: e.target.value })}
-            placeholder={isItemMode ? '描述此道具的外觀、來源或特殊傳說...' : '描述技能的效果和使用方式...'}
+            placeholder={isItemMode ? '描述此物品的外觀、來源或特殊傳說...' : '描述技能的效果和使用方式...'}
             rows={3} className="bg-muted border-none shadow-none h-auto py-3 px-4 font-semibold focus-visible:ring-primary resize-none"
           />
         </div>
 
         {/* 圖片上傳提示 — 建立後可在卡片上傳 */}
         <p className="text-[11px] text-muted-foreground/50 font-medium">
-          儲存後可在{isItemMode ? '道具' : '技能'}卡片上傳圖片
+          儲存後可在{isItemMode ? '物品' : '技能'}卡片上傳圖片
         </p>
 
         {/* 道具類型選擇 */}
         {isItemMode && (
           <div>
-            <label className={LABEL_CLASS}>道具類型</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ItemTypeCard icon={<FlaskConical className="h-6 w-6" />} title="消耗品" subtitle="用完即棄" selected={itemData.type === 'consumable'} onClick={() => updateData({ type: 'consumable', usageLimit: 1 })} />
-              <ItemTypeCard icon={<Shield className="h-6 w-6" />} title="裝備" subtitle="長期持有" selected={itemData.type === 'equipment'} onClick={() => updateData({ type: 'equipment', usageLimit: 0 })} />
+            <label className={LABEL_CLASS}>物品類型</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <ItemTypeCard icon={<FlaskConical className="h-6 w-6" />} title="消耗品" subtitle="用完即棄" selected={itemData.type === 'consumable'} onClick={() => updateData({ type: 'consumable', usageLimit: 1, equipped: undefined, statBoosts: undefined })} />
+              <ItemTypeCard icon={<KeyRound className="h-6 w-6" />} title="道具" subtitle="長期持有" selected={itemData.type === 'tool'} onClick={() => updateData({ type: 'tool', usageLimit: 0, equipped: undefined, statBoosts: undefined })} />
+              <ItemTypeCard icon={<Shield className="h-6 w-6" />} title="裝備" subtitle="被動加成" selected={itemData.type === 'equipment'} onClick={() => updateData({ type: 'equipment', usageLimit: 0, equipped: false, effects: [], checkType: 'none', contestConfig: undefined, randomConfig: undefined, statBoosts: itemData.statBoosts ?? [], tags: [] })} />
             </div>
           </div>
         )}
 
-        {/* 可轉移開關 + 標籤（2-column grid） */}
+        {/* 可轉移開關 + 標籤（2-column grid）；裝備類型不顯示標籤 */}
         {isItemMode ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
             <div className="flex items-center justify-between p-5 bg-muted rounded-xl border border-border/10">
-              <span className="text-sm font-bold text-foreground">允許玩家之間轉移此道具</span>
+              <span className="text-sm font-bold text-foreground">允許玩家之間轉移此物品</span>
               <Switch checked={itemData.isTransferable} onCheckedChange={(checked) => updateData({ isTransferable: checked })} />
             </div>
-            <div className="space-y-4">
-              <label className={LABEL_CLASS}>附加標籤</label>
-              <div className="flex flex-wrap gap-6">
-                {tagCheckbox('combat', '戰鬥道具')}
-                {tagCheckbox('stealth', '隱匿道具')}
+            {itemData.type !== 'equipment' && (
+              <div className="space-y-4">
+                <label className={LABEL_CLASS}>附加標籤</label>
+                <div className="flex flex-wrap gap-6">
+                  {tagCheckbox('combat', '戰鬥物品')}
+                  {tagCheckbox('stealth', '隱匿物品')}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div>
@@ -411,6 +434,17 @@ export function AbilityEditWizard({
   // ─── Step 2: 檢定系統 ────────────────────────────────────────────────────────
 
   const renderCheckConfigStep = () => {
+    // 裝備類型不需要檢定系統
+    if (isEquipmentType) {
+      return (
+        <div className="max-w-md mx-auto flex flex-col items-center justify-center h-full gap-4 text-center py-20">
+          <Shield className="h-12 w-12 text-muted-foreground/30" />
+          <p className="text-lg font-bold text-muted-foreground">裝備類型無需檢定</p>
+          <p className="text-sm text-muted-foreground/70">裝備透過「裝備/卸除」操作提供被動加成，不涉及檢定機制。</p>
+        </div>
+      );
+    }
+
     const showRelatedStat = checkType === 'contest';
     const showContestFields = checkType === 'contest' || checkType === 'random_contest';
     const showRandomFields = checkType === 'random';
@@ -489,7 +523,7 @@ export function AbilityEditWizard({
                     onChange={(e) => updateData({ contestConfig: mergeContestConfig(data.contestConfig, { opponentMaxItems: e.target.checked ? 99 : 0 }) })}
                     className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                   />
-                  <span className="text-sm font-medium text-foreground">允許防守方使用道具回應</span>
+                  <span className="text-sm font-medium text-foreground">允許防守方使用物品回應</span>
                 </label>
                 <label className="flex items-center gap-3 p-4 bg-card/60 rounded-lg cursor-pointer hover:bg-card transition-colors">
                   <input
@@ -563,6 +597,17 @@ export function AbilityEditWizard({
   // ─── Step 3: 使用限制 ────────────────────────────────────────────────────────
 
   const renderUsageLimitStep = () => {
+    // 裝備類型不需要使用限制
+    if (isEquipmentType) {
+      return (
+        <div className="max-w-md mx-auto flex flex-col items-center justify-center h-full gap-4 text-center py-20">
+          <Shield className="h-12 w-12 text-muted-foreground/30" />
+          <p className="text-lg font-bold text-muted-foreground">裝備類型無需使用限制</p>
+          <p className="text-sm text-muted-foreground/70">裝備可無限次裝備與卸除，不消耗使用次數。</p>
+        </div>
+      );
+    }
+
     const usageLimit = isItemMode ? itemData.usageLimit : skillData.usageLimit;
     const cooldown = isItemMode ? itemData.cooldown : skillData.cooldown;
     const isConsumable = isItemMode && itemData.type === 'consumable';
@@ -607,8 +652,8 @@ export function AbilityEditWizard({
         <div className="p-6 bg-muted rounded-2xl border border-border/50 flex gap-4 mt-4">
           <Info className="h-5 w-5 text-muted-foreground/50 shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground leading-relaxed">
-            限制條件將直接影響{isItemMode ? '道具' : '技能'}的戰略價值與稀有度。
-            {isConsumable && '若為消耗性道具，請務必設定正確的使用次數。'}
+            限制條件將直接影響{isItemMode ? '物品' : '技能'}的戰略價值與稀有度。
+            {isConsumable && '若為消耗性物品，請務必設定正確的使用次數。'}
           </p>
         </div>
       </section>
@@ -617,7 +662,154 @@ export function AbilityEditWizard({
 
   // ─── Step 4: 效果設計（Master-Detail） ────────────────────────────────────────
 
+  // ─── Step 4: StatBoosts 編輯器（equipment 專用） ─────────────────────────────
+
+  const renderStatBoostsStep = () => {
+    const boosts: StatBoost[] = itemData.statBoosts ?? [];
+
+    const handleAddBoost = () => {
+      const firstStat = stats[0]?.name ?? '';
+      updateData({ statBoosts: [...boosts, { statName: firstStat, value: 1, target: 'value' as const }] });
+    };
+
+    const handleUpdateBoost = (index: number, patch: Partial<StatBoost>) => {
+      const updated = boosts.map((b, i) => i === index ? { ...b, ...patch } : b);
+      updateData({ statBoosts: updated });
+    };
+
+    const handleDeleteBoost = (index: number) => {
+      updateData({ statBoosts: boosts.filter((_, i) => i !== index) });
+    };
+
+    const PI = 'bg-muted/50 border-none shadow-none rounded-lg px-4 h-11 font-bold focus-visible:ring-2 focus-visible:ring-primary';
+    const PS = cn(SELECT_CLASS, 'bg-muted/50');
+
+    return (
+      <div className="max-w-2xl mx-auto space-y-8 py-4">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">裝備加成設定</h2>
+          <p className="text-sm text-muted-foreground mt-1">設定此裝備啟用時提供的數值加成</p>
+        </div>
+
+        {boosts.length === 0 && (
+          <div className="p-8 bg-muted rounded-xl text-center">
+            <Shield className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">尚未設定任何數值加成</p>
+          </div>
+        )}
+
+        {boosts.map((boost, index) => {
+          const targetStat = stats.find((s) => s.name === boost.statName);
+          const hasMax = targetStat?.maxValue !== undefined && targetStat?.maxValue !== null;
+          // 從 target 推導出 變更目標 與 同步當前值
+          const changeTarget: 'value' | 'maxValue' = boost.target === 'value' || !boost.target ? 'value' : 'maxValue';
+          const syncCurrent = boost.target === 'both';
+          return (
+          <div key={index} className="p-4 bg-muted/50 rounded-xl">
+            <div className="grid grid-cols-[1fr_5rem_6rem_5rem] items-end gap-3">
+              {/* Col 1: 數值名稱 */}
+              <div className="space-y-2">
+                <label className={LABEL_CLASS}>數值名稱</label>
+                <Select value={boost.statName} onValueChange={(v) => {
+                  const stat = stats.find((s) => s.name === v);
+                  const max = stat?.maxValue !== undefined && stat?.maxValue !== null;
+                  handleUpdateBoost(index, { statName: v, target: max ? boost.target : 'value' });
+                }}>
+                  <SelectTrigger className={PS}><SelectValue placeholder="選擇數值" /></SelectTrigger>
+                  <SelectContent>
+                    {stats.map((s) => (<SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>))}
+                    {stats.length === 0 && <SelectItem value="" disabled>尚無定義數值</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Col 2: 變更量 */}
+              <div className="space-y-2">
+                <label className={LABEL_CLASS}>變更量（±）</label>
+                <Input
+                  type="number" value={boost.value}
+                  onChange={(e) => handleUpdateBoost(index, { value: parseInt(e.target.value) || 0 })}
+                  placeholder="+5" className={PI}
+                />
+              </div>
+              {/* Col 3: 變更目標 */}
+              <div className="space-y-2">
+                <label className={LABEL_CLASS}>變更目標</label>
+                {hasMax ? (
+                  <Select value={changeTarget} onValueChange={(v: 'value' | 'maxValue') => handleUpdateBoost(index, { target: v === 'value' ? 'value' : (syncCurrent ? 'both' : 'maxValue') })}>
+                    <SelectTrigger className={PS}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="value">當前值</SelectItem>
+                      <SelectItem value="maxValue">最大值</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className={cn(PI, 'flex items-center text-sm text-muted-foreground h-11')}>當前值</div>
+                )}
+              </div>
+              {/* Col 4: 同步當前值 toggle + 刪除 */}
+              <div className="space-y-2">
+                {hasMax && changeTarget === 'maxValue' ? (
+                  <>
+                    <label className={LABEL_CLASS}>同步當前值</label>
+                    <div className="flex items-center gap-2 h-11">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex"><Switch checked={syncCurrent} onCheckedChange={(checked) => handleUpdateBoost(index, { target: checked ? 'both' : 'maxValue' })} /></span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">最大值變動時連帶調整當前值</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <button
+                        type="button" onClick={() => handleDeleteBoost(index)}
+                        className="p-1.5 text-muted-foreground/50 hover:text-destructive rounded transition-colors cursor-pointer ml-auto"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className={LABEL_CLASS}>&nbsp;</label>
+                    <div className="flex items-center justify-end h-11">
+                      <button
+                        type="button" onClick={() => handleDeleteBoost(index)}
+                        className="p-1.5 text-muted-foreground/50 hover:text-destructive rounded transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          );
+        })}
+
+        <button
+          type="button" onClick={handleAddBoost}
+          className="w-full py-3 px-4 border-2 border-dashed border-border/30 rounded-lg text-muted-foreground text-sm font-bold flex items-center justify-center gap-2 hover:border-primary hover:text-primary transition-all cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />新增效果
+        </button>
+
+        <div className="p-6 bg-muted rounded-2xl border border-border/50 flex gap-4">
+          <Info className="h-5 w-5 text-muted-foreground/50 shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            裝備加成為被動效果，玩家裝備此物品後會持續生效。加成值可為負數（例如詛咒裝備降低數值）。
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Step 4: 效果設計（Master-Detail） ────────────────────────────────────────
+
   const renderEffectsStep = () => {
+    // 裝備類型使用 StatBoosts 編輯器
+    if (isEquipmentType) return renderStatBoostsStep();
+
     const availableTypes: Array<'stat_change' | 'custom' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete'> = isItemMode
       ? ['stat_change', 'custom', 'item_take', 'item_steal']
       : ['stat_change', 'item_take', 'item_steal', 'task_reveal', 'task_complete', 'custom'];
@@ -695,21 +887,26 @@ export function AbilityEditWizard({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] lg:max-w-5xl h-[85vh] overflow-hidden p-0 gap-0 flex flex-col" showCloseButton={false}>
         <DialogTitle className="sr-only">
-          {isNew ? '新增' : '編輯'}{isItemMode ? '道具' : '技能'}
+          {isNew ? '新增' : '編輯'}{isItemMode ? '物品' : '技能'}
         </DialogTitle>
         <header className="px-8 pt-8 pb-6 bg-muted shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-                {isNew ? '新增' : '編輯'}{isItemMode ? '道具' : '技能'}
+                {isNew ? '新增' : '編輯'}{isItemMode ? '物品' : '技能'}
               </h1>
-              <p className="text-muted-foreground text-xs font-bold tracking-widest uppercase mt-1">{STEP_LABELS[currentStep]}</p>
+              <p className="text-muted-foreground text-xs font-bold tracking-widest uppercase mt-1">{stepLabels[currentStep]}</p>
             </div>
-            <WizardStepper currentStep={currentStep} stepLabels={STEP_LABELS} />
+            {/*
+              自由跳步：使用者可直接點擊 Stepper 跳到任一步驟，不走 handleNext 的 Step 0 名稱驗證。
+              這是有意設計 — 最終防線為 handleSave 的全流程驗證（會自動跳回錯誤步驟），
+              讓使用者能來回檢視各 Step 而不被卡在線性流程上。
+            */}
+            <WizardStepper currentStep={currentStep} stepLabels={stepLabels} onStepClick={setCurrentStep} />
           </div>
         </header>
 
-        <div className={cn('flex-1 overflow-hidden', currentStep !== 3 && `overflow-y-auto p-8 ${WIZARD_SCROLL}`)}>
+        <div className={cn('flex-1 overflow-hidden', (currentStep !== 3 || isEquipmentType) && `overflow-y-auto p-8 ${WIZARD_SCROLL}`)}>
           {currentStep === 0 && renderBasicInfoStep()}
           {currentStep === 1 && renderCheckConfigStep()}
           {currentStep === 2 && renderUsageLimitStep()}
@@ -717,22 +914,42 @@ export function AbilityEditWizard({
         </div>
 
         <footer className="px-8 py-6 bg-muted/50 border-t border-border/20 flex justify-between items-center shrink-0">
-          {currentStep === 0 ? (
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-muted-foreground font-bold text-xs uppercase tracking-widest">取消</Button>
-          ) : (
-            <Button variant="outline" onClick={handleBack} className="px-8 py-3 h-auto border-border rounded-lg font-bold text-xs uppercase tracking-widest">
+          {/* 左側按鈕群：上一步 / 取消 */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 0}
+              className="px-8 py-3 h-auto border-border rounded-lg font-bold text-xs uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               <ChevronLeft className="h-4 w-4 mr-1" />上一步
             </Button>
-          )}
-          {currentStep < TOTAL_STEPS - 1 ? (
-            <Button onClick={handleNext} className="px-8 py-3 h-auto bg-primary text-primary-foreground rounded-lg font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all">
+            <Button
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              className="text-muted-foreground font-bold text-xs uppercase tracking-widest"
+            >
+              取消
+            </Button>
+          </div>
+
+          {/* 右側按鈕群：儲存 / 下一步 */}
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleSave}
+              className="px-8 py-3 h-auto bg-primary text-primary-foreground rounded-lg font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all"
+            >
+              <Save className="h-4 w-4 mr-1" />儲存{isItemMode ? '物品' : '技能'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleNext}
+              disabled={currentStep === totalSteps - 1}
+              className="px-8 py-3 h-auto border-border rounded-lg font-bold text-xs uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               下一步<ChevronRight className="h-4 w-4 ml-1" />
             </Button>
-          ) : (
-            <Button onClick={handleSave} className="px-8 py-3 h-auto bg-primary text-primary-foreground rounded-lg font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all">
-              儲存{isItemMode ? '道具' : '技能'}<Save className="h-4 w-4 ml-1" />
-            </Button>
-          )}
+          </div>
         </footer>
       </DialogContent>
     </Dialog>
@@ -886,9 +1103,15 @@ function WizardEffectPanel({
             {statChangeTarget === 'maxValue' && (
               <div className="space-y-2">
                 <label className={LABEL_CLASS}>同步當前值</label>
-                <div className="flex items-center gap-3 py-3">
-                  <Switch checked={Boolean(effect.syncValue)} onCheckedChange={(checked) => onUpdate({ syncValue: checked })} />
-                  <span className="text-xs text-muted-foreground">最大值變動時連帶調整當前值</span>
+                <div className="py-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex"><Switch checked={Boolean(effect.syncValue)} onCheckedChange={(checked) => onUpdate({ syncValue: checked })} /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">最大值變動時連帶調整當前值</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             )}
@@ -930,8 +1153,8 @@ function WizardEffectPanel({
           {targetScopeControl}
           <div className="p-4 bg-muted rounded-lg text-sm text-muted-foreground leading-relaxed">
             {effect.type === 'item_steal'
-              ? '使用時需要選擇目標角色與其道具。檢定成功後，道具會轉移到使用者身上。'
-              : '使用時需要選擇目標角色與其道具。檢定成功後，該道具會從目標身上移除。'}
+              ? '使用時需要選擇目標角色與其物品。檢定成功後，物品會轉移到使用者身上。'
+              : '使用時需要選擇目標角色與其物品。檢定成功後，該物品會從目標身上移除。'}
           </div>
         </>
       )}

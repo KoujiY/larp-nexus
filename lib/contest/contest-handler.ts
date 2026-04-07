@@ -14,6 +14,7 @@ import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-charact
 import type { CharacterDocument } from '@/lib/db/models';
 import type { SkillContestEvent } from '@/types/event';
 import { getItemEffects } from '@/lib/item/get-item-effects';
+import { getEffectiveStatValue } from '@/lib/utils/compute-effective-stats';
 import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
@@ -108,23 +109,29 @@ export async function handleContestCheck(
     // 原有對抗檢定邏輯（contest 類型）
     const relatedStatName = contestConfig.relatedStat;
 
-    // 取得攻擊方的相關數值
-    const attackerStats = character.stats || [];
-    const attackerStat = attackerStats.find((s) => s.name === relatedStatName);
-    if (!attackerStat) {
+    // 取得攻擊方的有效數值（含裝備加成）
+    const attackerEffective = getEffectiveStatValue(
+      character.stats || [],
+      character.items || [],
+      relatedStatName,
+    );
+    if (attackerEffective === undefined) {
       throw new Error(`你沒有 ${relatedStatName} 數值`);
     }
 
-    attackerValue = attackerStat.value;
+    attackerValue = attackerEffective;
 
-    // 取得防守方的相關數值（基礎值）
-    const defenderStats = targetCharacter.stats || [];
-    const defenderStat = defenderStats.find((s: { name: string }) => s.name === relatedStatName);
-    if (!defenderStat) {
+    // 取得防守方的有效數值（含裝備加成，作為基礎值）
+    const defenderEffective = getEffectiveStatValue(
+      targetCharacter.stats || [],
+      targetCharacter.items || [],
+      relatedStatName,
+    );
+    if (defenderEffective === undefined) {
       throw new Error(`目標角色沒有 ${relatedStatName} 數值`);
     }
 
-    defenderBaseValue = defenderStat.value;
+    defenderBaseValue = defenderEffective;
 
     // 計算初步對抗結果（使用防守方基礎數值）
     if (attackerValue > defenderBaseValue) {

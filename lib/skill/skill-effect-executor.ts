@@ -16,6 +16,7 @@ import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effe
 import { writeLog } from '@/lib/logs/write-log';
 import type { SkillType } from '@/lib/db/types/character-types';
 import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effect-executor';
+import { computeEffectiveStats } from '@/lib/utils/compute-effective-stats';
 
 /**
  * 執行技能效果的結果
@@ -208,6 +209,28 @@ export async function executeSkillEffects(
         const sourceTags = skill.tags || [];
         const hasStealthTag = sourceTags.includes('stealth');
 
+        // 重新讀取目標角色的 DB 狀態作為通知/同步的依據
+        const updatedTargetDoc = await getCharacterData(targetCharacterId!);
+        const targetObj = (updatedTargetDoc as { toObject?: () => Record<string, unknown> }).toObject
+          ? (updatedTargetDoc as { toObject: () => Record<string, unknown> }).toObject()
+          : JSON.parse(JSON.stringify(updatedTargetDoc));
+        const targetBaseStats = (targetObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
+
+        // character.affected 用於通知顯示，newValue/newMax 使用含裝備加成的 effective 值
+        // 這讓玩家端通知顯示「HP 95/120」與實際看到的畫面一致
+        const targetEffectiveStats = computeEffectiveStats(
+          targetObj.stats as Parameters<typeof computeEffectiveStats>[0],
+          targetObj.items as Parameters<typeof computeEffectiveStats>[1],
+        );
+        const effectiveCrossChanges = crossCharacterChanges.map((c) => {
+          const eff = targetEffectiveStats.find((s) => s.name === c.name);
+          return {
+            ...c,
+            newValue: eff?.value ?? c.newValue,
+            newMax: eff?.maxValue ?? c.newMax,
+          };
+        });
+
         emitCharacterAffected(targetCharacterId!, {
           targetCharacterId: targetCharacterId!,
           sourceCharacterId: characterId,
@@ -217,16 +240,24 @@ export async function executeSkillEffects(
           sourceHasStealthTag: hasStealthTag,
           effectType: 'stat_change',
           changes: {
-            stats: crossCharacterChanges.map((c) => ({
+            stats: effectiveCrossChanges.map((c) => ({
               name: c.name, deltaValue: c.deltaValue,
               deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
             })),
           },
         }).catch((err) => console.error('[skill-effect-executor] emitCharacterAffected failed', err));
 
+        // role.updated 帶 DB base stats（不含裝備加成），讓 GM Console 的顯示層
+        // 自行透過 computeEffectiveStats 套用一次裝備加成，避免雙重計算
+        // _statsSync: 玩家端不產生通知（通知由 character.affected 處理）
         emitRoleUpdated(targetCharacterId!, {
           characterId: targetCharacterId!,
-          updates: {},
+          _statsSync: true,
+          updates: {
+            stats: targetBaseStats.map((s) => ({
+              id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,
+            })),
+          },
         }).catch((err) => console.error('[skill-effect-executor] emitRoleUpdated failed', err));
       }
     } else {
@@ -237,9 +268,23 @@ export async function executeSkillEffects(
   }
 
   if (statUpdates.length > 0 && !isAffectingOthers) {
+    // 重新讀取 DB base stats 作為同步依據（不含裝備加成）
+    // GM Console 的顯示層會自行套用裝備加成，避免雙重計算
+    const selfDoc = await getCharacterData(characterId);
+    const selfObj = (selfDoc as { toObject?: () => Record<string, unknown> }).toObject
+      ? (selfDoc as { toObject: () => Record<string, unknown> }).toObject()
+      : JSON.parse(JSON.stringify(selfDoc));
+    const selfBaseStats = (selfObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
+
+    // _statsSync: 玩家端不產生通知（自用通知由 Server Action toast 處理）
     emitRoleUpdated(characterId, {
       characterId,
-      updates: {},
+      _statsSync: true,
+      updates: {
+        stats: selfBaseStats.map((s) => ({
+          id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,
+        })),
+      },
     }).catch((err) => console.error('[skill-effect-executor] emitRoleUpdated failed', err));
   }
 

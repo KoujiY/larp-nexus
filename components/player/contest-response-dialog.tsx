@@ -122,7 +122,7 @@ export function ContestResponseDialog({
         setSelectedSkills([]);
         return [...prev, itemId];
       }
-      notify.warning(`最多只能選擇 ${maxItems} 個道具`);
+      notify.warning(`最多只能選擇 ${maxItems} 個物品`);
       return prev;
     });
   };
@@ -235,7 +235,7 @@ export function ContestResponseDialog({
             </h1>
           </div>
           <p className="text-primary/60 text-sm font-medium">
-            {attackerDisplayName} 對你使用了技能或道具
+            {attackerDisplayName} 對你使用了技能或物品
           </p>
         </header>
 
@@ -283,7 +283,7 @@ export function ContestResponseDialog({
                 <div className="flex justify-between items-center px-1">
                   <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                     <Package className="w-4 h-4 text-muted-foreground" />
-                    選擇道具
+                    選擇物品
                     <span className="text-xs font-normal text-muted-foreground">
                       (選擇 1 個)
                     </span>
@@ -468,7 +468,7 @@ export function ContestResponseDialog({
             {showItemSection && showSkillSection && (
               <div className="text-center">
                 <span className="inline-block text-[11px] font-medium text-muted-foreground/70 py-1.5 px-4 bg-muted/20 rounded-full">
-                  道具與技能只能擇一使用
+                  物品與技能只能擇一使用
                 </span>
               </div>
             )}
@@ -481,7 +481,7 @@ export function ContestResponseDialog({
                     <SearchX className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <h3 className="text-lg font-semibold text-foreground">
-                    沒有符合條件的道具或技能
+                    沒有符合條件的物品或技能
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-[280px] text-center">
                     當前對抗要求的標籤或者檢定類型不符
@@ -501,7 +501,7 @@ export function ContestResponseDialog({
                     只能使用基礎數值對抗
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-[280px] text-center">
-                    此項攻擊不允許防守方使用道具或技能進行回應
+                    此項攻擊不允許防守方使用物品或技能進行回應
                   </p>
                 </div>
               </div>
@@ -543,8 +543,8 @@ function formatEffectDescription(eff: ReturnType<typeof getItemEffects>[number])
     }
     return `${eff.targetStat} ${eff.value > 0 ? '+' : ''}${eff.value}`;
   }
-  if (eff.type === 'item_steal') return '偷竊目標角色的道具';
-  if (eff.type === 'item_take') return '移除目標角色的道具';
+  if (eff.type === 'item_steal') return '偷竊目標角色的物品';
+  if (eff.type === 'item_take') return '移除目標角色的物品';
   if (eff.type === 'custom' && eff.description) return eff.description;
   return eff.description || null;
 }
@@ -559,9 +559,9 @@ function formatSkillEffectDescription(eff: { type: string; targetStat?: string; 
   }
   if (eff.type === 'task_reveal' && eff.targetTaskId) return `揭露任務：${eff.targetTaskId}`;
   if (eff.type === 'task_complete' && eff.targetTaskId) return `完成任務：${eff.targetTaskId}`;
-  if (eff.type === 'item_steal') return '偷竊目標角色的道具';
-  if (eff.type === 'item_take') return '移除目標角色的道具';
-  if (eff.type === 'item_give') return '給予目標角色道具';
+  if (eff.type === 'item_steal') return '偷竊目標角色的物品';
+  if (eff.type === 'item_take') return '移除目標角色的物品';
+  if (eff.type === 'item_give') return '給予目標角色物品';
   if (eff.type === 'custom' && eff.description) return eff.description;
   return eff.description || null;
 }

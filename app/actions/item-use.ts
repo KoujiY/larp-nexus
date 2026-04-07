@@ -17,7 +17,7 @@ import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase
 import type { ApiResponse } from '@/types/api';
 
 /**
- * 使用道具
+ * 使用物品
  * Phase 8: 添加檢定系統支援
  */
 export async function useItem(
@@ -25,7 +25,7 @@ export async function useItem(
   itemId: string,
   targetCharacterId?: string,
   checkResult?: number, // Phase 8: 檢定結果（由前端傳入，如果是 random 類型）
-  targetItemId?: string // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+  targetItemId?: string // Phase 7: 目標物品 ID（用於 item_take 和 item_steal 效果）
 ): Promise<ApiResponse<{
   itemUsed: boolean;
   effectApplied?: string;
@@ -37,7 +37,7 @@ export async function useItem(
   attackerValue?: number;
   defenderValue?: number;
   preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail';
-  // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+  // 非對抗偷竊/移除：使用成功後需要選擇目標物品
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
@@ -47,36 +47,47 @@ export async function useItem(
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
     }
 
+    // Phase 8: 使用物品前檢查並處理過期的時效性效果
+    // 必須在 getCharacterData 之前執行，否則讀取的數值可能包含已過期效果的加值
+    await checkExpiredEffects(characterId);
+
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
 
-    // Phase 8: 使用道具前檢查並處理過期的時效性效果
-    await checkExpiredEffects(characterId);
-
-    // 找到目標道具
+    // 找到目標物品
     const items = character.items || [];
     const itemIndex = items.findIndex((i: { id: string }) => i.id === itemId);
     if (itemIndex === -1) {
       return {
         success: false,
         error: 'NOT_FOUND',
-        message: '找不到此道具',
+        message: '找不到此物品',
       };
     }
 
     const item = items[itemIndex];
+
+    // 裝備類型物品不能透過「使用」操作，需透過 toggleEquipment
+    if (item.type === 'equipment') {
+      return {
+        success: false,
+        error: 'INVALID_TYPE',
+        message: '裝備類型物品請使用「裝備/卸除」功能',
+      };
+    }
+
     const now = new Date();
 
-    // Phase 8: 取得道具檢定類型
+    // Phase 8: 取得物品檢定類型
     const itemCheckType = item.checkType || 'none';
 
-    // Phase 8: 檢查使用者本身是否正在進行對抗檢定（無論道具是否需要檢定）
+    // Phase 8: 檢查使用者本身是否正在進行對抗檢定（無論物品是否需要檢定）
     const userContestStatus = isCharacterInContest(characterId);
     if (userContestStatus.inContest) {
       return {
         success: false,
         error: 'USER_IN_CONTEST',
-        message: '檢定進行中，暫時無法使用道具',
+        message: '檢定進行中，暫時無法使用物品',
       };
     }
 
@@ -100,7 +111,7 @@ export async function useItem(
         return {
           success: false,
           error: 'TARGET_IN_CONTEST',
-          message: '目標角色正在進行對抗檢定，暫時無法對其使用道具',
+          message: '目標角色正在進行對抗檢定，暫時無法對其使用物品',
         };
       }
     }
@@ -110,7 +121,7 @@ export async function useItem(
       return {
         success: false,
         error: 'ITEM_DEPLETED',
-        message: '道具數量不足',
+        message: '物品數量不足',
       };
     }
 
@@ -151,7 +162,7 @@ export async function useItem(
         return {
           success: false,
           error: 'TARGET_REQUIRED',
-          message: '此道具需要選擇目標角色',
+          message: '此物品需要選擇目標角色',
         };
       }
 
@@ -173,7 +184,7 @@ export async function useItem(
         return {
           success: false,
           error: 'INVALID_TARGET',
-          message: '此道具只能對自己使用',
+          message: '此物品只能對自己使用',
         };
       }
 
@@ -181,12 +192,12 @@ export async function useItem(
         return {
           success: false,
           error: 'INVALID_TARGET',
-          message: '此道具不能對自己使用',
+          message: '此物品不能對自己使用',
         };
       }
     }
 
-    // 偷竊/移除道具效果的 targetItemId 不再在此處驗證
+    // 偷竊/移除物品效果的 targetItemId 不再在此處驗證
     // 對抗檢定：targetItemId 在對抗結束後由 selectTargetItemForContest 處理
     // 非對抗檢定：targetItemId 在使用成功後由 select-target-item action 處理（延遲選擇）
 
@@ -225,7 +236,7 @@ export async function useItem(
           message: errorMessage,
         };
       }
-      if (errorMessage.includes('隨機檢定設定不完整') || errorMessage.includes('道具隨機檢定設定不完整')) {
+      if (errorMessage.includes('隨機檢定設定不完整') || errorMessage.includes('物品隨機檢定設定不完整')) {
         return {
           success: false,
           error: 'INVALID_CHECK',
@@ -276,9 +287,9 @@ export async function useItem(
       };
     }
 
-    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標道具 → 延遲所有效果
-    // 所有效果（含 stat_change）都延遲到選擇目標道具後由 selectTargetItemAfterUse 一起執行
-    // 即使目標無道具，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無道具可互動」通知）
+    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標物品 → 延遲所有效果
+    // 所有效果（含 stat_change）都延遲到選擇目標物品後由 selectTargetItemAfterUse 一起執行
+    // 即使目標無物品，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無物品可互動」通知）
     if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
       // 仍然更新使用記錄
       const earlyUsageUpdates: Record<string, unknown> = {};
@@ -305,14 +316,14 @@ export async function useItem(
           needsTargetItemSelection: true,
           targetCharacterId,
         },
-        message: `道具使用成功，請選擇要${effects.some((e: { type?: string }) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+        message: `物品使用成功，請選擇要${effects.some((e: { type?: string }) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標物品`,
       };
     }
 
     // 準備更新
     const usageUpdates: Record<string, unknown> = {};
 
-    // 總是記錄道具使用時間（用於追蹤使用歷史）
+    // 總是記錄物品使用時間（用於追蹤使用歷史）
     usageUpdates[`items.${itemIndex}.lastUsedAt`] = now;
 
     // 處理使用次數限制
@@ -320,13 +331,13 @@ export async function useItem(
       // 有使用次數限制：每次使用增加 usageCount
       const newUsageCount = (item.usageCount || 0) + 1;
       usageUpdates[`items.${itemIndex}.usageCount`] = newUsageCount;
-      // 不刪除道具，讓它保留在清單中顯示為已用盡
+      // 不刪除物品，讓它保留在清單中顯示為已用盡
     } else {
       // 沒有使用次數限制：消耗品每次使用減少數量
       if (item.type === 'consumable') {
         const newQuantity = Math.max(0, item.quantity - 1);
         usageUpdates[`items.${itemIndex}.quantity`] = newQuantity;
-        // 不刪除道具，讓它保留在清單中顯示為數量 0
+        // 不刪除物品，讓它保留在清單中顯示為數量 0
       }
     }
 
@@ -347,7 +358,7 @@ export async function useItem(
             message: errorMessage,
           };
         }
-        if (errorMessage.includes('請選擇目標道具')) {
+        if (errorMessage.includes('請選擇目標物品')) {
           return {
             success: false,
             error: 'TARGET_ITEM_REQUIRED',
@@ -361,7 +372,7 @@ export async function useItem(
             message: errorMessage,
           };
         }
-        if (errorMessage.includes('沒有此道具')) {
+        if (errorMessage.includes('沒有此物品')) {
           return {
             success: false,
             error: 'TARGET_ITEM_NOT_FOUND',
@@ -391,7 +402,7 @@ export async function useItem(
     // 合併所有效果訊息
     const finalEffectMessage = effectMessages.length > 0 ? effectMessages.join('、') : undefined;
 
-    // WebSocket 事件：道具使用通知（非阻斷）
+    // WebSocket 事件：物品使用通知（非阻斷）
     emitItemUsed(characterId, {
       characterId,
       itemId: item.id,
@@ -408,12 +419,12 @@ export async function useItem(
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';
     if (checkPassed) {
-      toastMessage = '道具使用成功';
+      toastMessage = '物品使用成功';
       if (finalEffectMessage) {
         toastMessage += `，效果：${finalEffectMessage}`;
       }
     } else {
-      toastMessage = '檢定未通過，道具未生效';
+      toastMessage = '檢定未通過，物品未生效';
     }
 
     return {
@@ -431,7 +442,7 @@ export async function useItem(
 }
 
 /**
- * 轉移道具
+ * 轉移物品
  */
 export async function transferItem(
   characterId: string,
@@ -467,14 +478,14 @@ export async function transferItem(
       };
     }
 
-    // 找到來源道具
+    // 找到來源物品
     const sourceItems = character.items || [];
     const sourceIndex = sourceItems.findIndex((i: { id: string }) => i.id === itemId);
     if (sourceIndex === -1) {
       return {
         success: false,
         error: 'NOT_FOUND',
-        message: '找不到此道具',
+        message: '找不到此物品',
       };
     }
 
@@ -485,7 +496,7 @@ export async function transferItem(
       return {
         success: false,
         error: 'INSUFFICIENT_QUANTITY',
-        message: '道具數量不足',
+        message: '物品數量不足',
       };
     }
 
@@ -494,11 +505,11 @@ export async function transferItem(
       return {
         success: false,
         error: 'NOT_TRANSFERABLE',
-        message: '此道具不可轉移',
+        message: '此物品不可轉移',
       };
     }
 
-    // 檢查目標是否已有此道具
+    // 檢查目標是否已有此物品
     const targetItems = targetCharacter.items || [];
     const targetIndex = targetItems.findIndex((i: { id: string }) => i.id === itemId);
 
@@ -506,16 +517,18 @@ export async function transferItem(
     const targetUpdates: Record<string, unknown> = {};
 
     if (targetIndex !== -1) {
-      // 目標已有此道具，增加數量
+      // 目標已有此物品，增加數量
       const newTargetQuantity = targetItems[targetIndex].quantity + quantity;
       targetUpdates[`items.${targetIndex}.quantity`] = newTargetQuantity;
     } else {
-      // 目標沒有此道具，新增道具
+      // 目標沒有此物品，新增物品
       // Phase 10.4: 使用 JSON 序列化來複製對象，避免 Mongoose document 類型問題
       const newItem = {
         ...JSON.parse(JSON.stringify(sourceItem)),
         quantity,
         acquiredAt: new Date(),
+        // 裝備轉移時自動卸除
+        ...(sourceItem.type === 'equipment' ? { equipped: false } : {}),
       };
       delete newItem._id; // 移除 MongoDB ID
       targetUpdates.$push = { items: newItem };
@@ -526,7 +539,7 @@ export async function transferItem(
     const sourceUpdates: Record<string, unknown> = {};
 
     if (newSourceQuantity <= 0) {
-      // 數量為 0，移除道具
+      // 數量為 0，移除物品
       sourceUpdates.$pull = { items: { id: itemId } };
     } else {
       // 更新數量
@@ -557,9 +570,9 @@ export async function transferItem(
 
     // WebSocket 事件
     // 轉出方（characterId）：只發送 item.transferred 通知，不發送 inventoryUpdated
-    // 這樣轉出方只會看到「道具轉移」通知，不會看到「道具更新」通知
+    // 這樣轉出方只會看到「物品轉移」通知，不會看到「物品更新」通知
     // 接受方（targetCharacterId）：只發送 item.transferred 通知，不發送 inventoryUpdated
-    // 這樣接受方只會看到「道具獲得」通知，不會看到「道具更新」通知
+    // 這樣接受方只會看到「物品獲得」通知，不會看到「物品更新」通知
     emitItemTransferred(characterId, targetCharacterId, {
       fromCharacterId: characterId,
       fromCharacterName: character.name,
@@ -571,7 +584,7 @@ export async function transferItem(
       transferType: 'give',
     }).catch((error) => console.error('Failed to emit item.transferred', error));
 
-    // Phase 9: 發送 role.updated 事件給兩個角色，讓GM端能同步更新道具列表
+    // Phase 9: 發送 role.updated 事件給兩個角色，讓GM端能同步更新物品列表
     // 重新載入兩個角色的最新資料
     // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
     const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
@@ -584,7 +597,7 @@ export async function transferItem(
       const targetCleanItems = cleanItemData(updatedTargetCharacter.items);
 
 
-      // 發送 role.updated 給兩個角色，包含最新的道具列表
+      // 發送 role.updated 給兩個角色，包含最新的物品列表
       await emitRoleUpdated(characterId, {
         characterId,
         updates: {
@@ -604,7 +617,7 @@ export async function transferItem(
       });
     }
 
-    // Phase 7.7: 道具轉移後，為接收方觸發自動揭露評估（items_acquired）
+    // Phase 7.7: 物品轉移後，為接收方觸發自動揭露評估（items_acquired）
     executeAutoReveal(targetCharacterId, { type: 'items_acquired' })
       .catch((error) => console.error('[transferItem] Failed to execute auto-reveal for target', error));
 

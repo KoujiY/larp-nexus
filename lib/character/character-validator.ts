@@ -254,7 +254,7 @@ export function validateItems(items: Array<{
   id: string;
   name: string;
   description: string;
-  type: 'consumable' | 'equipment';
+  type: 'consumable' | 'tool' | 'equipment';
   quantity: number;
   // Phase 7.6: 擴展為包含 random_contest
   checkType?: 'none' | 'contest' | 'random' | 'random_contest';

@@ -93,7 +93,7 @@ function createItemsSchemaField() {
       imageUrl: { type: String },
       type: {
         type: String,
-        enum: ['consumable', 'equipment'],
+        enum: ['consumable', 'tool', 'equipment'],
         default: 'consumable',
       },
       quantity: { type: Number, default: 1 },
@@ -142,6 +142,16 @@ function createItemsSchemaField() {
       lastUsedAt: { type: Date },
       isTransferable: { type: Boolean, default: true },
       acquiredAt: { type: Date, default: Date.now },
+      // 裝備系統（僅 type === 'equipment'）
+      equipped: { type: Boolean, default: false },
+      statBoosts: [
+        {
+          _id: false,
+          statName: { type: String, required: true },
+          value: { type: Number, required: true },
+          target: { type: String, enum: ['value', 'maxValue', 'both'], default: 'value' },
+        },
+      ],
     },
   ];
 }

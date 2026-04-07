@@ -11,12 +11,15 @@ import { Trash2, BarChart3, Pencil, Check, Undo2, X, Plus, Minus } from 'lucide-
 import { cn } from '@/lib/utils';
 import { GM_SECTION_TITLE_CLASS, GM_STATUS_BADGE_BASE, GM_BADGE_VARIANTS } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
-import type { Stat } from '@/types/character';
+import type { Stat, Item } from '@/types/character';
 import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
+import { computeEffectiveStats, type EffectiveStat } from '@/lib/utils/compute-effective-stats';
 
 interface StatsEditFormProps {
   characterId: string;
   initialStats: Stat[];
+  /** 角色道具（用於計算裝備加成的檢視模式顯示） */
+  items?: Item[];
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;
   onRegisterDiscard?: RegisterDiscardHandler;
@@ -31,7 +34,7 @@ type StatStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
  * 有 maxValue 時顯示 `/ max` 與百分比水印。
  * 支援檢視 / 編輯模式切換、軟刪除（可復原）、狀態 badge。
  */
-export function StatsEditForm({ characterId, initialStats, onDirtyChange, onRegisterSave, onRegisterDiscard }: StatsEditFormProps) {
+export function StatsEditForm({ characterId, initialStats, items, onDirtyChange, onRegisterSave, onRegisterDiscard }: StatsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stat[]>(initialStats);
@@ -50,6 +53,15 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange, onRegi
     () => stats.filter((s) => !deletedIds.has(s.id)),
     [stats, deletedIds],
   );
+
+  /** 裝備加成後的有效值 lookup（僅供檢視模式顯示） */
+  const effectiveStatMap = useMemo(() => {
+    if (!items || items.length === 0) return new Map<string, EffectiveStat>();
+    const computed = computeEffectiveStats(stats, items);
+    const map = new Map<string, EffectiveStat>();
+    for (const s of computed) map.set(s.id, s);
+    return map;
+  }, [stats, items]);
 
   const { isDirty, resetDirty } = useFormGuard({
     initialData: initialStats,
@@ -205,6 +217,7 @@ export function StatsEditForm({ characterId, initialStats, onDirtyChange, onRegi
           <StatCard
             key={stat.id}
             stat={stat}
+            effectiveStat={effectiveStatMap.get(stat.id)}
             status={getStatStatus(stat)}
             onChange={handleStatChange}
             onDelete={handleSoftDelete}
@@ -229,6 +242,8 @@ const STATUS_BADGE_CONFIG: Record<'new' | 'modified', { label: string; variant: 
 
 interface StatCardProps {
   stat: Stat;
+  /** 含裝備加成的有效值（檢視模式顯示用） */
+  effectiveStat?: EffectiveStat;
   status: StatStatus;
   onChange: (id: string, field: keyof Stat, value: string | number | undefined) => void;
   onDelete: (id: string) => void;
@@ -247,14 +262,15 @@ interface StatCardProps {
  * 編輯模式：input 帶有可見邊框背景，右上角按鈕為「完成 / 取消」。
  * 檢視模式：純文字展示，右上角按鈕為「編輯 / 刪除」。
  */
-function StatCard({ stat, status, onChange, onDelete, onHardRemove, onRestore, disabled }: StatCardProps) {
+function StatCard({ stat, effectiveStat, status, onChange, onDelete, onHardRemove, onRestore, disabled }: StatCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   /** 編輯中的本地暫存，確認後才推給父層 */
   const [draft, setDraft] = useState<Stat | null>(null);
   const isDeleted = status === 'deleted';
 
-  /** 顯示用的資料：編輯中用 draft，否則用 prop */
-  const displayStat = draft ?? stat;
+  /** 顯示用的資料：編輯中用 draft（base value），檢視模式用 effective value */
+  const viewStat = effectiveStat ?? stat;
+  const displayStat = draft ?? viewStat;
   const hasMax = displayStat.maxValue !== undefined && displayStat.maxValue !== null;
   const percent = hasMax && displayStat.maxValue! > 0
     ? Math.round((displayStat.value / displayStat.maxValue!) * 100)

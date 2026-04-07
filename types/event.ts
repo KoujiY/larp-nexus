@@ -7,6 +7,8 @@ export interface BaseEvent<T = unknown> {
 
 export interface RoleUpdatedEvent extends BaseEvent<{
   characterId: string;
+  /** GM Console 即時同步標記：為 true 時玩家端不產生通知（避免與專屬事件重複） */
+  _statsSync?: boolean;
   updates: {
     name?: string;
     avatar?: string;
@@ -251,7 +253,7 @@ export interface ItemShowcasedEvent extends BaseEvent<{
     name: string;
     description: string;
     imageUrl?: string;
-    type: 'consumable' | 'equipment';
+    type: 'consumable' | 'tool' | 'equipment';
     quantity: number;
     tags?: string[];
   };
@@ -319,6 +321,22 @@ export interface GameEndedEvent extends BaseEvent<{
 }
 
 /**
+ * 裝備切換事件
+ *
+ * 玩家裝備或卸除 equipment 類型道具時推送，
+ * 通知 GM 端更新角色狀態。
+ */
+export interface EquipmentToggledEvent extends BaseEvent<{
+  characterId: string;
+  itemId: string;
+  itemName: string;
+  equipped: boolean;
+  statBoosts: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
+}> {
+  type: 'equipment.toggled';
+}
+
+/**
  * Phase 9: 離線事件佇列記錄
  *
  * 用於儲存玩家離線時錯過的 WebSocket 事件，
@@ -371,6 +389,7 @@ export type WebSocketEvent =
   | TaskRevealedEvent        // Phase 7.7
   | ItemShowcasedEvent       // Phase 7.7
   | EffectExpiredEvent       // Phase 8
+  | EquipmentToggledEvent
   | GameStartedEvent         // Phase 10.7
   | GameEndedEvent;          // Phase 10.7
 

@@ -169,4 +169,32 @@ describe('updateCharacterSkills', () => {
     expect(rc.maxValue).toBe(100)
     expect(rc.threshold).toBe(50)
   })
+
+  // 回歸測試：防止 random_contest 類型的 randomConfig 被正規化器靜默丟棄。
+  // 過去的 bug 導致 DB 中的 random_contest 技能失去 randomConfig，之後的儲存被驗證器擋下。
+  it('preserves BOTH contestConfig and randomConfig for random_contest', () => {
+    const skill: MongoSkill = {
+      ...baseSkill(),
+      checkType: 'random_contest',
+      contestConfig: { relatedStat: '', opponentMaxItems: 2 },
+      randomConfig: { maxValue: 150, threshold: 75 },
+    }
+    const [s] = updateCharacterSkills([skill]) as unknown as Record<string, unknown>[]
+    expect(s.contestConfig).toBeDefined()
+    expect(s.randomConfig).toEqual({ maxValue: 150, threshold: 75 })
+  })
+
+  it('auto-heals random_contest with missing randomConfig (corrupted legacy data)', () => {
+    const skill: MongoSkill = {
+      ...baseSkill(),
+      checkType: 'random_contest',
+      contestConfig: { relatedStat: '', opponentMaxItems: 0 },
+      // randomConfig 遺失 — 模擬過去 bug 造成的 DB 腐蝕狀態
+    }
+    const [s] = updateCharacterSkills([skill]) as unknown as Record<string, unknown>[]
+    const rc = s.randomConfig as { maxValue: number; threshold: number }
+    expect(rc.maxValue).toBe(100)
+    expect(rc.threshold).toBe(50)
+    expect(s.contestConfig).toBeDefined()
+  })
 })

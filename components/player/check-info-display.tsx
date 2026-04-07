@@ -31,7 +31,7 @@ function InfoLine({ label, value }: { label: string; value: React.ReactNode }) {
 function opponentResponseText(maxItems: number, maxSkills: number): string {
   if (maxItems === 0 && maxSkills === 0) return '不允許';
   const parts: string[] = [];
-  if (maxItems > 0) parts.push('允許使用道具');
+  if (maxItems > 0) parts.push('允許使用物品');
   if (maxSkills > 0) parts.push('允許使用技能');
   return parts.join('、');
 }
@@ -82,7 +82,7 @@ export function CheckInfoDisplay({
             }
           />
           <InfoLine
-            label="使用技能或道具回應"
+            label="使用技能或物品回應"
             value={opponentResponseText(maxItems, maxSkills)}
           />
           <InfoLine label="平手裁決" value={tieLabel} />
@@ -103,7 +103,7 @@ export function CheckInfoDisplay({
           <InfoLine label="類型" value="隨機對抗檢定" />
           <InfoLine label="使用數值" value={`隨機擲骰 D${randomContestMaxValue}`} />
           <InfoLine
-            label="使用技能或道具回應"
+            label="使用技能或物品回應"
             value={opponentResponseText(maxItems, maxSkills)}
           />
           <InfoLine label="平手裁決" value={tieLabel} />

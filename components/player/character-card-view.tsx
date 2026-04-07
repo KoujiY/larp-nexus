@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore, useCallback, useEffect } from 'react';
+import { useState, useSyncExternalStore, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { CharacterData } from '@/types/character';
@@ -8,6 +8,7 @@ import { PinUnlock } from './pin-unlock';
 import { InfoTab } from './info-tab';
 import { StatsDisplay } from './stats-display';
 import { ActiveEffectsPanel } from './active-effects-panel';
+import { EquipmentEffectsPanel } from './equipment-effects-panel';
 import { TaskList } from './task-list';
 import { ItemList } from './item-list';
 import { SkillList } from './skill-list';
@@ -37,7 +38,7 @@ interface CharacterCardViewProps {
 
 /** 分頁配置（供 sticky nav 和 mobile bottom nav 共用） */
 const TAB_CONFIG = [
-  { value: 'items', icon: Package, label: '道具' },
+  { value: 'items', icon: Package, label: '物品' },
   { value: 'skills', icon: Wand2, label: '技能' },
   { value: 'info', icon: BookOpen, label: '資訊' },
   { value: 'stats', icon: BarChart3, label: '數值' },
@@ -174,6 +175,65 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     router.refresh();
   }, [character.id, router]);
 
+  /**
+   * 全域過期計時器：無論玩家在哪個分頁，都能在效果到期時觸發伺服器端檢查。
+   * ActiveEffectsPanel 只在 stats 分頁掛載，因此需要此獨立的計時器作為保底。
+   *
+   * 處理兩種情境：
+   * 1. 已過期但未處理（expiresAt 在過去、isExpired 仍為 false）→ 立即呼叫
+   * 2. 即將過期（expiresAt 在未來）→ setTimeout 延遲呼叫
+   */
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCheckingRef = useRef(false);
+  useEffect(() => {
+    const unprocessed = (character.temporaryEffects ?? []).filter(
+      (e) => !e.isExpired
+    );
+    if (unprocessed.length === 0) return;
+
+    const now = Date.now();
+
+    // 區分已過期（需立即處理）和未過期（需排程）
+    const alreadyExpired = unprocessed.some(
+      (e) => new Date(e.expiresAt).getTime() <= now
+    );
+    const futureEffects = unprocessed.filter(
+      (e) => new Date(e.expiresAt).getTime() > now
+    );
+
+    /** 執行伺服器端過期檢查並刷新 */
+    const doCheck = async () => {
+      if (isCheckingRef.current) return;
+      isCheckingRef.current = true;
+      try {
+        await checkExpiredEffects(character.id);
+        router.refresh();
+      } finally {
+        isCheckingRef.current = false;
+      }
+    };
+
+    // 情境 1：有已過期但未處理的效果 → 立即處理
+    if (alreadyExpired) {
+      doCheck();
+    }
+
+    // 情境 2：排程最近即將到期的效果
+    if (futureEffects.length > 0) {
+      const soonestMs = Math.min(
+        ...futureEffects.map((e) => new Date(e.expiresAt).getTime() - now)
+      );
+      // 加 1 秒緩衝，確保伺服器端判定 expiresAt <= now 時已過期
+      const delayMs = soonestMs + 1000;
+
+      expiryTimerRef.current = setTimeout(doCheck, delayMs);
+    }
+
+    return () => {
+      if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
+    };
+  }, [character.temporaryEffects, character.id, router]);
+
   // 道具使用 callback
   // Phase 8: 添加檢定結果參數，返回結果以便處理對抗檢定
   const handleUseItem = useCallback(async (itemId: string, targetCharacterId?: string, checkResult?: number, targetItemId?: string) => {
@@ -192,7 +252,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     if (result.success) {
       router.refresh();
     } else {
-      notify.error(result.message || '道具轉移失敗');
+      notify.error(result.message || '物品轉移失敗');
     }
   }, [character.id, router]);
 
@@ -361,19 +421,22 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
           </TabsContent>
 
           <TabsContent value="stats" className="mt-0">
-            <StatsDisplay stats={displayStats} />
+            <StatsDisplay stats={displayStats} items={displayItems} />
             {(!displayStats || displayStats.length === 0) && (
               <div className="text-center py-12 text-muted-foreground/60">
                 <p className="text-sm">尚無角色數值</p>
               </div>
             )}
 
-            {/* Phase 8.7: 活躍效果面板 */}
-            <ActiveEffectsPanel
-              effects={character.temporaryEffects}
-              characterId={character.id}
-              onEffectExpired={handleEffectExpired}
-            />
+            {/* 時效性效果 + 裝備效果：桌面並排、手機堆疊 */}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ActiveEffectsPanel
+                effects={character.temporaryEffects}
+                characterId={character.id}
+                onEffectExpired={handleEffectExpired}
+              />
+              <EquipmentEffectsPanel items={displayItems} variant="player" />
+            </div>
           </TabsContent>
 
           <TabsContent value="tasks" className="mt-0">

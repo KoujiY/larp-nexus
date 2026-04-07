@@ -509,7 +509,7 @@ export async function getGameItems(
     return {
       success: false,
       error: 'FETCH_FAILED',
-      message: '無法取得劇本道具列表',
+      message: '無法取得劇本物品列表',
     };
   }
 }

@@ -42,8 +42,32 @@ type CheckConfigPatch = {
 };
 
 /**
+ * 從 randomConfig 衍生合法的 { maxValue, threshold }，缺漏時補上預設值。
+ * 供 random 和 random_contest 類型共用。
+ */
+function ensureRandomConfig(
+  name: string,
+  randomConfig: { maxValue?: number; threshold?: number } | undefined,
+): { maxValue: number; threshold: number } {
+  const maxValue = randomConfig?.maxValue;
+  const threshold = randomConfig?.threshold;
+  if (!maxValue || threshold == null) {
+    console.warn(`[field-updaters] ${name} 設定為隨機檢定但 randomConfig 不完整，使用預設值`);
+    return {
+      maxValue: maxValue && maxValue > 0 ? maxValue : 100,
+      threshold: threshold != null && threshold > 0 ? threshold : 50,
+    };
+  }
+  return { maxValue, threshold: Math.min(threshold, maxValue) };
+}
+
+/**
  * 正規化檢定設定，回傳應合併至道具/技能資料的設定欄位
- * 供 Skills / Items 共用（HIGH-4：contestConfig 缺失升級為 error）
+ * 供 Skills / Items 共用。
+ *
+ * - contest         : 只需要 contestConfig
+ * - random          : 只需要 randomConfig（缺漏補預設）
+ * - random_contest  : 同時需要 contestConfig 和 randomConfig（缺漏補預設）
  *
  * @returns 應合併至資料物件的設定欄位（spread 使用）
  */
@@ -53,7 +77,7 @@ export function normalizeCheckConfig(
   contestConfig: unknown,
   randomConfig: { maxValue?: number; threshold?: number } | undefined,
 ): CheckConfigPatch {
-  if (checkType === 'contest' || checkType === 'random_contest') {
+  if (checkType === 'contest') {
     if (contestConfig) {
       return { contestConfig };
     }
@@ -61,19 +85,22 @@ export function normalizeCheckConfig(
     return {};
   }
 
-  if (checkType === 'random') {
-    const maxValue = randomConfig?.maxValue;
-    const threshold = randomConfig?.threshold;
-    if (!maxValue || threshold == null) {
-      console.warn(`[field-updaters] ${name} 設定為隨機檢定但 randomConfig 不完整，使用預設值`);
-      return {
-        randomConfig: {
-          maxValue: maxValue && maxValue > 0 ? maxValue : 100,
-          threshold: threshold != null && threshold > 0 ? threshold : 50,
-        },
-      };
+  if (checkType === 'random_contest') {
+    // random_contest 同時需要兩種設定；randomConfig 缺漏時自動補預設值
+    // 這會讓過去被 bug 腐蝕（缺少 randomConfig）的舊資料在下一次儲存時自動修復
+    const patch: CheckConfigPatch = {
+      randomConfig: ensureRandomConfig(name, randomConfig),
+    };
+    if (contestConfig) {
+      patch.contestConfig = contestConfig;
+    } else {
+      console.error(`[field-updaters] ${name} 設定為對抗檢定但沒有 contestConfig`);
     }
-    return { randomConfig: { maxValue, threshold: Math.min(threshold, maxValue) } };
+    return patch;
+  }
+
+  if (checkType === 'random') {
+    return { randomConfig: ensureRandomConfig(name, randomConfig) };
   }
 
   return {};

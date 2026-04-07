@@ -24,12 +24,34 @@ const DEFAULT_CONTEST_CONFIG: ContestConfig = {
 };
 
 /**
+ * 依據 randomConfig 衍生合法的 { maxValue, threshold }，缺漏時補預設值
+ */
+function ensureRandomConfig(
+  randomConfig: Partial<RandomConfig> | undefined,
+): RandomConfig {
+  const maxValue =
+    randomConfig?.maxValue !== undefined && randomConfig.maxValue > 0
+      ? randomConfig.maxValue
+      : 100;
+  const rawThreshold =
+    randomConfig?.threshold !== undefined &&
+    randomConfig.threshold !== null &&
+    randomConfig.threshold > 0
+      ? randomConfig.threshold
+      : 50;
+  return { maxValue, threshold: Math.min(rawThreshold, maxValue) };
+}
+
+/**
  * 將 checkType 對應的設定欄位正規化
  *
  * - `random`         : 確保 randomConfig 有效值（maxValue/threshold 補預設），清除 contestConfig
  * - `contest`        : 確保 contestConfig 存在（補預設值），清除 randomConfig
- * - `random_contest` : 確保 contestConfig 存在（relatedStat 為空字串），清除 randomConfig
+ * - `random_contest` : 同時確保 contestConfig（relatedStat 為空字串）和 randomConfig（補預設值）
  * - `none` / 其他    : 清除兩者
+ *
+ * 注意：`random_contest` 同時需要對抗設定和隨機檢定設定，
+ * 因為它代表「隨機擲骰 + 對抗判定」的混合類型。
  *
  * @param checkType     目前選擇的檢定類型
  * @param contestConfig 編輯中的對抗檢定設定
@@ -42,20 +64,9 @@ export function normalizeCheckConfig(
 ): CheckConfigPatch {
   switch (checkType) {
     case 'random': {
-      const maxValue =
-        randomConfig?.maxValue !== undefined && randomConfig.maxValue > 0
-          ? randomConfig.maxValue
-          : 100;
-      const rawThreshold =
-        randomConfig?.threshold !== undefined &&
-        randomConfig.threshold !== null &&
-        randomConfig.threshold > 0
-          ? randomConfig.threshold
-          : 50;
-      const threshold = Math.min(rawThreshold, maxValue);
       return {
         contestConfig: undefined,
-        randomConfig: { maxValue, threshold },
+        randomConfig: ensureRandomConfig(randomConfig),
       };
     }
 
@@ -81,7 +92,7 @@ export function normalizeCheckConfig(
           opponentMaxSkills: existing.opponentMaxSkills ?? DEFAULT_CONTEST_CONFIG.opponentMaxSkills,
           tieResolution: existing.tieResolution ?? DEFAULT_CONTEST_CONFIG.tieResolution,
         },
-        randomConfig: undefined,
+        randomConfig: ensureRandomConfig(randomConfig),
       };
     }
 

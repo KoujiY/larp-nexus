@@ -28,37 +28,66 @@ export function createEventMappers(
 
   /**
    * 將事件映射為通知
+   *
+   * 若事件 payload 帶有 _eventId（伺服器端注入的唯一 ID），
+   * 則將通知 ID 替換為基於 _eventId 的穩定 ID，確保同一事件
+   * 無論透過 WebSocket 或 Pending Events 到達，都產生相同的通知 ID。
    */
   const mapEventToNotifications = (event: BaseEvent) => {
+    let notifications: import('./types').Notification[];
+
     switch (event.type) {
       case 'role.updated':
-        return mapRoleUpdated(event);
+        notifications = mapRoleUpdated(event);
+        break;
       case 'role.inventoryUpdated':
-        return mapInventoryUpdated(event);
+        notifications = mapInventoryUpdated(event);
+        break;
       case 'item.transferred':
-        return mapItemTransferred(event);
+        notifications = mapItemTransferred(event);
+        break;
       case 'role.message':
-        return mapRoleMessage(event);
+        notifications = mapRoleMessage(event);
+        break;
       case 'skill.contest':
-        return mapSkillContest(event);
+        notifications = mapSkillContest(event);
+        break;
       case 'skill.used':
-        return mapSkillUsed(event);
+        notifications = mapSkillUsed(event);
+        break;
       case 'item.used':
-        return mapItemUsed(event);
+        notifications = mapItemUsed(event);
+        break;
       case 'character.affected':
-        return mapCharacterAffected(event);
+        notifications = mapCharacterAffected(event);
+        break;
       case 'secret.revealed':
-        return mapSecretRevealed(event);
+        notifications = mapSecretRevealed(event);
+        break;
       case 'task.revealed':
-        return mapTaskRevealed(event);
+        notifications = mapTaskRevealed(event);
+        break;
       case 'item.showcased':
-        return mapItemShowcased(event);
+        notifications = mapItemShowcased(event);
+        break;
       case 'effect.expired':
-        return mapEffectExpired(event);
+        notifications = mapEffectExpired(event);
+        break;
       // 其他技能相關：不顯示通知（需求指定）
       default:
-        return [];
+        notifications = [];
     }
+
+    // 若有 _eventId，替換通知 ID 為穩定的 server-generated ID
+    const eventId = (event.payload as Record<string, unknown>)?._eventId as string | undefined;
+    if (eventId && notifications.length > 0) {
+      notifications = notifications.map((n, idx) => ({
+        ...n,
+        id: notifications.length === 1 ? `eid-${eventId}` : `eid-${eventId}-${idx}`,
+      }));
+    }
+
+    return notifications;
   };
 
   return {

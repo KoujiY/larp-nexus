@@ -100,6 +100,12 @@ export function updateCharacterItems(
     if (item.lastUsedAt !== undefined) itemData.lastUsedAt = item.lastUsedAt;
     if (item.checkType !== undefined) itemData.checkType = item.checkType;
 
+    // 裝備系統欄位
+    if (item.equipped !== undefined) itemData.equipped = item.equipped;
+    if (item.statBoosts !== undefined) {
+      itemData.statBoosts = item.statBoosts;
+    }
+
     // Phase 6.5 / Phase 7: 處理道具效果（優先 effects 陣列，向後兼容 effect）
     if (item.effects != null) {
       itemData.effects = (item.effects as unknown as Array<Record<string, unknown>>)

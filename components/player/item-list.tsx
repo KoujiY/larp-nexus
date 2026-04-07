@@ -16,6 +16,7 @@ import { useItemUsage } from '@/hooks/use-item-usage';
 import { useContestableItemUsage } from '@/hooks/use-contestable-item-usage';
 import { canUseItem as canUseItemBase, getCooldownRemaining } from '@/lib/utils/item-validators';
 import { getItemEffects, hasItemEffects } from '@/lib/item/get-item-effects';
+import { toggleEquipment } from '@/app/actions/item-equip';
 import type { ItemListProps } from '@/types/item-list';
 import { recordItemView, showcaseItem } from '@/app/actions/item-showcase';
 import { ItemCard } from './item-card';
@@ -64,6 +65,9 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   const [isLoadingShowcaseTargets, setIsLoadingShowcaseTargets] = useState(false);
   const [isShowcasing, setIsShowcasing] = useState(false);
   const [itemToShowcase, setItemToShowcase] = useState<Item | null>(null);
+
+  // 裝備切換狀態
+  const [isTogglingEquipment, setIsTogglingEquipment] = useState(false);
 
   // 共用目標列表（供使用/展示/轉移的單一下拉選單）
   const [sharedTargets, setSharedTargets] = useState<TransferTargetCharacter[]>([]);
@@ -370,8 +374,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     setIsLoadingSharedTargets(true);
     getTransferTargets(gameId, characterId)
       .then((result) => {
-        if (result.success && result.data) setSharedTargets(result.data);
-        else setSharedTargets([]);
+        setSharedTargets(result.success && result.data ? result.data : []);
       })
       .catch(() => setSharedTargets([]))
       .finally(() => setIsLoadingSharedTargets(false));
@@ -434,7 +437,7 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       <div className="py-12 text-center">
         <div className="mx-auto h-12 w-12 rounded-full bg-muted/20 mb-4" />
         <h3 className="text-lg font-semibold text-foreground">背包是空的</h3>
-        <p className="text-sm text-muted-foreground mt-2">你還沒有獲得任何道具</p>
+        <p className="text-sm text-muted-foreground mt-2">你還沒有獲得任何物品</p>
       </div>
     );
   }
@@ -559,6 +562,25 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     }
   };
 
+  // 裝備切換
+  const handleToggleEquipment = async () => {
+    if (!selectedItem || selectedItem.type !== 'equipment') return;
+    setIsTogglingEquipment(true);
+    try {
+      const result = await toggleEquipment(characterId, selectedItem.id);
+      if (result.success) {
+        router.refresh();
+        setSelectedItem(null);
+      } else {
+        notify.error(result.message || '裝備切換失敗');
+      }
+    } catch {
+      notify.error('裝備切換失敗');
+    } finally {
+      setIsTogglingEquipment(false);
+    }
+  };
+
   // Phase 7.7: 執行展示
   const handleShowcase = async () => {
     if (!itemToShowcase || !selectedShowcaseTargetId) return;
@@ -583,9 +605,9 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   return (
     <>
       <div className="space-y-4">
-        {/* 道具清單標題 */}
+        {/* 物品清單標題 */}
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-foreground">道具清單</h2>
+          <h2 className="text-sm font-semibold text-foreground">物品清單</h2>
           {items.length > 0 && (
             <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold">
               {items.length}
@@ -645,6 +667,9 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         isTransferring={isTransferring}
         sharedTargets={sharedTargets}
         isLoadingSharedTargets={isLoadingSharedTargets}
+        characterId={characterId}
+        onToggleEquipment={handleToggleEquipment}
+        isTogglingEquipment={isTogglingEquipment}
       />
 
       {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 Dialog */}

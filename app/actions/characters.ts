@@ -503,7 +503,7 @@ export async function uploadAbilityImage(
     const abilities = (character[arrayField] as Array<{ id: string; imageUrl?: string }>) || [];
     const target = abilities.find((a) => a.id === abilityId);
     if (!target) {
-      return { success: false, error: 'NOT_FOUND', message: `找不到此${mode === 'item' ? '道具' : '技能'}` };
+      return { success: false, error: 'NOT_FOUND', message: `找不到此${mode === 'item' ? '物品' : '技能'}` };
     }
 
     const uploadResult = await uploadImageToBlob(formData, {

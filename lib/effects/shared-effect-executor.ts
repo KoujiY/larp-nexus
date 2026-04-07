@@ -188,9 +188,9 @@ export async function applyItemTransfer(
         $push: { items: updatedItem },
       });
     } else {
-      // 沒有此道具：新增完整複本
+      // 沒有此道具：新增完整複本（裝備自動卸除）
       const stolenItem = Object.fromEntries(
-        Object.entries({ ...JSON.parse(JSON.stringify(targetItem)) as Record<string, unknown>, quantity: 1, acquiredAt: new Date() })
+        Object.entries({ ...JSON.parse(JSON.stringify(targetItem)) as Record<string, unknown>, quantity: 1, acquiredAt: new Date(), equipped: false })
           .filter(([k]) => k !== '_id' && k !== '__v')
       );
       await updateCharacterData(sourceIdStr, {

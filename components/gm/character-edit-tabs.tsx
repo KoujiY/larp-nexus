@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GmTabsList, GmTabsTrigger } from '@/components/gm/gm-tabs';
 import { BasicSettingsTab } from '@/components/gm/basic-settings-tab';
@@ -8,14 +9,17 @@ import { BackgroundStoryTab } from '@/components/gm/background-story-tab';
 import { SecretsTab } from '@/components/gm/secrets-tab';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
 import { TemporaryEffectsCard } from '@/components/gm/temporary-effects-card';
+import { EquipmentEffectsPanel } from '@/components/player/equipment-effects-panel';
 import { TasksEditForm } from '@/components/gm/tasks-edit-form';
 import { ItemsEditForm } from '@/components/gm/items-edit-form';
 import { SkillsEditForm } from '@/components/gm/skills-edit-form';
 import { StickySaveBar } from '@/components/gm/sticky-save-bar';
 import { useCharacterEditState } from '@/hooks/use-character-edit-state';
+import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { cn } from '@/lib/utils';
 import type { CharacterData } from '@/types/character';
 import type { CharacterTabKey } from '@/types/gm-edit';
+import type { BaseEvent } from '@/types/event';
 
 /** Tab 設定：key → label + group */
 const TAB_CONFIG: {
@@ -28,7 +32,7 @@ const TAB_CONFIG: {
   { key: 'secrets', label: '隱藏資訊', group: 'narrative' },
   { key: 'stats', label: '數值', group: 'mechanic' },
   { key: 'tasks', label: '任務', group: 'mechanic' },
-  { key: 'items', label: '道具', group: 'mechanic' },
+  { key: 'items', label: '物品', group: 'mechanic' },
   { key: 'skills', label: '技能', group: 'mechanic' },
 ];
 
@@ -67,6 +71,7 @@ export function CharacterEditTabs({
   gameCharacters = [],
 }: CharacterEditTabsProps) {
   const [activeTab, setActiveTab] = useState<CharacterTabKey>('basic');
+  const router = useRouter();
 
   /** 這些 tab 需要填滿視窗高度、禁止外層滾動，內部獨立捲動 */
   const isFullHeightTab = activeTab === 'background' || activeTab === 'secrets';
@@ -83,6 +88,22 @@ export function CharacterEditTabs({
     saveAll,
     discardAll,
   } = useCharacterEditState();
+
+  // 監聽數值相關 WebSocket 事件，當 stats tab 未編輯時自動刷新
+  // 僅接收影響數值的事件，與控制台頁面策略對齊（避免道具轉移等非數值事件造成多餘 re-render）
+  // skill.used / item.used 不含 stats 資料，數值更新由伴隨的 role.updated 處理
+  // equipment.toggled：玩家端裝備/卸除後，stats 分頁的有效數值與 EquipmentEffectsPanel 需同步
+  const STAT_REFRESH_EVENTS = ['effect.expired', 'role.updated', 'character.affected', 'equipment.toggled'];
+  useCharacterWebSocket(character.id, (event: BaseEvent) => {
+    if (STAT_REFRESH_EVENTS.includes(event.type)) {
+      // stats / items 表單非 dirty 時靜默刷新；dirty 時不覆蓋 GM 正在編輯的值
+      // equipment.toggled 會同時影響 stats 顯示與 items.equipped 欄位，
+      // 故兩個 tab 都需檢查 dirty 狀態，避免 router.refresh 蓋掉正在編輯的內容
+      if (!dirtyState.stats.isDirty && !dirtyState.items.isDirty) {
+        router.refresh();
+      }
+    }
+  });
 
   const narrativeTabs = TAB_CONFIG.filter((t) => t.group === 'narrative');
   const mechanicTabs = TAB_CONFIG.filter((t) => t.group === 'mechanic');
@@ -199,6 +220,7 @@ export function CharacterEditTabs({
           <StatsEditForm
             characterId={character.id}
             initialStats={character.stats || []}
+            items={character.items}
             onDirtyChange={(dirty) =>
               registerDirty('stats', {
                 isDirty: dirty,
@@ -210,7 +232,11 @@ export function CharacterEditTabs({
             onRegisterSave={(h) => registerSaveHandler('stats', h)}
             onRegisterDiscard={(h) => registerDiscardHandler('stats', h)}
           />
-          <TemporaryEffectsCard characterId={character.id} />
+          {/* 時效性效果 + 裝備效果：桌面並排、手機堆疊 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <TemporaryEffectsCard characterId={character.id} />
+            <EquipmentEffectsPanel items={character.items} showEmptyState />
+          </div>
         </TabsContent>
 
         <TabsContent value="tasks" forceMount className="data-[state=inactive]:hidden">

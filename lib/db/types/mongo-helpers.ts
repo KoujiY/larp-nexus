@@ -55,7 +55,7 @@ export interface MongoItem {
   name: string;
   description: string;
   imageUrl?: string;
-  type: 'consumable' | 'equipment';
+  type: 'consumable' | 'tool' | 'equipment';
   quantity: number;
   effects?: MongoItemEffect[];
   /** @deprecated 請改用 effects 陣列 */
@@ -78,6 +78,8 @@ export interface MongoItem {
   lastUsedAt?: Date;
   isTransferable: boolean;
   acquiredAt: Date;
+  equipped?: boolean;
+  statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
   _id?: unknown;
 }
 

@@ -247,19 +247,22 @@ export interface Item {
   description: string;
   imageUrl?: string;
   // 道具類型與數量
-  type: 'consumable' | 'equipment';
+  // - consumable: 消耗品（使用後數量減少）
+  // - tool: 道具（持久性道具，可重複使用）
+  // - equipment: 裝備（玩家可主動裝備/卸除，提供被動數值加成）
+  type: 'consumable' | 'tool' | 'equipment';
   quantity: number;
-  // 使用效果（陣列，支援多個效果）
+  // 使用效果（陣列，支援多個效果）— consumable / tool 使用
   effects?: ItemEffect[];
   // Phase 7.6: 標籤系統
   tags?: string[];
-  // 檢定系統（Phase 8，Phase 7.6: 擴展為包含 random_contest）
+  // 檢定系統（Phase 8，Phase 7.6: 擴展為包含 random_contest）— consumable / tool 使用
   checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   // 對抗檢定設定（checkType === 'contest' 時使用）
   contestConfig?: ContestConfig;
   // 隨機檢定設定（checkType === 'random' 時使用）
   randomConfig?: RandomConfig;
-  // 使用限制
+  // 使用限制 — consumable / tool 使用
   usageLimit?: number;
   usageCount?: number;
   cooldown?: number;
@@ -267,6 +270,20 @@ export interface Item {
   // 流通性
   isTransferable: boolean;
   acquiredAt: Date;
+  // 裝備系統（僅 type === 'equipment'）
+  equipped?: boolean;
+  statBoosts?: StatBoost[];
+}
+
+/**
+ * 裝備數值加成
+ * 裝備啟用時，對指定數值提供持續性加成
+ */
+export interface StatBoost {
+  statName: string;
+  value: number;
+  /** 加成對象：value（當前值）、maxValue（上限值）、both（兩者皆加）。默認 both */
+  target?: 'value' | 'maxValue' | 'both';
 }
 
 /**
@@ -389,7 +406,7 @@ export interface CreateItemInput {
   name: string;
   description: string;
   imageUrl?: string;
-  type: 'consumable' | 'equipment';
+  type: 'consumable' | 'tool' | 'equipment';
   quantity?: number;
   effects?: ItemEffect[];
   /** @deprecated 使用 effects 陣列代替 */
@@ -400,6 +417,8 @@ export interface CreateItemInput {
   usageLimit?: number;
   cooldown?: number;
   isTransferable?: boolean;
+  // 裝備系統（僅 type === 'equipment'）
+  statBoosts?: StatBoost[];
 }
 
 /**

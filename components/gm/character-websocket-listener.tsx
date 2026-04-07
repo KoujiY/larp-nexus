@@ -25,9 +25,13 @@ export function CharacterWebSocketListener({ characterId }: CharacterWebSocketLi
     switch (event.type) {
       case 'role.updated': {
         const payload = (event as RoleUpdatedEvent).payload;
+        // _statsSync：純同步事件（裝備切換、技能/道具效果套用等），由 character-edit-tabs
+        // 內的 STAT_REFRESH_EVENTS 路徑統一處理 router.refresh，這裡不要再重複 refresh，
+        // 也不要跳「外部變更」toast — 否則 GM 會誤以為是別人改的或觸發了背景儲存。
+        if (payload._statsSync) break;
         if (payload.updates.items) {
           router.refresh();
-          toast.info('角色資料已更新', { description: '道具列表已同步' });
+          toast.info('角色資料已更新', { description: '物品列表已同步' });
         }
         break;
       }
@@ -36,7 +40,7 @@ export function CharacterWebSocketListener({ characterId }: CharacterWebSocketLi
         const payload = (event as ItemTransferredEvent).payload;
         if (payload.fromCharacterId === characterId || payload.toCharacterId === characterId) {
           router.refresh();
-          toast.info('道具已轉移', {
+          toast.info('物品已轉移', {
             description:
               payload.fromCharacterId === characterId
                 ? `已將 ${payload.quantity} 個「${payload.itemName}」轉移給 ${payload.toCharacterName}`

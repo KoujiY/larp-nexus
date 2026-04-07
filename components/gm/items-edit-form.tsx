@@ -86,15 +86,19 @@ export function ItemsEditForm({ characterId, initialItems, stats, gameIsActive =
   useCharacterWebSocket(characterId, (event: BaseEvent) => {
     if (event.type === 'role.updated') {
       const payload = (event as RoleUpdatedEvent).payload;
+      // _statsSync：純同步事件（裝備切換、技能/道具效果套用等），交給 character-edit-tabs
+      // 統一以 router.refresh() 走 props 通道更新；此處若 setItems 會與後續 RSC 回來的
+      // initialItems 因物件序列化差異不相等，造成 useFormGuard 把它判成 dirty 而炸出 sticky bar。
+      if (payload._statsSync) return;
       if (payload.updates.items) {
         setItems(payload.updates.items as unknown as Item[]);
-        toast.info('道具列表已更新', { description: '玩家端的變更已同步' });
+        toast.info('物品列表已更新', { description: '玩家端的變更已同步' });
       }
     } else if (event.type === 'role.inventoryUpdated') {
       const payload = (event as InventoryUpdatedEvent).payload;
       router.refresh();
-      toast.info('道具已更新', {
-        description: `道具「${payload.item.name}」${
+      toast.info('物品已更新', {
+        description: `物品「${payload.item.name}」${
           payload.action === 'added' ? '已新增' : payload.action === 'updated' ? '已更新' : '已移除'
         }`,
       });
@@ -102,7 +106,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, gameIsActive =
       const payload = (event as ItemTransferredEvent).payload;
       if (payload.fromCharacterId === characterId || payload.toCharacterId === characterId) {
         router.refresh();
-        toast.info('道具已轉移', {
+        toast.info('物品已轉移', {
           description:
             payload.fromCharacterId === characterId
               ? `已將 ${payload.quantity} 個「${payload.itemName}」轉移給 ${payload.toCharacterName}`
@@ -161,7 +165,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, gameIsActive =
           quantity: 1,
           usageCount: 0,
         }));
-        toast.success(`已新增 ${quantity} 張「${savedData.name}」道具卡`);
+        toast.success(`已新增 ${quantity} 張「${savedData.name}」物品卡`);
         return [...prev, ...newItems];
       }
       return [...prev, { ...savedData, quantity: 1 }];
@@ -186,7 +190,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, gameIsActive =
     try {
       const result = await updateCharacter(characterId, { items: effectiveItems });
       if (result.success) {
-        if (!options?.silent) toast.success('道具已儲存');
+        if (!options?.silent) toast.success('物品已儲存');
         resetDirty();
         router.refresh();
       } else {
@@ -213,22 +217,22 @@ export function ItemsEditForm({ characterId, initialItems, stats, gameIsActive =
     <div className="space-y-6">
       <h2 className={GM_SECTION_TITLE_CLASS}>
         <span className="w-1 h-5 bg-primary rounded-full" />
-        道具管理
+        物品管理
       </h2>
 
       {items.length === 0 ? (
         <GmEmptyState
           icon={<Package className="h-10 w-10" />}
-          title="尚無道具"
+          title="尚無物品"
           description="目前這個角色的背包還是空的，快來為他增添一些冒險物資吧。"
-          actionLabel="新增第一個道具"
+          actionLabel="新增第一個物品"
           onAction={handleAddItem}
           disabled={isLoading}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
           <DashedAddButton
-            label="新增道具"
+            label="新增物品"
             onClick={handleAddItem}
             disabled={isLoading}
             variant="card"

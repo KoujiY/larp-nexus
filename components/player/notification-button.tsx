@@ -49,7 +49,7 @@ const CATEGORY_STYLES: Record<NotificationCategory, CategoryStyle> = {
   },
   items: {
     icon: Package,
-    label: '道具',
+    label: '物品',
     cardBg: 'bg-primary/5',
     cardBorder: 'border-primary/10',
     iconBg: 'bg-primary/20',

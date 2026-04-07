@@ -27,6 +27,7 @@ export interface UseNotificationSystemReturn {
  */
 export function useNotificationSystem(characterId: string): UseNotificationSystemReturn {
   const notifStorageKey = `character-${characterId}-notifs`;
+  const lastReadKey = `character-${characterId}-lastRead`;
 
   // 載入歷史通知（保留 1 天內）- 使用 useState 初始化函數避免在 effect 中設置狀態
   const [notifications, setNotifications] = useState<NotificationWithTimestamp[]>(() => {
@@ -43,8 +44,16 @@ export function useNotificationSystem(characterId: string): UseNotificationSyste
       return [];
     }
   });
-  
-  const [unreadCount, setUnreadCount] = useState(0);
+
+  // 從 localStorage 讀取上次已讀時間戳，用於衍生未讀計數
+  const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(() => {
+    if (typeof window === 'undefined') return Date.now();
+    const stored = localStorage.getItem(lastReadKey);
+    return stored ? Number(stored) : 0;
+  });
+
+  // 衍生未讀計數：比 lastReadTimestamp 新的通知即為未讀
+  const unreadCount = notifications.filter((n) => n.timestamp > lastReadTimestamp).length;
 
   // 存儲通知
   useEffect(() => {
@@ -64,35 +73,22 @@ export function useNotificationSystem(characterId: string): UseNotificationSyste
 
     const now = Date.now();
     setNotifications((prev) => {
-      // 為每個通知生成唯一的 ID，避免重複
-      // 使用 timestamp + 索引 + 微秒時間戳確保唯一性
       const notificationsWithTimestamp = newNotifications.map((f, idx) => {
-        // 如果 ID 已經存在，添加索引和微秒時間戳確保唯一性
-        const baseId = f.id || `evt-${now}`;
-        // 使用 performance.now() 獲取高精度時間戳，確保唯一性
-        const uniqueId = `${baseId}-${idx}-${now}-${performance.now()}`;
-        return { ...f, id: uniqueId, timestamp: now };
+        // 伺服器端 _eventId 產生的穩定 ID（eid- 開頭）：保留原始 ID，確保去重有效
+        // 其他 ID：附加時間戳確保唯一性（不同事件可能產生相同的 evt-${timestamp}）
+        const id = f.id?.startsWith('eid-')
+          ? f.id
+          : `${f.id || 'evt'}-${idx}-${now}`;
+        return { ...f, id, timestamp: now };
       });
-      
-      // 過濾掉已經存在的通知（基於 ID，避免完全重複）
+
+      // 過濾掉已存在的通知（eid- 開頭的 ID 能跨 WebSocket/PendingEvents 去重）
       const existingIds = new Set(prev.map(n => n.id));
-      const filteredNotifications = notificationsWithTimestamp.filter(n => !existingIds.has(n.id));
-      
-      // 合併並去重：確保整個列表都沒有重複的 ID
-      const combined = [...prev, ...filteredNotifications];
-      const seenIds = new Set<string>();
-      const deduplicated = combined.filter((n) => {
-        if (seenIds.has(n.id)) {
-          return false;
-        }
-        seenIds.add(n.id);
-        return true;
-      });
-      
-      return deduplicated.slice(-NOTIF_LIMIT);
+      const newOnly = notificationsWithTimestamp.filter(n => !existingIds.has(n.id));
+
+      return [...prev, ...newOnly].slice(-NOTIF_LIMIT);
     });
-    
-    setUnreadCount((n) => n + newNotifications.length);
+
   }, []);
 
   /**
@@ -100,18 +96,23 @@ export function useNotificationSystem(characterId: string): UseNotificationSyste
    */
   const clearNotifications = useCallback(() => {
     setNotifications([]);
-    setUnreadCount(0);
+    setLastReadTimestamp(Date.now());
     if (typeof window !== 'undefined') {
       localStorage.removeItem(notifStorageKey);
+      localStorage.setItem(lastReadKey, String(Date.now()));
     }
-  }, [notifStorageKey]);
+  }, [notifStorageKey, lastReadKey]);
 
   /**
    * 標記為已讀
    */
   const markAsRead = useCallback(() => {
-    setUnreadCount(0);
-  }, []);
+    const now = Date.now();
+    setLastReadTimestamp(now);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(lastReadKey, String(now));
+    }
+  }, [lastReadKey]);
 
   return {
     notifications,

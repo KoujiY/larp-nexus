@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TemporaryEffect } from '@/types/character';
 
 interface ActiveEffectsPanelProps {
@@ -77,6 +77,7 @@ export function ActiveEffectsPanel({ effects, characterId, onEffectExpired }: Ac
     () => computeActiveEffects(effects)
   );
   const [prevEffects, setPrevEffects] = useState(effects);
+  const isCheckingExpiredRef = useRef(false);
 
   /** 當 effects props 變化時重新計算 */
   if (effects !== prevEffects) {
@@ -96,8 +97,15 @@ export function ActiveEffectsPanel({ effects, characterId, onEffectExpired }: Ac
         }));
 
         const hasNewlyExpired = updated.some((effect) => effect.remainingSeconds <= 0);
-        if (hasNewlyExpired) {
-          setTimeout(() => onEffectExpired?.(), 0);
+        if (hasNewlyExpired && !isCheckingExpiredRef.current) {
+          isCheckingExpiredRef.current = true;
+          setTimeout(async () => {
+            try {
+              await onEffectExpired?.();
+            } finally {
+              isCheckingExpiredRef.current = false;
+            }
+          }, 0);
         }
 
         return updated.filter((effect) => effect.remainingSeconds > 0);
@@ -112,7 +120,7 @@ export function ActiveEffectsPanel({ effects, characterId, onEffectExpired }: Ac
   }
 
   return (
-    <div className="mt-8 space-y-6">
+    <div className="space-y-6">
       {/* 區段標題 */}
       <div className="flex items-center gap-3">
         <div className="w-1 h-6 bg-primary rounded-full" />

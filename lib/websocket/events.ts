@@ -15,6 +15,7 @@ import type {
   TaskRevealedEvent,
   ItemShowcasedEvent,
   EffectExpiredEvent,
+  EquipmentToggledEvent,
   GameStartedEvent,
   GameEndedEvent,
 } from '@/types/event';
@@ -222,6 +223,11 @@ export async function emitEffectExpired(characterId: string, payload: EffectExpi
 }
 
 // Phase 10.7: 遊戲狀態事件
+
+/** 推送「裝備切換」事件到角色頻道 */
+export async function emitEquipmentToggled(characterId: string, payload: EquipmentToggledEvent['payload']) {
+  await trigger(`private-character-${characterId}`, 'equipment.toggled', payload);
+}
 
 /**
  * 推送「遊戲開始」事件到所有角色

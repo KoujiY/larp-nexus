@@ -12,10 +12,16 @@ import { formatStatDeltaText } from '@/lib/utils/format-stat-delta';
  */
 export function mapRoleUpdated(event: BaseEvent): Notification[] {
   const payload = event.payload as {
+    _statsSync?: boolean;
     updates?: {
       stats?: Array<{ name?: string; value?: number; maxValue?: number; deltaValue?: number; deltaMax?: number }>;
     };
   };
+
+  // _statsSync: GM Console 即時同步用，不產生玩家端通知
+  // 對應的玩家通知由 skill.used / item.used / effect.expired / character.affected 事件處理
+  if (payload?._statsSync) return [];
+
   const stats = payload?.updates?.stats;
   if (!stats || stats.length === 0) return [];
 

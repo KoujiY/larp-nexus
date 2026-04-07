@@ -19,7 +19,7 @@ export interface ShowcasedItemInfo {
   name: string;
   description: string;
   imageUrl?: string;
-  type: 'consumable' | 'equipment';
+  type: 'consumable' | 'tool' | 'equipment';
   quantity: number;
   tags?: string[];
 }
@@ -150,7 +150,7 @@ export function ItemShowcaseDialog({
                 類型
               </span>
               <span className="text-xs font-bold text-foreground">
-                {item.type === 'consumable' ? '消耗品' : '裝備'}
+                {{ consumable: '消耗品', tool: '道具', equipment: '裝備' }[item.type] ?? item.type}
               </span>
             </div>
             <div className="p-3 rounded-2xl bg-card/30 border border-border/10 flex flex-col items-center">

@@ -37,13 +37,13 @@ export function EffectDisplay({
       return <p className="text-xs font-medium text-foreground">完成任務：{effect.targetTaskId}</p>;
     }
     if (effect.type === 'item_steal') {
-      return <p className="text-xs font-medium text-foreground">偷竊目標角色的道具</p>;
+      return <p className="text-xs font-medium text-foreground">偷竊目標角色的物品</p>;
     }
     if (effect.type === 'item_take') {
-      return <p className="text-xs font-medium text-foreground">移除目標角色的道具</p>;
+      return <p className="text-xs font-medium text-foreground">移除目標角色的物品</p>;
     }
     if (effect.type === 'item_give') {
-      return <p className="text-xs font-medium text-foreground">給予目標角色道具</p>;
+      return <p className="text-xs font-medium text-foreground">給予目標角色物品</p>;
     }
     if (effect.type === 'custom' && effect.description) {
       return <p className="text-xs font-medium text-foreground">{effect.description}</p>;

@@ -489,8 +489,8 @@ function SecretDetailPanel({
 
   /** 自動揭露條件類型標籤 */
   const conditionTypeLabels: Record<string, string> = {
-    items_viewed: '檢視道具',
-    items_acquired: '取得道具',
+    items_viewed: '檢視物品',
+    items_acquired: '取得物品',
     secrets_revealed: '隱藏資訊揭露',
   };
 

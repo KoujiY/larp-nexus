@@ -29,7 +29,7 @@ import {
   GM_ACCENT_CARD_CLASS,
 } from '@/lib/styles/gm-form';
 import { GmInfoLine } from '@/components/gm/gm-info-line';
-import type { Item, Skill, ItemEffect, SkillEffect } from '@/types/character';
+import type { Item, Skill, ItemEffect, SkillEffect, StatBoost } from '@/types/character';
 import type { GmBadgeVariant } from '@/lib/styles/gm-form';
 
 /** 統一的 badge 資訊 */
@@ -88,12 +88,15 @@ export function AbilityCard({
   const skill = !isItem ? (ability as Skill) : undefined;
   const isDeleted = status === 'deleted';
 
+  const itemTypeLabels: Record<string, string> = { consumable: '消耗品', tool: '道具', equipment: '裝備' };
   const typeLabel = isItem
-    ? item!.type === 'consumable' ? '消耗品' : '裝備'
+    ? itemTypeLabels[item!.type] ?? item!.type
     : '技能';
 
   const imageUrl = isItem ? item?.imageUrl : skill?.imageUrl;
   const effects = ability.effects ?? [];
+  const statBoosts = isItem ? (item!.statBoosts ?? []) : [];
+  const isEquipment = isItem && item!.type === 'equipment';
   const tags = isItem ? (item!.tags ?? []) : (skill!.tags ?? []);
   const checkType = isItem ? item!.checkType : skill!.checkType;
   const usageLimit = ability.usageLimit;
@@ -103,7 +106,9 @@ export function AbilityCard({
   /** 組裝 footer badges */
   const badges: BadgeInfo[] = [];
 
-  if (effects.length > 0) {
+  if (isEquipment && statBoosts.length > 0) {
+    badges.push({ label: `${statBoosts.length} 個加成`, variant: 'muted' });
+  } else if (effects.length > 0) {
     badges.push({ label: `${effects.length} 個效果`, variant: 'muted' });
   }
 
@@ -241,7 +246,7 @@ export function AbilityCard({
             'text-xl font-black',
             isDeleted ? 'text-muted-foreground/50 line-through' : 'text-foreground',
           )}>
-            {ability.name || (isItem ? '未命名道具' : '未命名技能')}
+            {ability.name || (isItem ? '未命名物品' : '未命名技能')}
           </h3>
           {!expanded && ability.description && (
             <p className={cn(
@@ -263,6 +268,18 @@ export function AbilityCard({
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {ability.description}
               </p>
+            )}
+
+            {/* 裝備加成（equipment 類型專用） */}
+            {isEquipment && statBoosts.length > 0 && (
+              <div className="space-y-2">
+                <h4 className={GM_DETAIL_HEADER_CLASS}>裝備加成</h4>
+                <div className="space-y-2">
+                  {statBoosts.map((boost, idx) => (
+                    <StatBoostCard key={idx} boost={boost} />
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* 效果列表 — 左側邊線卡片風格 */}
@@ -357,8 +374,8 @@ export function AbilityCard({
       <ImageUploadDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
-        title={`上傳${isItem ? '道具' : '技能'}圖片`}
-        description={`選擇一張圖片作為${isItem ? '道具' : '技能'}卡的圖示`}
+        title={`上傳${isItem ? '物品' : '技能'}圖片`}
+        description={`選擇一張圖片作為${isItem ? '物品' : '技能'}卡的圖示`}
         preset={isItem ? 'item' : 'skill'}
         onUpload={async (formData) => {
           const result = await uploadAbilityImage(characterId, ability.id, mode, formData);
@@ -379,9 +396,9 @@ export function AbilityCard({
 /** 效果類型中文標籤 */
 const EFFECT_TYPE_LABELS: Record<string, string> = {
   stat_change: '數值變化',
-  item_give: '給予道具',
-  item_take: '取得道具',
-  item_steal: '奪取道具',
+  item_give: '給予物品',
+  item_take: '取得物品',
+  item_steal: '奪取物品',
   task_reveal: '揭露任務',
   task_complete: '完成任務',
   custom: '自訂效果',
@@ -449,11 +466,38 @@ function EffectCard({ effect }: { effect: ItemEffect | SkillEffect }) {
   );
 }
 
+/**
+ * 裝備加成卡片 — 左側邊線卡片
+ * 格式對齊效果系統的 stat_change 顯示邏輯
+ */
+function StatBoostCard({ boost }: { boost: StatBoost }) {
+  const value = boost.value ?? 0;
+  const sign = value >= 0 ? '+' : '';
+  const isMax = boost.target === 'maxValue' || boost.target === 'both';
+  const syncCurrent = boost.target === 'both';
+
+  const mainLine = isMax
+    ? `${boost.statName} 最大值 ${sign}${value}${syncCurrent ? '，目前值同步調整' : ''}`
+    : `${boost.statName} ${sign}${value}`;
+
+  return (
+    <div className={cn(GM_ACCENT_CARD_CLASS, 'space-y-1.5')}>
+      <p className="text-xs font-medium text-foreground">
+        <span className="text-muted-foreground">數值變化：</span>
+        {mainLine}
+      </p>
+      <p className="text-xs text-foreground/90">
+        <span className="text-muted-foreground">目標：</span>自身
+      </p>
+    </div>
+  );
+}
+
 /** 對方回應描述 */
 function opponentResponseText(maxItems: number, maxSkills: number): string {
   if (maxItems === 0 && maxSkills === 0) return '不允許';
   const parts: string[] = [];
-  if (maxItems > 0) parts.push('允許使用道具');
+  if (maxItems > 0) parts.push('允許使用物品');
   if (maxSkills > 0) parts.push('允許使用技能');
   return parts.join('、');
 }

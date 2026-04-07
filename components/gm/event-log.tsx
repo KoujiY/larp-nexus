@@ -127,7 +127,7 @@ const CATEGORY_BADGES: Record<EventCategory, CategoryBadge> = {
     className: 'bg-foreground text-background',
   },
   item: {
-    label: '道具',
+    label: '物品',
     className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
   },
   skill: {
@@ -155,6 +155,7 @@ function getEventCategory(action: string, actorType: string): EventCategory {
   if (action === 'skill_use') return 'skill';
   if (action === 'contest_result') return 'combat';
   if (action === 'secret_reveal' || action === 'task_reveal') return 'reveal';
+  if (action === 'equipment_toggle') return 'item';
   if (action === 'stat_change' || action === 'gm_update' || action === 'effect_expired') return 'system';
   if (actorType === 'system') return 'system';
   return 'default';
@@ -236,7 +237,7 @@ function EventDescription({ log }: { log: LogData }) {
     case 'item_use':
       return (
         <span>
-          使用了道具「{str(d?.itemName, '未知道具')}」
+          使用了物品「{str(d?.itemName, '未知物品')}」
           {d?.targetCharacterName ? `，對象：${str(d.targetCharacterName)}` : ''}
           {renderEffects(d?.effectsApplied)}
         </span>
@@ -317,6 +318,24 @@ function EventDescription({ log }: { log: LogData }) {
       return <span>{sourceName} 的效果已結束，{restoredText}</span>;
     }
 
+    case 'equipment_toggle': {
+      const itemName = str(d?.itemName, '裝備');
+      const equipped = d?.equipped;
+      const boosts = (d?.statBoosts || []) as Array<{ statName: string; value: number; target?: string }>;
+      const boostTexts = boosts
+        .map((b) => {
+          const target = b.target ?? 'value';
+          return formatStatDeltaText({
+            name: b.statName,
+            deltaValue: (target === 'value' || target === 'both') ? b.value : undefined,
+            deltaMax: (target === 'maxValue' || target === 'both') ? b.value : undefined,
+          });
+        })
+        .filter(Boolean);
+      const boostText = boostTexts.length > 0 ? `（${boostTexts.join('、')}）` : '';
+      return <span>{equipped ? '裝備' : '卸除'}了「{itemName}」{boostText}</span>;
+    }
+
     default:
       // 嘗試從 details 中提取有意義的描述
       if (d?.message) return <span>{str(d.message)}</span>;
@@ -333,7 +352,7 @@ const FIELD_LABELS: Record<string, string> = {
   description: '描述',
   imageUrl: '圖片',
   stats: '數值',
-  items: '道具',
+  items: '物品',
   skills: '技能',
   tasks: '任務',
   publicInfo: '公開資訊',

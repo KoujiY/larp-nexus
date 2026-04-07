@@ -68,7 +68,7 @@ export interface CharacterDocumentBase {
     name: string;
     description: string;
     imageUrl?: string;
-    type: 'consumable' | 'equipment';
+    type: 'consumable' | 'tool' | 'equipment';
     quantity: number;
     effects?: MongoItemEffect[];
     tags?: string[];
@@ -89,6 +89,8 @@ export interface CharacterDocumentBase {
     lastUsedAt?: Date;
     isTransferable: boolean;
     acquiredAt: Date;
+    equipped?: boolean;
+    statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
   }>;
 
   // Phase 4: 數值系統

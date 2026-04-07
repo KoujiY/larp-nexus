@@ -1,5 +1,7 @@
 import { getIronSession, IronSession } from 'iron-session';
 import { cookies } from 'next/headers';
+import dbConnect from '@/lib/db/mongodb';
+import Character from '@/lib/db/models/Character';
 
 /**
  * Session 資料結構
@@ -52,16 +54,48 @@ export async function getCurrentGMUserId(): Promise<string | null> {
 }
 
 /**
- * 驗證玩家是否已透過 PIN 解鎖指定角色
+ * 驗證玩家是否已授權操作指定角色
  *
- * 用於 useItem / useSkill / transferItem 等 Server Action，
- * 防止未解鎖的客戶端對任意角色執行操作。
+ * 用於 useItem / useSkill / transferItem / toggleEquipment 等 Server Action，
+ * 防止未授權的客戶端對任意角色執行操作。
  *
- * @param characterId - 要驗證的角色 ID
+ * 授權邏輯：
+ * 1. 若角色 ID 已存在於 session.unlockedCharacterIds（經 PIN 解鎖），直接通過
+ * 2. 若角色沒有設定 PIN lock（hasPinLock = false），視為公開角色，直接放行
+ * 3. 其他情況（有 PIN lock 但未解鎖）拒絕存取
+ *
+ * @param characterId - 要驗證的角色 ID（Baseline ID）
  * @returns 是否已授權
  */
 export async function validatePlayerAccess(characterId: string): Promise<boolean> {
   const session = await getSession();
-  return session.unlockedCharacterIds?.includes(characterId) ?? false;
+
+  // 快速路徑：已在 session 中記錄解鎖
+  if (session.unlockedCharacterIds?.includes(characterId)) {
+    return true;
+  }
+
+  // 查詢角色是否需要 PIN lock
+  try {
+    await dbConnect();
+    const character = await Character.findById(characterId).lean();
+    if (!character) {
+      console.warn(`[validatePlayerAccess] 角色不存在: ${characterId}`);
+      return false;
+    }
+
+    // 無 PIN lock 的角色視為公開，不需解鎖即可操作
+    if (character.hasPinLock) {
+      console.warn(
+        `[validatePlayerAccess] 角色 ${characterId} 需要 PIN 但 session 中無解鎖記錄（session 可能已過期）`,
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`[validatePlayerAccess] DB 查詢失敗: ${characterId}`, error);
+    return false;
+  }
 }
 
