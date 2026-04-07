@@ -234,8 +234,14 @@ export async function getPublicGame(
 }
 
 /**
- * Phase 4.5: 取得同劇本內的其他角色列表（用於道具轉移）
- * 只回傳基本資訊（id、name、imageUrl），排除當前角色
+ * Phase 4.5: 取得同劇本內的其他角色列表（用於物品轉移）
+ * 只回傳基本資訊（id、name、imageUrl），排除當前角色。
+ *
+ * ⚠️ 安全性註記（M-2，待 Phase D 強化）：
+ * 本函數目前未驗證呼叫方身分，任何取得合法 `gameId` 的 client 皆可列舉角色。
+ * 因這些基本資訊（姓名/頭像）已透過遊戲進行自然流通，暫接受此風險，
+ * 但後續應加入 `validatePlayerAccess` 與「呼叫方屬於該 game」之檢查，
+ * 以阻止跨遊戲的角色枚舉。
  */
 export interface TransferTargetCharacter {
   id: string;
@@ -278,8 +284,17 @@ export async function getTransferTargets(
 }
 
 /**
- * Phase 7: 取得目標角色的道具清單（用於 item_take 和 item_steal 效果）
- * 只回傳基本資訊（id、name、quantity），用於選擇目標道具
+ * Phase 7: 取得目標角色的物品清單（用於 item_take 和 item_steal 效果）
+ * 只回傳基本資訊（id、name、quantity），用於選擇目標物品。
+ *
+ * ⚠️ 安全性註記（M-2，待 Phase D 強化）：
+ * 本函數目前未驗證呼叫方是否「正在對 targetCharacterId 執行合法的偷竊/奪取流程」，
+ * 任何知道 targetCharacterId 的玩家都能列舉目標的物品清單，屬於資訊洩漏。
+ * 後續應：
+ *   1. 新增 callerCharacterId 參數並以 `validatePlayerAccess` 驗證
+ *   2. 檢查雙方屬於同一 game
+ *   3. 比對該呼叫是否對應 PendingItemEvent 中等待選擇目標物品的效果
+ * 暫時以 JSDoc 註記風險並接受現狀，避免影響現有流程。
  */
 export interface TargetItemInfo {
   id: string;
@@ -312,7 +327,7 @@ export async function getTargetCharacterItems(
     return {
       success: false,
       error: 'FETCH_FAILED',
-      message: '無法取得目標角色的道具清單',
+      message: '無法取得目標角色的物品清單',
     };
   }
 }

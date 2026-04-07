@@ -31,7 +31,7 @@ const actionSchema = z.object({
 });
 
 const presetEventSchema = z.object({
-  name: z.string().min(1, '事件名稱不可為空').max(100, '��件名稱不可超過 100 字元'),
+  name: z.string().min(1, '事件名稱不可為空').max(100, '事件名稱不可超過 100 字元'),
   description: z.string().max(500).optional(),
   showName: z.boolean().optional(),
   actions: z.array(actionSchema).min(1, '至少需要一個動作'),
@@ -41,6 +41,21 @@ const presetEventSchema = z.object({
 
 function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 驗證 GM 是否為此 game 的擁有者
+ *
+ * Runtime CRUD 無法像 Baseline CRUD 那樣直接用 `{ _id: gameId, gmUserId }`
+ * 過濾 Game 文件（Runtime 存在 GameRuntime 模型），因此需要先查 Baseline
+ * Game 驗證 gmUserId，再對 Runtime 操作。
+ */
+async function assertGameOwnership(
+  gameId: string,
+  gmUserId: string,
+): Promise<boolean> {
+  const game = await Game.findOne({ _id: gameId, gmUserId }).select('_id').lean();
+  return game !== null;
 }
 
 // ─── CRUD Actions ────────────────────────────────────
@@ -162,6 +177,11 @@ export async function createRuntimePresetEvent(
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
     }
 
+    // L-1: 驗證呼叫方是此 game 的擁有者，避免跨 game Runtime 竄改
+    if (!(await assertGameOwnership(gameId, gmUserId))) {
+      return { success: false, error: 'NOT_FOUND', message: '找不到此劇本' };
+    }
+
     const validated = presetEventSchema.parse(data);
 
     const runtime = await GameRuntime.findOne({ refId: gameId, type: 'runtime' });
@@ -203,6 +223,11 @@ export async function updateRuntimePresetEvent(
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
+    // L-1: 驗證呼叫方是此 game 的擁有者，避免跨 game Runtime 竄改
+    if (!(await assertGameOwnership(gameId, gmUserId))) {
+      return { success: false, error: 'NOT_FOUND', message: '找不到此劇本' };
     }
 
     const validated = presetEventSchema.parse(data);
@@ -252,6 +277,11 @@ export async function deleteRuntimePresetEvent(
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
     }
 
+    // L-1: 驗證呼叫方是此 game 的擁有者，避免跨 game Runtime 竄改
+    if (!(await assertGameOwnership(gameId, gmUserId))) {
+      return { success: false, error: 'NOT_FOUND', message: '找不到此劇本' };
+    }
+
     const runtime = await GameRuntime.findOne({ refId: gameId, type: 'runtime' });
     if (!runtime) {
       return { success: false, error: 'NOT_FOUND', message: '找不到 GameRuntime' };
@@ -286,6 +316,11 @@ export async function getRuntimePresetEvents(
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
     }
 
+    // L-1: 驗證呼叫方是此 game 的擁有者
+    if (!(await assertGameOwnership(gameId, gmUserId))) {
+      return { success: false, error: 'NOT_FOUND', message: '找不到此劇本' };
+    }
+
     const runtime = await GameRuntime.findOne({ refId: gameId, type: 'runtime' }).lean();
     if (!runtime) {
       return { success: false, error: 'NOT_FOUND', message: '找不到 GameRuntime' };
@@ -311,6 +346,11 @@ export async function runPresetEvent(
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
+    // L-1: 驗證呼叫方是此 game 的擁有者
+    if (!(await assertGameOwnership(gameId, gmUserId))) {
+      return { success: false, error: 'NOT_FOUND', message: '找不到此劇本' };
     }
 
     const result = await executePresetEvent(gameId, eventId, gmUserId);

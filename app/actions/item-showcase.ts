@@ -1,22 +1,23 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
+import { validatePlayerAccess } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import { emitItemShowcased, emitRoleUpdated } from '@/lib/websocket/events';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import type { ApiResponse } from '@/types/api';
 
 /**
- * Phase 7.7: 展示道具給其他角色
+ * Phase 7.7: 展示物品給其他角色
  *
- * 展示方選擇道具和目標角色 → 被展示方收到唯讀道具 Dialog。
+ * 展示方選擇物品和目標角色 → 被展示方收到唯讀物品 Dialog。
  * 同時記錄被展示方的 viewedItems，觸發自動揭露評估。
  *
  * Phase 11: 使用 getCharacterData 自動判斷 Baseline/Runtime，
  * 確保遊戲進行中讀取和寫入 Runtime 資料。
  *
  * @param characterId - 展示方角色 ID（Baseline ID）
- * @param itemId - 要展示的道具 ID
+ * @param itemId - 要展示的物品 ID
  * @param targetCharacterId - 被展示方角色 ID（Baseline ID）
  */
 export async function showcaseItem(
@@ -31,6 +32,15 @@ export async function showcaseItem(
   try {
     await dbConnect();
 
+    // 驗證呼叫方確實擁有展示方角色（防止未授權操作）
+    if (!(await validatePlayerAccess(characterId))) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '未授權操作此角色（請嘗試重新整理頁面並重新解鎖）',
+      };
+    }
+
     // 1. 驗證展示方角色存在（自動判斷 Baseline/Runtime）
     let character;
     try {
@@ -43,14 +53,14 @@ export async function showcaseItem(
       };
     }
 
-    // 2. 找到要展示的道具（從 Runtime 道具清單中查找）
+    // 2. 找到要展示的物品（從 Runtime 物品清單中查找）
     const items = character.items || [];
     const item = items.find((i: { id: string }) => i.id === itemId);
     if (!item) {
       return {
         success: false,
         error: 'NOT_FOUND',
-        message: '找不到此道具',
+        message: '找不到此物品',
       };
     }
 
@@ -113,7 +123,7 @@ export async function showcaseItem(
         name: item.name,
         description: item.description || '',
         imageUrl: item.imageUrl,
-        type: item.type as 'consumable' | 'equipment',
+        type: item.type as 'consumable' | 'tool' | 'equipment',
         quantity: item.quantity,
         tags: item.tags,
       },
@@ -152,25 +162,26 @@ export async function showcaseItem(
     };
   } catch (error) {
     console.error('[item-showcase] Error showcasing item:', error);
+    // 不將內部 error.message 回傳給玩家，避免洩漏實作細節
     return {
       success: false,
       error: 'SHOWCASE_FAILED',
-      message: `無法展示道具：${error instanceof Error ? error.message : '未知錯誤'}`,
+      message: '無法展示物品，請稍後再試',
     };
   }
 }
 
 /**
- * Phase 7.7: 記錄角色自行檢視道具
+ * Phase 7.7: 記錄角色自行檢視物品
  *
- * 玩家點開自己的道具詳情 Dialog 時呼叫（fire-and-forget，不阻塞 UI）。
+ * 玩家點開自己的物品詳情 Dialog 時呼叫（fire-and-forget，不阻塞 UI）。
  * 記錄 viewedItems 後觸發自動揭露評估。
  *
  * Phase 11: 使用 getCharacterData 自動判斷 Baseline/Runtime，
  * 確保遊戲進行中讀取和寫入 Runtime 資料。
  *
  * @param characterId - 檢視方角色 ID（Baseline ID）
- * @param itemId - 被檢視的道具 ID
+ * @param itemId - 被檢視的物品 ID
  */
 export async function recordItemView(
   characterId: string,
@@ -182,6 +193,15 @@ export async function recordItemView(
 }>> {
   try {
     await dbConnect();
+
+    // 驗證呼叫方確實擁有此角色（防止未授權記錄 viewedItems）
+    if (!(await validatePlayerAccess(characterId))) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '未授權操作此角色（請嘗試重新整理頁面並重新解鎖）',
+      };
+    }
 
     // 1. 驗證角色存在（自動判斷 Baseline/Runtime）
     let character;
@@ -195,14 +215,14 @@ export async function recordItemView(
       };
     }
 
-    // 2. 驗證道具存在（從 Runtime 道具清單中查找）
+    // 2. 驗證物品存在（從 Runtime 物品清單中查找）
     const items = character.items || [];
     const item = items.find((i: { id: string }) => i.id === itemId);
     if (!item) {
       return {
         success: false,
         error: 'NOT_FOUND',
-        message: '找不到此道具',
+        message: '找不到此物品',
       };
     }
 
@@ -255,7 +275,7 @@ export async function recordItemView(
     return {
       success: false,
       error: 'RECORD_FAILED',
-      message: `無法記錄道具檢視：${error instanceof Error ? error.message : '未知錯誤'}`,
+      message: '無法記錄物品檢視，請稍後再試',
     };
   }
 }

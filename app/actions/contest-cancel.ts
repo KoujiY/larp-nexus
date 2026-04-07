@@ -110,7 +110,7 @@ export async function cancelContestItemSelection(
         attackerValue: 1, // 必須不為 0，否則會被 mapSkillContest 忽略
         defenderValue: 0,
         result: 'attacker_wins',
-        effectsApplied: ['目標角色沒有道具可互動'], // 顯示提示訊息
+        effectsApplied: ['目標角色沒有物品可互動'], // 顯示提示訊息
         needsTargetItemSelection: false, // 明確標記不需要選擇目標道具
         sourceType: contestInfo.sourceType,
       };
@@ -158,7 +158,7 @@ export async function cancelContestItemSelection(
     return {
       success: false,
       error: 'CANCEL_FAILED',
-      message: `無法取消對抗檢定：${error instanceof Error ? error.message : '未知錯誤'}`,
+      message: '無法取消對抗檢定，請稍後再試',
     };
   }
 }
