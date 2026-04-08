@@ -15,11 +15,12 @@ import { ItemsEditForm } from '@/components/gm/items-edit-form';
 import { SkillsEditForm } from '@/components/gm/skills-edit-form';
 import { StickySaveBar } from '@/components/gm/sticky-save-bar';
 import { useCharacterEditState } from '@/hooks/use-character-edit-state';
-import { useCharacterWebSocket } from '@/hooks/use-websocket';
+import { useCharacterWebSocket, useRoleUpdated } from '@/hooks/use-websocket';
 import { cn } from '@/lib/utils';
 import type { CharacterData } from '@/types/character';
 import type { CharacterTabKey } from '@/types/gm-edit';
-import type { BaseEvent } from '@/types/event';
+import { toast } from 'sonner';
+import type { BaseEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
 
 /** Tab 設定：key → label + group */
 const TAB_CONFIG: {
@@ -87,21 +88,87 @@ export function CharacterEditTabs({
     registerDiscardHandler,
     saveAll,
     discardAll,
+    discardOne,
   } = useCharacterEditState();
 
-  // 監聽數值相關 WebSocket 事件，當 stats tab 未編輯時自動刷新
-  // 僅接收影響數值的事件，與控制台頁面策略對齊（避免道具轉移等非數值事件造成多餘 re-render）
-  // skill.used / item.used 不含 stats 資料，數值更新由伴隨的 role.updated 處理
-  // equipment.toggled：玩家端裝備/卸除後，stats 分頁的有效數值與 EquipmentEffectsPanel 需同步
-  const STAT_REFRESH_EVENTS = ['effect.expired', 'role.updated', 'character.affected', 'equipment.toggled'];
+  // 監聽數值相關 WebSocket 事件，當 stats / items tab 未編輯時自動刷新
+  //
+  // 此處刻意把 role.updated 拆出走 useRoleUpdated（顯式 includeSilentSync），
+  // 因為 silentSync 事件正是裝備切換 / 效果套用 / 效果過期的副作用同步來源，
+  // 而本元件就是用 props 通道（router.refresh）統一處理這類更新的單一入口。
+  //
+  // 其他事件（effect.expired / character.affected / equipment.toggled）走原本
+  // 的 useCharacterWebSocket，行為不變。
+  const refreshIfNotDirty = () => {
+    // stats / items 表單非 dirty 時靜默刷新；dirty 時不覆蓋 GM 正在編輯的值
+    if (!dirtyState.stats.isDirty && !dirtyState.items.isDirty) {
+      router.refresh();
+    }
+  };
+
+  useRoleUpdated(
+    character.id,
+    () => {
+      refreshIfNotDirty();
+    },
+    { includeSilentSync: true },
+  );
+
+  // 統一處理所有需要刷新角色編輯頁的 WebSocket 事件。
+  // 全部走 refreshIfNotDirty，避免外部事件覆蓋 GM 正在編輯的內容
+  // （否則 router.refresh → 新 initialItems → render-time setState 會 wipe 編輯）。
+  //
+  // 注意：item.transferred 與 skill.contest 來自其他角色的動作，但因 server 端
+  // 也對本角色頻道發送，故都會在這裡命中。
+  const REFRESH_EVENTS = [
+    'effect.expired',
+    'character.affected',
+    'equipment.toggled',
+    'role.inventoryUpdated',
+    'skill.used',
+  ];
   useCharacterWebSocket(character.id, (event: BaseEvent) => {
-    if (STAT_REFRESH_EVENTS.includes(event.type)) {
-      // stats / items 表單非 dirty 時靜默刷新；dirty 時不覆蓋 GM 正在編輯的值
-      // equipment.toggled 會同時影響 stats 顯示與 items.equipped 欄位，
-      // 故兩個 tab 都需檢查 dirty 狀態，避免 router.refresh 蓋掉正在編輯的內容
-      if (!dirtyState.stats.isDirty && !dirtyState.items.isDirty) {
-        router.refresh();
+    if (REFRESH_EVENTS.includes(event.type)) {
+      refreshIfNotDirty();
+      return;
+    }
+
+    if (event.type === 'item.transferred') {
+      const payload = (event as ItemTransferredEvent).payload;
+      const involved =
+        payload.fromCharacterId === character.id || payload.toCharacterId === character.id;
+      if (!involved) return;
+
+      // 玩家動作優先：若 GM 此時正在編輯物品 Tab，主動 discard 並 toast 告知，
+      // 因為 Runtime 期間 GM 儲存物品 = 整個 items 陣列覆寫，會把已轉走的物品
+      // 又寫回原角色（=兩端重複）。安全做法是讓玩家動作 trump GM 暫存。
+      if (dirtyState.items.isDirty) {
+        discardOne('items');
+        toast.warning('未儲存的物品變更已取消', {
+          description: '玩家剛剛轉移了物品，您未儲存的物品編輯已被自動捨棄以避免資料衝突。',
+        });
       }
+
+      // 不論是否 dirty，都要刷新（discardOne 後 items tab 已 clean，
+      // refreshIfNotDirty 會帶入最新 items 陣列）
+      refreshIfNotDirty();
+
+      toast.info('物品已轉移', {
+        description:
+          payload.fromCharacterId === character.id
+            ? `已將 ${payload.quantity} 個「${payload.itemName}」轉移給 ${payload.toCharacterName}`
+            : `從 ${payload.fromCharacterName} 收到 ${payload.quantity} 個「${payload.itemName}」`,
+      });
+      return;
+    }
+
+    if (event.type === 'skill.contest') {
+      const payload = (event as SkillContestEvent).payload;
+      if ((payload.attackerId === character.id || payload.defenderId === character.id) && payload.result) {
+        // 等待對抗結果完整寫入後再刷新
+        setTimeout(() => { refreshIfNotDirty(); }, 500);
+      }
+      return;
     }
   });
 

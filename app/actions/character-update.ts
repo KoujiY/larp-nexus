@@ -110,7 +110,13 @@ export async function updateCharacter(
       }
       throw e;
     }
-    const { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds, deletedImageUrls } = buildResult;
+    const {
+      updateData,
+      inventoryDiffs,
+      hasManualSecretReveal,
+      unrevealedViewedItemIds,
+      deletedImageUrls,
+    } = buildResult;
 
     // ── 5. Persist to Mongoose ───────────────────
     // 清除被重置為未揭露的 viewedItems
@@ -290,7 +296,9 @@ function buildUpdateData(
   // 讓過去被 bug 腐蝕的舊資料在下一次儲存時自動修復，而不是被驗證器永久擋下。
   if (data.items !== undefined) {
     const currentItems = (beforeState.items || []) as MongoItem[];
-    const result = updateCharacterItems(data.items, currentItems);
+    const submittedItems = data.items as unknown as MongoItem[];
+
+    const result = updateCharacterItems(submittedItems, currentItems);
     const validation = validateItems(result.items as unknown as Parameters<typeof validateItems>[0]);
     if (!validation.success) {
       throw new ValidationError(validation.error || "VALIDATION_ERROR", validation.message || "Items 驗證失敗");
@@ -325,7 +333,13 @@ function buildUpdateData(
     updateData.skills = normalizedSkills;
   }
 
-  return { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds, deletedImageUrls };
+  return {
+    updateData,
+    inventoryDiffs,
+    hasManualSecretReveal,
+    unrevealedViewedItemIds,
+    deletedImageUrls,
+  };
 }
 
 /** Validation error — 由 buildUpdateData 拋出，主函式 catch 後轉換為 API response */

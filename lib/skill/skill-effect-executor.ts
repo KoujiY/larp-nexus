@@ -249,10 +249,10 @@ export async function executeSkillEffects(
 
         // role.updated 帶 DB base stats（不含裝備加成），讓 GM Console 的顯示層
         // 自行透過 computeEffectiveStats 套用一次裝備加成，避免雙重計算
-        // _statsSync: 玩家端不產生通知（通知由 character.affected 處理）
+        // silentSync: 副作用同步事件 — 玩家通知由 character.affected 處理
         emitRoleUpdated(targetCharacterId!, {
           characterId: targetCharacterId!,
-          _statsSync: true,
+          silentSync: true,
           updates: {
             stats: targetBaseStats.map((s) => ({
               id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,
@@ -276,10 +276,10 @@ export async function executeSkillEffects(
       : JSON.parse(JSON.stringify(selfDoc));
     const selfBaseStats = (selfObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
 
-    // _statsSync: 玩家端不產生通知（自用通知由 Server Action toast 處理）
+    // silentSync: 副作用同步事件 — 自用通知由 Server Action toast 處理
     emitRoleUpdated(characterId, {
       characterId,
-      _statsSync: true,
+      silentSync: true,
       updates: {
         stats: selfBaseStats.map((s) => ({
           id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,

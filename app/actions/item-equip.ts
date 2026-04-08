@@ -148,10 +148,12 @@ export async function toggleEquipment(
     });
 
     // 推送 WebSocket：通知玩家端 items 與 stats 同步更新
-    // _statsSync: 玩家端不產生通知（裝備切換本身會產生 equipment.toggled 通知）
+    // silentSync: 此 role.updated 為副作用同步事件，玩家端不產生通知
+    // （裝備切換的玩家通知由 equipment.toggled 處理），GM 端 useRoleUpdated
+    // 預設過濾，避免重複 refresh / sticky bar
     await emitRoleUpdated(characterId, {
       characterId,
-      _statsSync: true,
+      silentSync: true,
       updates: {
         items: broadcastItems,
         stats: broadcastStats,

@@ -12,8 +12,6 @@ import { toast } from 'sonner';
 import { Package } from 'lucide-react';
 import type { Item, Stat } from '@/types/character';
 import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
-import type { BaseEvent, RoleUpdatedEvent, InventoryUpdatedEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
-import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { AbilityEditWizard } from './ability-edit-wizard';
 import { getItemEffects } from '@/lib/item/get-item-effects';
 
@@ -82,44 +80,17 @@ export function ItemsEditForm({ characterId, initialItems, stats, gameIsActive =
     [initialItemsMap, deletedIds],
   );
 
-  // WebSocket 同步
-  useCharacterWebSocket(characterId, (event: BaseEvent) => {
-    if (event.type === 'role.updated') {
-      const payload = (event as RoleUpdatedEvent).payload;
-      // _statsSync：純同步事件（裝備切換、技能/道具效果套用等），交給 character-edit-tabs
-      // 統一以 router.refresh() 走 props 通道更新；此處若 setItems 會與後續 RSC 回來的
-      // initialItems 因物件序列化差異不相等，造成 useFormGuard 把它判成 dirty 而炸出 sticky bar。
-      if (payload._statsSync) return;
-      if (payload.updates.items) {
-        setItems(payload.updates.items as unknown as Item[]);
-        toast.info('物品列表已更新', { description: '玩家端的變更已同步' });
-      }
-    } else if (event.type === 'role.inventoryUpdated') {
-      const payload = (event as InventoryUpdatedEvent).payload;
-      router.refresh();
-      toast.info('物品已更新', {
-        description: `物品「${payload.item.name}」${
-          payload.action === 'added' ? '已新增' : payload.action === 'updated' ? '已更新' : '已移除'
-        }`,
-      });
-    } else if (event.type === 'item.transferred') {
-      const payload = (event as ItemTransferredEvent).payload;
-      if (payload.fromCharacterId === characterId || payload.toCharacterId === characterId) {
-        router.refresh();
-        toast.info('物品已轉移', {
-          description:
-            payload.fromCharacterId === characterId
-              ? `已將 ${payload.quantity} 個「${payload.itemName}」轉移給 ${payload.toCharacterName}`
-              : `從 ${payload.fromCharacterName} 收到 ${payload.quantity} 個「${payload.itemName}」`,
-        });
-      }
-    } else if (event.type === 'skill.contest') {
-      const payload = (event as SkillContestEvent).payload;
-      if ((payload.attackerId === characterId || payload.defenderId === characterId) && payload.result) {
-        setTimeout(() => { router.refresh(); }, 500);
-      }
-    }
-  });
+  // role.updated 不在此處監聽：所有 role.updated 由 character-edit-tabs 統一
+  // 透過 useRoleUpdated 觸發 router.refresh()，新的 initialItems prop 會透過
+  // 上面的 `if (initialItems !== prevInitialItems)` reset 流入本地 state。
+  //
+  // 過去這裡曾經 setItems(payload.updates.items)，但 WS payload 與 RSC payload
+  // 序列化差異會讓 useFormGuard 把它判成 dirty → sticky bar 假冒未儲存變更
+  // （例：玩家轉移道具會觸發此 bug）。改用單一 prop refresh 路徑後，items state
+  // 永遠與 RSC 回來的版本一致，不會出現偽 dirty。
+
+  // 所有 WebSocket 事件由 character-edit-tabs 統一處理（含 dirty check），
+  // 此處不再訂閱 — 避免無條件 router.refresh 把 GM 編輯中的內容洗掉。
 
   const handleAddItem = useCallback(() => {
     const newItem: Item = {

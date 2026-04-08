@@ -282,10 +282,11 @@ async function processExpiredEffect(
       };
     });
 
-    // _statsSync: 玩家端不產生通知（通知由 effect.expired 處理）
+    // silentSync: 副作用同步事件 — 玩家通知由 effect.expired 處理，
+    // GM 端 useRoleUpdated 預設過濾此事件
     emitRoleUpdated(channelId, {
       characterId: channelId,
-      _statsSync: true,
+      silentSync: true,
       updates: {
         stats: patchedStats.map((s) => ({
           id: s.id as string,
@@ -299,7 +300,7 @@ async function processExpiredEffect(
     // Fallback: 不帶 stats，僅觸發頁面刷新
     emitRoleUpdated(channelId, {
       characterId: channelId,
-      _statsSync: true,
+      silentSync: true,
       updates: {},
     }).catch((error) => console.error('Failed to emit role.updated (effect expired)', error));
   }

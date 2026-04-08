@@ -128,6 +128,21 @@ export function useCharacterEditState() {
     }
   }, [dirtyTabKeys, saveHandlers]);
 
+  /**
+   * 單一 Tab 捨棄：只重置指定 Tab 的編輯內容與 dirty state。
+   *
+   * 使用情境：玩家在 Runtime 期間操作（例如轉移物品）打斷了 GM 正在編輯的
+   * 物品 Tab，此時不應 discardAll（會誤殺其他 Tab 的編輯），只 discard 物品。
+   */
+  const discardOne = useCallback(
+    (tabKey: CharacterTabKey) => {
+      const handler = discardHandlers.get(tabKey);
+      if (handler) handler();
+      setDirtyState((prev) => ({ ...prev, [tabKey]: EMPTY_DIRTY_INFO }));
+    },
+    [discardHandlers],
+  );
+
   /** 全部捨棄：呼叫所有 Tab 的 discard handler + 重置 dirty state */
   const discardAll = useCallback(() => {
     for (const [, handler] of discardHandlers) {
@@ -166,5 +181,6 @@ export function useCharacterEditState() {
     registerDiscardHandler,
     saveAll,
     discardAll,
+    discardOne,
   };
 }

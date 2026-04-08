@@ -7,8 +7,20 @@ export interface BaseEvent<T = unknown> {
 
 export interface RoleUpdatedEvent extends BaseEvent<{
   characterId: string;
-  /** GM Console 即時同步標記：為 true 時玩家端不產生通知（避免與專屬事件重複） */
-  _statsSync?: boolean;
+  /**
+   * 內部同步標記：為 true 時表示此事件為「副作用同步」而非「主動編輯」。
+   *
+   * 用途：裝備切換、技能/道具效果套用、時效性效果過期等場景，server 端會
+   * 在主事件（equipment.toggled / character.affected / effect.expired）之外
+   * 額外推送一個 role.updated 來同步 GM Console，但這個 role.updated **不應**：
+   *   1. 在玩家端產生通知（已由 mapRoleUpdated 過濾）
+   *   2. 在 GM 編輯頁觸發 sticky bar / 重複 refresh / 假冒「外部變更」toast
+   *      （由 useRoleUpdated hook 預設過濾，listener 顯式 opt-in 才會收到）
+   *
+   * 想接收 silentSync 事件的訂閱端必須使用 `useRoleUpdated(..., { includeSilentSync: true })`
+   * 或直接使用原生 Pusher 訂閱（如 runtime-console-ws-listener）。
+   */
+  silentSync?: boolean;
   updates: {
     name?: string;
     avatar?: string;

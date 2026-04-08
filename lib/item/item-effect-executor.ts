@@ -247,10 +247,10 @@ export async function executeItemEffects(
 
     // role.updated 帶 DB base stats，讓 GM Console 的顯示層自行套用裝備加成
     // 避免雙重計算（過去送 effective stats → overview 再算一次 → 裝備加成被加兩次）
-    // _statsSync: 玩家端不產生通知
+    // silentSync: 副作用同步事件 — 玩家通知由 character.affected 處理
     emitRoleUpdated(targetId, {
       characterId: targetId,
-      _statsSync: true,
+      silentSync: true,
       updates: {
         stats: targetBaseStats.map((s) => ({
           id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,

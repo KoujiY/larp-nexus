@@ -2,9 +2,24 @@
 
 import { useEffect, useRef } from 'react';
 import { getPusherClient } from '@/lib/websocket/pusher-client';
-import type { BaseEvent } from '@/types/event';
+import type { BaseEvent, RoleUpdatedEvent } from '@/types/event';
 
 type EventHandler = (event: BaseEvent) => void;
+type RoleUpdatedHandler = (
+  payload: RoleUpdatedEvent['payload'],
+  event: RoleUpdatedEvent,
+) => void;
+
+/**
+ * 判斷一個事件是否為「副作用同步」的 role.updated（payload.silentSync === true）。
+ *
+ * 內部用來做事件分流，亦可被外部訂閱端引用，避免硬編碼 `payload.silentSync` 字串。
+ */
+export function isSilentSyncRoleUpdate(event: BaseEvent): boolean {
+  if (event.type !== 'role.updated') return false;
+  const payload = event.payload as { silentSync?: boolean } | undefined;
+  return payload?.silentSync === true;
+}
 
 const CHARACTER_EVENT_TYPES = [
   'role.updated',
@@ -149,5 +164,71 @@ export function useGameWebSocket(gameId: string, onEvent?: EventHandler) {
       // 只有在所有組件都取消訂閱時，Pusher 才會自動取消訂閱
     };
   }, [gameId]);
+}
+
+/**
+ * 訂閱 `role.updated` 事件（GM 端專用）。
+ *
+ * 預設過濾 `payload.silentSync === true` 的事件，因為這類事件代表「server 端
+ * 為了同步 GM Console 而額外推送的副作用事件」，不應在 GM 編輯頁觸發 sticky bar /
+ * 重複 refresh / 假冒「外部變更」toast。
+ *
+ * 想接收 silentSync 事件的呼叫端必須顯式設定 `{ includeSilentSync: true }`。
+ *
+ * 與 `useCharacterWebSocket` 共用底層 Pusher channel（多個 hook 訂閱同一個 channel
+ * 不會重複建立連線），因此可以與其他事件 listener 同時存在。
+ *
+ * @param characterId - Baseline Character ID
+ * @param onRoleUpdated - 收到 role.updated 事件時的回呼（已型別收斂）
+ * @param options - `includeSilentSync` 預設為 false
+ *
+ * @example
+ * ```tsx
+ * useRoleUpdated(characterId, (payload) => {
+ *   if (payload.updates.items) router.refresh();
+ * });
+ * ```
+ */
+export function useRoleUpdated(
+  characterId: string,
+  onRoleUpdated: RoleUpdatedHandler,
+  options?: { includeSilentSync?: boolean },
+) {
+  const handlerRef = useRef<RoleUpdatedHandler>(onRoleUpdated);
+  const includeSilentSync = options?.includeSilentSync === true;
+
+  useEffect(() => {
+    handlerRef.current = onRoleUpdated;
+  }, [onRoleUpdated]);
+
+  useEffect(() => {
+    if (!characterId) return;
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    const channelName = `private-character-${characterId}`;
+    const channel = pusher.subscribe(channelName);
+
+    const handle = (data: BaseEvent) => {
+      if (data.type !== 'role.updated') return;
+      const event = data as RoleUpdatedEvent;
+      if (!includeSilentSync && event.payload?.silentSync === true) return;
+      try {
+        handlerRef.current(event.payload, event);
+      } catch (error) {
+        console.error('[useRoleUpdated] 處理器執行出錯', {
+          characterId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    channel.bind('role.updated', handle);
+
+    return () => {
+      channel.unbind('role.updated', handle);
+      // 不 unsubscribe — 其他 hook 可能還在使用同一個 channel
+    };
+  }, [characterId, includeSilentSync]);
 }
 

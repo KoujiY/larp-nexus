@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { getPusherClient } from '@/lib/websocket/pusher-client';
-import type { Stat, Item } from '@/types/character';
+import { buildEquipmentBoostDeltas } from '@/lib/item/apply-equipment-boosts';
+import type { Stat, StatBoost, Item } from '@/types/character';
 import type {
   BaseEvent,
   RoleUpdatedEvent,
@@ -158,6 +159,28 @@ export function RuntimeConsoleWsListener({
               : item,
           );
           itemsCallbackRef.current(characterId, updatedItems);
+
+          // 同步 stats：依 statBoosts 與新的 equipped 旗標計算 delta，
+          // 直接更新本地 statsOverride。不依賴平行的 role.updated 事件抵達順序，
+          // 自洽（self-sufficient）地反映 v2 materialize 後的 base stats。
+          const existingStats = statsMapRef.current.get(characterId) ?? [];
+          if (existingStats.length > 0 && eqPayload.statBoosts && eqPayload.statBoosts.length > 0) {
+            const deltas = buildEquipmentBoostDeltas(
+              existingStats,
+              eqPayload.statBoosts as StatBoost[],
+              eqPayload.equipped ? 'apply' : 'revert',
+            );
+            if (deltas.length > 0) {
+              const deltaById = new Map(deltas.map((d) => [d.statId, d]));
+              const updatedStats = existingStats.map((s) => {
+                const d = deltaById.get(s.id);
+                if (!d) return s;
+                return { ...s, value: d.expectedValue, maxValue: d.expectedMaxValue };
+              });
+              callbackRef.current(characterId, updatedStats);
+            }
+          }
+
           logRefreshRef.current?.();
           break;
         }
