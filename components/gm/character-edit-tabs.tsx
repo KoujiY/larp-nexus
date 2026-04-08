@@ -106,29 +106,58 @@ export function CharacterEditTabs({
     }
   };
 
+  /**
+   * 玩家動作優先（stats 範圍）：
+   * 當外部事件會造成數值顯示變化（裝備切換 / 效果套用 / 效果過期 / 技能使用 /
+   * role.updated silentSync）而 GM 正在編輯 stats tab 時，主動 discard stats 編輯
+   * 並 toast 告知，再刷新頁面帶入最新資料。
+   *
+   * 此做法與 item.transferred 的「玩家動作 trump GM 暫存」策略一致。
+   * 範圍暫時只涵蓋 stats；items tab 仍維持守門原則（dirty 時不覆蓋），
+   * 其他 tab（secrets / tasks / skills）影響較低，未來視需求再擴充。
+   */
+  const discardStatsAndRefresh = () => {
+    if (dirtyState.stats.isDirty) {
+      discardOne('stats');
+      toast.warning('未儲存的數值變更已取消', {
+        description: '玩家的動作造成了角色數值變化，您未儲存的數值編輯已被自動捨棄以避免資料衝突。',
+      });
+    }
+    // 仍以 items 為守門（stats 已主動處理）：避免 router.refresh 覆蓋 items 編輯
+    if (!dirtyState.items.isDirty) {
+      router.refresh();
+    }
+  };
+
   useRoleUpdated(
     character.id,
     () => {
-      refreshIfNotDirty();
+      // silentSync 是各類副作用（裝備 / 效果 / 過期）的彙整入口，一律走 stats 優先路徑
+      discardStatsAndRefresh();
     },
     { includeSilentSync: true },
   );
 
   // 統一處理所有需要刷新角色編輯頁的 WebSocket 事件。
-  // 全部走 refreshIfNotDirty，避免外部事件覆蓋 GM 正在編輯的內容
-  // （否則 router.refresh → 新 initialItems → render-time setState 會 wipe 編輯）。
+  // 分類：
+  // - STATS_AFFECTING_EVENTS：會造成數值顯示變化 → 走 discardStatsAndRefresh（stats 優先）
+  // - ITEMS_ONLY_EVENTS：僅影響 items（不動到 stats）→ 走 refreshIfNotDirty（維持原守門）
   //
   // 注意：item.transferred 與 skill.contest 來自其他角色的動作，但因 server 端
   // 也對本角色頻道發送，故都會在這裡命中。
-  const REFRESH_EVENTS = [
+  const STATS_AFFECTING_EVENTS = [
     'effect.expired',
     'character.affected',
     'equipment.toggled',
-    'role.inventoryUpdated',
     'skill.used',
   ];
+  const ITEMS_ONLY_EVENTS = ['role.inventoryUpdated'];
   useCharacterWebSocket(character.id, (event: BaseEvent) => {
-    if (REFRESH_EVENTS.includes(event.type)) {
+    if (STATS_AFFECTING_EVENTS.includes(event.type)) {
+      discardStatsAndRefresh();
+      return;
+    }
+    if (ITEMS_ONLY_EVENTS.includes(event.type)) {
       refreshIfNotDirty();
       return;
     }
