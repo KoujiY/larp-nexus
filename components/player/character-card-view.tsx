@@ -33,7 +33,6 @@ import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, ShieldCheck } f
 
 interface CharacterCardViewProps {
   character: CharacterData;
-  isReadOnly?: boolean; // Phase 10.5.4: 預覽模式標記
 }
 
 /** 分頁配置（供 sticky nav 和 mobile bottom nav 共用） */
@@ -80,7 +79,7 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
   return { isUnlocked, hasFullAccess };
 }
 
-export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = false }: CharacterCardViewProps) {
+export function CharacterCardView({ character }: CharacterCardViewProps) {
   const router = useRouter();
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
   const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id, character.hasPinLock);
@@ -89,7 +88,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   // PIN-only 解鎖不會設 fullAccess → storageFullAccess=false → 唯讀
   // Game Code + PIN 解鎖設 fullAccess=true → storageFullAccess=true → 完整互動
   // 這樣即使頁面重新載入，唯讀狀態也不會遺失
-  const isReadOnly = isReadOnlyProp || !storageFullAccess;
+  const isReadOnly = !storageFullAccess;
 
   // Phase 10: 唯讀模式使用 Baseline 資料（顯示未被 Runtime 修改的原始值）
   // full-access 模式使用 Runtime 資料（遊戲進行中的即時值）

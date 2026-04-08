@@ -7,18 +7,12 @@ import { XCircle } from 'lucide-react';
 
 interface CharacterPageProps {
   params: Promise<{ characterId: string }>;
-  searchParams: Promise<{ readonly?: string }>;
 }
 
 export default async function CharacterPage({
   params,
-  searchParams,
 }: CharacterPageProps) {
   const { characterId } = await params;
-  const { readonly } = await searchParams;
-
-  // Phase 10: ?readonly=true 由 PIN-only 解鎖後使用
-  const isReadOnly = readonly === 'true';
 
   const result = await getPublicCharacter(characterId);
 
@@ -48,7 +42,7 @@ export default async function CharacterPage({
 
   return (
     <div className="min-h-screen bg-background">
-      <CharacterCardView character={character} isReadOnly={isReadOnly} />
+      <CharacterCardView character={character} />
     </div>
   );
 }
