@@ -279,15 +279,16 @@ Server Action 不做壓縮，只驗證：檔案類型 `image/*`、大小上限 2
 
 **保留作為未來監測點**：若日後再出現偶發清除，第一個懷疑方向應為「`useFormGuard` 寫入 dirty state 與 `useCharacterWebSocket` handler 觸發的時序競爭」，可考慮 `flushSync` 或 sequence number；但目前不主動修。
 
-**設計哲學一致性**：Bug A（穩定可重現）才是 §3.5-followup-1 的真正目標 — display widget 自治化能徹底消除此類張力。
+**設計哲學一致性**：Bug A（穩定可重現）是 §3.5-followup-1 的處理對象 — 最終採「stats 範圍 discardOne」策略，讓玩家動作 trump GM 暫存，並在卡片上加「裝備中」badge 降低 drop 後的認知成本。
 
 ### 後續追蹤項目（搬到下一階段）
 
 | 編號 | 名稱 | 來源 | 預期動作 |
 |---|---|---|---|
-| **§3.5-followup-1** | Display widget 自治化 | Bug A（穩定 bug） | StatsEditForm / EquipmentEffectsPanel 訂閱 WS + delta patch，仿 runtime-console-ws-listener 模式 |
+| **§3.5-followup-1** | Stats 玩家動作優先 | Bug A（穩定 bug） | ✅ 已於 2026-04-08 完成。改採「stats 範圍 discardOne」策略：character-edit-tabs 對 stats-affecting 事件（equipment.toggled / character.affected / effect.expired / skill.used / role.updated silentSync）主動 discardOne('stats') + toast 告知，玩家動作 trump GM 暫存；items 維持守門（dirty 時不覆蓋）。同步在 AbilityCard 加「裝備中」badge，避免 drop 後 GM 困惑。**範圍限定 stats**，secrets / tasks / skills 影響較低，未來再擴充。 |
 | **§3.5-followup-2** | Bug B race monitor | Bug B（鬼影） | 保留作為 dirty + WS race 的監測點；若再出現偶發清除，從 `useFormGuard` 與 `useCharacterWebSocket` 的時序競爭著手 |
 | **§3.5-followup-3** | 撤掉 [DIAG-§3.5] 插樁 | 診斷收尾 | ✅ 已於 2026-04-08 完成，所有 console.log 已清除 |
+| **§3.5-followup-4** | Display widget 自治化（原 followup-1 備案） | 架構升級 | StatsEditForm / EquipmentEffectsPanel 訂閱 WS + delta patch，仿 runtime-console-ws-listener 模式。當前 discardOne 策略已解決 Bug A，此方案保留作為未來若要消除「drop 掉 GM 編輯」的 UX 摩擦時的升級路徑。 |
 
 ---
 
