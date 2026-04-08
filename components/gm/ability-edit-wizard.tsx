@@ -176,9 +176,11 @@ export function AbilityEditWizard({
     : (skillData.effects || []);
 
   const handleAddEffect = () => {
+    // §4: 新增效果永遠預設 'self' — 'self' 是唯一永遠合法的值（不會觸發對抗限制
+    // 或 other/any 互斥規則），避免預設值本身就造成衝突
     const newEffect: ItemEffect | SkillEffect = isItemMode
       ? { type: 'stat_change', targetType: 'self', requiresTarget: false, statChangeTarget: 'value' }
-      : { type: 'stat_change', ...(isContestType ? { targetType: 'other' as const, requiresTarget: true } : {}) };
+      : { type: 'stat_change', targetType: 'self', requiresTarget: false };
     const updatedEffects = [...effects, newEffect];
     updateData({ effects: updatedEffects as ItemEffect[] & SkillEffect[] });
     setSelectedEffectIndex(updatedEffects.length - 1);
@@ -223,12 +225,16 @@ export function AbilityEditWizard({
     }
 
     // Skill mode: 切換到對抗時，同步效果 targetType
+    // §4: 只把 'any' 降級為 'other'（因為對抗模式禁用 'any'）；保留原本的 self / other
     if (!isItemMode && (value === 'contest' || value === 'random_contest')) {
       const currentEffects = skillData.effects || [];
       if (currentEffects.length > 0) {
-        const updatedEffects: SkillEffect[] = currentEffects.map((e) => ({
-          ...e, targetType: 'other' as const, requiresTarget: true,
-        }));
+        const updatedEffects: SkillEffect[] = currentEffects.map((e) => {
+          if (e.targetType === 'any') {
+            return { ...e, targetType: 'other' as const, requiresTarget: true };
+          }
+          return e;
+        });
         setData((prev) => ({ ...prev, checkType: value, effects: updatedEffects } as Skill));
       }
     }
@@ -240,11 +246,18 @@ export function AbilityEditWizard({
     const effect = effects[selectedEffectIndex];
     if (!effect) return;
 
+    // §4: item_take/item_steal 邏輯上必須作用於其他角色（不能對自己 steal），
+    // 預設 'other'；但若別的效果已選 'any' → 改用 'any' 以避免觸發互斥規則
+    const hasAnyElsewhere = effects.some(
+      (e, i) => i !== selectedEffectIndex && e.targetType === 'any',
+    );
+    const itemActionTargetType: 'other' | 'any' = hasAnyElsewhere ? 'any' : 'other';
+
     let updated: ItemEffect | SkillEffect;
     if (value === 'stat_change') {
-      updated = { ...effect, type: 'stat_change', targetType: effect.targetType || 'self', requiresTarget: effect.targetType !== 'self', statChangeTarget: effect.statChangeTarget || 'value' };
+      updated = { ...effect, type: 'stat_change', targetType: effect.targetType || 'self', requiresTarget: effect.targetType !== 'self' && effect.targetType !== undefined, statChangeTarget: effect.statChangeTarget || 'value' };
     } else if (value === 'item_take' || value === 'item_steal') {
-      updated = { ...effect, type: value, targetType: 'other', requiresTarget: true };
+      updated = { ...effect, type: value, targetType: itemActionTargetType, requiresTarget: true };
     } else if (value === 'custom') {
       updated = { ...effect, type: 'custom', description: effect.description };
     } else if (value === 'task_reveal' || value === 'task_complete') {
@@ -862,6 +875,7 @@ export function AbilityEditWizard({
             <WizardEffectPanel
               effect={selectedEffect}
               index={selectedEffectIndex}
+              allEffects={effects}
               stats={stats}
               availableTypes={availableTypes}
               isContestType={isContestType}
@@ -986,10 +1000,12 @@ function ItemTypeCard({
 
 /** Step 4 右側面板：效果編輯器（Wizard 專用樣式，取代 EffectEditor 元件） */
 function WizardEffectPanel({
-  effect, index, stats, availableTypes, isContestType, onTypeChange, onUpdate, onDelete,
+  effect, index, allEffects, stats, availableTypes, isContestType, onTypeChange, onUpdate, onDelete,
 }: {
   effect: ItemEffect | SkillEffect;
   index: number;
+  /** 全體效果陣列，用於計算 other/any 互斥規則 */
+  allEffects: Array<ItemEffect | SkillEffect>;
   stats: Stat[];
   availableTypes: string[];
   isContestType: boolean;
@@ -998,13 +1014,17 @@ function WizardEffectPanel({
   onDelete: () => void;
 }) {
   const targetType: 'self' | 'other' | 'any' = effect.targetType || 'self';
-  const restrictedTargetType = isContestType ? 'other' : targetType;
   const targetStatData = effect.targetStat ? stats.find((s) => s.name === effect.targetStat) : null;
   const hasMaxValue = targetStatData?.maxValue !== undefined && targetStatData.maxValue !== null;
   const statChangeTarget = effect.statChangeTarget || 'value';
 
   const PI = 'bg-muted/50 border-none shadow-none rounded-lg px-4 h-11 font-bold focus-visible:ring-2 focus-visible:ring-primary';
   const PS = cn(SELECT_CLASS, 'bg-muted/50');
+
+  // §4: 互斥規則偵測 — 排除當前正在編輯的 effect，掃描其他 effects 是否已選 other/any
+  const hasOtherElsewhere = allEffects.some((e, i) => i !== index && e.targetType === 'other');
+  const hasAnyElsewhere = allEffects.some((e, i) => i !== index && e.targetType === 'any');
+  const hasConflict = hasOtherElsewhere || hasAnyElsewhere;
 
   /** 目標範圍分段控制 */
   const targetScopeControl = (
@@ -1013,12 +1033,21 @@ function WizardEffectPanel({
       <div className="flex p-1 bg-muted rounded-xl w-fit">
         {(['self', 'other', 'any'] as const).map((scope) => {
           const label = scope === 'self' ? '自己' : scope === 'other' ? '對方' : '任意';
-          const isSelected = restrictedTargetType === scope;
-          const isDisabled = isContestType && scope !== 'other';
+          // 規則 1：對抗模式下「任意」不可用（對抗對象已由 contest 機制鎖定）
+          const disabledByContest = isContestType && scope === 'any';
+          // 規則 2：other / any 互斥 — 玩家端下拉選單無法同時表達兩種候選清單
+          const disabledByConflict =
+            (scope === 'other' && hasAnyElsewhere) ||
+            (scope === 'any' && hasOtherElsewhere);
+          const isDisabled = disabledByContest || disabledByConflict;
+          const isSelected = targetType === scope;
           return (
             <button
               key={scope} type="button" disabled={isDisabled}
-              onClick={() => { if (!isContestType) onUpdate({ targetType: scope, requiresTarget: scope !== 'self' }); }}
+              onClick={() => {
+                if (isDisabled) return;
+                onUpdate({ targetType: scope, requiresTarget: scope !== 'self' });
+              }}
               className={cn(
                 'px-6 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer',
                 isSelected ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
@@ -1030,7 +1059,12 @@ function WizardEffectPanel({
           );
         })}
       </div>
-      {isContestType && <p className="text-xs text-muted-foreground">對抗檢定類型只能選擇「對方」作為目標</p>}
+      {isContestType && (
+        <p className="text-xs text-muted-foreground">對抗檢定類型只能選擇「自己」或「對方」作為目標</p>
+      )}
+      {hasConflict && (
+        <p className="text-xs text-destructive">「對方」與「任意」不可並存於同一張卡片的效果中</p>
+      )}
     </div>
   );
 

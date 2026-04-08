@@ -92,24 +92,55 @@ export async function executeContestEffects(
     ? (actualSource as SkillType).effects || []
     : getItemEffects(actualSource as ItemType);
 
-  // 效果作用對象：攻擊方獲勝 → 效果作用於防守方；防守方獲勝 → 作用於攻擊方
-  const effectTarget: CharacterDocument = contestResult === 'defender_wins' ? attacker : defender;
-  const effectTargetBaselineId = getBaselineCharacterId(effectTarget);
+  // §4 per-effect 分派：
+  //   sourceOwner = actualSource 的擁有者（attacker_wins → attacker；defender_wins → defender）
+  //     這是從「效果設計者」視角看的「自己」
+  //   opponent = sourceOwner 的對手
+  //     targetType === 'other' | 'any' | undefined 都套用到 opponent
+  //   targetType === 'self' → sourceOwner；item_take/item_steal Wizard 已擋 self 選項
+  const sourceOwner: CharacterDocument = contestResult === 'defender_wins' ? defender : attacker;
+  const opponent: CharacterDocument = contestResult === 'defender_wins' ? attacker : defender;
+  const sourceOwnerIdStr = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
+  const opponentIdStr = contestResult === 'defender_wins' ? attackerIdStr : defenderIdStr;
 
-  const targetStats = effectTarget.stats || [];
-  const targetTasks = effectTarget.tasks || [];
-  const targetStatUpdates: Record<string, unknown> = {};
-  const statUpdates: Array<{
-    id: string; name: string; value: number; maxValue?: number;
-    deltaValue?: number; deltaMax?: number;
-  }> = [];
-  const crossCharacterChanges: Array<{
-    name: string; deltaValue?: number; deltaMax?: number;
-    newValue: number; newMax?: number;
-  }> = [];
+  /** 單一目標的累積 bucket */
+  interface TargetBucket {
+    character: CharacterDocument;
+    idStr: string;
+    isOpponent: boolean;
+    statSet: Record<string, unknown>;
+    statUpdates: Array<{
+      id: string; name: string; value: number; maxValue?: number;
+      deltaValue?: number; deltaMax?: number;
+    }>;
+    crossCharacterChanges: Array<{
+      name: string; deltaValue?: number; deltaMax?: number;
+      newValue: number; newMax?: number;
+    }>;
+  }
+  const buckets = new Map<string, TargetBucket>();
+  const initBucket = (character: CharacterDocument, isOpponent: boolean): TargetBucket => {
+    const idStr = getBaselineCharacterId(character);
+    let bucket = buckets.get(idStr);
+    if (!bucket) {
+      bucket = { character, idStr, isOpponent, statSet: {}, statUpdates: [], crossCharacterChanges: [] };
+      buckets.set(idStr, bucket);
+    }
+    return bucket;
+  };
+  const resolveEffectTarget = (targetType: Effect['targetType']): { character: CharacterDocument; isOpponent: boolean } => {
+    if (targetType === 'self') {
+      return { character: sourceOwner, isOpponent: false };
+    }
+    // 'other' / 'any' / undefined（向下相容）都套用到對手
+    return { character: opponent, isOpponent: true };
+  };
 
   for (const effect of effects) {
     if (effect.type === 'stat_change' && effect.targetStat && effect.value !== undefined) {
+      const { character: effectTarget, isOpponent } = resolveEffectTarget(effect.targetType);
+      const bucket = initBucket(effectTarget, isOpponent);
+      const targetStats = effectTarget.stats || [];
       const statIndex = targetStats.findIndex((s) => s.name === effect.targetStat);
       if (statIndex === -1) continue;
 
@@ -120,13 +151,13 @@ export async function executeContestEffects(
         effect.syncValue ?? false
       );
 
-      targetStatUpdates[`stats.${statIndex}.value`] = result.newValue;
+      bucket.statSet[`stats.${statIndex}.value`] = result.newValue;
       if (result.effectiveTarget === 'maxValue' && result.newMaxValue !== undefined) {
-        targetStatUpdates[`stats.${statIndex}.maxValue`] = result.newMaxValue;
+        bucket.statSet[`stats.${statIndex}.maxValue`] = result.newMaxValue;
       }
       effectsApplied.push(result.message);
 
-      statUpdates.push({
+      bucket.statUpdates.push({
         id: targetStats[statIndex].id,
         name: targetStats[statIndex].name,
         value: result.newValue,
@@ -135,12 +166,9 @@ export async function executeContestEffects(
         deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
       });
 
-      // Phase 7.6: 判斷是否影響他人
-      const isAffectingOthers = contestResult === 'defender_wins'
-        ? effectTargetBaselineId !== defenderIdStr
-        : effectTargetBaselineId !== attackerIdStr;
-      if (isAffectingOthers) {
-        crossCharacterChanges.push({
+      // §4: 僅當 target 為對手時才推送 cross-character 通知（self 效果不需要）
+      if (isOpponent) {
+        bucket.crossCharacterChanges.push({
           name: targetStats[statIndex].name,
           deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
           deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
@@ -149,16 +177,15 @@ export async function executeContestEffects(
         });
       }
 
-      // Phase 8: 時效性效果
+      // Phase 8: 時效性效果 — source 永遠是 sourceOwner，target 依 effect 決定
       if (effect.duration && effect.duration > 0) {
-        const sourceCharacter = contestResult === 'defender_wins' ? defender : attacker;
         await createTemporaryEffectRecord(
-          effectTargetBaselineId,
+          bucket.idStr,
           {
             sourceType: actualSourceType,
             sourceId: actualSource.id,
-            sourceCharacterId: getBaselineCharacterId(sourceCharacter),
-            sourceCharacterName: sourceCharacter.name,
+            sourceCharacterId: sourceOwnerIdStr,
+            sourceCharacterName: sourceOwner.name,
             sourceName: actualSource.name,
           },
           {
@@ -172,47 +199,51 @@ export async function executeContestEffects(
         );
       }
     } else if (effect.type === 'task_reveal' && effect.targetTaskId) {
+      const { character: effectTarget, isOpponent } = resolveEffectTarget(effect.targetType);
+      const bucket = initBucket(effectTarget, isOpponent);
+      const targetTasks = effectTarget.tasks || [];
       const taskIndex = targetTasks.findIndex((t) => t.id === effect.targetTaskId);
       if (taskIndex !== -1 && !targetTasks[taskIndex].isRevealed) {
-        targetStatUpdates[`tasks.${taskIndex}.isRevealed`] = true;
-        targetStatUpdates[`tasks.${taskIndex}.revealedAt`] = now;
+        bucket.statSet[`tasks.${taskIndex}.isRevealed`] = true;
+        bucket.statSet[`tasks.${taskIndex}.revealedAt`] = now;
         effectsApplied.push(`揭露任務：${targetTasks[taskIndex].title}`);
       }
     } else if (effect.type === 'task_complete' && effect.targetTaskId) {
+      const { character: effectTarget, isOpponent } = resolveEffectTarget(effect.targetType);
+      const bucket = initBucket(effectTarget, isOpponent);
+      const targetTasks = effectTarget.tasks || [];
       const taskIndex = targetTasks.findIndex((t) => t.id === effect.targetTaskId);
       if (taskIndex !== -1 && targetTasks[taskIndex].status !== 'completed') {
-        targetStatUpdates[`tasks.${taskIndex}.status`] = 'completed';
-        targetStatUpdates[`tasks.${taskIndex}.completedAt`] = now;
+        bucket.statSet[`tasks.${taskIndex}.status`] = 'completed';
+        bucket.statSet[`tasks.${taskIndex}.completedAt`] = now;
         effectsApplied.push(`完成任務：${targetTasks[taskIndex].title}`);
       }
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
+      // §4: item_take/item_steal 的語意固定是「從對手拿 → 給自己」，
+      // Wizard 已擋 targetType: 'self'，這裡忽略 targetType 直接走 opponent → sourceOwner
       if (!targetItemId) {
         effectsApplied.push('放棄道具獲取');
         continue;
       }
 
-      const targetItems = effectTarget.items || [];
-      const targetItem = targetItems.find((i) => i.id === targetItemId);
+      const opponentItems = opponent.items || [];
+      const targetItem = opponentItems.find((i) => i.id === targetItemId);
       if (!targetItem) {
         console.error('[contest-effect-executor] 目標角色沒有此道具:', targetItemId);
         continue;
       }
 
-      // 獲勝方為來源（source），效果作用對象為目標（target）
-      const sourceIdStr = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
-      const sourceCharacter = contestResult === 'defender_wins' ? defender : attacker;
-
       const sourceTags = actualSource.tags || [];
       const hasStealthTag = sourceTags.includes('stealth');
 
       const transferResult = await applyItemTransfer({
-        targetIdStr: effectTargetBaselineId,
-        sourceIdStr,
+        targetIdStr: opponentIdStr,
+        sourceIdStr: sourceOwnerIdStr,
         targetItem,
         effectType: effect.type,
         notification: {
-          sourceCharacterId: sourceIdStr,
-          sourceCharacterName: sourceCharacter.name,
+          sourceCharacterId: sourceOwnerIdStr,
+          sourceCharacterName: sourceOwner.name,
           sourceType: actualSourceType,
           sourceName: '', // contest executor 不顯示技能/道具名稱（隱私保護）
           hasStealthTag,
@@ -228,28 +259,32 @@ export async function executeContestEffects(
     }
   }
 
-  // 應用統計變化
-  if (Object.keys(targetStatUpdates).length > 0) {
-    await updateCharacterData(effectTargetBaselineId, {
-      $set: targetStatUpdates,
-    });
+  // §4: 對每個 bucket 獨立應用更新，並為對手 target 發送 character-affected 通知
+  const statUpdates: Array<{
+    id: string; name: string; value: number; maxValue?: number;
+    deltaValue?: number; deltaMax?: number;
+  }> = [];
+  for (const bucket of buckets.values()) {
+    statUpdates.push(...bucket.statUpdates);
 
-    if (crossCharacterChanges.length > 0) {
-      const sourceId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
-      const sourceName = contestResult === 'defender_wins' ? defender.name : attacker.name;
+    if (Object.keys(bucket.statSet).length === 0) continue;
+
+    await updateCharacterData(bucket.idStr, { $set: bucket.statSet });
+
+    if (bucket.crossCharacterChanges.length > 0) {
       const sourceTags = actualSource.tags || [];
       const hasStealthTag = sourceTags.includes('stealth');
 
-      emitCharacterAffected(effectTargetBaselineId, {
-        targetCharacterId: effectTargetBaselineId,
-        sourceCharacterId: sourceId,
-        sourceCharacterName: hasStealthTag ? '' : sourceName,
+      emitCharacterAffected(bucket.idStr, {
+        targetCharacterId: bucket.idStr,
+        sourceCharacterId: sourceOwnerIdStr,
+        sourceCharacterName: hasStealthTag ? '' : sourceOwner.name,
         sourceType: actualSourceType,
         sourceName: '', // 不顯示技能/道具名稱
         sourceHasStealthTag: hasStealthTag,
         effectType: 'stat_change',
         changes: {
-          stats: crossCharacterChanges.map((c) => ({
+          stats: bucket.crossCharacterChanges.map((c) => ({
             name: c.name, deltaValue: c.deltaValue,
             deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
           })),

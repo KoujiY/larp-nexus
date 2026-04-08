@@ -74,9 +74,18 @@ export async function useSkill(
     }
 
     // Phase 6.5: 驗證目標角色（如果需要）
+    // §4: 由 effects 陣列整體推導 targetType（Wizard mutex 規則保證 other / any 不並存）
+    //   - 有任一效果 targetType = 'other' 或 'any' → 需要選擇目標角色
+    //   - 只有 self 效果 → 不需要目標角色（玩家端仍可能傳入但不應強制）
+    //   - 對抗檢定類型 → 固定需要對手作為目標
     let targetCharacter = null;
-    const requiresTarget = skill.effects?.some((effect) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
-    const hasItemTakeOrSteal = skill.effects?.some((e) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
+    const skillEffects = skill.effects || [];
+    const hasOtherEffect = skillEffects.some((e) => 'targetType' in e && e.targetType === 'other');
+    const hasAnyEffect = skillEffects.some((e) => 'targetType' in e && e.targetType === 'any');
+    const hasNonSelfEffect = hasOtherEffect || hasAnyEffect;
+    const isContestCheck = skill.checkType === 'contest' || skill.checkType === 'random_contest';
+    const requiresTarget = hasNonSelfEffect || isContestCheck;
+    const hasItemTakeOrSteal = skillEffects.some((e) => e.type === 'item_take' || e.type === 'item_steal');
 
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -108,21 +117,12 @@ export async function useSkill(
         };
       }
 
-      // 驗證目標類型匹配
-      const effectWithTarget = skill.effects?.find((e) => e.requiresTarget);
-      const targetType = effectWithTarget && 'targetType' in effectWithTarget
-        ? (effectWithTarget.targetType as string)
-        : undefined;
-
-      if (targetType === 'self' && targetCharacterId !== characterId) {
-        return {
-          success: false,
-          error: 'INVALID_TARGET',
-          message: '此技能只能對自己使用',
-        };
-      }
-
-      if (targetType === 'other' && targetCharacterId === characterId) {
+      // §4: 目標類型驗證（mutex 規則下只需檢查 other / contest 的非自身限制）
+      //   - hasOtherEffect: 至少一個效果明確指定「對方」→ 不得對自己使用
+      //   - isContestCheck: 對抗檢定本質上需要對手 → 不得對自己發起
+      //   - hasAnyEffect（單獨存在）: 允許自選，不做限制
+      //   - 純 self 效果: 不會進入此分支
+      if ((hasOtherEffect || isContestCheck) && targetCharacterId === characterId) {
         return {
           success: false,
           error: 'INVALID_TARGET',

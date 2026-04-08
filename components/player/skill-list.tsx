@@ -35,16 +35,22 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   const { dialogState, clearDialogState, isDialogForSource } = useContestDialogState(characterId);
   
   // Phase 3.2: 使用 useTargetSelection Hook 管理目標選擇
-  // Phase 6.5: 目標選擇相關邏輯
-  // Phase 7: 對抗檢定類型自動需要目標角色
-  const requiresTarget = Boolean(
-    selectedSkill?.checkType === 'contest' ||
-    selectedSkill?.checkType === 'random_contest' ||
-    selectedSkill?.effects?.some((effect: SkillEffect) => effect.requiresTarget)
-  );
-  const targetType = (selectedSkill?.checkType === 'contest' || selectedSkill?.checkType === 'random_contest')
-    ? 'other' // 對抗檢定只能對其他角色使用
-    : selectedSkill?.effects?.find((e: SkillEffect) => e.requiresTarget)?.targetType;
+  // §4: 由 effects 陣列整體推導 targetType（Wizard mutex 規則保證 other / any 不並存）
+  //   - 對抗檢定 → 固定 'other'
+  //   - 任一效果 other → 'other'
+  //   - 任一效果 any → 'any'
+  //   - 只有 self 效果 → 不需要目標（requiresTarget = false）
+  const isContestCheck = selectedSkill?.checkType === 'contest' || selectedSkill?.checkType === 'random_contest';
+  const hasOtherEffect = selectedSkill?.effects?.some((e: SkillEffect) => e.targetType === 'other') ?? false;
+  const hasAnyEffect = selectedSkill?.effects?.some((e: SkillEffect) => e.targetType === 'any') ?? false;
+  const requiresTarget = Boolean(isContestCheck || hasOtherEffect || hasAnyEffect);
+  const targetType: 'self' | 'other' | 'any' | undefined = isContestCheck
+    ? 'other'
+    : hasOtherEffect
+      ? 'other'
+      : hasAnyEffect
+        ? 'any'
+        : undefined;
 
   const {
     selectedTargetId,

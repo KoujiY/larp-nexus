@@ -151,12 +151,19 @@ export async function useItem(
     }
 
     // Phase 8: 驗證目標角色（如果需要）
-    // 重構：支援多個效果
+    // §4: 由 effects 陣列整體推導 targetType（Wizard mutex 規則保證 other / any 不並存）
+    //   - 有任一效果 targetType = 'other' 或 'any' → 需要選擇目標角色
+    //   - 只有 self 效果 → 不需要目標角色
+    //   - 對抗檢定類型 → 固定需要對手作為目標
     const effects = getItemEffects(item);
-    const requiresTarget = effects.some((e: { requiresTarget?: boolean }) => e.requiresTarget) || itemCheckType === 'contest' || itemCheckType === 'random_contest';
-    
+    const hasOtherEffect = effects.some((e: { targetType?: string }) => e.targetType === 'other');
+    const hasAnyEffect = effects.some((e: { targetType?: string }) => e.targetType === 'any');
+    const hasNonSelfEffect = hasOtherEffect || hasAnyEffect;
+    const isContestCheck = itemCheckType === 'contest' || itemCheckType === 'random_contest';
+    const requiresTarget = hasNonSelfEffect || isContestCheck;
+
     const hasItemTakeOrSteal = effects.some((e: { type?: string }) => e.type === 'item_take' || e.type === 'item_steal');
-    
+
     if (requiresTarget) {
       if (!targetCharacterId) {
         return {
@@ -178,17 +185,12 @@ export async function useItem(
         }
       }
 
-      // 驗證目標類型匹配
-      const targetType = effects.find((e: { requiresTarget?: boolean }) => e.requiresTarget)?.targetType;
-      if (targetType === 'self' && targetCharacterId !== characterId) {
-        return {
-          success: false,
-          error: 'INVALID_TARGET',
-          message: '此物品只能對自己使用',
-        };
-      }
-
-      if (targetType === 'other' && targetCharacterId === characterId) {
+      // §4: 目標類型驗證（mutex 規則下只需檢查 other / contest 的非自身限制）
+      //   - hasOtherEffect: 至少一個效果明確指定「對方」→ 不得對自己使用
+      //   - isContestCheck: 對抗檢定本質上需要對手 → 不得對自己發起
+      //   - hasAnyEffect（單獨存在）: 允許自選，不做限制
+      //   - 純 self 效果: 不會進入此分支
+      if ((hasOtherEffect || isContestCheck) && targetCharacterId === characterId) {
         return {
           success: false,
           error: 'INVALID_TARGET',

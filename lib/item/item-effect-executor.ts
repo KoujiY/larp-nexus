@@ -73,12 +73,25 @@ export async function executeItemEffects(
     }
   }
 
-  const effectTarget = targetCharacter || character;
-  const isAffectingOthers = targetCharacterId && targetCharacterId !== characterId;
+  // §4 per-effect 分派：同 skill-effect-executor 的 bucket 結構
+  const resolveEffectTarget = (tType: 'self' | 'other' | 'any' | undefined): {
+    char: CharacterDocument;
+    isOther: boolean;
+  } => {
+    if (tType === 'self') return { char: character, isOther: false };
+    if (targetCharacter && targetCharacterId && targetCharacterId !== characterId) {
+      return { char: targetCharacter, isOther: true };
+    }
+    return { char: character, isOther: false };
+  };
 
-  const stats = effectTarget.stats || [];
-  const targetStatUpdates: Record<string, unknown> = {};
-  const statUpdatePayload: Array<{
+  const selfStatSet: Record<string, unknown> = {};
+  const targetStatSetMap: Record<string, unknown> = {};
+  const selfStatUpdates: Array<{
+    id: string; name: string; value: number; maxValue?: number;
+    deltaValue?: number; deltaMax?: number;
+  }> = [];
+  const targetStatUpdatesList: Array<{
     id: string; name: string; value: number; maxValue?: number;
     deltaValue?: number; deltaMax?: number;
   }> = [];
@@ -91,6 +104,8 @@ export async function executeItemEffects(
   // 處理所有效果
   for (const effect of effects) {
     if (effect.type === 'stat_change' && effect.targetStat && typeof effect.value === 'number') {
+      const { char: effectTarget, isOther } = resolveEffectTarget(effect.targetType);
+      const stats = effectTarget.stats || [];
       const statIndex = stats.findIndex((s) => s.name === effect.targetStat);
       if (statIndex === -1) continue;
 
@@ -101,13 +116,16 @@ export async function executeItemEffects(
         effect.syncValue ?? false
       );
 
-      targetStatUpdates[`stats.${statIndex}.value`] = result.newValue;
+      const statSet = isOther ? targetStatSetMap : selfStatSet;
+      const statList = isOther ? targetStatUpdatesList : selfStatUpdates;
+
+      statSet[`stats.${statIndex}.value`] = result.newValue;
       if (result.effectiveTarget === 'maxValue' && result.newMaxValue !== undefined) {
-        targetStatUpdates[`stats.${statIndex}.maxValue`] = result.newMaxValue;
+        statSet[`stats.${statIndex}.maxValue`] = result.newMaxValue;
       }
       effectMessages.push(result.message);
 
-      statUpdatePayload.push({
+      statList.push({
         id: stats[statIndex].id,
         name: stats[statIndex].name,
         value: result.newValue,
@@ -116,7 +134,7 @@ export async function executeItemEffects(
         deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
       });
 
-      if (isAffectingOthers) {
+      if (isOther) {
         crossCharacterChanges.push({
           name: stats[statIndex].name,
           deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
@@ -126,7 +144,7 @@ export async function executeItemEffects(
         });
       }
 
-      // Phase 8: 時效性效果
+      // Phase 8: 時效性效果 — source 永遠是 character，target 依 effect 決定
       if (effect.duration && effect.duration > 0) {
         await createTemporaryEffectRecord(
           getBaselineCharacterId(effectTarget),
@@ -192,29 +210,29 @@ export async function executeItemEffects(
     }
   }
 
-  // 應用統計變化
-  if (Object.keys(targetStatUpdates).length > 0) {
-    const updateTargetId = isAffectingOthers ? targetCharacterId! : characterId;
-    await updateCharacterData(updateTargetId, { $set: targetStatUpdates });
+  // §4: 套用 self / target 兩組累積器
+  const hasSelfUpdates = Object.keys(selfStatSet).length > 0;
+  const hasTargetUpdates = Object.keys(targetStatSetMap).length > 0;
+
+  if (hasSelfUpdates) {
+    await updateCharacterData(characterId, { $set: selfStatSet });
   }
 
-  // WebSocket：數值更新（若有）
-  if (statUpdatePayload.length > 0) {
-    const targetId = isAffectingOthers ? targetCharacterId! : characterId;
+  if (hasTargetUpdates && targetCharacter && targetCharacterId) {
+    await updateCharacterData(targetCharacterId, { $set: targetStatSetMap });
 
     // 重新讀取目標角色的 DB 狀態
-    const updatedTargetDoc = await getCharacterData(targetId);
+    const updatedTargetDoc = await getCharacterData(targetCharacterId);
     const targetObj = (updatedTargetDoc as { toObject?: () => Record<string, unknown> }).toObject
       ? (updatedTargetDoc as { toObject: () => Record<string, unknown> }).toObject()
       : JSON.parse(JSON.stringify(updatedTargetDoc));
     const targetBaseStats = (targetObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
 
-    if (isAffectingOthers && crossCharacterChanges.length > 0) {
+    if (crossCharacterChanges.length > 0) {
       const sourceTags = item.tags || [];
       const hasStealthTag = sourceTags.includes('stealth');
 
       // character.affected 用於通知顯示，newValue/newMax 使用含裝備加成的 effective 值
-      // 讓玩家端通知顯示與實際畫面一致
       const targetEffectiveStats = computeEffectiveStats(
         targetObj.stats as Parameters<typeof computeEffectiveStats>[0],
         targetObj.items as Parameters<typeof computeEffectiveStats>[1],
@@ -228,8 +246,8 @@ export async function executeItemEffects(
         };
       });
 
-      emitCharacterAffected(targetId, {
-        targetCharacterId: targetId,
+      emitCharacterAffected(targetCharacterId, {
+        targetCharacterId,
         sourceCharacterId: characterId,
         sourceCharacterName: hasStealthTag ? '' : character.name,
         sourceType: 'item',
@@ -246,10 +264,8 @@ export async function executeItemEffects(
     }
 
     // role.updated 帶 DB base stats，讓 GM Console 的顯示層自行套用裝備加成
-    // 避免雙重計算（過去送 effective stats → overview 再算一次 → 裝備加成被加兩次）
-    // silentSync: 副作用同步事件 — 玩家通知由 character.affected 處理
-    emitRoleUpdated(targetId, {
-      characterId: targetId,
+    emitRoleUpdated(targetCharacterId, {
+      characterId: targetCharacterId,
       silentSync: true,
       updates: {
         stats: targetBaseStats.map((s) => ({
@@ -259,8 +275,30 @@ export async function executeItemEffects(
     }).catch((err) => console.error('[item-effect-executor] emitRoleUpdated failed', err));
   }
 
+  if (hasSelfUpdates) {
+    // self 效果也需要發 role.updated(self, silentSync) 讓 GM 控制台同步
+    const selfDoc = await getCharacterData(characterId);
+    const selfObj = (selfDoc as { toObject?: () => Record<string, unknown> }).toObject
+      ? (selfDoc as { toObject: () => Record<string, unknown> }).toObject()
+      : JSON.parse(JSON.stringify(selfDoc));
+    const selfBaseStats = (selfObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
+
+    emitRoleUpdated(characterId, {
+      characterId,
+      silentSync: true,
+      updates: {
+        stats: selfBaseStats.map((s) => ({
+          id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,
+        })),
+      },
+    }).catch((err) => console.error('[item-effect-executor] emitRoleUpdated failed', err));
+  }
+
   const updatedCharacter = await getCharacterData(characterId);
   const updatedTarget = targetCharacterId ? await getCharacterData(targetCharacterId) : undefined;
+
+  // 合併 self + target 的 stat changes 作為日誌紀錄
+  const allStatUpdates = [...selfStatUpdates, ...targetStatUpdatesList];
 
   await writeLog({
     gameId: character.gameId.toString(),
@@ -274,8 +312,8 @@ export async function executeItemEffects(
       targetCharacterId: targetCharacterId || undefined,
       targetCharacterName: targetCharacter?.name || undefined,
       effectsApplied: effectMessages,
-      statChanges: statUpdatePayload.length > 0 ? statUpdatePayload : undefined,
-      isAffectingOthers,
+      statChanges: allStatUpdates.length > 0 ? allStatUpdates : undefined,
+      isAffectingOthers: hasTargetUpdates,
     },
   });
 

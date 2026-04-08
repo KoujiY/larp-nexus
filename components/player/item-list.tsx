@@ -74,17 +74,23 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   const [isLoadingSharedTargets, setIsLoadingSharedTargets] = useState(false);
 
   // Phase 3.3: 使用 useTargetSelection Hook 管理目標選擇
-  // Phase 8: 使用道具時的目標選擇狀態（包含檢定類型）
-  // 重構：支援多個效果
+  // §4: 由 effects 陣列整體推導 targetType（Wizard mutex 規則保證 other / any 不並存）
+  //   - 對抗檢定 → 固定 'other'
+  //   - 任一效果 other → 'other'
+  //   - 任一效果 any → 'any'
+  //   - 只有 self 效果 → 不需要目標（requiresTarget = false）
   const effects = selectedItem ? getItemEffects(selectedItem) : [];
-  const requiresTarget = Boolean(
-    selectedItem?.checkType === 'contest' ||
-    selectedItem?.checkType === 'random_contest' ||
-    effects.some((effect) => effect.requiresTarget)
-  );
-  const targetType = (selectedItem?.checkType === 'contest' || selectedItem?.checkType === 'random_contest')
-    ? 'other' // 對抗檢定只能對其他角色使用
-    : effects.find((e) => e.requiresTarget)?.targetType;
+  const isContestCheck = selectedItem?.checkType === 'contest' || selectedItem?.checkType === 'random_contest';
+  const hasOtherEffect = effects.some((e) => e.targetType === 'other');
+  const hasAnyEffect = effects.some((e) => e.targetType === 'any');
+  const requiresTarget = Boolean(isContestCheck || hasOtherEffect || hasAnyEffect);
+  const targetType: 'self' | 'other' | 'any' | undefined = isContestCheck
+    ? 'other'
+    : hasOtherEffect
+      ? 'other'
+      : hasAnyEffect
+        ? 'any'
+        : undefined;
 
   const {
     selectedTargetId: selectedUseTargetId,
