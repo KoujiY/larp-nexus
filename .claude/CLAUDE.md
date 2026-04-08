@@ -133,8 +133,10 @@ docs/             # 文檔
 
 ### Commit 前檢查（MANDATORY）
 1. **按 type 拆分**：`feat` / `docs` / `fix` / `refactor` 等不同類型不混在同一 commit
-2. **知識庫同步**：此次變更是否需要更新 `docs/knowledge/` 下的對應文件
-3. **開發規劃同步**：是否需要在 `NEXT_DEVELOPMENT_PLAN.md` 標記項目完成
+2. **禁止 scope 括號**：commit subject 格式必須是 `type: description`，**不可**寫成 `type(scope): description`。理由：本專案不使用 conventional-commits 的 scope 欄位，多餘的 `(xxx)` 會讓訊息格式不一致，且 scope 選擇易流於主觀（`(gm)` vs `(console)` vs `(effects)`）。正確範例：`feat: add foo` / `refactor: simplify bar`；錯誤範例：`feat(gm): add foo` / `refactor(console): simplify bar`
+3. **知識庫同步**：此次變更是否需要更新 `docs/knowledge/` 下的對應文件
+4. **開發規劃同步**：是否需要在 `NEXT_DEVELOPMENT_PLAN.md` 標記項目完成
+5. **中文亂碼掃描**：Grep `��` 確認 Write/Edit 後沒有編碼錯誤
 
 ## 知識庫 (Knowledge Base)
 
