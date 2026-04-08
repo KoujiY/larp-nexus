@@ -6,6 +6,11 @@ import { NavLink } from '@/components/shared/nav-link';
 import { redirect } from 'next/navigation';
 import { BookOpen, Users } from 'lucide-react';
 
+// 此頁面依登入 session 動態讀取劇本列表，必須 opt out of static prerender。
+// Next.js 16 + Turbopack 的 prerender 對 cookies() 使用更嚴格，未宣告
+// force-dynamic 會在 build 階段直接噴 DYNAMIC_SERVER_USAGE error。
+export const dynamic = 'force-dynamic';
+
 export default async function GamesPage() {
   const result = await getGames();
 

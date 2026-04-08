@@ -4,6 +4,10 @@ import { AvatarUpload } from '@/components/gm/avatar-upload';
 import { redirect } from 'next/navigation';
 import { User, Mail, CalendarDays, Clock, Info, BookOpen } from 'lucide-react';
 
+// 此頁面完全是使用者私有資料（依登入 session 讀取 GM user），
+// 必須 opt out of static prerender。詳見 app/(gm)/games/page.tsx 的註解。
+export const dynamic = 'force-dynamic';
+
 /** 資訊列資料定義 */
 const INFO_ROWS = [
   { key: 'displayName', label: '顯示名稱', icon: User },
