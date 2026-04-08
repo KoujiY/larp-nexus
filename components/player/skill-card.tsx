@@ -43,7 +43,6 @@ export interface SkillCardProps {
 export function SkillCard({
   skill,
   cooldownRemaining,
-  isPendingContest,
   isDisabled,
   onClick,
 }: SkillCardProps) {

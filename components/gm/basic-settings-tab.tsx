@@ -18,12 +18,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { PinField, type PinCheckStatus } from '@/components/gm/pin-field';
+import { PinField } from '@/components/gm/pin-field';
 import {
   GM_LABEL_CLASS,
   GM_INPUT_CLASS,
   GM_SECTION_CARD_CLASS,
-  GM_SECTION_TITLE_CLASS,
 } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
 import type { CharacterData } from '@/types/character';
@@ -43,11 +42,6 @@ interface BasicSettingsTabProps {
 export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterSave, onRegisterDiscard }: BasicSettingsTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>('idle');
-
-  const handlePinStatusChange = useCallback((status: PinCheckStatus) => {
-    setPinCheckStatus(status);
-  }, []);
 
   const initialData = useMemo(() => ({
     name: character.name,
@@ -228,7 +222,6 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
                   ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
                   : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'
               }
-              onStatusChange={handlePinStatusChange}
             />
           </div>
         )}

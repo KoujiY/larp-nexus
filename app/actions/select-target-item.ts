@@ -5,7 +5,6 @@ import dbConnect from '@/lib/db/mongodb';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { emitSkillUsed, emitItemUsed } from '@/lib/websocket/events';
 import type { ApiResponse } from '@/types/api';
-import type { CharacterDocument } from '@/lib/db/models';
 import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**

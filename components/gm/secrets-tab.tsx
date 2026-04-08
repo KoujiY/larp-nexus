@@ -29,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { EyeOff, MoreHorizontal, Pencil, Trash2, Undo2, Zap, ChevronRight } from 'lucide-react';
+import { EyeOff, MoreHorizontal, Pencil, Trash2, Undo2, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   GM_SCROLLBAR_CLASS,
@@ -553,11 +553,11 @@ function SecretDetailPanel({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onEdit}>
+                <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
                   <Pencil />
                   編輯
                 </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                <DropdownMenuItem variant="destructive" onClick={onDelete} className="cursor-pointer">
                   <Trash2 />
                   刪除
                 </DropdownMenuItem>
