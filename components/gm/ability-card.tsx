@@ -195,6 +195,12 @@ export function AbilityCard({
                 {typeLabel}
               </span>
             )}
+            {/* 裝備中狀態（僅 equipment 類型且當前裝備中顯示） */}
+            {isEquipment && item!.equipped && !isDeleted && (
+              <span className={cn(GM_STATUS_BADGE_BASE, GM_BADGE_VARIANTS.success)}>
+                裝備中
+              </span>
+            )}
           </div>
 
           {/* 操作按鈕（常時可見） */}
