@@ -44,9 +44,10 @@ skill.used                          → attacker result
 
 ## Key Decisions (from archive)
 1. Contest state is NOT persisted to DB — in-memory only
-2. Defender win reverses effect direction (effects apply to attacker)
-3. Only the first skill/item effect executes when defender wins
+2. Defender win reverses the **source ownership**：`sourceOwner` 切換到 defender，所有效果以 defender 視角解讀。`targetType: 'self'` 的效果套用到 defender 自己、`targetType: 'other'` 套用到 attacker（見 `lib/contest/contest-effect-executor.ts` 的 `resolveEffectTarget`）
+3. When defender wins, only the **first** skill/item in `defenderSources` is used as `actualSource`; all effects within that source still execute (per-effect dispatch)
 4. Two-phase notification: immediate result → final with effectsApplied
+5. **§4 per-effect 分派**：單一 skill/item 的 effects 陣列可以混合 `self` + `other`，executor 各自累積 self / target 的 stat changes 並分別發送通知（見 [check-mechanism.md](./check-mechanism.md) 的「對抗檢定的效果目標限制」段）
 
 ## Related
 - [check-mechanism.md](./check-mechanism.md) — random and stat check details

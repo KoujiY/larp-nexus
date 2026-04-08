@@ -4,8 +4,8 @@
 ```typescript
 interface ItemEffect {
   type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-  targetType?: 'self' | 'other' | 'any';
-  requiresTarget?: boolean;
+  targetType?: 'self' | 'other' | 'any';  // Per-effect target
+  requiresTarget?: boolean;                // Derived: targetType !== 'self'
   // stat_change fields:
   targetStat?: string;
   value?: number;
@@ -16,6 +16,22 @@ interface ItemEffect {
   targetItemId?: string;     // Selected by player at execution time
 }
 ```
+
+## Target Dispatch (per-effect)
+每個效果獨立指定 `targetType`，執行時會分派到對應角色（與技能系統規則相同，見 [../skills/skill-effects-and-tags.md](../skills/skill-effects-and-tags.md)）：
+- `self` → 使用道具的角色
+- `other` → 選到的對象（不含自己）
+- `any` → 選到的對象（可含自己）
+
+**混合目標範例**：道具可以同時包含「補自己 HP +10」和「扣對方 HP -5」兩個效果，executor 會各自累積並分別同步。`item_take` / `item_steal` 則永遠是「從對手拿 → 給自己」，Wizard 擋住這兩類效果的 `self` 選項。
+
+## Wizard 目標選擇規則
+與技能相同，同一張卡片的 effects 陣列遵守兩條硬性規則：
+
+1. **對抗檢定目標限制**：`checkType = contest | random_contest` 時效果只能選 `self` 或 `other`
+2. **Mutex 規則**：`other` 與 `any` 不可並存於同一張卡片
+
+玩家端下拉選單由 effects 陣列整體推導 targetType（`other` 優先 > `any` > 純 self 不顯示下拉）。
 
 | Effect Type | Behavior |
 |-------------|----------|
