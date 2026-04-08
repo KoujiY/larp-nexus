@@ -76,6 +76,7 @@ export async function endGame(
             action: 'game_end',
             details: {
               gameName: game.name,
+              gameCode: game.gameCode,
               note: 'Runtime 不存在，僅重設 isActive',
             },
           });

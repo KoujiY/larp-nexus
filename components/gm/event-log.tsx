@@ -226,13 +226,21 @@ function EventDescription({ log }: { log: LogData }) {
     case 'game_start':
       return (
         <span>
-          遊戲「{str(d?.gameName, '未知')}」已開始
+          遊戲「{str(d?.gameName, '未知')}」
+          {d?.gameCode ? `（代碼：${str(d.gameCode)}）` : ''}
+          已開始
           {d?.characterCount ? `，共 ${str(d.characterCount)} 位角色` : ''}
         </span>
       );
 
     case 'game_end':
-      return <span>遊戲「{str(d?.gameName, '未知')}」已結束</span>;
+      return (
+        <span>
+          遊戲「{str(d?.gameName, '未知')}」
+          {d?.gameCode ? `（代碼：${str(d.gameCode)}）` : ''}
+          已結束
+        </span>
+      );
 
     case 'item_use':
       return (
