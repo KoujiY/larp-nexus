@@ -789,7 +789,13 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
    > Phase 2 規劃已從原始 6 個擴展為 10 個 flow（#3–#12），詳見 `E2E_FLOWS_PLAN.md` 各獨立檔案。
 
    實作順序刻意讓後者依賴前者的 seed / 操作，避免重複 setup 程式碼：
-   1. [ ] `e2e/flows/game-creation.spec.ts` — 對應 flow #3
+   1. [x] `e2e/flows/gm-game-lifecycle.spec.ts` — 對應 flow #3 ✅
+     - [x] #3.1 create game + validation（名稱必填、gameCode 唯一性）
+     - [x] #3.2 game code change + uniqueness（Dialog reset 驗證）
+     - [x] #3.3 game info edit（名稱/最大檢定值/世界觀 blocks CRUD/I2 未儲存保護）
+     - [x] #3.4 preset events CRUD broadcast（建立/編輯/刪除確認 Dialog）
+     - [x] #3.5 game lifecycle start/end（Runtime 建立/清除、J1 控制台 Tab、J3 角色鎖定）
+     - [x] #3.6 cascade delete（連鎖刪除完整性 + 跨 GM 隔離驗證）
    2. [ ] `e2e/flows/character-creation.spec.ts` — 對應 flow #4/#4b，依賴 #3 的 game
    3. [ ] `e2e/flows/skill-use.spec.ts` — 對應 flow #5，依賴 #4 的 character+skill
    4. [ ] `e2e/flows/item-operations.spec.ts` — 對應 flow #7，依賴 #4 的 character+item

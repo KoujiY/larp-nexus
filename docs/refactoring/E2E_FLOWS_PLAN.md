@@ -371,6 +371,30 @@ grep -r "getByText(" e2e/smoke/ --include="*.ts"
 
 不要一口氣寫完所有 case 再跑。**增量驗證**能在第一個 case 就暴露架構層問題（cookie 隔離、schema 缺欄位），避免同類錯誤在所有 case 中重複出現。
 
+### 規則 7：`exact: true` 預設使用
+
+所有 `getByRole('button', { name })` 和 `getByText()` **預設加 `exact: true`**，除非刻意需要部分匹配。
+
+**根因**：頁面上常有命名層級關係的按鈕（header 的「編輯遊戲代碼」vs 卡片的「編輯」、header 的「刪除劇本」vs 卡片的「刪除」），部分匹配會命中多個元素觸發 strict mode violation。Flow #3 的 #3.4 在同一 test case 連續犯了「編輯」和「刪除」兩次，因為修完第一個沒掃第二個。
+
+### 規則 8：Seed 嵌套結構前逐層檢查 required
+
+Seed 含有 sub-document array 的欄位時（如 `presetEvents`、`actions`），必須逐層確認每一層的 required 欄位，特別是 `id` 欄位。
+
+**根因**：Flow #3 的 #3.5 seed presetEvents 時遺漏了頂層 `id: { required: true }`，只注意到 action 的 `id`。Mongoose validation error 格式為 `Path 'xxx' is required`，不難診斷但完全可預防。
+
+### 規則 9：`dbQuery` collection 名稱必須與 Mongoose `collection:` 定義一致
+
+查詢 DB 時使用的 collection 名稱必須 grep `collection:` 確認實際值。不要憑直覺加 `s` 變複數。
+
+**根因**：Mongoose model 定義 `collection: 'game_runtime'`（單數），但 db-query endpoint 的 allowlist 和 spec 都誤用了 `game_runtimes`（複數）。查不存在的 collection 永遠返回空陣列，不會報錯，難以察覺。
+
+### 規則 10：`dbQuery` filter 的 `*Id` key 會被 auto-convert 為 ObjectId
+
+db-query endpoint 的 `convertObjectIds` 會自動將 filter 中以 `Id` 結尾的 key（如 `targetCharacterId`、`targetGameId`）從 string 轉為 `ObjectId`。若目標 collection 的對應欄位是 `String` 類型（如 PendingEvent 的 `targetCharacterId`），轉換後的 `ObjectId` 查詢 `String` 欄位永遠不匹配。
+
+**對策**：改用其他非 `*Id` 結尾的欄位查詢（如 `eventType`），或在 seed 時設定可辨識的唯一值作為 filter key。
+
 ### Next.js RSC Streaming 已知行為
 
 Next.js App Router 使用 React Server Components streaming，Server 端先送出 HTML shell，再以 RSC payload 更新 DOM。在 hydration 過程中：
