@@ -796,7 +796,15 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #3.4 preset events CRUD broadcast（建立/編輯/刪除確認 Dialog）
      - [x] #3.5 game lifecycle start/end（Runtime 建立/清除、J1 控制台 Tab、J3 角色鎖定）
      - [x] #3.6 cascade delete（連鎖刪除完整性 + 跨 GM 隔離驗證）
-   2. [ ] `e2e/flows/character-creation.spec.ts` — 對應 flow #4/#4b，依賴 #3 的 game
+   2. [x] `e2e/flows/gm-character-crud.spec.ts` — 對應 flow #4（#4b 待做），依賴 #3 的 game ✅
+     - [x] #4.1a create character in empty game + validation（名稱必填、PIN 格式）
+     - [x] #4.1b PIN uniqueness within same game
+     - [x] #4.2 basic settings CRUD + PIN change（四欄位修改 + PIN 啟用 + reverse validation）
+     - [x] #4.3 background blocks + relationships CRUD（兩欄式 blocks + relationship 新增/刪除）
+     - [x] #4.4 secrets CRUD + soft delete（多段落 secret + soft delete → undo → re-delete → persist）
+     - [x] #4.5 tasks CRUD + soft delete（一般/隱藏任務 + UI-only soft delete 驗證）
+     - [x] #4.6 dirty state + discard + beforeunload（SaveBar 全流程 + native beforeunload 攔截）
+     - [x] #4.7 delete character gate（inactive 可刪 + active 不可刪 isActive gate）
    3. [ ] `e2e/flows/skill-use.spec.ts` — 對應 flow #5，依賴 #4 的 character+skill
    4. [ ] `e2e/flows/item-operations.spec.ts` — 對應 flow #7，依賴 #4 的 character+item
    5. [ ] `e2e/flows/broadcast.spec.ts` — 對應 flow #8，依賴 #3 的 game
