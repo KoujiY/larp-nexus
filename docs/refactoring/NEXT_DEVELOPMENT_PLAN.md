@@ -724,9 +724,9 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
    - ✅ `baseline-browser-mapping` via `pnpm.overrides` 升至 `^2.10.16` `307f819` — transitive dep 版本過舊的 stale-data warning
    - **學到的 pipeline smoke 價值**：這四個 bug 都在業務 spec 還沒開始寫時就被 `infrastructure.spec.ts` 和後續 build 引出，印證了「分層 smoke + 早期 build 綠燈」是比「一次衝到 flows」更安全的節奏
 
-2. **Phase 2 — Flows 層詳細規劃（docs only，無程式碼）**
+2. **Phase 2 — Flows 層詳細規劃（docs only，無程式碼）** ✅（獨立文件產出完成）
 
-   **產出形式**：新增 `docs/refactoring/E2E_FLOWS_PLAN.md`，或在 §6 下新增子章節 `### Flows 規劃`。兩種形式二擇一，視展開後篇幅決定
+   **產出**：`docs/refactoring/E2E_FLOWS_PLAN.md` — 8 個 flows 各自的進入點 / 前置 seed / 操作步驟 / 非同步等待點 / 斷言 / 反向驗證 / 已知陷阱，以及從 flows 反推的 fixture / helper / test API 設計結論
 
    **內容**：為 **8 個 flows** 逐一展開規劃。每個 flow 必須寫清楚：
    - 進入點（使用者角色、URL）
@@ -736,20 +736,20 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
    - 斷言（最終驗證的狀態）
 
    **8 個 flows**：
-   - [ ] #1 GM test-login → 劇本列表（smoke 層）
-   - [ ] #2 玩家 PIN 解鎖 → 角色卡（smoke 層）
-   - [ ] #3 劇本建立 → 填寫基本資訊 → 儲存
-   - [ ] #4 角色建立 → 基本資訊 → 數值 → 技能/道具 → 儲存
-   - [ ] #5 技能使用 → 無檢定 / 隨機檢定 → 效果套用 → UI 即時更新
-   - [ ] #6 對抗流程 → 攻擊方發起 → 防守方回應 → 結果通知 → 雙方 UI 一致
-   - [ ] #7 道具操作 → 使用 / 展示 / 轉移
-   - [ ] #8 廣播訊息 → GM 發送 → 玩家接收 notification
+   - [x] #1 GM test-login → 劇本列表（smoke 層）
+   - [x] #2 玩家 PIN 解鎖 → 角色卡（smoke 層）
+   - [x] #3 劇本建立 → 填寫基本資訊 → 儲存
+   - [x] #4 角色建立 → 基本資訊 → 數值 → 技能/道具 → 儲存
+   - [x] #5 技能使用 → 無檢定 / 隨機檢定 → 效果套用 → UI 即時更新
+   - [x] #6 對抗流程 → 攻擊方發起 → 防守方回應 → 結果通知 → 雙方 UI 一致
+   - [x] #7 道具操作 → 使用 / 展示 / 轉移
+   - [x] #8 廣播訊息 → GM 發送 → 玩家接收 notification
 
    **從 flows 需求反向推導**（在同一份規劃文件內產出）：
-   - [ ] `seed-fixture` 的 builder API shape（哪些欄位必填、哪些可選、是否支援 override）
-   - [ ] `auth-fixture` 是否需支援 multi-context（GM + Player 同時在線，例如 flow #6 對抗）
-   - [ ] `wait-for-*` helpers 的抽象層級（event-level vs state-level vs UI-level，哪一層最穩）
-   - [ ] `db-fixture` 的 reset 粒度（per-test 還是 per-describe；會影響 seed 重用策略）
+   - [x] `seed-fixture` 的 builder API shape（哪些欄位必填、哪些可選、是否支援 override）
+   - [x] `auth-fixture` 是否需支援 multi-context（GM + Player 同時在線，例如 flow #6 對抗）
+   - [x] `wait-for-*` helpers 的抽象層級（event-level vs state-level vs UI-level，哪一層最穩）
+   - [x] `db-fixture` 的 reset 粒度（per-test 還是 per-describe；會影響 seed 重用策略）
 
    **為什麼 Phase 2 必須是純 docs**：fixture API shape 不能憑空設計。若先寫 fixture 再寫 flows，flows 的真實需求會反覆回頭改 fixture，白工。先把 8 個 flows 的「前置 seed」欄位全部列出，再一次歸納 builder shape，Fixture 就能一版到位
 
@@ -868,6 +868,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | ~~7.6~~ | ~~#5.6 Lint 問題統一清理（5.6-2 ~ 5.6-5）~~ | ~~小~~ | ✅ 17 warnings 全清 |
 | 8 | #6 E2E 測試建置 | 中 | 純地端；Playwright + mongodb-memory-server + Pusher stub 兩層（smoke/flows）|
 | 9 | #5.6-1 React 19 set-state-in-effect 重構 | 中 | 需要 E2E 覆蓋作為重構安全網，故排在 #6 之後 |
+| 10 | #7 `item_give` 死碼移除 | 小 | `item_give` 在 schema enum 中定義但 executor 未實作（空殼註解），與現有物品轉移（`item_take`/`item_steal`）無關；需從 skill effect enum、types、executor stub、UI 元件、知識庫文件中統一清除 |
 
 ## 注意事項
 
