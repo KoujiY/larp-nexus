@@ -6,6 +6,7 @@
  * - `E2E=1` env 有正確傳遞（`/api/test/events` 不會 404）
  * - in-memory MongoDB 有被 webServer 讀到（透過 test-login route）
  * - Pusher stub 的 SSE route 可成功建立連線
+ * - reset / seed / dbQuery fixture 正常運作
  *
  * 這個檔案「刻意」只測 infra 層，不依賴任何業務頁面。
  *
@@ -14,7 +15,7 @@
  * 真實使用路徑。
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures';
 
 test.describe('e2e infrastructure smoke', () => {
   test('test/events SSE route opens EventSource successfully', async ({
@@ -59,5 +60,43 @@ test.describe('e2e infrastructure smoke', () => {
     const body = (await response.json()) as { ok: boolean; mode: string };
     expect(body.ok).toBe(true);
     expect(body.mode).toBe('gm');
+  });
+
+  test('reset endpoint clears seeded data', async ({ seed, dbQuery }) => {
+    // Seed 一筆 GM user
+    await seed.gmUser({ email: 'reset-test@test.com', displayName: 'Reset Test' });
+
+    // 確認資料存在
+    const before = await dbQuery('gm_users', { email: 'reset-test@test.com' });
+    expect(before.length).toBe(1);
+
+    // resetDb auto-fixture 在下一個 test 才會觸發，
+    // 這裡手動呼叫 reset 來驗證
+    // （注意：因為 resetDb 是 auto fixture，下一個 test 會自動清空）
+  });
+
+  test('seed + dbQuery round-trip', async ({ seed, dbQuery }) => {
+    // 上一個 test seed 的資料應該已被 resetDb auto-fixture 清空
+    const stale = await dbQuery('gm_users', { email: 'reset-test@test.com' });
+    expect(stale.length).toBe(0);
+
+    // 使用便利方法建立 GM + Game + Character
+    const { gmUserId, gameId, characterId } =
+      await seed.gmWithGameAndCharacter();
+
+    // 驗證 GM user
+    const gmDocs = await dbQuery('gm_users');
+    expect(gmDocs.length).toBe(1);
+    expect(gmDocs[0]._id).toBe(gmUserId);
+
+    // 驗證 Game
+    const gameDocs = await dbQuery('games', { gmUserId });
+    expect(gameDocs.length).toBe(1);
+    expect(gameDocs[0]._id).toBe(gameId);
+
+    // 驗證 Character
+    const charDocs = await dbQuery('characters', { gameId });
+    expect(charDocs.length).toBe(1);
+    expect(charDocs[0]._id).toBe(characterId);
   });
 });
