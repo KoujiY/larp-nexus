@@ -753,33 +753,26 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 
    **為什麼 Phase 2 必須是純 docs**：fixture API shape 不能憑空設計。若先寫 fixture 再寫 flows，flows 的真實需求會反覆回頭改 fixture，白工。先把 8 個 flows 的「前置 seed」欄位全部列出，再一次歸納 builder shape，Fixture 就能一版到位
 
-3. **Phase 3 — Fixtures 實作（程式碼）**
+3. **Phase 3 — Fixtures 實作（程式碼）** ✅
 
-   依 Phase 2 規劃產出實作：
+   依 Phase 2 規劃反推結論實作。與原規劃的差異：fixture 統一為單一 `e2e/fixtures/index.ts`（`test.extend()` pattern），不拆成多個檔案；reset 三層合併為單一 endpoint；auth 整合進 fixture 而非獨立 helper。
 
-   - [ ] **`e2e/fixtures/db-fixture.ts`**
-     - [ ] per-worker `mongodb-memory-server` lifecycle 接上 `global-setup`
-     - [ ] per-test database reset（`mongoose.connection.db.dropDatabase()` 或手動清 collections）
-     - [ ] 注意 connection pool 重用（避免每個 test 重連）
-   - [ ] **`e2e/fixtures/auth-fixture.ts`**
-     - [ ] `asGm(gmUserId)` fixture — 建立 GM user in DB + 呼叫 `/api/test/login` 設 session
-     - [ ] `asPlayer(characterIds)` fixture — 設 `unlockedCharacterIds` 繞過 PIN
-     - [ ] 視 Phase 2 規劃決定是否支援 `asGmAndPlayer()` 雙 context（兩個 browser context 共享同一 webServer）
-   - [ ] **`e2e/fixtures/seed-fixture.ts`**
-     - [ ] Builder API：`seed.gm().game().characters([...]).commit()`
-     - [ ] 支援 stats / skills / items / effects 等複合 shape
-     - [ ] 與 `db-fixture` 協作（同一個 test 連線）
-   - [ ] **`e2e/helpers/wait-for-toast.ts`** — 等 sonner toast 出現並包含指定文字
-   - [ ] **`e2e/helpers/wait-for-stat-change.ts`** — 封裝 `page.waitForFunction`，等某個 stat UI 值變成預期值
-   - [ ] **`e2e/helpers/wait-for-contest-result.ts`** — 等對抗結果 dialog / toast 出現
-   - [ ] **`e2e/helpers/wait-for-websocket-event.ts`**（可能）— 通用 WebSocket event 等待，在 browser 端 hook `pusher-client.e2e.ts` 的 bindings；flow 層寫 spec 時會大量用到
-   - [ ] **`e2e/helpers/login-as-gm.ts`** — Fixture 不便直接用時的程序式 helper
-   - [ ] **`e2e/helpers/login-as-player.ts`** — 同上
-   - [ ] **Dogfood 驗證**：Fixtures 實作完成後，重構現有的 `e2e/smoke/infrastructure.spec.ts` 改用新 fixtures，確認新 fixture 沒破壞既有 green state 再去寫新 spec
+   - [x] **`lib/contest-tracker.ts`** — 新增 `__testResetAll()` 供 reset endpoint 呼叫
+   - [x] **`app/api/test/reset/route.ts`** — 三合一 reset（DB `deleteMany` + contest-tracker + event bus listeners）
+   - [x] **`app/api/test/seed/route.ts`** — 批次 seed（Mongoose `.create()` 觸發 schema 驗證 + ObjectId 自動轉換）
+   - [x] **`app/api/test/db-query/route.ts`** — DB 查詢（collection allowlist + ObjectId 自動轉換）
+   - [x] **`e2e/fixtures/index.ts`** — 統一 Playwright custom fixtures：
+     - `resetDb`（auto, per-test）、`seed`（builder pattern）、`dbQuery`、`asGm`、`asPlayer`、`asGmAndPlayer`（雙 BrowserContext + teardown）
+   - [x] **`e2e/helpers/wait-for-toast.ts`** — Sonner `[data-sonner-toast]` + `hasText`
+   - [x] **`e2e/helpers/wait-for-websocket-event.ts`** — browser 端 EventSource 監聽 SSE stream
+   - [x] **`e2e/helpers/wait-for-db-state.ts`** — polling `/api/test/db-query`（200ms 間隔 + predicate + timeout）
+   - [x] **Dogfood 驗證** — `e2e/smoke/infrastructure.spec.ts` 改用 `e2e/fixtures` import + 新增 reset/seed/dbQuery round-trip tests
+   - ⏳ `waitForContestStage` — Flow #6 專用 wrapper，延後到 Phase 4 實作 contest spec 時新增
+   - ⏳ `session-dump` — 可選 debug endpoint，有需求再加
    - **禁止**：任何固定時間 `page.waitForTimeout()`
 
 4. **Phase 4 — Smoke 層 specs**
-   - [x] `e2e/smoke/infrastructure.spec.ts` — pipeline smoke（SSE onopen + test-login 200）✅ Phase 1 已完成
+   - [x] `e2e/smoke/infrastructure.spec.ts` — pipeline smoke（SSE onopen + test-login 200）✅ Phase 1 已完成，Phase 3 重構為使用 `e2e/fixtures` + 新增 reset/seed/dbQuery dogfood tests
    - [ ] **`e2e/smoke/gm-can-login.spec.ts`**（對應 flow #1）
      - [ ] 透過 auth fixture login 為 GM
      - [ ] 導航至 `/games`
@@ -791,15 +784,21 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [ ] 斷言：進入角色卡
    - [ ] 驗證 smoke 層整層跑綠，確認 fixtures 穩定後才進 Phase 5
 
-5. **Phase 5 — Flows specs（6 個，依依賴鏈順序實作）**
+5. **Phase 5 — Flows specs（10 個 flow，依依賴鏈順序實作）**
+
+   > Phase 2 規劃已從原始 6 個擴展為 10 個 flow（#3–#12），詳見 `E2E_FLOWS_PLAN.md` 各獨立檔案。
 
    實作順序刻意讓後者依賴前者的 seed / 操作，避免重複 setup 程式碼：
    1. [ ] `e2e/flows/game-creation.spec.ts` — 對應 flow #3
-   2. [ ] `e2e/flows/character-creation.spec.ts` — 對應 flow #4，依賴 #3 的 game
+   2. [ ] `e2e/flows/character-creation.spec.ts` — 對應 flow #4/#4b，依賴 #3 的 game
    3. [ ] `e2e/flows/skill-use.spec.ts` — 對應 flow #5，依賴 #4 的 character+skill
    4. [ ] `e2e/flows/item-operations.spec.ts` — 對應 flow #7，依賴 #4 的 character+item
    5. [ ] `e2e/flows/broadcast.spec.ts` — 對應 flow #8，依賴 #3 的 game
-   6. [ ] `e2e/flows/contest.spec.ts` — 對應 flow #6，最複雜（multi-context），放最後
+   6. [ ] `e2e/flows/contest.spec.ts` — 對應 flow #6/#6b，最複雜（multi-context）
+   7. [ ] `e2e/flows/preset-event-runtime.spec.ts` — 對應 flow #9，依賴 #3 的 game runtime
+   8. [ ] `e2e/flows/auto-reveal.spec.ts` — 對應 flow #10，依賴 #4 的 character+items+secrets
+   9. [ ] `e2e/flows/preview-mode.spec.ts` — 對應 flow #11，依賴 baseline/runtime 分歧 seed
+   10. [ ] `e2e/flows/time-dependent-edges.spec.ts` — 對應 flow #12，依賴 temporaryEffects + cooldown + PendingEvent seed
 
 6. **Phase 6 — 開發者體驗 / 維運**（optional but valuable）
    - [ ] README 段落：如何跑 E2E、常見失敗排查
@@ -826,12 +825,14 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | Q4 | DX / 維護文件是否納入 §6？ | **納入** | 避免「infra 完成 = 結束」的錯覺 |
 | Q5 | 是否要 CI pipeline？ | **暫不** | 本機跑綠即可，未來有遠端環境再補 |
 | Q6 | Phase 2 是 Flows 規劃（docs）還是 Fixtures 實作（code）？ | **Flows 規劃（docs only）** | Fixture API shape 由 flows 需求反推；先寫 code 會白工 |
-| Q7 | Flows 總數 6 還是 8？ | **8**（含 2 個 smoke 層） | 統一放在 Phase 2 規劃中逐一展開，Phase 4/5 實作時再依 smoke / integration 分檔 |
+| Q7 | Flows 總數 6 還是 8？ | **12**（含 2 個 smoke 層 + 10 個 flow 層） | 原 8 個，Phase 2 後期新增 #9 預設事件、#10 auto-reveal、#11 預覽模式、#12 時間依賴。統一放在 Phase 2 規劃中逐一展開，Phase 4/5 實作時再依 smoke / integration 分檔 |
 
 ### 影響範圍
 
-- **新增**：`e2e/`、`playwright.config.ts`、`e2e/global-setup.ts`、`e2e/global-teardown.ts`、`app/api/test/login/route.ts`、`lib/websocket/pusher-server.e2e.ts`、`lib/websocket/pusher-client.e2e.ts`
-- **修改（最小）**：`next.config.ts`（webpack alias，條件式）、`package.json`（devDependencies + `test:e2e` script）、`.gitignore`（Playwright 輸出目錄）
+- **新增（Phase 1）**：`e2e/`、`playwright.config.ts`、`e2e/global-setup.ts`、`e2e/global-teardown.ts`、`app/api/test/login/route.ts`、`app/api/test/events/route.ts`、`lib/websocket/pusher-server.e2e.ts`、`lib/websocket/pusher-client.e2e.ts`、`lib/websocket/__e2e__/event-bus.ts`
+- **新增（Phase 3）**：`app/api/test/reset/route.ts`、`app/api/test/seed/route.ts`、`app/api/test/db-query/route.ts`、`e2e/fixtures/index.ts`、`e2e/helpers/wait-for-toast.ts`、`e2e/helpers/wait-for-websocket-event.ts`、`e2e/helpers/wait-for-db-state.ts`
+- **修改（Phase 3）**：`lib/contest-tracker.ts`（新增 `__testResetAll()`）、`e2e/smoke/infrastructure.spec.ts`（改用 fixtures + dogfood tests）
+- **修改（Phase 1）**：`next.config.ts`（webpack alias，條件式）、`package.json`（devDependencies + `test:e2e` script）、`.gitignore`（Playwright 輸出目錄）
 - **不影響**：`lib/websocket/pusher-server.ts`、`lib/websocket/pusher-client.ts`、所有 server actions、hooks、React components、types。E2E 走的是與 production 相同的 code path（除了 Pusher 傳輸層被替換為 in-process stub）
 
 ### 技術考量

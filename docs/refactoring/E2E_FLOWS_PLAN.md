@@ -19,8 +19,8 @@
 - Playwright 啟動時已由 `e2e/global-setup.ts` 啟動 `mongodb-memory-server`，`MONGODB_URI` 注入 webServer
 - `E2E=1` 啟用 `webpack alias` 把 `pusher-server` / `pusher-client` swap 成 stub 版本
 - SSE route `/api/test/events` 作為 server↔client IPC
-- **每個 test 開始前** `db-fixture` 會呼叫 `/api/test/reset` 清空 DB
-- **每個 test 開始前** `db-fixture` 也需清空 `lib/contest-tracker` 的 in-memory state（contest state **不進 DB**，是獨立 module-level 變數，會跨 test 污染）
+- **每個 test 開始前** `resetDb` auto-fixture 呼叫 `POST /api/test/reset`，一次清空 DB collections + contest-tracker in-memory Map + E2E event bus listeners（✅ Phase 3 已實作為三合一 endpoint）
+- 所有 spec 從 `e2e/fixtures` import `test` 和 `expect`，不直接用 `@playwright/test`
 
 ### 每個 flow 的規格欄位
 
@@ -194,99 +194,106 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ## Fixture 反推結論
 
-上述 8 個 flows 規劃完成後，本節總結 fixture 與 helper 的設計需求。每條結論都標註來源 flow，寫 fixture 時要回頭驗證沒有遺漏。
+> **Phase 3 實作狀態**：✅ 已完成（下方為 Phase 2 原始規劃 + Phase 3 實作結果對照）
+>
+> 實作檔案：
+> - `e2e/fixtures/index.ts` — 統一 Playwright custom fixtures（`resetDb` / `seed` / `dbQuery` / `asGm` / `asPlayer` / `asGmAndPlayer`）
+> - `app/api/test/reset/route.ts` — DB 清空 + contest-tracker + event bus reset
+> - `app/api/test/seed/route.ts` — 批次 seed（Mongoose model `.create()` 觸發 schema 驗證）
+> - `app/api/test/db-query/route.ts` — DB 查詢（spec 斷言用）
+> - `e2e/helpers/wait-for-toast.ts`
+> - `e2e/helpers/wait-for-websocket-event.ts`
+> - `e2e/helpers/wait-for-db-state.ts`
+> - `lib/contest-tracker.ts` — 新增 `__testResetAll()`
 
-### `seed-fixture` builder API shape
+### `seed-fixture` builder API shape ✅
 
-從 #3-#8 歸納出的最小 API：
+Phase 2 規劃 → Phase 3 實作對照：
 
 ```
-seed.gmUser({ email?, displayName? }) → { gmUserId, email }
-seed.game({ gmUserId, isActive?, gameCode?, randomContestMaxValue? }) → { gameId, gameCode }
-seed.character({ gameId, name?, hasPinLock?, pin?, stats?, skills?, items? }) → { characterId }
+seed.gmUser({ email?, displayName? }) → { _id, ... }                           ✅ 預設 email='e2e-gm@test.com', displayName='E2E GM'
+seed.game({ gmUserId, ...overrides }) → { _id, gameCode, ... }                 ✅ 自動遞增 gameCode (E2E001, E2E002, ...)
+seed.character({ gameId, ...overrides }) → { _id, ... }                        ✅ 支援 stats/skills/items/任意欄位 overrides
+seed.characterRuntime({ refId, gameId, ...overrides }) → { _id, ... }          ✅ Phase 2 未明列但 #9/#12 需要
+seed.gameRuntime({ refId, gmUserId, ...overrides }) → { _id, ... }             ✅ Phase 2 未明列但 #9/#11 需要
+seed.pendingEvent(overrides) → { _id, ... }                                     ✅ #8/#12 需要
+seed.log(overrides) → { _id, ... }                                              ✅ 通用
 ```
 
 鏈式 convenience：
 
 ```
-seed.gmWithGame({ isActive? }) → { gmUserId, gameId }
-seed.gmWithGameAndCharacter({ isActive?, characterOverrides? }) → { gmUserId, gameId, characterId }
+seed.gmWithGame({ gmUserOverrides?, gameOverrides? }) → { gmUserId, gameId, gameCode }
+seed.gmWithGameAndCharacter({ gmUserOverrides?, gameOverrides?, characterOverrides? }) → { gmUserId, gameId, gameCode, characterId }
 ```
 
-**關鍵約束**：
-- `seed.character` 必須支援塞 skills / items / stats 的 overrides（#5、#7 需要特定類型的 skill/item）
-- `seed.game` 的 `isActive` 預設 `false`（呼應 `createGame` 預設行為），但 #5、#6、#7、#8 都需要 `true`
-- 所有 ID 回傳**字串格式**（ObjectId toString），避免 test code 混用
+**Phase 3 實作決策**：
+- 便利方法的 overrides 拆為 `gmUserOverrides` / `gameOverrides` / `characterOverrides`，避免同名欄位（如 `name`）衝突
+- `seed.game` 的 `isActive` 預設 `false`（取 Mongoose schema default），需要 `true` 時用 `gameOverrides: { isActive: true }`
+- 所有 ID 回傳**字串格式**（ObjectId toString）
+- 每個 seed 方法內部呼叫 `POST /api/test/seed`，由 Mongoose `.create()` 觸發 schema 驗證
+- ObjectId 字串自動轉換：seed endpoint 內建 `convertObjectIds()`，`_id` 和 `*Id` 結尾的 24-char hex 自動轉為 ObjectId
 
-### `auth-fixture` API
+### `auth-fixture` API ✅
 
 ```
-asGm({ gmUserId?, email? }) → 注入 iron-session GM cookie 到當前 context
-asPlayer({ characterId, readOnly?: boolean }) → 同時設 session.unlockedCharacterIds + addInitScript localStorage
+asGm({ gmUserId, email? }) → 注入 iron-session GM cookie 到當前 context + page.reload()
+asPlayer({ characterId, readOnly?: boolean }) → session.unlockedCharacterIds + addInitScript localStorage
   readOnly: false (預設) → session unlocked + localStorage unlocked + localStorage fullAccess (完整互動)
   readOnly: true         → session unlocked + localStorage unlocked only (預覽模式，不設 fullAccess)
-asGmAndPlayer(...) → 雙 context 時的 convenience（回傳 { gmPage, playerPage }）
+asGmAndPlayer({ gmUserId, characterId, email?, readOnly? }) → 雙 context（回傳 { gmPage, playerPage, gmContext, playerContext }）
 ```
 
-**Flow #6 確認**：需要 `browser.newContext()` 建立雙獨立 context，`asPlayer()` 必須可分別套用到不同 context。不能用單一 context 切換 page。
+**Phase 3 實作決策**：
+- `asGmAndPlayer` 用 `browser.newContext()` 建立兩個獨立 BrowserContext（各自有獨立 cookie/localStorage）
+- teardown 自動關閉所有建立的 context，防止洩漏
+- `asGm` 呼叫後自動 `page.reload()` 讓 session cookie 生效
+- `asPlayer` 用 `page.addInitScript()` 確保 localStorage 在首次 navigation 前就設好
 
-**Flow #2 確認**：`asPlayer()` 必須**雙重繞過**（full-access 模式，`readOnly:false`）：
-- 設 `session.unlockedCharacterIds` 陣列（繞過 server-side 授權）
-- `page.addInitScript` 預先塞 `localStorage['character-{id}-unlocked'] = 'true'`（繞過 client-side UI 閘門）
-- `page.addInitScript` 預先塞 `localStorage['character-{id}-fullAccess'] = 'true'`（解除唯讀）
-- 只設 session 不設 localStorage → 瀏覽器進 `/c/{id}` 仍會看到 PIN 畫面
-- 只設 localStorage 不設 session → UI 進得去但 server action 被拒
+**Flow #6 確認**：✅ 使用 `browser.newContext()` 建立雙獨立 context
+**Flow #2 確認**：✅ `readOnly:false` 三重設定（session + unlocked + fullAccess）
+**預覽模式 `readOnly:true`**：✅ 僅設 session + unlocked，不設 fullAccess
 
-**預覽模式 `readOnly:true` 規格**（來源：§Flow #2 E6/K1 橫切延伸，服務於「待評估新 Flow — 預覽模式 baseline 讀取分流」）：
-- 僅塞 session `unlockedCharacterIds` + `localStorage['character-{id}-unlocked'] = 'true'`
-- **不**塞 `fullAccess` localStorage key → `storageFullAccess=false` → `isReadOnly=true`
-- 此模式下 `character-card-view.tsx:95` 會讀 `character.baselineData`，需前置 `game.isActive:true` 才能使 `getPublicCharacter` 填入 `baselineData`
-- Flow #5/#6/#7/#8 **不使用**此模式（它們測完整互動），僅「預覽模式 display 分流」flow 使用
-- Flow #2 本身**不使用**此 API（Flow #2 走真實 PIN input 流，不走 fixture 繞過）
-
-### `wait-for-*` helpers 抽象層級
-
-從各 flow 的等待點歸納：
+### `wait-for-*` helpers 抽象層級 ✅
 
 ```
-waitForToast(page, text) — UI 層（所有 flows）
-waitForWebSocketEvent({ channel, event, subType?, filter?, timeout? }) — #5/#6/#7/#8
-waitForDbState({ query, timeout }) — #3/#4/#8（PendingEvent）
-waitForContestStage(context, stage: 'request' | 'result' | 'effect') — #6 專用 wrapper
+waitForToast(page, text, { timeout? })                                          ✅ e2e/helpers/wait-for-toast.ts
+waitForWebSocketEvent(page, { event, channel?, filter?, timeout? })             ✅ e2e/helpers/wait-for-websocket-event.ts
+waitForDbState(request, { collection, filter?, predicate?, timeout?, interval? }) ✅ e2e/helpers/wait-for-db-state.ts
+waitForContestStage(context, stage: 'request' | 'result' | 'effect')           ⏳ Phase 4 實作 Flow #6 spec 時再加（thin wrapper over waitForWebSocketEvent）
 ```
 
-**設計原則**：
-- `waitForWebSocketEvent` 回傳**已收到的 event payload**，讓後續斷言可以直接 assert payload 欄位
-- 必須支援「從某個時間點後」的事件匹配，避免抓到前一個 test 遺留的 event
-- `waitForDbState` 需有合理 timeout（預設 5 秒），超時 fail 並印出最近一次 query 結果
+**Phase 3 實作決策**：
+- `waitForWebSocketEvent` 在 browser 端建立 `EventSource` 監聽 `/api/test/events` SSE stream
+- ⚠️ 使用模式（防 race）：先 `const p = waitForWebSocketEvent(...)`，再觸發 action，最後 `await p`
+- `waitForDbState` 用 polling（預設 200ms 間隔），超時 throw 並印出最近查詢結果
+- `waitForToast` 基於 Sonner 的 `[data-sonner-toast]` DOM selector
+- `waitForContestStage` 延後到 Phase 4 Flow #6 實作時新增，因為它只是 `waitForWebSocketEvent` 的 thin wrapper
 
-### `db-fixture` reset 粒度
+### `db-fixture` reset 粒度 ✅
 
-從 #6 contest-tracker 踩雷學到的教訓：
-
-```
-dbFixture.beforeEach:
-  1. POST /api/test/reset → 清 DB collections
-  2. POST /api/test/contest-tracker-reset → 清 lib/contest-tracker in-memory state
-  3. (可選) POST /api/test/cache-reset → 清 next/cache（若 revalidate 行為影響測試）
-```
-
-`/api/test/contest-tracker-reset` 需要在 `lib/contest-tracker` 新增 `__testResetAll()` function 才能呼叫（Phase 3 的 task）。
-
-**不需要**清 localStorage — Playwright 的 `context.clearCookies()` + `page.evaluate(() => localStorage.clear())` 會在 `beforeEach` 自動跑，或透過 `context()` 每次重建達成。
-
-### `/api/test/*` endpoint 清單
-
-支撐 fixture 所需的 test-only API（只在 `E2E === '1'` 啟用）：
+Phase 3 將三層 reset 合併為單一 `POST /api/test/reset`：
 
 ```
-POST /api/test/login           — 寫 iron-session cookie（已在 Phase 1 實作）
-POST /api/test/reset           — drop collections（已在 Phase 1 實作）
-POST /api/test/contest-tracker-reset — 新增，#6 依賴
-POST /api/test/seed            — batch seed helper（可選，node-side fixture 也可直接呼叫 Mongoose）
-GET  /api/test/events          — SSE IPC for WebSocket event collector（已在 Phase 1 實作）
-GET  /api/test/db-query?collection=xxx&filter=yyy — 斷言用的 DB read helper
-GET  /api/test/session-dump    — （可選）debug 時 dump 當前 session
+resetDb auto-fixture (每個 test 自動觸發):
+  POST /api/test/reset →
+    1. deleteMany({}) per collection（保留 index 結構，避免 dropDatabase 的 index 重建開銷）
+    2. __testResetAll()（清 contest-tracker in-memory Map）
+    3. getE2EBus().removeAllListeners()（清 E2E event bus stale listener）
+    4. gameCodeCounter = 0（重設 fixture 側的 gameCode 遞增器）
 ```
 
-**安全性檢查**：所有 endpoint 必須在檔案頂端做 `if (process.env.E2E !== '1') return NextResponse.json({}, { status: 404 })`，不可有例外。
+**Phase 3 決策**：合併而非分成三個獨立 endpoint，因為 reset 三層是固定搭配，拆開只增加 HTTP round-trip 無實益。
+
+### `/api/test/*` endpoint 清單（Phase 3 完成狀態）
+
+```
+POST /api/test/login           — ✅ Phase 1 已實作（iron-session GM/Player 注入）
+POST /api/test/reset           — ✅ Phase 3 已實作（DB + contest-tracker + event bus 三合一）
+POST /api/test/seed            — ✅ Phase 3 已實作（Mongoose model .create() 批次建立）
+GET  /api/test/events          — ✅ Phase 1 已實作（SSE IPC for Pusher stub）
+GET  /api/test/db-query        — ✅ Phase 3 已實作（collection allowlist + ObjectId 自動轉換）
+GET  /api/test/session-dump    — ⏳ 可選，debug 時再加
+```
+
+**安全性**：所有 endpoint 頂端做 `if (process.env.E2E !== '1') return 404`。
