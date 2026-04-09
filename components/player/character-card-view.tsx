@@ -100,7 +100,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   const displaySecretInfo = bl?.secretInfo ?? character.secretInfo;
 
   // Phase 8: 分頁狀態管理（用於自動切換到對應分頁）
-  const [activeTab, setActiveTab] = useState<string>('items');
+  const [activeTab, setActiveTab] = useState<string>('info');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   // Phase 10: 遊戲結束 Dialog 狀態（即時收到 game.ended 時顯示）
