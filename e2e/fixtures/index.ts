@@ -272,10 +272,10 @@ export const test = base.extend<E2EFixtures>({
     await use(queryFn);
   },
 
-  // GM login
-  asGm: async ({ page, request }, use) => {
+  // GM login — 用 page.request 確保 cookie 與 browser context 共享
+  asGm: async ({ page }, use) => {
     const loginAsGm = async ({ gmUserId, email }: AsGmOptions) => {
-      const response = await request.post('/api/test/login', {
+      const response = await page.request.post('/api/test/login', {
         data: {
           mode: 'gm',
           gmUserId,
@@ -285,16 +285,14 @@ export const test = base.extend<E2EFixtures>({
       if (!response.ok()) {
         throw new Error(`GM login failed (${response.status()})`);
       }
-      // 重新載入頁面以套用 session cookie
-      await page.reload();
     };
     await use(loginAsGm);
   },
 
-  // Player login + localStorage unlock
-  asPlayer: async ({ page, request }, use) => {
+  // Player login + localStorage unlock — 用 page.request 確保 cookie 共享
+  asPlayer: async ({ page }, use) => {
     const loginAsPlayer = async ({ characterId, readOnly }: AsPlayerOptions) => {
-      const response = await request.post('/api/test/login', {
+      const response = await page.request.post('/api/test/login', {
         data: {
           mode: 'player',
           characterIds: [characterId],
