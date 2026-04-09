@@ -297,3 +297,87 @@ GET  /api/test/session-dump    — ⏳ 可選，debug 時再加
 ```
 
 **安全性**：所有 endpoint 頂端做 `if (process.env.E2E !== '1') return 404`。
+
+---
+
+## E2E Spec 撰寫規範（Phase 4 教訓總結）
+
+> Phase 4 smoke spec 開發經歷 6 輪修正才收斂（Round 1 全滅 6/6）。以下是萃取出的根因與防範規則，**所有後續 Phase 的 spec 撰寫必須遵循**。
+
+### 規則 1：Locator 選擇優先序
+
+```
+getByRole() > page.locator('scope').getByText() > getByText()
+```
+
+- **預設用 `getByRole()`**：`getByRole('heading', { name, level })`、`getByRole('button', { name })`、`getByRole('link', { name })` 等語義 selector 不受 DOM 副本影響
+- **`getByText()` 只在確認唯一性後使用**：它匹配所有 text content 包含目標字串的元素（含父層累積文字），幾乎必然在複雜 UI 中碰到 strict mode violation
+- **需要 `exact: true`**：當目標文字是其他文字的子字串時（如「資訊」vs「額外資訊」），必須加 `exact: true`
+- **CSS selector 永遠限定 scope**：`page.locator('main .game-card')` 而非 `page.locator('.game-card')`，避免匹配到 RSC streaming 的隱藏 DOM 副本
+
+**根因**：Playwright strict mode 會在 locator 匹配到 2+ 元素時直接 fail。`getByText` 是最寬鬆的 matcher，幾乎一定命中。Next.js App Router 的 RSC streaming 會在 hydration 過程中短暫保留隱藏 DOM 節點（不在 ARIA tree 中，但 CSS selector 能匹配），使問題更加不確定（flaky）。
+
+### 規則 2：寫 seed data 前先讀 schema
+
+在 `seed.character()` / `seed.game()` 等建立資料前，**必須先確認目標 model 的 required fields**：
+
+- 讀 `lib/db/schemas/shared-schemas.ts` 確認 subdocument schema（stats、items、skills 等）
+- 讀 `lib/db/models/` 下對應的 model 定義確認頂層 required fields
+- 特別注意：`stats[].id`、`items[].id`、`skills[].id` 都是 `required: true`
+
+**根因**：Mongoose `.create()` 會觸發 schema 驗證，缺少 required field 直接 reject，但錯誤訊息只說 "Seed failed (400)" 不直接指出是哪個欄位。
+
+### 規則 3：寫 locator 前先讀目標元件
+
+在用 `getByText('xxx')` 或 `locator('.class')` 之前，**必須先讀目標元件的原始碼確認**：
+
+- 這段文字在 DOM 中出現幾次、出現在哪些元素上
+- 是否有父元件（如 NavLink、Dialog）會把文字包在更大的 accessible name 中
+- 元件是否在多處渲染同樣的文字（如 PinUnlock 顯示 characterName，CharacterCardView 也顯示）
+
+**根因**：PinUnlock 元件會渲染 `characterName`，導致用角色名來斷言「CharacterCardView 未掛載」失敗。
+
+### 規則 4：Fixture 涉及 cookie/session 時先驗證共享
+
+`page.request`（與 page 共享 BrowserContext cookie）和 `request`（standalone APIRequestContext）是**完全隔離的**：
+
+```typescript
+// ❌ cookie 不共享：login 成功但 page 導航時仍未認證
+asGm: async ({ request }, use) => {
+  await request.post('/api/test/login', { data: { ... } });
+};
+
+// ✅ cookie 共享：page.request 和 page 同一個 BrowserContext
+asGm: async ({ page }, use) => {
+  await page.request.post('/api/test/login', { data: { ... } });
+};
+```
+
+**根因**：Playwright 的 `request` fixture 是獨立的 HTTP client，不參與任何 BrowserContext 的 cookie jar。這在只測 API round-trip 的 infrastructure spec 中不會暴露，只有在 browser 導航時才會觸發。
+
+### 規則 5：修一個 pattern、掃全部
+
+每次修復一個 strict mode violation 或 locator 問題後，**立即 grep 整個 e2e/ 目錄找同類 pattern**：
+
+```bash
+# 修完一個 getByText strict mode 後
+grep -r "getByText(" e2e/smoke/ --include="*.ts"
+# 逐一確認每個 getByText 是否有同樣風險
+```
+
+**根因**：Phase 4 因為「只修當下失敗的那一行」而非「掃描同類問題」，導致同一類錯誤跨 3 輪才修完（Round 2 修 `'資訊'`，Round 4 才修 `'物品'`，兩者完全同源）。
+
+### 規則 6：每寫完 1-2 個 test case 就跑一次
+
+不要一口氣寫完所有 case 再跑。**增量驗證**能在第一個 case 就暴露架構層問題（cookie 隔離、schema 缺欄位），避免同類錯誤在所有 case 中重複出現。
+
+### Next.js RSC Streaming 已知行為
+
+Next.js App Router 使用 React Server Components streaming，Server 端先送出 HTML shell，再以 RSC payload 更新 DOM。在 hydration 過程中：
+
+- 某些 DOM 節點可能短暫存在兩份（初始 HTML + hydrated 版本）
+- 這些副本**不在 ARIA accessibility tree 中**（截圖和 `page.accessibility.snapshot()` 看不到）
+- 但 **CSS selector 和 `getByText()` 能匹配到**
+- 這是**間歇性的**（取決於 streaming 時序），導致 flaky test
+
+**對策**：用 `getByRole()`（基於 ARIA tree，不受隱藏副本影響）或 scope 到 `main`/`aside` 等語義容器。

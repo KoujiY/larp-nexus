@@ -773,16 +773,16 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 
 4. **Phase 4 — Smoke 層 specs**
    - [x] `e2e/smoke/infrastructure.spec.ts` — pipeline smoke（SSE onopen + test-login 200）✅ Phase 1 已完成，Phase 3 重構為使用 `e2e/fixtures` + 新增 reset/seed/dbQuery dogfood tests
-   - [ ] **`e2e/smoke/gm-can-login.spec.ts`**（對應 flow #1）
-     - [ ] 透過 auth fixture login 為 GM
-     - [ ] 導航至 `/games`
-     - [ ] 斷言：看得到劇本列表（或空狀態 CTA）
-   - [ ] **`e2e/smoke/player-can-unlock.spec.ts`**（對應 flow #2）
-     - [ ] Seed：一個 GM + 一個劇本 + 一個角色（有 PIN）
-     - [ ] 前往 `/c/[characterId]` 或 `/g/[gameId]`
-     - [ ] **輸入 PIN（真實流程，不走 test-login）** — 這條 spec 的目的就是驗證使用者真實路徑，不能被 fixture 繞過
-     - [ ] 斷言：進入角色卡
-   - [ ] 驗證 smoke 層整層跑綠，確認 fixtures 穩定後才進 Phase 5
+   - [x] **`e2e/smoke/gm-can-login.spec.ts`**（對應 flow #1）✅
+     - [x] #1.1 未認證 redirect + test-login + 空狀態顯示
+     - [x] #1.2 非空狀態 grid 渲染 + 排序（newer-first）+ 卡片導航
+     - [x] #1.3 跨 GM 資料隔離
+   - [x] **`e2e/smoke/player-can-unlock.spec.ts`**（對應 flow #2）✅
+     - [x] #2.1 PIN 正確 → 預覽模式（banner、read-only、localStorage 雙 key）
+     - [x] #2.2 PIN 錯誤 → error path（不洩漏狀態）
+     - [x] #2.3 hasPinLock:false → 直接進入完整互動模式
+   - [x] 驗證 smoke 層整層跑綠（10/10 tests passed），確認 fixtures 穩定 ✅
+   - [x] 撰寫規範更新至 `E2E_FLOWS_PLAN.md`（Locator 選擇優先序、RSC streaming 對策等 6 條規則）
 
 5. **Phase 5 — Flows specs（10 個 flow，依依賴鏈順序實作）**
 
