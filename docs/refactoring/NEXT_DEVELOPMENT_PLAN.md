@@ -784,9 +784,9 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
    - [x] 驗證 smoke 層整層跑綠（10/10 tests passed），確認 fixtures 穩定 ✅
    - [x] 撰寫規範更新至 `E2E_FLOWS_PLAN.md`（Locator 選擇優先序、RSC streaming 對策等 6 條規則）
 
-5. **Phase 5 — Flows specs（10 個 flow，依依賴鏈順序實作）**
+5. **Phase 5 — Flows specs（12 個 flow，依依賴鏈順序實作）** ✅
 
-   > Phase 2 規劃已從原始 6 個擴展為 10 個 flow（#3–#12），詳見 `E2E_FLOWS_PLAN.md` 各獨立檔案。
+   > Phase 2 規劃已從原始 6 個擴展為 12 個 flow（#3–#12，含 #4b 和 #6b），詳見 `E2E_FLOWS_PLAN.md` 各獨立檔案。
 
    實作順序刻意讓後者依賴前者的 seed / 操作，避免重複 setup 程式碼：
    1. [x] `e2e/flows/gm-game-lifecycle.spec.ts` — 對應 flow #3 ✅
@@ -865,6 +865,17 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #12.4 item cooldown — expired cooldown allows reuse, new cooldown starts after (dialog + DB)
      - [x] #12.5 pending event TTL — expired/delivered events cleaned, fresh kept (Cron + DB)
 
+   **Phase 5 穩定化** ✅ — Flows specs 全部實作完成後的 flaky test 根治
+
+   針對 #3.3、#4.2、#4.3、#10.3、#10.5 五個 flaky test 進行根因分析並系統性修復。產出三個根治方法（詳見 `E2E_FLOWS_PLAN.md §E2E Flaky Test 根治策略`）：
+   - [x] 方法 1：`retries: 1`（`playwright.config.ts`）— 兜底層
+   - [x] 方法 2：穩定信號取代 `waitForTimeout` — toast wait（4 處）+ `expect.poll` DB 輪詢（6 處）
+   - [x] 方法 3：`clickSaveBar` helper（`e2e/helpers/click-save-bar.ts`）— AnimatePresence 元素改用 evaluate retry loop（14 處）
+   - [x] 附帶修復：`IconActionButton` 新增 `type="button"`（production bug，`<form>` 內 button 預設 submit）
+   - [x] 附帶修復：`#3.5` strict mode violation — `getByText` 限縮至 `main` scope
+   - [x] 新增 `E2E_FLOWS_PLAN.md` 規則 35–36 + 根治策略章節
+   - [x] 3 輪全測試通過驗證
+
 6. **Phase 6 — 開發者體驗 / 維運**（optional but valuable）
    - [ ] README 段落：如何跑 E2E、常見失敗排查
    - [ ] `docs/knowledge/` 加入「E2E 測試架構」知識庫條目（Pusher stub 原理、SSE IPC 設計、fixture 使用指南）
@@ -897,6 +908,8 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 - **新增（Phase 1）**：`e2e/`、`playwright.config.ts`、`e2e/global-setup.ts`、`e2e/global-teardown.ts`、`app/api/test/login/route.ts`、`app/api/test/events/route.ts`、`lib/websocket/pusher-server.e2e.ts`、`lib/websocket/pusher-client.e2e.ts`、`lib/websocket/__e2e__/event-bus.ts`
 - **新增（Phase 3）**：`app/api/test/reset/route.ts`、`app/api/test/seed/route.ts`、`app/api/test/db-query/route.ts`、`e2e/fixtures/index.ts`、`e2e/helpers/wait-for-toast.ts`、`e2e/helpers/wait-for-websocket-event.ts`、`e2e/helpers/wait-for-db-state.ts`
 - **修改（Phase 3）**：`lib/contest-tracker.ts`（新增 `__testResetAll()`）、`e2e/smoke/infrastructure.spec.ts`（改用 fixtures + dogfood tests）
+- **新增（Phase 5 穩定化）**：`e2e/helpers/click-save-bar.ts`
+- **修改（Phase 5 穩定化）**：`components/gm/icon-action-button.tsx`（`type="button"`）、`playwright.config.ts`（`retries: 1`）、所有 flow spec（`clickSaveBar` + toast wait + `expect.poll`）
 - **修改（Phase 1）**：`next.config.ts`（webpack alias，條件式）、`package.json`（devDependencies + `test:e2e` script）、`.gitignore`（Playwright 輸出目錄）
 - **不影響**：`lib/websocket/pusher-server.ts`、`lib/websocket/pusher-client.ts`、所有 server actions、hooks、React components、types。E2E 走的是與 production 相同的 code path（除了 Pusher 傳輸層被替換為 in-process stub）
 
