@@ -12,8 +12,18 @@
  * 所有 spec 應從 `../fixtures` import `test` 和 `expect`，不直接用 `@playwright/test`。
  */
 
-import { test as base, expect, type Page, type BrowserContext, type APIRequestContext } from '@playwright/test';
-import type { Browser } from '@playwright/test';
+/* eslint-disable react-hooks/rules-of-hooks */
+
+import { test as base, expect, type BrowserContext, type APIRequestContext } from '@playwright/test';
+import type { Browser, Page } from '@playwright/test';
+
+// Re-export Playwright types for spec files
+export type { Page, Browser, BrowserContext };
+
+// ─── Constants ──────────────────────────────────
+
+/** 與 playwright.config.ts 的 baseURL 同步，所有手動建立的 context 共用 */
+export const E2E_BASE_URL = 'http://127.0.0.1:3100';
 
 // ─── Types ───────────────────────────────────────
 
@@ -72,7 +82,8 @@ interface SeedBuilder {
 }
 
 interface DbQueryFn {
-  (collection: string, filter?: Record<string, unknown>): Promise<Record<string, unknown>[]>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (collection: string, filter?: Record<string, unknown>): Promise<any[]>;
 }
 
 interface AsGmOptions {
@@ -328,34 +339,38 @@ export const test = base.extend<E2EFixtures>({
     }: AsGmAndPlayerOptions): Promise<GmAndPlayerPages> => {
       // GM context
       const gmContext = await (browser as Browser).newContext({
-        baseURL: 'http://127.0.0.1:3100',
+        baseURL: E2E_BASE_URL,
       });
       contexts.push(gmContext);
       const gmPage = await gmContext.newPage();
-      const gmRequest = gmContext.request;
 
-      await gmRequest.post('/api/test/login', {
+      const gmLoginRes = await gmContext.request.post('/api/test/login', {
         data: {
           mode: 'gm',
           gmUserId,
           email: email ?? 'e2e-gm@test.com',
         },
       });
+      if (!gmLoginRes.ok()) {
+        throw new Error(`GM login failed (${gmLoginRes.status()}): ${await gmLoginRes.text()}`);
+      }
 
       // Player context
       const playerContext = await (browser as Browser).newContext({
-        baseURL: 'http://127.0.0.1:3100',
+        baseURL: E2E_BASE_URL,
       });
       contexts.push(playerContext);
       const playerPage = await playerContext.newPage();
-      const playerRequest = playerContext.request;
 
-      await playerRequest.post('/api/test/login', {
+      const playerLoginRes = await playerContext.request.post('/api/test/login', {
         data: {
           mode: 'player',
           characterIds: [characterId],
         },
       });
+      if (!playerLoginRes.ok()) {
+        throw new Error(`Player login failed (${playerLoginRes.status()}): ${await playerLoginRes.text()}`);
+      }
 
       await playerPage.addInitScript(
         ({ id, full }: { id: string; full: boolean }) => {

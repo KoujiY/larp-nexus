@@ -13,48 +13,7 @@
 
 import { test, expect, type Page } from '../fixtures';
 import { waitForWebSocketEvent } from '../helpers/wait-for-websocket-event';
-
-
-// ── 共用 helper：建立雙 Player context ──────────────────
-async function setupDualPlayerContext(
-  browser: import('@playwright/test').Browser,
-  seed: Parameters<Parameters<typeof test>[1]>[0]['seed'],
-  options: {
-    gameId: string;
-    attackerId: string;
-    defenderId: string;
-  },
-) {
-  const { gameId, attackerId, defenderId } = options;
-
-  const ctxA = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
-  const pageA = await ctxA.newPage();
-  await ctxA.request.post('/api/test/login', {
-    data: { mode: 'player', characterIds: [attackerId] },
-  });
-  await pageA.addInitScript(
-    ({ id }: { id: string }) => {
-      localStorage.setItem(`character-${id}-unlocked`, 'true');
-      localStorage.setItem(`character-${id}-fullAccess`, 'true');
-    },
-    { id: attackerId },
-  );
-
-  const ctxB = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
-  const pageB = await ctxB.newPage();
-  await ctxB.request.post('/api/test/login', {
-    data: { mode: 'player', characterIds: [defenderId] },
-  });
-  await pageB.addInitScript(
-    ({ id }: { id: string }) => {
-      localStorage.setItem(`character-${id}-unlocked`, 'true');
-      localStorage.setItem(`character-${id}-fullAccess`, 'true');
-    },
-    { id: defenderId },
-  );
-
-  return { ctxA, pageA, ctxB, pageB };
-}
+import { setupDualPlayerContext } from '../helpers/setup-dual-player-context';
 
 // ── 共用 helper：攻擊方發動對抗技能 ──────────────────
 async function attackerUseContestSkill(
@@ -170,7 +129,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -183,7 +142,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // ── Phase B — 攻擊方發動對抗 ──
@@ -218,7 +177,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       // ── Phase D — 防守方回應（不防禦） ──
@@ -385,7 +344,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -397,7 +356,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // ── Phase B — 攻擊方發動 ──
@@ -430,7 +389,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       // ── Phase E — 防守方回應 ──
@@ -617,7 +576,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -628,7 +587,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // ── Phase B — 攻擊方發動 ──
@@ -656,7 +615,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       // ── Phase D — 回應 ──
@@ -766,7 +725,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -777,7 +736,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // ── Phase B — 攻擊方發動 random_contest ──
@@ -803,7 +762,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       // ── Phase D — 防守方回應 ──
@@ -946,7 +905,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -957,7 +916,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // ── Phase B — 攻擊方發動 ──
@@ -1009,7 +968,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       await contestDialog.getByRole('button', { name: '確認回應' }).click();
@@ -1134,7 +1093,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -1145,7 +1104,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // ── Phase B — 攻擊方發動隱匿對抗 ──
@@ -1172,7 +1131,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       // ── Phase D — 防守方回應 ──

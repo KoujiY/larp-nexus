@@ -62,7 +62,7 @@ test.describe('e2e infrastructure smoke', () => {
     expect(body.mode).toBe('gm');
   });
 
-  test('reset endpoint clears seeded data', async ({ seed, dbQuery }) => {
+  test('reset endpoint clears seeded data', async ({ seed, dbQuery, request }) => {
     // Seed 一筆 GM user
     await seed.gmUser({ email: 'reset-test@test.com', displayName: 'Reset Test' });
 
@@ -70,9 +70,12 @@ test.describe('e2e infrastructure smoke', () => {
     const before = await dbQuery('gm_users', { email: 'reset-test@test.com' });
     expect(before.length).toBe(1);
 
-    // resetDb auto-fixture 在下一個 test 才會觸發，
-    // 這裡手動呼叫 reset 來驗證
-    // （注意：因為 resetDb 是 auto fixture，下一個 test 會自動清空）
+    // 手動呼叫 reset endpoint 並驗證資料被清空
+    const resetRes = await request.post('/api/test/reset');
+    expect(resetRes.ok()).toBe(true);
+
+    const after = await dbQuery('gm_users', { email: 'reset-test@test.com' });
+    expect(after.length).toBe(0);
   });
 
   test('seed + dbQuery round-trip', async ({ seed, dbQuery }) => {

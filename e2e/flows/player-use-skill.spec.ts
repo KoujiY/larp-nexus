@@ -293,7 +293,11 @@ test.describe('Flow #5 — Player Use Skill', () => {
     await page.getByRole('option', { name: 'E2E 防守者' }).click();
 
     // 注入 Math.random：Math.floor(0.7 * 20) + 1 = 15 >= 11 → pass
-    await page.evaluate(() => { Math.random = () => 0.7; });
+    // 保存原始 Math.random 以便後續還原
+    await page.evaluate(() => {
+      (window as unknown as Record<string, unknown>).__origMathRandom = Math.random;
+      Math.random = () => 0.7;
+    });
 
     const useBtn = skillDialog.getByRole('button', { name: '使用技能' });
     await expect(useBtn).toBeEnabled();
@@ -377,6 +381,11 @@ test.describe('Flow #5 — Player Use Skill', () => {
     const runtimeBStats2 = runtimeBDocs2[0].stats as Array<{ name: string; value: number }>;
     const bHp2 = runtimeBStats2.find(s => s.name === '生命值');
     expect(bHp2!.value).toBe(35);
+
+    // 還原 Math.random
+    await page.evaluate(() => {
+      Math.random = (window as unknown as Record<string, unknown>).__origMathRandom as () => number;
+    });
   });
 
   // ────────────────────────────────────────────────────────────

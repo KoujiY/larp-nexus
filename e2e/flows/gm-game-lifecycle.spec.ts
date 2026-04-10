@@ -118,7 +118,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
 
     // ── Phase 1：進入劇本編輯頁 → 看到目前 code ──
     await page.goto(`/games/${gameA._id}`);
-    await expect(page.getByText('ORIG01')).toBeVisible();
+    await expect(page.locator('main').getByText('ORIG01')).toBeVisible();
 
     // ── Phase 2：開啟編輯 Dialog → 變更成功 ──
     await page.getByRole('button', { name: '編輯遊戲代碼' }).click();
@@ -204,7 +204,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await expect(page.getByRole('tab', { name: '劇本資訊' })).toBeVisible();
 
     // 清空名稱
-    const nameInput = page.getByPlaceholder('請輸入劇本名稱');
+    const nameInput = page.locator('main').getByPlaceholder('請輸入劇本名稱');
     await nameInput.clear();
 
     // 點儲存
@@ -323,7 +323,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     // ══════════════════════════════════════
 
     // 製造 dirty state：修改名稱
-    await page.getByPlaceholder('請輸入劇本名稱').fill('未儲存的名稱');
+    await page.locator('main').getByPlaceholder('請輸入劇本名稱').fill('未儲存的名稱');
     // 等待 dirty state 完全傳播：
     //   isDirty → saveBtn enable（同元件，立即）
     //   isDirty → useEffect → onDirtyChange → setInfoDirty（跨元件，延遲 1-2 render cycles）
@@ -342,7 +342,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await dismissPromise;
 
     // 應停留在「劇本資訊」Tab（dismiss 阻止了切換）
-    await expect(page.getByPlaceholder('請輸入劇本名稱')).toBeVisible();
+    await expect(page.locator('main').getByPlaceholder('請輸入劇本名稱')).toBeVisible();
 
     // accept confirm dialog（接受離開）
     const acceptPromise = page.waitForEvent('dialog').then(async (dialog) => {
@@ -352,7 +352,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await acceptPromise;
 
     // 應成功切到「預設事件」Tab（名稱欄位不再可見）
-    await expect(page.getByPlaceholder('請輸入劇本名稱')).not.toBeVisible({ timeout: 3000 });
+    await expect(page.locator('main').getByPlaceholder('請輸入劇本名稱')).not.toBeVisible({ timeout: 3000 });
   });
 
   test('#3.4 preset events CRUD (broadcast)', async ({
@@ -560,15 +560,14 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     const gamesAfterStart = await dbQuery('games', { _id: game._id });
     expect(gamesAfterStart[0].isActive).toBe(true);
 
-    // GameRuntime 已建立
+    // GameRuntime 已建立（startGame 建立 1 筆 type=runtime）
     const runtimes = await dbQuery('game_runtime', { refId: game._id });
-    expect(runtimes.length).toBeGreaterThanOrEqual(1);
-    const runtime = runtimes.find((r: Record<string, unknown>) => r.type === 'runtime');
-    expect(runtime).toBeTruthy();
+    expect(runtimes).toHaveLength(1);
+    expect(runtimes[0].type).toBe('runtime');
 
-    // CharacterRuntime 已建立
+    // CharacterRuntime 已建立（1 個 character → 1 筆）
     const charRuntimes = await dbQuery('character_runtime', { gameId: game._id });
-    expect(charRuntimes.length).toBeGreaterThanOrEqual(1);
+    expect(charRuntimes).toHaveLength(1);
 
     // ══════════════════════════════════════
     // 子流程 B — J1/J2/J3 驗證
@@ -645,7 +644,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
       gameCode: 'DELA01',
     });
     const charA1 = await seed.character({ gameId: gameA._id, name: '角色 A1' });
-    const charA2 = await seed.character({ gameId: gameA._id, name: '角色 A2' });
+    const _charA2 = await seed.character({ gameId: gameA._id, name: '角色 A2' });
 
     // Game A 的 Log
     await seed.log({

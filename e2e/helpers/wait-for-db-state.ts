@@ -51,12 +51,15 @@ export async function waitForDbState(
 
   while (Date.now() < deadline) {
     const response = await request.get(url);
-    if (response.ok()) {
-      const json = await response.json() as { documents: Record<string, unknown>[] };
-      lastDocs = json.documents;
-      if (predicate(lastDocs)) {
-        return lastDocs;
-      }
+    if (!response.ok()) {
+      throw new Error(
+        `waitForDbState: dbQuery failed (${response.status()}): ${await response.text()}`,
+      );
+    }
+    const json = await response.json() as { documents: Record<string, unknown>[] };
+    lastDocs = json.documents;
+    if (predicate(lastDocs)) {
+      return lastDocs;
     }
     await new Promise((r) => setTimeout(r, interval));
   }

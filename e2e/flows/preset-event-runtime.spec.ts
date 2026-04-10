@@ -10,7 +10,7 @@
  * @see docs/refactoring/E2E_FLOW_9_PRESET_EVENT_RUNTIME.md
  */
 
-import { test, expect } from '../fixtures';
+import { test, expect, E2E_BASE_URL } from '../fixtures';
 import { waitForToast } from '../helpers/wait-for-toast';
 import { waitForWebSocketEvent } from '../helpers/wait-for-websocket-event';
 import type { Browser } from '@playwright/test';
@@ -337,15 +337,13 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     });
 
     // ── 建立 3 個 context（GM + Player A + Player B） ──
-    const baseURL = 'http://127.0.0.1:3100';
-
-    const gmCtx = await (browser as Browser).newContext({ baseURL });
+    const gmCtx = await (browser as Browser).newContext({ baseURL: E2E_BASE_URL });
     const gmPage = await gmCtx.newPage();
     await gmCtx.request.post('/api/test/login', {
       data: { mode: 'gm', gmUserId, email: 'e2e-gm@test.com' },
     });
 
-    const ctxA = await (browser as Browser).newContext({ baseURL });
+    const ctxA = await (browser as Browser).newContext({ baseURL: E2E_BASE_URL });
     const pageA = await ctxA.newPage();
     await ctxA.request.post('/api/test/login', {
       data: { mode: 'player', characterIds: [charA._id] },
@@ -355,7 +353,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
       localStorage.setItem(`character-${id}-fullAccess`, 'true');
     }, charA._id);
 
-    const ctxB = await (browser as Browser).newContext({ baseURL });
+    const ctxB = await (browser as Browser).newContext({ baseURL: E2E_BASE_URL });
     const pageB = await ctxB.newPage();
     await ctxB.request.post('/api/test/login', {
       data: { mode: 'player', characterIds: [charB._id] },

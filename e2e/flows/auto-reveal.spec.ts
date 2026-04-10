@@ -15,51 +15,7 @@ import { test, expect } from '../fixtures';
 import { waitForToast } from '../helpers/wait-for-toast';
 import { clickSaveBar } from '../helpers/click-save-bar';
 import { waitForWebSocketEvent } from '../helpers/wait-for-websocket-event';
-import type { Browser } from '@playwright/test';
-
-// ─── 共用 Helper ─────────────────────────────────────────
-
-/**
- * 建立雙 Player context（Player A + Player B）
- * 各自有獨立 cookie jar 與 localStorage
- */
-async function setupDualPlayerContext(
-  browser: Browser,
-  charAId: string,
-  charBId: string,
-) {
-  const baseURL = 'http://127.0.0.1:3100';
-
-  // Player A context
-  const ctxA = await browser.newContext({ baseURL });
-  const pageA = await ctxA.newPage();
-  await ctxA.request.post('/api/test/login', {
-    data: { mode: 'player', characterIds: [charAId] },
-  });
-  await pageA.addInitScript(
-    ({ id }: { id: string }) => {
-      localStorage.setItem(`character-${id}-unlocked`, 'true');
-      localStorage.setItem(`character-${id}-fullAccess`, 'true');
-    },
-    { id: charAId },
-  );
-
-  // Player B context
-  const ctxB = await browser.newContext({ baseURL });
-  const pageB = await ctxB.newPage();
-  await ctxB.request.post('/api/test/login', {
-    data: { mode: 'player', characterIds: [charBId] },
-  });
-  await pageB.addInitScript(
-    ({ id }: { id: string }) => {
-      localStorage.setItem(`character-${id}-unlocked`, 'true');
-      localStorage.setItem(`character-${id}-fullAccess`, 'true');
-    },
-    { id: charBId },
-  );
-
-  return { pageA, pageB, ctxA, ctxB };
-}
+import { setupDualPlayerContext } from '../helpers/setup-dual-player-context';
 
 // ─── Tests ───────────────────────────────────────────────
 

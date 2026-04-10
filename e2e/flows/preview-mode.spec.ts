@@ -312,6 +312,11 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
     });
 
     await asPlayer({ characterId: character._id, readOnly: true });
+
+    // ── 頁面錯誤監聽（在 goto 前註冊，確保捕捉載入階段的錯誤） ──
+    const consoleErrors: string[] = [];
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+
     await page.goto(`/c/${character._id}`);
 
     // 橫幅仍顯示預覽模式（因為 isReadOnly=true，沒有 fullAccess）
@@ -329,11 +334,7 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
     await page.getByRole('button', { name: '物品' }).click();
     await expect(page.getByText('盾牌', { exact: true }).first()).toBeVisible();
 
-    // ── 頁面沒有 JS 錯誤（不崩潰） ──
-    // 上方的斷言已隱含「頁面正常渲染」。額外確認無 console error：
-    const consoleErrors: string[] = [];
-    page.on('pageerror', (error) => consoleErrors.push(error.message));
-    // 切換幾個 tab 確認不會 crash
+    // ── 切換 tab 確認不會 crash ──
     await page.getByRole('button', { name: '技能' }).click();
     await page.getByRole('button', { name: '任務' }).click();
     await page.getByRole('button', { name: '資訊' }).click();

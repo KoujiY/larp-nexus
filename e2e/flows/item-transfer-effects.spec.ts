@@ -11,50 +11,7 @@
 
 import { test, expect } from '../fixtures';
 import { waitForWebSocketEvent } from '../helpers/wait-for-websocket-event';
-import type { Browser } from '@playwright/test';
-
-// ─── 共用 Helper ─────────────────────────────────────────
-
-/**
- * 建立雙 BrowserContext（攻擊方 A + 防守方 B），各自有獨立 cookie jar + localStorage
- */
-async function setupDualPlayerContext(
-  browser: Browser,
-  seed: { gmUser: Function; game: Function; character: Function; characterRuntime: Function; gameRuntime: Function },
-  opts: { gameId: string; attackerId: string; defenderId: string },
-) {
-  const baseURL = 'http://127.0.0.1:3100';
-
-  const ctxA = await browser.newContext({ baseURL });
-  const pageA = await ctxA.newPage();
-  // 攻擊方 login
-  await pageA.request.post('/api/test/login', {
-    data: { mode: 'player', characterIds: [opts.attackerId] },
-  });
-  await pageA.addInitScript(
-    (id: string) => {
-      localStorage.setItem(`character-${id}-unlocked`, 'true');
-      localStorage.setItem(`character-${id}-fullAccess`, 'true');
-    },
-    opts.attackerId,
-  );
-
-  const ctxB = await browser.newContext({ baseURL });
-  const pageB = await ctxB.newPage();
-  // 防守方 login
-  await pageB.request.post('/api/test/login', {
-    data: { mode: 'player', characterIds: [opts.defenderId] },
-  });
-  await pageB.addInitScript(
-    (id: string) => {
-      localStorage.setItem(`character-${id}-unlocked`, 'true');
-      localStorage.setItem(`character-${id}-fullAccess`, 'true');
-    },
-    opts.defenderId,
-  );
-
-  return { ctxA, pageA, ctxB, pageB };
-}
+import { setupDualPlayerContext } from '../helpers/setup-dual-player-context';
 
 // ─── Tests ───────────────────────────────────────────────
 
@@ -140,7 +97,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -155,7 +112,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // 攻擊方：頁面已載入 → 切到技能 tab → 使用繳械
@@ -178,7 +135,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       const contestDialog = pageB.getByRole('dialog', { name: '對抗檢定' });
@@ -317,7 +274,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
 
     // ── 建立雙 context ──
     const { ctxA, pageA, ctxB, pageB } = await setupDualPlayerContext(
-      browser, seed, { gameId, attackerId: charA._id, defenderId: charB._id },
+      browser, charA._id, charB._id,
     );
 
     try {
@@ -332,7 +289,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
         channel: `private-character-${charB._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'request'`,
+        filter: { path: 'payload.subType', value: 'request' },
       });
 
       // 攻擊方：頁面已載入 → 切到技能 tab → 使用偷竊
@@ -353,7 +310,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       const resultPromiseA = waitForWebSocketEvent(pageA, {
         event: 'skill.contest',
         channel: `private-character-${charA._id}`,
-        filter: `(data) => data && data.payload && data.payload.subType === 'result'`,
+        filter: { path: 'payload.subType', value: 'result' },
       });
 
       const contestDialog = pageB.getByRole('dialog', { name: '對抗檢定' });

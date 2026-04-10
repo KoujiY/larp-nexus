@@ -95,8 +95,8 @@ test.describe('Flow #2 — Player PIN unlock → character card', () => {
     await pinInput.fill('9999');
     await page.getByText('以 PIN 預覽角色').click();
 
-    // 等待 error feedback 出現（紅色錯誤訊息）
-    await expect(page.locator('.text-destructive')).toBeVisible({ timeout: 5000 });
+    // 等待 error feedback 出現（錯誤訊息文字）
+    await expect(page.getByText('PIN 或遊戲代碼錯誤')).toBeVisible({ timeout: 5000 });
 
     // PinUnlock 仍然存在（沒有被 dismiss）
     await expect(pinInput).toBeVisible();

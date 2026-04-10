@@ -56,16 +56,17 @@ test.describe('Flow #1 — GM login → game list', () => {
     seed,
     asGm,
   }) => {
-    // Seed GM + 2 Games（不同 createdAt 確保排序可驗證）
+    // Seed GM + 2 Games（明確設定 createdAt 確保排序穩定）
     const gm = await seed.gmUser();
-    const oldGame = await seed.game({
+    const _oldGame = await seed.game({
       gmUserId: gm._id,
       name: '第一個劇本',
+      createdAt: new Date('2024-01-01'),
     });
-    // 確保第二個 game 建立時間晚於第一個（Mongoose timestamps 自動產生）
     const newGame = await seed.game({
       gmUserId: gm._id,
       name: '第二個劇本',
+      createdAt: new Date('2024-06-01'),
     });
 
     await asGm({ gmUserId: gm._id });

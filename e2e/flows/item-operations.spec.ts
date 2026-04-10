@@ -9,7 +9,7 @@
  * - #7.5 Transfer + isTransferable + partial quantity + equipment auto-unequip
  * - #7.6 Usage limit + cooldown + readOnly + error 拒絕
  */
-import { test, expect } from '../fixtures';
+import { test, expect, E2E_BASE_URL } from '../fixtures';
 import { waitForWebSocketEvent } from '../helpers/wait-for-websocket-event';
 
 test.describe('Flow #7 — Item Operations', () => {
@@ -243,8 +243,11 @@ test.describe('Flow #7 — Item Operations', () => {
     // ── Phase A：Pass 分支（Math.random → 0.7 → roll = 71 ≥ 50） ──
     await asPlayer({ characterId: charAId });
     await page.goto(`/c/${charAId}`);
-    // 注入 Math.random 控制擲骰
-    await page.evaluate(() => { Math.random = () => 0.7; });
+    // 注入 Math.random 控制擲骰（保存原始值以便還原）
+    await page.evaluate(() => {
+      (window as unknown as Record<string, unknown>).__origMathRandom = Math.random;
+      Math.random = () => 0.7;
+    });
 
     const navItems = page.getByRole('navigation').getByRole('button', { name: '物品' });
     await navItems.click();
@@ -330,6 +333,11 @@ test.describe('Flow #7 — Item Operations', () => {
     const baseHpB = (baseB[0].stats as Array<{ name: string; value: number }>)
       .find(s => s.name === '生命值');
     expect(baseHpB!.value).toBe(80); // 不變
+
+    // 還原 Math.random
+    await page.evaluate(() => {
+      Math.random = (window as unknown as Record<string, unknown>).__origMathRandom as () => number;
+    });
   });
 
   // ────────────────────────────────────────────────────────────
@@ -569,7 +577,7 @@ test.describe('Flow #7 — Item Operations', () => {
     await seed.gameRuntime({ refId: gameId, gmUserId });
 
     // ── 建立雙 Player context（A=展示者, B=觀看者） ──
-    const ctxA = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
+    const ctxA = await browser.newContext({ baseURL: E2E_BASE_URL });
     const pageA = await ctxA.newPage();
     await ctxA.request.post('/api/test/login', {
       data: { mode: 'player', characterIds: [charAId] },
@@ -582,7 +590,7 @@ test.describe('Flow #7 — Item Operations', () => {
       { id: charAId },
     );
 
-    const ctxB = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
+    const ctxB = await browser.newContext({ baseURL: E2E_BASE_URL });
     const pageB = await ctxB.newPage();
     await ctxB.request.post('/api/test/login', {
       data: { mode: 'player', characterIds: [charBId] },
@@ -1064,7 +1072,7 @@ test.describe('Flow #7 — Item Operations', () => {
     // ── Phase C：ReadOnly 模式 → 所有按鈕 disabled ──
     // addInitScript 會累積，無法在同一 page 切換 readOnly。
     // 建立獨立 context 確保 fullAccess 不被前面的 init script 覆蓋。
-    const readOnlyCtx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
+    const readOnlyCtx = await browser.newContext({ baseURL: E2E_BASE_URL });
     const readOnlyPage = await readOnlyCtx.newPage();
 
     await readOnlyCtx.request.post('/api/test/login', {
