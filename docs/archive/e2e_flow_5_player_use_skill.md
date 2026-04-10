@@ -1,11 +1,11 @@
 # E2E Flow #5 — Player 使用技能（非對抗、非 item 轉移）
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #5 的完整規格。主 plan 僅保留 anchor 與指標。
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #5 的完整規格。主 plan 僅保留 anchor 與指標。
 > **對應 spec**：`e2e/flows/player-use-skill.spec.ts`
 > **關聯 flow**：
-> - [E2E_FLOW_2_PLAYER_PIN.md](./E2E_FLOW_2_PLAYER_PIN.md) — 玩家 PIN unlock 上游（提供 `fullAccess=true` 的前置）
-> - [E2E_FLOW_6_CONTEST.md](./E2E_FLOW_6_CONTEST.md) — 對抗 (contest) 技能完整閉環
-> - [E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md](./E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md) — item_take/item_steal 延遲選擇（對抗 #6b.1/#6b.2 + 非對抗 #6b.3）
+> - [e2e_flow_2_player_pin.md](./e2e_flow_2_player_pin.md) — 玩家 PIN unlock 上游（提供 `fullAccess=true` 的前置）
+> - [e2e_flow_6_contest.md](./e2e_flow_6_contest.md) — 對抗 (contest) 技能完整閉環
+> - [e2e_flow_6b_contest_item_transfer.md](./e2e_flow_6b_contest_item_transfer.md) — item_take/item_steal 延遲選擇（對抗 #6b.1/#6b.2 + 非對抗 #6b.3）
 
 ---
 

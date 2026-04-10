@@ -726,7 +726,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 
 2. **Phase 2 — Flows 層詳細規劃（docs only，無程式碼）** ✅（獨立文件產出完成）
 
-   **產出**：`docs/refactoring/E2E_FLOWS_PLAN.md` — 8 個 flows 各自的進入點 / 前置 seed / 操作步驟 / 非同步等待點 / 斷言 / 反向驗證 / 已知陷阱，以及從 flows 反推的 fixture / helper / test API 設計結論
+   **產出**：`docs/archive/e2e-flows-plan.md` — 8 個 flows 各自的進入點 / 前置 seed / 操作步驟 / 非同步等待點 / 斷言 / 反向驗證 / 已知陷阱，以及從 flows 反推的 fixture / helper / test API 設計結論
 
    **內容**：為 **8 個 flows** 逐一展開規劃。每個 flow 必須寫清楚：
    - 進入點（使用者角色、URL）
@@ -782,11 +782,11 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #2.2 PIN 錯誤 → error path（不洩漏狀態）
      - [x] #2.3 hasPinLock:false → 直接進入完整互動模式
    - [x] 驗證 smoke 層整層跑綠（10/10 tests passed），確認 fixtures 穩定 ✅
-   - [x] 撰寫規範更新至 `E2E_FLOWS_PLAN.md`（Locator 選擇優先序、RSC streaming 對策等 6 條規則）
+   - [x] 撰寫規範更新至 `../archive/e2e-flows-plan.md`（Locator 選擇優先序、RSC streaming 對策等 6 條規則）
 
 5. **Phase 5 — Flows specs（12 個 flow，依依賴鏈順序實作）** ✅
 
-   > Phase 2 規劃已從原始 6 個擴展為 12 個 flow（#3–#12，含 #4b 和 #6b），詳見 `E2E_FLOWS_PLAN.md` 各獨立檔案。
+   > Phase 2 規劃已從原始 6 個擴展為 12 個 flow（#3–#12，含 #4b 和 #6b），詳見 `../archive/e2e-flows-plan.md` 各獨立檔案。
 
    實作順序刻意讓後者依賴前者的 seed / 操作，避免重複 setup 程式碼：
    1. [x] `e2e/flows/gm-game-lifecycle.spec.ts` — 對應 flow #3 ✅
@@ -867,29 +867,69 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 
    **Phase 5 穩定化** ✅ — Flows specs 全部實作完成後的 flaky test 根治
 
-   針對 #3.3、#4.2、#4.3、#10.3、#10.5 五個 flaky test 進行根因分析並系統性修復。產出三個根治方法（詳見 `E2E_FLOWS_PLAN.md §E2E Flaky Test 根治策略`）：
+   針對 #3.3、#4.2、#4.3、#10.3、#10.5 五個 flaky test 進行根因分析並系統性修復。產出三個根治方法（詳見 `../archive/e2e-flows-plan.md §E2E Flaky Test 根治策略`）：
    - [x] 方法 1：`retries: 1`（`playwright.config.ts`）— 兜底層
    - [x] 方法 2：穩定信號取代 `waitForTimeout` — toast wait（4 處）+ `expect.poll` DB 輪詢（6 處）
    - [x] 方法 3：`clickSaveBar` helper（`e2e/helpers/click-save-bar.ts`）— AnimatePresence 元素改用 evaluate retry loop（14 處）
    - [x] 附帶修復：`IconActionButton` 新增 `type="button"`（production bug，`<form>` 內 button 預設 submit）
    - [x] 附帶修復：`#3.5` strict mode violation — `getByText` 限縮至 `main` scope
-   - [x] 新增 `E2E_FLOWS_PLAN.md` 規則 35–36 + 根治策略章節
+   - [x] 新增 `../archive/e2e-flows-plan.md` 規則 35–36 + 根治策略章節
    - [x] 3 輪全測試通過驗證
 
-6. **Phase 6 — 開發者體驗 / 維運**（optional but valuable）
-   - [ ] README 段落：如何跑 E2E、常見失敗排查
-   - [ ] `docs/knowledge/` 加入「E2E 測試架構」知識庫條目（Pusher stub 原理、SSE IPC 設計、fixture 使用指南）
-   - [ ] CI workflow draft（GitHub Actions）— **不實作，只保留未來參考**
-   - [ ] `pnpm test:e2e:headed` script（視需要）— 瀏覽器可視模式 debug
-   - [ ] `pnpm test:e2e:debug` script — Playwright inspector mode
+6. **Phase 6 — 開發者體驗 / 維運** ✅
+   - [x] README 段落：如何跑 E2E、常見失敗排查
+   - [x] `docs/knowledge/architecture/e2e-testing.md`：E2E 測試架構知識庫（Pusher stub 原理、SSE IPC 設計、fixture 使用指南、flaky test 防治策略）
+   - [x] CI workflow draft：`docs/refactoring/ci-e2e-workflow-draft.md`（GitHub Actions 草稿，僅參考）
+   - [x] `pnpm test:e2e:headed` script — 瀏覽器可視模式
+   - [x] `pnpm test:e2e:debug` script — Playwright Inspector debug 模式（`PWDEBUG=1`）
 
-7. **Phase 7 — 驗收**
-   - [ ] 整套 `pnpm test:e2e` 一條指令跑完所有 specs（smoke + flows）全綠
-   - [ ] 離線可跑（無 Atlas、無 Pusher、無 SMTP、無 Docker、無 WSL）
-   - [ ] `pnpm build`（production Turbopack）仍然乾淨
-   - [ ] NEXT_DEVELOPMENT_PLAN.md §6 整段標記完成
-   - [ ] 更新 CLAUDE.md（如需）加入 E2E 執行提醒到 commit 前檢查流程
-   - [ ] 任一 flow spec 故意破壞實作後必定 fail（逆向驗證 assertion 有效）
+   **Phase 6b — Code Review 修復** ✅
+
+   Code review 發現的問題，按優先順序修復：
+
+   - [x] **Round 1**：`wait-for-websocket-event.ts` — `eval()` 改用結構化 `FilterMatcher`，`onerror` 加 readyState 檢查
+   - [x] **Round 2**：`fixtures/index.ts` — `asGmAndPlayer` 加 login error check、`E2E_BASE_URL` 集中管理
+   - [x] **Round 3**：提取 `setupDualPlayerContext` 到 `e2e/helpers/`，統一 3 個 spec 的實作
+   - [x] **Round 4**：個別 spec 斷言品質修復（H5–H10）+ TS/ESLint 錯誤清零
+   - [x] **Round 5**：MEDIUM 層改善（M2 5xx 拋錯、M5 pageerror 位置、M9 精確斷言）
+
+   <details>
+   <summary>完整 Code Review 發現清單</summary>
+
+   **CRITICAL（1）**
+   - C1: `wait-for-websocket-event.ts:69` — `eval()` 執行字串 filter，錯誤被 `catch {}` 靜默吞掉
+
+   **HIGH（10）**
+   - H1: `fixtures/index.ts:337-358` — `asGmAndPlayer` login 無 response.ok() 檢查
+   - H2: `fixtures/index.ts:331,347` + 3 個 spec — `baseURL` 硬編碼，與 config 脫鈎
+   - H3: `wait-for-websocket-event.ts:81-85` — `es.onerror` 無條件 reject
+   - H4: 3 個 spec 各自定義 `setupDualPlayerContext`，實作有差異
+   - H5: `player-use-skill.spec.ts:296`、`item-operations.spec.ts:247` — `Math.random` 未還原
+   - H6: `gm-game-lifecycle.spec.ts:333` — `waitForTimeout(500)` 無確定性信號
+   - H7: `gm-can-login.spec.ts:60-97` — 同毫秒 `createdAt` 排序不確定
+   - H8: `infrastructure.spec.ts:65-76` — test 標題說 reset 但沒斷言
+   - H9: `player-can-unlock.spec.ts:99` — CSS class 做 error 斷言
+   - H10: `gm-broadcast.spec.ts:344-350` — DB 查詢無 gameId filter
+
+   **MEDIUM（精選 10）**
+   - M1: `fixtures/index.ts:129-131` — `callSeed` 回傳 input data 非 DB 值
+   - M2: `wait-for-db-state.ts:54-59` — HTTP 5xx 靜默 retry
+   - M3: `gm-broadcast.spec.ts:199-212` — payload fallback 掩蓋 schema 歧義
+   - M4: `contest-flow.spec.ts:983-1006` — CSS opacity 斷言耦合 Tailwind
+   - M5: `preview-mode.spec.ts:334-342` — `pageerror` listener 在 goto 後註冊
+   - M6: `auto-reveal.spec.ts:809` — `waitForTimeout(500)` 可被 clickSaveBar retry 取代
+   - M7: `item-transfer-effects.spec.ts:400,539` — 用 `.name` 找物品無唯一性保護
+   - M8: `time-dependent-edges.spec.ts:100-106` — cron 後 dbQuery 無 polling
+   - M9: `gm-game-lifecycle.spec.ts:570` — `toBeGreaterThanOrEqual(1)` 太弱
+   - M10: `app/actions/item-use.ts:521-578` — `targetUpdates` 混用 `$push`
+
+   </details>
+
+7. **Phase 7 — 驗收** ✅
+   - [x] 整套 `pnpm test:e2e` 一條指令跑完所有 specs（smoke + flows）全綠（連續 3 輪）
+   - [x] 離線可跑（無 Atlas、無 Pusher、無 SMTP、無 Docker、無 WSL）
+   - [x] 更新 CLAUDE.md — 加入靜態分析（tsc+eslint）到 commit 前檢查流程
+   - [x] E2E 開發文件封存至 `docs/archive/`，撰寫規範合併至 `docs/knowledge/architecture/e2e-testing.md`
 
 ### 決策記錄（對話中已確認）
 
@@ -946,9 +986,55 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | ~~7.5~~ | ~~#5.5 控制台 UI 微調~~ | ~~小~~ | ✅ E2E 建置前先穩定 UI |
 | ~~7.6~~ | ~~#5.6 Lint 問題統一清理（5.6-2 ~ 5.6-5）~~ | ~~小~~ | ✅ 17 warnings 全清 |
 | 8 | #6 E2E 測試建置 | 中 | 純地端；Playwright + mongodb-memory-server + Pusher stub 兩層（smoke/flows）|
-| 9 | #5.6-1 React 19 set-state-in-effect 重構 | 中 | 需要 E2E 覆蓋作為重構安全網，故排在 #6 之後 |
-| 10 | #7 `item_give` 死碼移除 | 小 | `item_give` 在 schema enum 中定義但 executor 未實作（空殼註解），與現有物品轉移（`item_take`/`item_steal`）無關；需從 skill effect enum、types、executor stub、UI 元件、知識庫文件中統一清除 |
-| 11 | #8 裝備類物品對抗回應過濾 | 小 | `contest-response-dialog.tsx` 和 `contest-validator.ts` 缺少 `item.type !== 'equipment'` 排除條件，裝備（被動增益）不應出現在對抗回應選項。前後端兩處同步修正 |
+
+### E2E 之後的待辦項目
+
+以下項目均在 E2E 測試建置完成後執行，依優先順序排列：
+
+| 順序 | 項目 | 規模 | 類型 |
+|------|------|------|------|
+| 9 | #5.6-1 React 19 set-state-in-effect 重構 | 中 | 重構 |
+| 10 | #7 `item_give` 死碼移除 | 小 | 清理 |
+| 11 | #8 裝備類物品對抗回應過濾 | 小 | Bug 修復 |
+| 12 | #9 PIN 驗證邏輯統一 | 小 | 技術債 |
+| 13 | #10 E2E Code Review 殘留 MEDIUM 修復 | 小 | 改善 |
+
+#### #5.6-1 React 19 set-state-in-effect 重構
+
+需要 E2E 覆蓋作為重構安全網，故排在 #6 之後。
+
+#### #7 `item_give` 死碼移除
+
+`item_give` 在 schema enum 中定義但 executor 未實作（空殼註解），與現有物品轉移（`item_take`/`item_steal`）無關。需從 skill effect enum、types、executor stub、UI 元件、知識庫文件中統一清除。
+
+#### #8 裝備類物品對抗回應過濾
+
+`contest-response-dialog.tsx` 和 `contest-validator.ts` 缺少 `item.type !== 'equipment'` 排除條件，裝備（被動增益）不應出現在對抗回應選項。前後端兩處同步修正。
+
+#### #10 E2E Code Review 殘留 MEDIUM 修復
+
+Phase 6b code review 中評估為低優先的 MEDIUM 項目，擇時修復：
+
+- M1: `fixtures/index.ts` — `callSeed` 回傳 input data 而非 DB 值（需改 seed API 回傳完整 document）
+- M3: `gm-broadcast.spec.ts:199-212` — broadcast payload fallback 掩蓋 schema 歧義
+- M4: `contest-flow.spec.ts:983-1006` — CSS opacity 斷言耦合 Tailwind class
+- M6: `auto-reveal.spec.ts:809` — `waitForTimeout(500)` 可被 clickSaveBar retry 取代
+- M7: `item-transfer-effects.spec.ts:400,539` — 用 `.name` 找物品無唯一性保護
+- M10: `app/actions/item-use.ts:521-578` — `targetUpdates` 混用 `$push`（production code，需謹慎）
+
+#### #9 PIN 驗證邏輯統一
+
+PIN 驗證規則（4 位數字 `/^\d{4}$/`）目前散落在至少 6 個檔案中，各自硬編碼 regex：
+- `lib/character/character-validator.ts`（Zod schema + 手動 regex）
+- `app/api/characters/[characterId]/unlock/route.ts`
+- `app/actions/characters.ts`（createCharacter + checkPinAvailability）
+- `components/gm/view-pin-button.tsx`
+- `components/gm/pin-field.tsx`
+- `components/gm/create-character-button.tsx`
+
+應提取為單一 constant 或 Zod schema，前後端共用。可放在 `lib/character/character-validator.ts` 中 export regex + 錯誤訊息，其他檔案 import 使用。
+
+---
 
 ## 注意事項
 

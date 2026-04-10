@@ -1,11 +1,11 @@
 # E2E Flow #7 — 道具操作（use / equip / showcase / transfer）
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #7 的完整規格。主 plan 僅保留 anchor 與指標。
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #7 的完整規格。主 plan 僅保留 anchor 與指標。
 > **對應 spec**：`e2e/flows/item-operations.spec.ts`
 > **關聯 flow**：
-> - [E2E_FLOW_5_PLAYER_USE_SKILL.md](./E2E_FLOW_5_PLAYER_USE_SKILL.md) — 技能使用（共用基礎設施 + 類似效果管線）
-> - [E2E_FLOW_6_CONTEST.md](./E2E_FLOW_6_CONTEST.md) — 對抗檢定（道具的 contest 路徑由 Flow #6 覆蓋）
-> - [E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md](./E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md) — item_take/steal 延遲選擇（對抗 + 非對抗）
+> - [e2e_flow_5_player_use_skill.md](./e2e_flow_5_player_use_skill.md) — 技能使用（共用基礎設施 + 類似效果管線）
+> - [e2e_flow_6_contest.md](./e2e_flow_6_contest.md) — 對抗檢定（道具的 contest 路徑由 Flow #6 覆蓋）
+> - [e2e_flow_6b_contest_item_transfer.md](./e2e_flow_6b_contest_item_transfer.md) — item_take/steal 延遲選擇（對抗 + 非對抗）
 
 ---
 

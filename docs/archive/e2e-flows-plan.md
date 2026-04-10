@@ -48,7 +48,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ## Flow #1 — GM test-login → 劇本列表（smoke 層）
 
-> **⚠ 已拆出為獨立檔案**：Flow #1 的完整規格（3 個 test case、跨 case 已知陷阱、Flow #1 專屬 fixture 需求、延後項目追蹤）已移至 [E2E_FLOW_1_GM_LOGIN.md](./E2E_FLOW_1_GM_LOGIN.md)。
+> **⚠ 已拆出為獨立檔案**：Flow #1 的完整規格（3 個 test case、跨 case 已知陷阱、Flow #1 專屬 fixture 需求、延後項目追蹤）已移至 [e2e_flow_1_gm_login.md](./e2e_flow_1_gm_login.md)。
 >
 > 本位置保留標題作為 anchor，讓 `grep "Flow #1"` 與章節連結仍可定位。
 
@@ -56,7 +56,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ## Flow #2 — 玩家真實 PIN 解鎖 → 角色卡預覽模式（smoke 層）
 
-> **⚠ 已拆出為獨立檔案**：Flow #2 的完整規格（3 個 test case、跨 case 已知陷阱、Flow #2 專屬 fixture 需求、延後項目追蹤）已移至 [E2E_FLOW_2_PLAYER_PIN.md](./E2E_FLOW_2_PLAYER_PIN.md)。
+> **⚠ 已拆出為獨立檔案**：Flow #2 的完整規格（3 個 test case、跨 case 已知陷阱、Flow #2 專屬 fixture 需求、延後項目追蹤）已移至 [e2e_flow_2_player_pin.md](./e2e_flow_2_player_pin.md)。
 >
 > 本位置保留標題作為 anchor，讓 `grep "Flow #2"` 與章節連結仍可定位。
 
@@ -64,7 +64,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ## Flow #3 — GM 劇本管理完整生命週期（flows 層）
 
-> **⚠ 已拆出為獨立檔案**：Flow #3 的完整規格（6 個 test case、跨 case 已知陷阱、Flow #3 專屬 fixture 需求）已移至 [E2E_FLOW_3_GAME_LIFECYCLE.md](./E2E_FLOW_3_GAME_LIFECYCLE.md)，因為本文件過於龐大，不適合再承載 Flow #3 級別的詳細規格。
+> **⚠ 已拆出為獨立檔案**：Flow #3 的完整規格（6 個 test case、跨 case 已知陷阱、Flow #3 專屬 fixture 需求）已移至 [e2e_flow_3_game_lifecycle.md](./e2e_flow_3_game_lifecycle.md)，因為本文件過於龐大，不適合再承載 Flow #3 級別的詳細規格。
 >
 > 本位置保留標題作為 anchor，讓 `grep "Flow #3"` 與章節連結仍可定位。後續 Flow #4–#8 的詳細規格（一旦完成撰寫）也可能採用同樣的拆分策略。
 
@@ -79,8 +79,8 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 ## Flow #4 — GM 角色卡 CRUD（flows 層）
 
 > **⚠ 已拆出為獨立檔案**：Flow #4 的完整規格因涵蓋 7 個分頁的 CRUD，體量過大而拆成兩份姊妹檔：
-> - [E2E_FLOW_4_GM_CHARACTER_CRUD.md](./E2E_FLOW_4_GM_CHARACTER_CRUD.md) — 主線 8 個 test case（建立、基本設定、背景故事、隱藏資訊、任務、Dirty/Save Bar、刪除）
-> - [E2E_FLOW_4B_ABILITY_WIZARD.md](./E2E_FLOW_4B_ABILITY_WIZARD.md) — 5 個 test case（Stats CRUD、Items Wizard happy path、Items Wizard 互鎖、Skills Wizard + 專屬效果、Skills Wizard edit mode）
+> - [e2e_flow_4_gm_character_crud.md](./e2e_flow_4_gm_character_crud.md) — 主線 8 個 test case（建立、基本設定、背景故事、隱藏資訊、任務、Dirty/Save Bar、刪除）
+> - [e2e_flow_4b_ability_wizard.md](./e2e_flow_4b_ability_wizard.md) — 5 個 test case（Stats CRUD、Items Wizard happy path、Items Wizard 互鎖、Skills Wizard + 專屬效果、Skills Wizard edit mode）
 >
 > 拆分理由：`AbilityEditWizard` 是 Items/Skills 共用的 4 步驟互動，與 character edit tabs 的 dirty state 機器幾乎解耦，分開維護可減少單一 spec 檔的爆炸面。
 >
@@ -92,7 +92,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 > **完成**：6 個 test case 全部通過（2026-04-10）。Spec 檔：`e2e/flows/player-use-skill.spec.ts`。
 >
-> 完整規格與實作後修正見 [E2E_FLOW_5_PLAYER_USE_SKILL.md](./E2E_FLOW_5_PLAYER_USE_SKILL.md)。
+> 完整規格與實作後修正見 [e2e_flow_5_player_use_skill.md](./e2e_flow_5_player_use_skill.md)。
 >
 > **對抗 (contest) 技能**刻意完全排除於 Flow #5，因 `skill-use.ts:237` 的提早 return 讓 effects 在 contest-respond 階段才執行——這條閉環拆至 Flow #6。**item_take / item_steal** 的 TargetItemSelectionDialog 延遲選擇拆至 Flow #7。
 >
@@ -103,8 +103,8 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 ## Flow #6 — 對抗檢定（flows 層，multi-context） ✅
 
 > **⚠ 已拆出為獨立檔案**：Flow #6 的完整規格因涵蓋雙 browser context、三階段事件序列、多種勝負分支，體量龐大而拆成兩份姊妹檔：
-> - [E2E_FLOW_6_CONTEST.md](./E2E_FLOW_6_CONTEST.md) — 主線 6 個 test case（happy path、技能防禦+combat tag、道具防禦+equipment 過濾、random_contest+both_fail、單選限制+互斥切換、隱匿標籤）
-> - [E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md](./E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md) — 3 個 test case（#6b.1 item_take 對抗延遲、#6b.2 item_steal 對抗延遲、#6b.3 item_steal 非對抗延遲）
+> - [e2e_flow_6_contest.md](./e2e_flow_6_contest.md) — 主線 6 個 test case（happy path、技能防禦+combat tag、道具防禦+equipment 過濾、random_contest+both_fail、單選限制+互斥切換、隱匿標籤）
+> - [e2e_flow_6b_contest_item_transfer.md](./e2e_flow_6b_contest_item_transfer.md) — 3 個 test case（#6b.1 item_take 對抗延遲、#6b.2 item_steal 對抗延遲、#6b.3 item_steal 非對抗延遲）
 >
 > 拆分理由：`item_take`/`item_steal` 的延遲物品選擇涉及額外的 `selectTargetItemForContest`（對抗）/ `selectTargetItemAfterUse`（非對抗）action 與 `TargetItemSelectionDialog`，與主線對抗流程的 `ContestResponseDialog` 解耦，分開維護可減少單一 spec 檔的爆炸面。
 >
@@ -114,7 +114,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ## Flow #7 — 道具操作：use / equip / showcase / transfer（flows 層） ✅
 
-> **⚠ 已拆出為獨立檔案**：Flow #7 的完整規格（6 個 test case）已移至 [E2E_FLOW_7_ITEM_OPERATIONS.md](./E2E_FLOW_7_ITEM_OPERATIONS.md)。
+> **⚠ 已拆出為獨立檔案**：Flow #7 的完整規格（6 個 test case）已移至 [e2e_flow_7_item_operations.md](./e2e_flow_7_item_operations.md)。
 >
 > 範圍從舊版的 3 子 flow（use/equip/showcase）擴充為 4 種操作 + 6 cases：consumable 使用（self/cross-target + random check）、equipment equip/unequip toggle + stat boost、showcase + receiver dialog、transfer + isTransferable + partial quantity、usage limit + cooldown + readOnly + error 拒絕。
 >
@@ -127,7 +127,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 ## Flow #8 — GM 廣播與單角色訊息（flows 層） ✅
 
 > **⚠ 已拆出為獨立檔案**：
-> - [E2E_FLOW_8_GM_BROADCAST.md](./E2E_FLOW_8_GM_BROADCAST.md) — 4 個 test case（#8.1 broadcast happy path、#8.2 character message + PendingEvent 反向驗證、#8.3 表單驗證 + 模式切換、#8.4 authorization guard）
+> - [e2e_flow_8_gm_broadcast.md](./e2e_flow_8_gm_broadcast.md) — 4 個 test case（#8.1 broadcast happy path、#8.2 character message + PendingEvent 反向驗證、#8.3 表單驗證 + 模式切換、#8.4 authorization guard）
 >
 > 本位置保留標題作為 anchor，讓 `grep "Flow #8"` 與章節連結仍可定位。
 >
@@ -145,14 +145,14 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 ### Flow #9 — 預設事件 runtime 執行
 
 > **⚠ 已拆出為獨立檔案**：
-> - [E2E_FLOW_9_PRESET_EVENT_RUNTIME.md](./E2E_FLOW_9_PRESET_EVENT_RUNTIME.md) — 6 個 test case（#9.1 Baseline→Runtime 複製+執行狀態、#9.2 Runtime CRUD、#9.3 broadcast all+specific+PendingEvent 反向驗證、#9.4 stat_change、#9.5 reveal_secret+reveal_task、#9.6 部分失敗+skip）
+> - [e2e_flow_9_preset_event_runtime.md](./e2e_flow_9_preset_event_runtime.md) — 6 個 test case（#9.1 Baseline→Runtime 複製+執行狀態、#9.2 Runtime CRUD、#9.3 broadcast all+specific+PendingEvent 反向驗證、#9.4 stat_change、#9.5 reveal_secret+reveal_task、#9.6 部分失敗+skip）
 >
 > 原待涵蓋 5 項全部涵蓋：stat_change(#9.4)、runPresetEvent(#9.1/#9.3–#9.6)、Runtime CRUD(#9.2)、Baseline/Runtime 分流(#9.1/#9.2)、broadcast target 語意(#9.3)
 
 ### Flow #10 — auto-reveal 專屬
 
 > **⚠ 已拆出為獨立檔案**：
-> - [E2E_FLOW_10_AUTO_REVEAL.md](./E2E_FLOW_10_AUTO_REVEAL.md) — 5 個 test case（#10.1 items_viewed→secret reveal、#10.2 items_acquired→task reveal、#10.3 secrets_revealed chain reveal、#10.4 AND/OR matchLogic、#10.5 條件編輯器 UI）
+> - [e2e_flow_10_auto_reveal.md](./e2e_flow_10_auto_reveal.md) — 5 個 test case（#10.1 items_viewed→secret reveal、#10.2 items_acquired→task reveal、#10.3 secrets_revealed chain reveal、#10.4 AND/OR matchLogic、#10.5 條件編輯器 UI）
 >
 > 原待涵蓋 6 項全部涵蓋：條件編輯器 UI(#10.5)、runtime 觸發路徑(#10.1/#10.2/#10.3)、secrets/tasks 整合點(#10.1/#10.2/#10.3)、runtime 實際觸發(#10.1–#10.4)、轉移後自動揭露(#10.2)、recordItemView+showcase/transfer 後 auto-reveal(#10.1)
 
@@ -161,7 +161,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 > **完成**：4 個 test case 全部通過（2026-04-10）。Spec 檔：`e2e/flows/preview-mode.spec.ts`。
 >
 > **⚠ 已拆出為獨立檔案**：
-> - [E2E_FLOW_11_PREVIEW_MODE_BASELINE.md](./E2E_FLOW_11_PREVIEW_MODE_BASELINE.md) — 4 個 test case（#11.1 preview mode 顯示 baseline 資料、#11.2 preview→full access 切換後顯示 runtime、#11.3 預覽模式互動鎖定、#11.4 game 未啟動時 baselineData 不填充）
+> - [e2e_flow_11_preview_mode_baseline.md](./e2e_flow_11_preview_mode_baseline.md) — 4 個 test case（#11.1 preview mode 顯示 baseline 資料、#11.2 preview→full access 切換後顯示 runtime、#11.3 預覽模式互動鎖定、#11.4 game 未啟動時 baselineData 不填充）
 >
 > 原待涵蓋 3 項全部涵蓋：baseline 讀取(#11.1)、模式切換(#11.2)、Runtime 分歧驗證(#11.1 seed)。額外新增互動鎖定(#11.3)與 inactive game fallback(#11.4)
 
@@ -170,7 +170,7 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 > **完成**：5 個 test case 全部通過（2026-04-11）。Spec 檔：`e2e/flows/time-dependent-edges.spec.ts`。
 >
 > **⚠ 已拆出為獨立檔案**：
-> - [E2E_FLOW_12_TIME_DEPENDENT_EDGE_CASES.md](./E2E_FLOW_12_TIME_DEPENDENT_EDGE_CASES.md) — 5 個 test case（#12.1 TemporaryEffect 過期 stat rollback + WS event、#12.2 多效果累疊逐步過期、#12.3 Skill cooldown clock mock、#12.4 Item cooldown clock mock、#12.5 PendingEvent TTL 清除）
+> - [e2e_flow_12_time_dependent_edge_cases.md](./e2e_flow_12_time_dependent_edge_cases.md) — 5 個 test case（#12.1 TemporaryEffect 過期 stat rollback + WS event、#12.2 多效果累疊逐步過期、#12.3 Skill cooldown clock mock、#12.4 Item cooldown clock mock、#12.5 PendingEvent TTL 清除）
 >
 > 原待涵蓋 6 項中 5 項涵蓋：TemporaryEffect 過期(#12.1)、Skill cooldown(#12.3)、Item cooldown(#12.4)、PendingEvent TTL(#12.5)、多效果累疊(#12.2)。contest-tracker timeout **降級為 unit test**（server-side `setInterval` 無法 mock，詳見 spec 檔案）
 

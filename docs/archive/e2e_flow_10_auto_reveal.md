@@ -1,12 +1,12 @@
 # E2E Flow #10 — 自動揭露（Auto-Reveal）
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #10 的完整規格。主 plan 僅保留 anchor 與指標。
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #10 的完整規格。主 plan 僅保留 anchor 與指標。
 > **對應 spec**：`e2e/flows/auto-reveal.spec.ts`
 > **關聯 flow**：
-> - [E2E_FLOW_4_GM_CHARACTER_CRUD.md](./E2E_FLOW_4_GM_CHARACTER_CRUD.md) — Flow #4 驗證 auto-reveal 條件「可被儲存並讀回」，不驗 runtime 行為
-> - [E2E_FLOW_7_ITEM_OPERATIONS.md](./E2E_FLOW_7_ITEM_OPERATIONS.md) — showcase + transfer 觸發 auto-reveal 的上游
-> - [E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md](./E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md) — item_steal 轉移後觸發 auto-reveal 的上游
-> - [E2E_FLOW_9_PRESET_EVENT_RUNTIME.md](./E2E_FLOW_9_PRESET_EVENT_RUNTIME.md) — reveal_secret/reveal_task 使用 `revealType: 'manual'`，本 flow 使用 `revealType: 'auto'`
+> - [e2e_flow_4_gm_character_crud.md](./e2e_flow_4_gm_character_crud.md) — Flow #4 驗證 auto-reveal 條件「可被儲存並讀回」，不驗 runtime 行為
+> - [e2e_flow_7_item_operations.md](./e2e_flow_7_item_operations.md) — showcase + transfer 觸發 auto-reveal 的上游
+> - [e2e_flow_6b_contest_item_transfer.md](./e2e_flow_6b_contest_item_transfer.md) — item_steal 轉移後觸發 auto-reveal 的上游
+> - [e2e_flow_9_preset_event_runtime.md](./e2e_flow_9_preset_event_runtime.md) — reveal_secret/reveal_task 使用 `revealType: 'manual'`，本 flow 使用 `revealType: 'auto'`
 
 ---
 

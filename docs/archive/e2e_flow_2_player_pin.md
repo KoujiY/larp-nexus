@@ -1,9 +1,9 @@
 # E2E Flow #2 — 玩家真實 PIN 解鎖 → 角色卡預覽模式（smoke 層）
 
-> 本檔案從 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 拆出。原文件整併多個 flow 過於龐大，Flow #2 以獨立檔案管理，與 Flow #1 / Flow #3 相同拆分策略。
-> 共用規格（db-fixture、auth-fixture、stub pusher client、WebSocket 斷言慣例等）仍以 `E2E_FLOWS_PLAN.md` 的「共同規格」section 為準，本檔只描述 Flow #2 範圍內的 test case 細節。
+> 本檔案從 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 拆出。原文件整併多個 flow 過於龐大，Flow #2 以獨立檔案管理，與 Flow #1 / Flow #3 相同拆分策略。
+> 共用規格（db-fixture、auth-fixture、stub pusher client、WebSocket 斷言慣例等）仍以 `../archive/e2e-flows-plan.md` 的「共同規格」section 為準，本檔只描述 Flow #2 範圍內的 test case 細節。
 >
-> **上游文件**：[E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md)
+> **上游文件**：[../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md)
 > **對應 spec 檔**：`e2e/smoke/player-can-unlock.spec.ts`（單一 spec 檔內含 3 個 test case）
 
 ---
@@ -338,7 +338,7 @@ expect(statCell).toHaveText(String(seededBaselineHp));
 **原因**：即使把 line 96 改成 `bl?.stats ?? 0`，此斷言**仍會 pass**（因為 `bl` 本來就 undefined，fallback 讀 `character.stats` 不受影響）。完全**沒有 regression 保護**。
 
 **正確做法**：
-- baseline 讀取語義由「待評估新 Flow — 預覽模式 baseline 讀取分流」覆蓋（見 `E2E_FLOWS_PLAN.md` 的 Flow #9/#10 待抽出項目清單 section）
+- baseline 讀取語義由「待評估新 Flow — 預覽模式 baseline 讀取分流」覆蓋（見 `../archive/e2e-flows-plan.md` 的 Flow #9/#10 待抽出項目清單 section）
 - Flow #2 只驗證「預覽模式 UI read-only enforcement」（D8 觀測點）與「預覽模式 banner 顯示」（D6）與「`fullAccess` localStorage key 不存在」（D3）
 - **D3 是 Flow #2 可觀測的預覽模式邊界**——不是 baseline 讀取，而是「預覽模式確實沒被誤升級為 full-access」的反向證據
 
@@ -376,7 +376,7 @@ Cookie value 加密過，spec 不能直接讀 cookie 內容。依賴：
 
 ## Flow #2 對 fixture 的需求（給 Fixture 反推結論小節累積）
 
-以下需求已部分落地到 `E2E_FLOWS_PLAN.md` 的「Fixture 反推結論」section，此處累積 Flow #2 範圍內的具體需求：
+以下需求已部分落地到 `../archive/e2e-flows-plan.md` 的「Fixture 反推結論」section，此處累積 Flow #2 範圍內的具體需求：
 
 - **`seed-fixture.character({ gameId, name?, hasPinLock?, pin?, stats?, items? })`**：
   - 支援 `hasPinLock` 切換（#2.1 / #2.2 需 true、#2.3 需 false）
@@ -391,7 +391,7 @@ Cookie value 加密過，spec 不能直接讀 cookie 內容。依賴：
 
 - **`waitForResponse` wrapper**：`waitForUnlockResponse(page)` — 同時處理 200 / 401 / 403 並回傳 `{ status, body }` 供 spec 後續斷言
 
-- **`asPlayer()` fixture 的擴充**：**Flow #2 不使用此 fixture**，但 Flow #2 的發現推動了 `readOnly` 選項（見 `E2E_FLOWS_PLAN.md` 的 `auth-fixture API` section）。兩邊的 traceability 在此記錄
+- **`asPlayer()` fixture 的擴充**：**Flow #2 不使用此 fixture**，但 Flow #2 的發現推動了 `readOnly` 選項（見 `../archive/e2e-flows-plan.md` 的 `auth-fixture API` section）。兩邊的 traceability 在此記錄
 
 ---
 
@@ -427,4 +427,4 @@ Cookie value 加密過，spec 不能直接讀 cookie 內容。依賴：
 
 ---
 
-> **後續動作**：Flow #2 spec 撰寫完成後，回頭更新 `E2E_FLOWS_PLAN.md` 主文件的 Flow #2 區塊為 anchor + pointer（與 Flow #1 / Flow #3 相同處理）。
+> **後續動作**：Flow #2 spec 撰寫完成後，回頭更新 `../archive/e2e-flows-plan.md` 主文件的 Flow #2 區塊為 anchor + pointer（與 Flow #1 / Flow #3 相同處理）。

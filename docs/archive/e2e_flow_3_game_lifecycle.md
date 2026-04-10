@@ -1,9 +1,9 @@
 # E2E Flow #3 — GM 劇本管理完整生命週期
 
-> 本檔案從 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 拆出。原文件已過於龐大，Flow #3 以獨立檔案管理。
-> 共用規格（fixture、db-reset、stub pusher、WebSocket 斷言慣例等）仍以 `E2E_FLOWS_PLAN.md` 的「共同規格」section 為準，本檔只描述 Flow #3 範圍內的 test case 細節。
+> 本檔案從 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 拆出。原文件已過於龐大，Flow #3 以獨立檔案管理。
+> 共用規格（fixture、db-reset、stub pusher、WebSocket 斷言慣例等）仍以 `../archive/e2e-flows-plan.md` 的「共同規格」section 為準，本檔只描述 Flow #3 範圍內的 test case 細節。
 >
-> **上游文件**：[E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md)
+> **上游文件**：[../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md)
 > **對應 spec 檔**：`e2e/flows/gm-game-lifecycle.spec.ts`（單一 spec 檔內含 6 個 test case）
 
 ---
@@ -579,7 +579,7 @@ Other GM 側（應完整保留）：
 
 ### Flow #3 對 fixture 的需求（給 Fixture 反推結論小節累積）
 
-以下需求將在所有 flow 重寫完後統一整併到 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 末的 Fixture 反推結論 section：
+以下需求將在所有 flow 重寫完後統一整併到 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 末的 Fixture 反推結論 section：
 
 - **`seed-fixture.gmUser({ email?, displayName? })`**：支援多 GM seed（#3.2 負面、#3.6 隔離對照）
 - **`seed-fixture.game({ gmUserId, name?, gameCode?, isActive?, publicInfo?, presetEvents?, randomContestMaxValue? })`**：可指定所有 GM 可編輯欄位的 override

@@ -1,7 +1,7 @@
 # E2E Flow #4b — Ability Wizard & Stats CRUD（GM 角色卡細部）
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #4 拆分出來的姊妹檔。
-> **主檔**：[E2E_FLOW_4_GM_CHARACTER_CRUD.md](./E2E_FLOW_4_GM_CHARACTER_CRUD.md)
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #4 拆分出來的姊妹檔。
+> **主檔**：[e2e_flow_4_gm_character_crud.md](./e2e_flow_4_gm_character_crud.md)
 > **對應 spec**：`e2e/flows/gm-ability-wizard.spec.ts`
 
 ---

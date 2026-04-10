@@ -1,7 +1,7 @@
 # E2E Flow #4 — GM 角色卡 CRUD（主線）
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #4 的完整規格。主 plan 僅保留 anchor 與指標。
-> **姊妹檔**：Items/Skills 內部的 `AbilityEditWizard` 4 步驟流程拆至 [E2E_FLOW_4B_ABILITY_WIZARD.md](./E2E_FLOW_4B_ABILITY_WIZARD.md)。
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #4 的完整規格。主 plan 僅保留 anchor 與指標。
+> **姊妹檔**：Items/Skills 內部的 `AbilityEditWizard` 4 步驟流程拆至 [e2e_flow_4b_ability_wizard.md](./e2e_flow_4b_ability_wizard.md)。
 > **對應 spec**：`e2e/flows/gm-character-crud.spec.ts`
 
 ---

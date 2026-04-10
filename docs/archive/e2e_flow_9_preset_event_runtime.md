@@ -1,12 +1,12 @@
 # E2E Flow #9 — 預設事件 runtime 執行
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #9 的完整規格。主 plan 僅保留 anchor 與指標。
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #9 的完整規格。主 plan 僅保留 anchor 與指標。
 > **對應 spec**：`e2e/flows/preset-event-runtime.spec.ts`
 > **關聯 flow**：
-> - [E2E_FLOW_3_GM_EDIT.md](./E2E_FLOW_3_GM_EDIT.md) — GM 編輯流程（#3.5 只驗 runtime console 上預設事件 tab hint 存在）
-> - [E2E_FLOW_8_GM_BROADCAST.md](./E2E_FLOW_8_GM_BROADCAST.md) — 手動廣播（`pushEvent` 寫 PendingEvent；預設事件 `executeBroadcast` **不寫**）
-> - [E2E_FLOW_5_PLAYER_USE_SKILL.md](./E2E_FLOW_5_PLAYER_USE_SKILL.md) — stat_change 共用 `computeStatChange()`、TemporaryEffect 共用 `createTemporaryEffectRecord()`
-> - [E2E_FLOW_4_GM_CHARACTER_CRUD.md](./E2E_FLOW_4_GM_CHARACTER_CRUD.md) — reveal_secret / reveal_task 的 CRUD 基礎
+> - [e2e_flow_3_gm_edit.md](./e2e_flow_3_gm_edit.md) — GM 編輯流程（#3.5 只驗 runtime console 上預設事件 tab hint 存在）
+> - [e2e_flow_8_gm_broadcast.md](./e2e_flow_8_gm_broadcast.md) — 手動廣播（`pushEvent` 寫 PendingEvent；預設事件 `executeBroadcast` **不寫**）
+> - [e2e_flow_5_player_use_skill.md](./e2e_flow_5_player_use_skill.md) — stat_change 共用 `computeStatChange()`、TemporaryEffect 共用 `createTemporaryEffectRecord()`
+> - [e2e_flow_4_gm_character_crud.md](./e2e_flow_4_gm_character_crud.md) — reveal_secret / reveal_task 的 CRUD 基礎
 
 ---
 

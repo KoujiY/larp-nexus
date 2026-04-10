@@ -1,11 +1,11 @@
 # E2E Flow #6b — 物品轉移效果（item_take / item_steal 延遲選擇）
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #6 的姊妹檔。主 plan 僅保留 anchor 與指標。
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #6 的姊妹檔。主 plan 僅保留 anchor 與指標。
 > **對應 spec**：`e2e/flows/item-transfer-effects.spec.ts`
 > **關聯 flow**：
-> - [E2E_FLOW_6_CONTEST.md](./E2E_FLOW_6_CONTEST.md) — 對抗檢定主線（三階段事件、勝負分支、防禦過濾）
-> - [E2E_FLOW_5_PLAYER_USE_SKILL.md](./E2E_FLOW_5_PLAYER_USE_SKILL.md) — 非對抗技能基礎設施
-> - [E2E_FLOW_7_ITEM_OPERATIONS.md](./E2E_FLOW_7_ITEM_OPERATIONS.md) — 道具操作（use/equip/showcase/transfer）
+> - [e2e_flow_6_contest.md](./e2e_flow_6_contest.md) — 對抗檢定主線（三階段事件、勝負分支、防禦過濾）
+> - [e2e_flow_5_player_use_skill.md](./e2e_flow_5_player_use_skill.md) — 非對抗技能基礎設施
+> - [e2e_flow_7_item_operations.md](./e2e_flow_7_item_operations.md) — 道具操作（use/equip/showcase/transfer）
 
 ---
 

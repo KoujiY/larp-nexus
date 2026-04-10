@@ -1,9 +1,9 @@
 # E2E Flow #8 — GM 廣播與單角色訊息
 
-> **上游索引**：本檔案為 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 中 Flow #8 的完整規格。主 plan 僅保留 anchor 與指標。
+> **上游索引**：本檔案為 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 中 Flow #8 的完整規格。主 plan 僅保留 anchor 與指標。
 > **對應 spec**：`e2e/flows/gm-broadcast.spec.ts`
 > **關聯 flow**：
-> - [E2E_FLOW_3_GM_EDIT.md](./E2E_FLOW_3_GM_EDIT.md) — GM 編輯流程（含 runtime console 入口）
+> - [e2e_flow_3_gm_edit.md](./e2e_flow_3_gm_edit.md) — GM 編輯流程（含 runtime console 入口）
 > - Flow #9（未寫）— 預設事件 runtime 執行（含預設事件觸發的 broadcast，走不同路徑）
 
 ---

@@ -1,9 +1,9 @@
 # E2E Flow #1 — GM test-login → 劇本列表（smoke 層）
 
-> 本檔案從 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 拆出。原文件整併多個 flow 過於龐大，Flow #1 以獨立檔案管理，與 Flow #3 相同拆分策略。
-> 共用規格（db-fixture、auth-fixture、stub pusher client、WebSocket 斷言慣例等）仍以 `E2E_FLOWS_PLAN.md` 的「共同規格」section 為準，本檔只描述 Flow #1 範圍內的 test case 細節。
+> 本檔案從 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 拆出。原文件整併多個 flow 過於龐大，Flow #1 以獨立檔案管理，與 Flow #3 相同拆分策略。
+> 共用規格（db-fixture、auth-fixture、stub pusher client、WebSocket 斷言慣例等）仍以 `../archive/e2e-flows-plan.md` 的「共同規格」section 為準，本檔只描述 Flow #1 範圍內的 test case 細節。
 >
-> **上游文件**：[E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md)
+> **上游文件**：[../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md)
 > **對應 spec 檔**：`e2e/smoke/gm-can-login.spec.ts`（單一 spec 檔內含 3 個 test case）
 
 ---
@@ -264,7 +264,7 @@ Flow #1 大量重複以下模式，建議抽 helper：
 
 ### Flow #1 對 fixture 的需求（給 Fixture 反推結論小節累積）
 
-以下需求將在所有 flow 重寫完後統一整併到 [E2E_FLOWS_PLAN.md](./E2E_FLOWS_PLAN.md) 末的 Fixture 反推結論 section：
+以下需求將在所有 flow 重寫完後統一整併到 [../archive/e2e-flows-plan.md](./../archive/e2e-flows-plan.md) 末的 Fixture 反推結論 section：
 
 - **`auth-fixture.asGm({ gmUserId, email?, displayName? })`**：呼叫 `/api/test/login`、寫 iron-session cookie、回 `{ user, context }`
 - **`seed-fixture.gmUser({ email?, displayName? })`**：最小 API，回 `{ id, email, displayName }`

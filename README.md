@@ -93,6 +93,39 @@ npm run lint         # ESLint 檢查
 npm run type-check   # TypeScript 型別檢查
 ```
 
+### 5. E2E 測試
+
+E2E 測試使用 Playwright + mongodb-memory-server，完全離線可跑（不需要 Atlas、Pusher、SMTP）。
+
+```bash
+pnpm test:e2e              # 跑全部 E2E（smoke + flows）
+pnpm test:e2e:smoke        # 只跑 smoke test
+pnpm test:e2e:flows        # 只跑 flow test
+pnpm test:e2e:headed       # 瀏覽器可視模式
+pnpm test:e2e:debug        # Playwright Inspector debug 模式
+pnpm test:e2e:ui           # Playwright UI 模式
+```
+
+首次執行需安裝 Playwright 瀏覽器與 mongod binary：
+
+```bash
+pnpm exec playwright install chromium
+```
+
+mongodb-memory-server 會在首次啟動時自動下載 mongod binary 並快取。
+
+#### 常見問題排查
+
+| 症狀 | 原因 | 解法 |
+|------|------|------|
+| webServer 啟動超時 | Next.js build 失敗或首次 webpack build 較慢 | 先跑 `E2E=1 pnpm exec next build --webpack` 確認 build 通過 |
+| 找不到 mongod binary | 首次下載或 cache 失效 | 刪除 `~/.cache/mongodb-binaries` 讓它重新下載 |
+| Chromium 找不到 | 未安裝 Playwright 瀏覽器 | `pnpm exec playwright install chromium` |
+| Port 3100 被占用 | 上次 webServer 未正常關閉 | 結束占用 3100 的 process 或改用 `reuseExistingServer` |
+| toast / DB 斷言超時 | Server action 尚未完成 | 增加 `expect.poll` 的 `timeout` 或檢查 server log |
+
+詳細架構說明請參閱 [E2E 測試架構](docs/knowledge/architecture/e2e-testing.md)。
+
 ## 專案結構
 
 ```
@@ -116,8 +149,14 @@ lib/                  # 核心邏輯
   └── websocket/      #   WebSocket（Pusher）
 types/                # TypeScript 型別定義
 hooks/                # Custom React Hooks
+e2e/                  # E2E 測試（Playwright）
+  ├── fixtures/       #   Custom fixtures
+  ├── helpers/        #   共用 helper
+  ├── smoke/          #   基礎設施 smoke test
+  └── flows/          #   業務流程 integration test
 docs/                 # 文件
   ├── specs/          #   技術規格
+  ├── knowledge/      #   知識庫（原子化領域知識）
   └── dev-notes/      #   開發筆記
 ```
 
@@ -128,6 +167,7 @@ docs/                 # 文件
 - [環境變數](docs/specs/07_ENVIRONMENT_VARIABLES.md) — 完整環境變數說明
 - [API 規格](docs/specs/03_API_SPECIFICATION.md) — Server Actions 與 API Routes
 - [WebSocket 事件](docs/specs/04_WEBSOCKET_EVENTS.md) — 即時通訊事件格式
+- [E2E 測試架構](docs/knowledge/architecture/e2e-testing.md) — E2E 基礎設施與 Pusher stub 原理
 
 ## 授權
 

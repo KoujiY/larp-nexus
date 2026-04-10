@@ -132,12 +132,13 @@ docs/             # 文檔
 4. `/code-review` 審查
 
 ### Commit 前檢查（MANDATORY）
-1. **使用者驗證優先**：完成功能開發後**不可**自動 commit。先給使用者**手動驗收指引**，等使用者明確說「驗證通過」「OK」或同義詞後才能 commit。`tsc` / `lint` / `vitest` 通過**不算**驗證，那只是基本健康檢查。例外：使用者在指令中明確包含「commit 動作」（例如「做完直接 commit」）才能略過此步
-2. **按 type 拆分**：`feat` / `docs` / `fix` / `refactor` 等不同類型不混在同一 commit
-3. **禁止 scope 括號**：commit subject 格式必須是 `type: description`，**不可**寫成 `type(scope): description`。理由：本專案不使用 conventional-commits 的 scope 欄位，多餘的 `(xxx)` 會讓訊息格式不一致，且 scope 選擇易流於主觀（`(gm)` vs `(console)` vs `(effects)`）。正確範例：`feat: add foo` / `refactor: simplify bar`；錯誤範例：`feat(gm): add foo` / `refactor(console): simplify bar`
-4. **知識庫同步**：此次變更是否需要更新 `docs/knowledge/` 下的對應文件
-5. **開發規劃同步**：是否需要在 `NEXT_DEVELOPMENT_PLAN.md` 標記項目完成
-6. **中文亂碼掃描**：Grep `��` 確認 Write/Edit 後沒有編碼錯誤
+1. **靜態分析（必做）**：`tsc --noEmit` + `eslint <affected-dir>` 兩者都必須 0 error。每個修改步驟完成後也應跑，不只 commit 前
+2. **使用者驗證優先**：完成功能開發後**不可**自動 commit。先給使用者**手動驗收指引**，等使用者明確說「驗證通過」「OK」或同義詞後才能 commit。`tsc` / `lint` / `vitest` 通過**不算**驗證，那只是基本健康檢查。例外：使用者在指令中明確包含「commit 動作」（例如「做完直接 commit」）才能略過此步
+3. **按 type 拆分**：`feat` / `docs` / `fix` / `refactor` 等不同類型不混在同一 commit
+4. **禁止 scope 括號**：commit subject 格式必須是 `type: description`，**不可**寫成 `type(scope): description`。理由：本專案不使用 conventional-commits 的 scope 欄位，多餘的 `(xxx)` 會讓訊息格式不一致，且 scope 選擇易流於主觀（`(gm)` vs `(console)` vs `(effects)`）。正確範例：`feat: add foo` / `refactor: simplify bar`；錯誤範例：`feat(gm): add foo` / `refactor(console): simplify bar`
+5. **知識庫同步**：此次變更是否需要更新 `docs/knowledge/` 下的對應文件
+6. **開發規劃同步**：是否需要在 `NEXT_DEVELOPMENT_PLAN.md` 標記項目完成
+7. **中文亂碼掃描**：Grep `��` 確認 Write/Edit 後沒有編碼錯誤
 
 ## 知識庫 (Knowledge Base)
 
