@@ -46,6 +46,7 @@ export const IconActionButton = forwardRef<HTMLButtonElement, IconActionButtonPr
     const button = (
       <Button
         ref={ref}
+        type="button"
         variant="ghost"
         size="icon"
         aria-label={label}

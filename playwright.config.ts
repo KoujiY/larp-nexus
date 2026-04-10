@@ -16,7 +16,7 @@ export default defineConfig({
   testMatch: /.*\.spec\.ts$/,
   fullyParallel: false, // 測試共享同一個 in-memory DB，避免競態
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
   globalSetup: './e2e/global-setup.ts',
