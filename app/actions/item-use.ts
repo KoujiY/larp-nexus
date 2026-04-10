@@ -14,7 +14,9 @@ import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
+import { buildEquipmentBoostUpdates } from '@/lib/item/apply-equipment-boosts';
 import type { ApiResponse } from '@/types/api';
+import type { Stat, StatBoost } from '@/types/character';
 
 /**
  * 使用物品
@@ -548,6 +550,21 @@ export async function transferItem(
       sourceUpdates[`items.${sourceIndex}.quantity`] = newSourceQuantity;
     }
 
+    // 裝備轉移時：若源端物品為已穿戴裝備，需 revert stat boosts
+    // 避免 stat boosts 殘留在源端角色上（即使物品已轉移走）
+    let equipRevertUpdates: Record<string, number> = {};
+    if (sourceItem.type === 'equipment' && sourceItem.equipped) {
+      const currentStats = (character.stats || []) as Stat[];
+      const boosts = (sourceItem.statBoosts || []) as StatBoost[];
+      if (boosts.length > 0) {
+        equipRevertUpdates = buildEquipmentBoostUpdates(currentStats, boosts, 'revert');
+      }
+      // 若物品未被移除（qty > 0），需標記為未穿戴
+      if (newSourceQuantity > 0) {
+        sourceUpdates[`items.${sourceIndex}.equipped`] = false;
+      }
+    }
+
     // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
     // 執行更新：先更新目標角色，再更新來源角色
     if (targetUpdates.$push) {
@@ -560,13 +577,20 @@ export async function transferItem(
       });
     }
 
+    // 組合來源角色更新（物品移除/減量 + stat boost revert）
+    const hasEquipRevert = Object.keys(equipRevertUpdates).length > 0;
     if (sourceUpdates.$pull) {
-      await updateCharacterData(characterId, {
+      const sourceOp: Record<string, unknown> = {
         $pull: sourceUpdates.$pull,
-      });
+      };
+      if (hasEquipRevert) {
+        sourceOp.$set = equipRevertUpdates;
+      }
+      await updateCharacterData(characterId, sourceOp);
     } else {
+      const mergedSet = { ...sourceUpdates, ...(hasEquipRevert ? equipRevertUpdates : {}) };
       await updateCharacterData(characterId, {
-        $set: sourceUpdates,
+        $set: mergedSet,
       });
     }
 
