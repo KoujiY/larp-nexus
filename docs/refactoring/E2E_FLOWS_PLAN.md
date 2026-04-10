@@ -592,3 +592,34 @@ SSE EventSource 保持連線永遠不關閉，`page.waitForLoadState('networkidl
 `trigger()` 函數將 payload 包裝為 `BaseEvent { type, timestamp, payload }`。`waitForWebSocketEvent` 回傳的是 `BaseEvent`（即 `parsed.data`），不是內層的業務資料。
 
 **對策**：`const wsRaw = await wsPromise; const wsEvent = wsRaw.payload;` — 永遠多取一層 `.payload`。
+
+### 規則 29：`getByText` 預設 substring 匹配 — seed 命名衝突
+
+Playwright `getByText('繳械')` 使用 **substring matching**，會同時匹配「繳械」（技能卡）和「繳械攻擊者」（角色名稱 banner）。`.first()` 不保證命中目標元素，靜默點錯位置後整條 test 連鎖失敗。
+
+**對策**：
+1. **一律用 `{ exact: true }`**：`page.getByText('繳械', { exact: true })`
+2. **seed 命名規範**：角色名稱不可包含技能/道具名稱作為前綴或子字串（如「竊取者」✅ vs「竊取攻擊者」❌）
+3. **優先用 `getByRole`**：`getByRole('button', { name: '使用技能' })` 比 `getByText` 更穩定
+
+### 規則 30：`waitForWebSocketEvent` timeout 預算 — 重量級操作必須提前
+
+`waitForWebSocketEvent` 建立 EventSource 後啟動固定 10s 計時器。若 listener 建立後才執行 `page.goto()`（5-8s 頁面載入），事件實際只有 2-5s 的窗口，容易 timeout。
+
+**對策**：將 `page.goto()` 等重量級操作放在 `waitForWebSocketEvent` **之前**完成。listener 只應框住「UI 互動 → 事件抵達」的輕量區間：
+
+```typescript
+// ✅ 正確：先載入頁面，再建 listener，再操作
+await page.goto(`/c/${charId}`);
+await page.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+
+const wsPromise = waitForWebSocketEvent(page, { event: 'skill.contest', ... });
+await page.getByRole('button', { name: '使用技能' }).click();
+const wsEvent = await wsPromise;
+
+// ❌ 錯誤：listener 建立後才載入頁面，page load 消耗 timeout 預算
+const wsPromise = waitForWebSocketEvent(page, { event: 'skill.contest', ... });
+await page.goto(`/c/${charId}`);  // 5-8s 消耗在這裡
+await page.getByRole('button', { name: '使用技能' }).click();
+const wsEvent = await wsPromise;  // 剩餘時間不足 → timeout
+```

@@ -836,7 +836,10 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #6.4 random_contest + conditional DB assertion (non-deterministic result)
      - [x] #6.5 single-select + item/skill mutual exclusion
      - [x] #6.6 stealth tag: attacker name hidden + effect source hidden
-   6b. [ ] `e2e/flows/contest-flow.spec.ts` — 對應 flow #6b（item_take/item_steal 延遲物品選擇）
+   6b. [x] `e2e/flows/item-transfer-effects.spec.ts` — 對應 flow #6b（item_take/item_steal 延遲物品選擇，3 test cases）
+     - [x] #6b.1 item_take: contest + delayed selection → item destroyed (not transferred)
+     - [x] #6b.2 item_steal: contest + delayed selection → item transferred to attacker
+     - [x] #6b.3 item_steal: non-contest + delayed selection → item transferred
    7. [ ] `e2e/flows/preset-event-runtime.spec.ts` — 對應 flow #9，依賴 #3 的 game runtime
    8. [ ] `e2e/flows/auto-reveal.spec.ts` — 對應 flow #10，依賴 #4 的 character+items+secrets
    9. [ ] `e2e/flows/preview-mode.spec.ts` — 對應 flow #11，依賴 baseline/runtime 分歧 seed
