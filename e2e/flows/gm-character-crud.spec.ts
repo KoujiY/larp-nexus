@@ -13,6 +13,7 @@
 
 import { test, expect } from '../fixtures';
 import { waitForToast } from '../helpers/wait-for-toast';
+import { clickSaveBar } from '../helpers/click-save-bar';
 
 test.describe('Flow #4 — GM character CRUD', () => {
   // ────────────────────────────────────────────────────────────
@@ -189,11 +190,16 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await page.getByPlaceholder('例：外表高雅的貴婦人，實則是黑市情報販子').fill('E2E 標語');
     await page.getByPlaceholder('描述角色的行為準則與個性...').fill('E2E 人格特質');
 
-    // 儲存
-    await saveAllBtn.click();
+    // 儲存（evaluate retry loop 避免 AnimatePresence detach — 方法 3）
+    await clickSaveBar(page);
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
     // ── Phase C — 啟用 PIN 並設定 ──
+    // 等待 toast 先出現再消失，確保 router.refresh() 完成重新渲染（規則 13/19）
+    // 注意：not.toBeVisible 在 toast 尚未 mount 時就會通過，必須先等 mount
+    const toast = page.locator('[data-sonner-toast]');
+    await expect(toast).toBeVisible({ timeout: 5000 });
+    await expect(toast).not.toBeVisible({ timeout: 10000 });
     // 頁面只有一個 Switch（PIN 解鎖保護）
     await page.getByRole('switch').click();
     // 啟用後 PIN 輸入出現，placeholder 是 '4-6 位數字'（因角色原本無 PIN）
@@ -202,22 +208,21 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await expect(page.getByText('PIN 碼可用')).toBeVisible({ timeout: 3000 });
 
     await expect(saveAllBtn).toBeVisible();
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
     // ── Phase D — 圖片欄位 gate（僅驗 UI 存在，不實際上傳） ──
     // 圖片上傳 UI 在頁面 header 區域，不在 tab 內，此處略過
     // Blob 上傳在 E2E 排除範圍
 
-    // router.refresh() 由上一次 save 觸發，需等待頁面完全重新渲染，
-    // 否則接下來的 fill 會觸發 dirty state，而 AnimatePresence 的 motion.div
-    // 在 refresh 重渲染期間被 detach/recreate，導致 click() 失敗。
-    await page.waitForTimeout(1000);
+    // 等待 save toast 出現並消失，確保 router.refresh() 重渲染完成（方法 2）
+    await expect(page.locator('[data-sonner-toast]')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-sonner-toast]')).not.toBeVisible({ timeout: 10000 });
 
     // ── Reverse validation — 清空 name → 儲存失敗 ──
     await nameInput.fill('');
     await expect(saveAllBtn).toBeVisible();
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     // 儲存失敗 → Save Bar 仍可見（dirty 未歸零）
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
 
@@ -278,7 +283,9 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await expect(bodyTextareas.first()).toHaveValue('第一段背景故事');
 
     // 新增 block 2
-    await page.getByRole('button', { name: '新增區塊', exact: true }).click();
+    // force: true — SaveBar（fixed bottom z-50）在 block 1 dirty 後出現，
+    // 可能遮蔽位於頁面底部的「新增區塊」按鈕
+    await page.getByRole('button', { name: '新增區塊', exact: true }).click({ force: true });
     await expect(bodyTextareas.nth(1)).toBeVisible();
     await bodyTextareas.nth(1).fill('第二段背景故事');
     await expect(bodyTextareas.nth(1)).toHaveValue('第二段背景故事');
@@ -329,8 +336,8 @@ test.describe('Flow #4 — GM character CRUD', () => {
     expect(relationships![0].description).toBe('宿敵');
 
     // ── Phase B — 刪除 relationship ──
-    // router.refresh() 由 Phase A save 觸發，等待完全重渲染
-    await page.waitForTimeout(1000);
+    // 等待 save toast 消失，確保 router.refresh() 重渲染完成（方法 2）
+    await expect(page.locator('[data-sonner-toast]')).not.toBeVisible({ timeout: 10000 });
     // 關係已選中（第一個也是唯一一個），點開 dropdown menu 刪除
     // lucide-react v0.400+ 將 MoreHorizontal 改名為 Ellipsis，
     // SVG class 變為 lucide-ellipsis
@@ -420,8 +427,8 @@ test.describe('Flow #4 — GM character CRUD', () => {
     expect(dbSecrets![0].isRevealed).toBe(false);
 
     // ── Phase B — Soft delete + undo + re-delete + save ──
-    // router.refresh() 後等待重新渲染穩定
-    await page.waitForTimeout(1000);
+    // 等待 save toast 消失，確保 router.refresh() 重渲染完成（方法 2）
+    await expect(page.locator('[data-sonner-toast]')).not.toBeVisible({ timeout: 10000 });
 
     // 左欄列表中唯一的 secret，點擊刪除（IconActionButton aria-label="刪除"）
     await page.getByRole('button', { name: '刪除', exact: true }).click();
@@ -525,7 +532,8 @@ test.describe('Flow #4 — GM character CRUD', () => {
     // TasksEditForm 無 <form> 包裝，使用 SaveBar 儲存。
     // 兩個任務都在同一個 render cycle 的 effectiveTasks 中，
     // Map handler 在此刻已正確註冊（無中間 refresh 的時序風險）。
-    await saveAllBtn.click();
+    // evaluate retry loop 避免 AnimatePresence detach（方法 3）
+    await clickSaveBar(page);
     // SaveBar 的 saveAll 對各 tab handler 傳入 { silent: true }，顯示聚合 toast
     await waitForToast(page, '已儲存');
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
@@ -555,7 +563,8 @@ test.describe('Flow #4 — GM character CRUD', () => {
     // <form> 包裝，只能透過 SaveBar 儲存，而 SaveBar 的 Map-based handler
     // 在 router.refresh() 後有 useEffect 重新註冊的時序問題，因此此處只驗證
     // soft delete 的 UI 行為（刪除 → 復原 → 狀態回復），不驗證持久化。
-    await page.waitForTimeout(1000);
+    // 等待 save toast 消失，確保 router.refresh() 重渲染完成（方法 2）
+    await expect(page.locator('[data-sonner-toast]')).not.toBeVisible({ timeout: 10000 });
 
     // 「主線任務 1」在左欄 <section>，「隱藏任務 1」在右欄 <section>
     const generalColumn = page.locator('section').filter({ hasText: '一般任務' });

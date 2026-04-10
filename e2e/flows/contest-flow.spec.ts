@@ -823,19 +823,13 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       expect(['attacker_wins', 'defender_wins', 'both_fail']).toContain(resultPayload.result);
 
       // ── Phase F — DB 條件驗證 ──
-      // 等待效果執行
-      await pageA.waitForTimeout(2000);
-
-      const runtimeB = await dbQuery('character_runtime', { refId: charB._id });
-      const bStats = runtimeB[0].stats as Array<{ name: string; value: number }>;
-      const bHp = bStats.find(s => s.name === '生命值')!;
-
-      if (resultPayload.result === 'attacker_wins') {
-        expect(bHp.value).toBe(70); // 100 - 30
-      } else {
-        // defender_wins 或 both_fail → 效果不執行
-        expect(bHp.value).toBe(100);
-      }
+      // 等待效果執行完成（polling 取代固定 timeout — 方法 2）
+      const expectedBHp = resultPayload.result === 'attacker_wins' ? 70 : 100;
+      await expect.poll(async () => {
+        const rt = await dbQuery('character_runtime', { refId: charB._id });
+        return (rt[0]?.stats as Array<{ name: string; value: number }>)
+          .find(s => s.name === '生命值')?.value;
+      }, { timeout: 10000 }).toBe(expectedBHp);
 
       // Baseline 隔離：A, B baseline 都不變
       const baselineA = await dbQuery('characters', { _id: charA._id });
@@ -1026,7 +1020,12 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       expect(resultEventA.payload.result).toBe('attacker_wins');
 
       // ── Phase H — DB 驗證 ──
-      await pageA.waitForTimeout(2000);
+      // 等待效果執行完成（polling 取代固定 timeout — 方法 2）
+      await expect.poll(async () => {
+        const rt = await dbQuery('character_runtime', { refId: charB._id });
+        return (rt[0]?.stats as Array<{ name: string; value: number }>)
+          .find(s => s.name === '生命值')?.value;
+      }, { timeout: 10000 }).toBe(90);
 
       // B HP = 90（100 - 10）
       const runtimeB = await dbQuery('character_runtime', { refId: charB._id });
@@ -1185,8 +1184,12 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       expect(resultEventA.payload.result).toBe('attacker_wins');
 
       // ── Phase F — DB 驗證 ──
-      // 等待效果執行
-      await pageA.waitForTimeout(2000);
+      // 等待效果執行完成（polling 取代固定 timeout — 方法 2）
+      await expect.poll(async () => {
+        const rt = await dbQuery('character_runtime', { refId: charB._id });
+        return (rt[0]?.stats as Array<{ name: string; value: number }>)
+          .find(s => s.name === '生命值')?.value;
+      }, { timeout: 10000 }).toBe(75);
 
       // B runtime HP = 75（100 - 25）
       const runtimeB = await dbQuery('character_runtime', { refId: charB._id });

@@ -13,6 +13,7 @@
 
 import { test, expect } from '../fixtures';
 import { waitForToast } from '../helpers/wait-for-toast';
+import { clickSaveBar } from '../helpers/click-save-bar';
 import { waitForWebSocketEvent } from '../helpers/wait-for-websocket-event';
 import type { Browser } from '@playwright/test';
 
@@ -313,19 +314,8 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     await secretDialog.getByRole('button', { name: '確認' }).click();
     await expect(secretDialog).not.toBeVisible({ timeout: 3000 });
 
-    // 等待 StickySaveBar 出現並點擊
-    // 完全在瀏覽器 context 內操作，繞過 Playwright locator 的所有穩定性檢查
-    // （AnimatePresence spring 動畫會導致按鈕持續 detach/reattach）
-    await gmPage.waitForFunction(() => {
-      return [...document.querySelectorAll('button')]
-        .some(b => b.textContent?.includes('全部儲存'));
-    }, { timeout: 10000 });
-    await gmPage.evaluate(() => {
-      const btn = [...document.querySelectorAll('button')]
-        .find(b => b.textContent?.includes('全部儲存'));
-      btn?.scrollIntoView({ block: 'center' });
-      btn?.click();
-    });
+    // 等待 StickySaveBar 出現並點擊（evaluate retry loop — 方法 3）
+    await clickSaveBar(gmPage);
 
     // 等待儲存成功 toast（規則 12：用專屬片段匹配聚合 toast）
     await waitForToast(gmPage, '個分頁的變更');
@@ -734,20 +724,25 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     await dialog.getByRole('combobox').click();
     await page.getByRole('option', { name: '檢視過某幾樣物品' }).click();
     // 驗證：條件類型已切換 + item picker 出現
-    await expect(dialog.getByRole('button', { name: '添加' })).toBeVisible({ timeout: 5000 });
+    // dialog re-render 可能因 condition editor 狀態切換而延遲
+    await expect(dialog.getByRole('button', { name: '添加' })).toBeVisible({ timeout: 10000 });
 
     // Step 2: 從道具選擇器添加道具
-    // 所有 wait + click 合併為單次 waitForFunction，消除 TOCTOU 競爭條件
-    // （waitForFunction 和 evaluate 之間的 IPC 間隙可能被 React re-render 打斷）
+    //
+    // Dialog 內元素會因 React re-render 而 detach/reattach，Playwright locator
+    // 的 actionability check 會因 detach 而反覆 retry 直到 timeout。
+    // → dialog 內操作（trigger、添加按鈕）用 evaluate retry loop
+    //
+    // Radix Select option 渲染在 portal 中，不受 dialog re-render 影響，
+    // 但 SelectItem 用 onPointerUp 觸發選擇，evaluate .click() 不發射 pointer events。
+    // → portal 中的 option 用 Playwright locator（發射完整事件鏈）
 
-    // 2a: 等待 item picker trigger 出現並點擊
-    // 注意：不能在 waitForFunction 內 click，因為 poll 可能重複呼叫導致 toggle
-    // 改用 evaluate 搭配內建 retry loop（單次執行，無重複 click 風險）
+    // 2a: 點擊 item picker trigger（dialog 內，用 evaluate 避 detach）
     await page.evaluate(async () => {
       for (let i = 0; i < 50; i++) {
         const dialogEl = document.querySelector('[role="dialog"]');
         const triggers = dialogEl?.querySelectorAll('[data-slot="select-trigger"]');
-        if (triggers && triggers.length >= 2) {
+        if (triggers && triggers.length >= 2 && (triggers[1] as HTMLElement).isConnected) {
           (triggers[1] as HTMLElement).click();
           return;
         }
@@ -756,69 +751,64 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       throw new Error('Item picker trigger not found after 5s');
     });
 
-    // 2b: 等待 dropdown option 出現並選擇（option click 不會 toggle，waitForFunction 安全）
-    await page.waitForFunction(() => {
-      const opt = [...document.querySelectorAll('[data-slot="select-item"]')]
-        .find(o => o.textContent?.includes('線索'));
-      if (opt) {
-        (opt as HTMLElement).click();
-        return true;
-      }
-      return false;
-    }, { timeout: 5000 });
+    // 2b: 選擇道具「線索」（portal 中，用 Playwright locator 發射 pointer events）
+    await page.getByRole('option', { name: '線索' }).click({ timeout: 10000 });
 
-    // 2c: 等待添加按鈕 enabled 並點擊（原子操作）
-    await page.waitForFunction(() => {
-      const dialogEl = document.querySelector('[role="dialog"]');
-      const addBtn = [...(dialogEl?.querySelectorAll('button') || [])]
-        .find(b => b.textContent?.trim() === '添加');
-      if (addBtn && !addBtn.disabled) {
-        addBtn.click();
-        return true;
+    // 2c: 點擊「添加」按鈕（dialog 內，用 evaluate 避 detach）
+    await page.evaluate(async () => {
+      for (let i = 0; i < 50; i++) {
+        const dialogEl = document.querySelector('[role="dialog"]');
+        const addBtn = [...(dialogEl?.querySelectorAll('button') || [])]
+          .find(b => b.textContent?.trim() === '添加');
+        if (addBtn && !addBtn.disabled && addBtn.isConnected) {
+          (addBtn as HTMLElement).click();
+          return;
+        }
+        await new Promise(r => setTimeout(r, 100));
       }
-      return false;
-    }, { timeout: 5000 });
+      throw new Error('添加 button not found or disabled after 5s');
+    });
 
     // 驗證：道具已添加（badge 出現）
     await expect(dialog.getByText('線索')).toBeVisible({ timeout: 3000 });
 
-    // Step 3: 切換匹配邏輯為 OR（原子操作）
-    await page.waitForFunction(() => {
-      const dialogEl = document.querySelector('[role="dialog"]');
-      const orBtn = [...(dialogEl?.querySelectorAll('button') || [])]
-        .find(b => b.textContent?.trim() === '滿足其一');
-      if (orBtn) {
-        (orBtn as HTMLElement).click();
-        return true;
+    // Step 3: 切換匹配邏輯為 OR（dialog 內，用 evaluate 避 detach）
+    await page.evaluate(async () => {
+      for (let i = 0; i < 50; i++) {
+        const dialogEl = document.querySelector('[role="dialog"]');
+        const orBtn = [...(dialogEl?.querySelectorAll('button') || [])]
+          .find(b => b.textContent?.trim() === '滿足其一');
+        if (orBtn && orBtn.isConnected) {
+          (orBtn as HTMLElement).click();
+          return;
+        }
+        await new Promise(r => setTimeout(r, 100));
       }
-      return false;
-    }, { timeout: 5000 });
+      throw new Error('滿足其一 button not found after 5s');
+    });
 
-    // Step 4: 確認 dialog（原子操作）
-    await page.waitForFunction(() => {
-      const dialogEl = document.querySelector('[role="dialog"]');
-      const confirmBtn = [...(dialogEl?.querySelectorAll('button') || [])]
-        .find(b => b.textContent?.trim() === '確認');
-      if (confirmBtn) {
-        (confirmBtn as HTMLElement).click();
-        return true;
+    // Step 4: 確認 dialog（dialog 內，用 evaluate 避 detach）
+    await page.evaluate(async () => {
+      for (let i = 0; i < 30; i++) {
+        const dialogEl = document.querySelector('[role="dialog"]');
+        const confirmBtn = [...(dialogEl?.querySelectorAll('button') || [])]
+          .find(b => b.textContent?.trim() === '確認');
+        if (confirmBtn && confirmBtn.isConnected) {
+          (confirmBtn as HTMLElement).click();
+          return;
+        }
+        await new Promise(r => setTimeout(r, 100));
       }
-      return false;
-    }, { timeout: 3000 });
+      throw new Error('確認 button not found after 3s');
+    });
     await expect(dialog).not.toBeVisible({ timeout: 3000 });
 
-    // Step 5: 儲存
-    // 完全在瀏覽器 context 內操作，繞過 Playwright locator 的所有穩定性檢查
-    await page.waitForFunction(() => {
-      return [...document.querySelectorAll('button')]
-        .some(b => b.textContent?.includes('全部儲存'));
-    }, { timeout: 10000 });
-    await page.evaluate(() => {
-      const btn = [...document.querySelectorAll('button')]
-        .find(b => b.textContent?.includes('全部儲存'));
-      btn?.scrollIntoView({ block: 'center' });
-      btn?.click();
-    });
+    // Step 5: 儲存（evaluate retry loop 避免 TOCTOU — 規則 32/33）
+    // dialog close 後 dirty state 需透過多層 component propagation 才觸發 SaveBar，
+    // 等待 AnimatePresence exit 動畫 + React 效果鏈完成
+    await page.waitForTimeout(500);
+    // evaluate retry loop 避免 AnimatePresence detach（方法 3）
+    await clickSaveBar(page, { timeout: 15000 });
 
     // 等待儲存成功（StickySaveBar toast：「已儲存 N 個分頁的變更」，400ms delay）
     await waitForToast(page, '個分頁的變更', { timeout: 10000 });

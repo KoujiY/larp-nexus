@@ -215,7 +215,12 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       await expect(itemSelectionDialog).not.toBeVisible({ timeout: 10000 });
 
       // ── Phase F — DB 最終狀態驗證 ──
-      await pageA.waitForTimeout(2000);
+      // 等待效果執行完成（polling 取代固定 timeout — 方法 2）
+      await expect.poll(async () => {
+        const rt = await dbQuery('character_runtime', { refId: charB._id });
+        const items = rt[0]?.items as Array<{ id: string }> | undefined;
+        return items?.find(i => i.id === 'item-sword');
+      }, { timeout: 10000 }).toBeUndefined();
 
       // B 的 items：長劍已移除，藥水仍存在
       const runtimeB = await dbQuery('character_runtime', { refId: charB._id });
@@ -375,7 +380,12 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       await expect(itemSelectionDialog).not.toBeVisible({ timeout: 10000 });
 
       // ── Phase F — DB 最終狀態驗證（item_steal 轉移） ──
-      await pageA.waitForTimeout(2000);
+      // 等待效果執行完成（polling 取代固定 timeout — 方法 2）
+      await expect.poll(async () => {
+        const rt = await dbQuery('character_runtime', { refId: charB._id });
+        const items = rt[0]?.items as Array<{ id: string; quantity: number }> | undefined;
+        return items?.find(i => i.id === 'item-gem')?.quantity;
+      }, { timeout: 10000 }).toBe(1);
 
       // B 的寶石 quantity: 2 → 1（steal 只取 1 個）
       const runtimeB = await dbQuery('character_runtime', { refId: charB._id });
@@ -508,7 +518,12 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
     await expect(itemSelectionDialog).not.toBeVisible({ timeout: 10000 });
 
     // ── Phase D — DB 最終狀態驗證（item_steal 轉移） ──
-    await page.waitForTimeout(2000);
+    // 等待效果執行完成（polling 取代固定 timeout — 方法 2）
+    await expect.poll(async () => {
+      const rt = await dbQuery('character_runtime', { refId: charB._id });
+      const items = rt[0]?.items as Array<{ id: string }> | undefined;
+      return items?.find(i => i.id === 'item-shield');
+    }, { timeout: 10000 }).toBeUndefined();
 
     // B 的盾牌已移除（quantity=1 → 完全移除），金幣不受影響
     const runtimeB = await dbQuery('character_runtime', { refId: charB._id });

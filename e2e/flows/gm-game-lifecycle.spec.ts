@@ -307,6 +307,9 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
     await waitForToast(page, '劇本更新成功！');
+    // 等待 router.refresh() 完成 → form reset → saveBtn disabled
+    // 若不等，I2 的 fill 會被 refresh 覆蓋，導致 dirty state 消失
+    await expect(saveBtn).toBeDisabled({ timeout: 5000 });
 
     // DB 驗證：只剩 1 個 block
     const gamesAfterDelete = await dbQuery('games', { _id: game._id });
@@ -321,36 +324,35 @@ test.describe('Flow #3 — GM game lifecycle', () => {
 
     // 製造 dirty state：修改名稱
     await page.getByPlaceholder('請輸入劇本名稱').fill('未儲存的名稱');
-    // 等待 dirty state 傳播（form isDirty → useEffect → parent infoDirty）
+    // 等待 dirty state 完全傳播：
+    //   isDirty → saveBtn enable（同元件，立即）
+    //   isDirty → useEffect → onDirtyChange → setInfoDirty（跨元件，延遲 1-2 render cycles）
+    //   infoDirty → new handleTabChange → Tabs re-render（再 1 cycle）
+    // saveBtn enabled 確認 child isDirty=true，再等 500ms 確保 parent infoDirty 也跟上
     await expect(saveBtn).toBeEnabled();
+    await page.waitForTimeout(500);
 
-    // 攔截 window.confirm dialog
-    page.on('dialog', async (dialog) => {
+    // dismiss confirm dialog（拒絕離開）
+    const dismissPromise = page.waitForEvent('dialog').then(async (dialog) => {
       expect(dialog.type()).toBe('confirm');
       expect(dialog.message()).toBe('您有未儲存的變更，確定要離開嗎？');
-      await dialog.dismiss(); // 拒絕離開
+      await dialog.dismiss();
     });
-
-    // 嘗試切換到「預設事件」Tab
     await page.getByRole('tab', { name: '預設事件' }).click();
+    await dismissPromise;
 
     // 應停留在「劇本資訊」Tab（dismiss 阻止了切換）
     await expect(page.getByPlaceholder('請輸入劇本名稱')).toBeVisible();
 
-    // 移除舊的 dialog handler，改為 accept
-    page.removeAllListeners('dialog');
-    page.on('dialog', async (dialog) => {
-      await dialog.accept(); // 接受離開
+    // accept confirm dialog（接受離開）
+    const acceptPromise = page.waitForEvent('dialog').then(async (dialog) => {
+      await dialog.accept();
     });
-
-    // 再次嘗試切換
     await page.getByRole('tab', { name: '預設事件' }).click();
+    await acceptPromise;
 
     // 應成功切到「預設事件」Tab（名稱欄位不再可見）
     await expect(page.getByPlaceholder('請輸入劇本名稱')).not.toBeVisible({ timeout: 3000 });
-
-    // 清理 listener
-    page.removeAllListeners('dialog');
   });
 
   test('#3.4 preset events CRUD (broadcast)', async ({
@@ -529,7 +531,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     // 應顯示「待機中」狀態
     await expect(page.locator('main').getByText('待機中')).toBeVisible();
     // Baseline banner
-    await expect(page.getByText('設定模式（Baseline）')).toBeVisible();
+    await expect(page.locator('main').getByText('設定模式（Baseline）')).toBeVisible();
 
     // 點擊「開始遊戲」
     await page.getByRole('button', { name: '開始遊戲' }).click();
@@ -612,7 +614,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await expect(page.locator('main').getByText('待機中')).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole('button', { name: '開始遊戲' })).toBeVisible();
     // Runtime banner 消失
-    await expect(page.getByText('設定模式（Baseline）')).toBeVisible();
+    await expect(page.locator('main').getByText('設定模式（Baseline）')).toBeVisible();
     // 控制台 Tab 消失
     await expect(page.getByRole('tab', { name: '控制台' })).not.toBeVisible();
 

@@ -14,6 +14,7 @@
 
 import { test, expect } from '../fixtures';
 import { waitForToast } from '../helpers/wait-for-toast';
+import { clickSaveBar } from '../helpers/click-save-bar';
 
 test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
   // ────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // 兩個 stat 都完成 → dirty=true → 一次 save
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     await waitForToast(page, '已儲存');
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
@@ -117,7 +118,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // dirty=true → save
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     await waitForToast(page, '已儲存');
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
@@ -143,7 +144,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // 嘗試儲存 → 前端驗證攔截
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     // 顯示錯誤 toast
     await waitForToast(page, '所有數值欄位都需要名稱');
 
@@ -255,7 +256,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
 
     // 儲存（Items tab 無 <form> wrapper，只能用 SaveBar）
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     await waitForToast(page, '已儲存');
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
@@ -346,7 +347,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // SaveBar 出現 → 儲存到 DB
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     await waitForToast(page, '已儲存');
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
@@ -442,7 +443,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // SaveBar 出現 → 儲存到 DB
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     await waitForToast(page, '已儲存');
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
@@ -539,7 +540,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // SaveBar 出現 → 儲存到 DB
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
-    await saveAllBtn.click();
+    await clickSaveBar(page);
     await waitForToast(page, '已儲存');
     await expect(saveAllBtn).not.toBeVisible({ timeout: 5000 });
 
