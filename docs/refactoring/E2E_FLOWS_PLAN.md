@@ -124,12 +124,14 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ---
 
-## Flow #8 — GM 廣播與單角色訊息（flows 層）
+## Flow #8 — GM 廣播與單角色訊息（flows 層） ✅
 
 > **⚠ 已拆出為獨立檔案**：
 > - [E2E_FLOW_8_GM_BROADCAST.md](./E2E_FLOW_8_GM_BROADCAST.md) — 4 個 test case（#8.1 broadcast happy path、#8.2 character message + PendingEvent 反向驗證、#8.3 表單驗證 + 模式切換、#8.4 authorization guard）
 >
 > 本位置保留標題作為 anchor，讓 `grep "Flow #8"` 與章節連結仍可定位。
+>
+> **完成備註**：4 個 test case 全數通過。實作過程中修正 `convertObjectIds` 的 String ID 欄位誤轉問題（`targetGameId`/`targetCharacterId`）。
 
 ---
 

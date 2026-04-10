@@ -824,7 +824,11 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #7.4 showcase: sender triggers + receiver readonly dialog (safe fields only)
      - [x] #7.5 transfer: isTransferable guard + partial quantity + equipment auto-unequip + stat boost revert
      - [x] #7.6 usage limit + cooldown + readOnly: UI guards prevent usage
-   5. [ ] `e2e/flows/broadcast.spec.ts` — 對應 flow #8，依賴 #3 的 game
+   5. [x] `e2e/flows/gm-broadcast.spec.ts` — 對應 flow #8，依賴 #3 的 game ✅
+     - [x] #8.1 broadcast happy path: GM 全體廣播 → Player 通知 + PendingEvent + Log
+     - [x] #8.2 character message: GM 指定角色 → Player 通知 + Log + PendingEvent 反向驗證
+     - [x] #8.3 form validation + mode toggle: PillToggle 切換 + 必填欄位守門
+     - [x] #8.4 authorization guard: Player session → redirect to login + DB 無寫入
    6. [ ] `e2e/flows/contest.spec.ts` — 對應 flow #6/#6b，最複雜（multi-context）
    7. [ ] `e2e/flows/preset-event-runtime.spec.ts` — 對應 flow #9，依賴 #3 的 game runtime
    8. [ ] `e2e/flows/auto-reveal.spec.ts` — 對應 flow #10，依賴 #4 的 character+items+secrets
