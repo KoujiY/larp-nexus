@@ -32,8 +32,15 @@ const ALLOWED_COLLECTIONS = new Set([
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
 /**
+ * Schema 中以 String 儲存的 *Id 欄位（非 ObjectId ref）。
+ * convertObjectIds 會跳過這些欄位，避免型別不匹配導致查詢失敗。
+ */
+const STRING_ID_FIELDS = new Set(['targetGameId', 'targetCharacterId']);
+
+/**
  * 遞迴轉換 filter 物件中的 ObjectId 字串
  * - `_id` 和以 `Id` 結尾的 key：24-char hex → ObjectId
+ * - STRING_ID_FIELDS 中的欄位保持字串不轉換
  */
 function convertObjectIds(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
@@ -41,7 +48,8 @@ function convertObjectIds(obj: Record<string, unknown>): Record<string, unknown>
     if (
       typeof value === 'string' &&
       OBJECT_ID_RE.test(value) &&
-      (key === '_id' || key.endsWith('Id'))
+      (key === '_id' || key.endsWith('Id')) &&
+      !STRING_ID_FIELDS.has(key)
     ) {
       result[key] = new mongoose.Types.ObjectId(value);
     } else if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
