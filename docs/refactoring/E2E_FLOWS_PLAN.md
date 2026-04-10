@@ -511,3 +511,50 @@ Soft delete（前端 `deletedIds` Set + `effectiveTasks/effectiveSecrets` useMem
 SaveBar（`fixed bottom z-50`）在 dirty 狀態出現後，可能遮蔽位於頁面底部的按鈕（如「新增關係」DashedAddButton）。
 
 **對策**：`await button.click({ force: true })` 繞過 Playwright 的 visibility/interactibility 檢查。僅在確認按鈕確實存在但被遮蔽時使用。
+
+### 規則 19：跨 Phase 必須等 toast 全部消失
+
+Sonner toast 持續 ~4 秒。若 Phase A save 後的 `已儲存` toast 尚未消失，Phase B 的 `waitForToast('已儲存')` 會立刻誤匹配殘留 toast，導致 Phase B 的 save 尚未完成就往下執行斷言。
+
+同時，E2E Pusher stub 不實作 `socket_id` 發送者排除，GM save 後觸發的 `role.updated` WebSocket 事件會被同一 browser 收到，可能觸發 `discardStatsAndRefresh()` 丟棄 dirty state。
+
+**對策**：每次 save 後、下一個 Phase 操作前，等待 toast 全部消失：
+
+```ts
+await expect(page.locator('[data-sonner-toast]')).toHaveCount(0, { timeout: 8000 });
+```
+
+這同時解決兩個問題：(1) 防止 stale toast 誤匹配、(2) 留出 role.updated 事件處理時間。
+
+### 規則 20：`hasText` 不匹配 `<input value>`
+
+Playwright `filter({ hasText })` 只匹配 DOM `textContent`，不匹配 `<input>` 的 `value` 屬性。當元件從 view mode（文字在 `<p>` 標籤）切換到 edit mode（文字搬進 `<input value>`）時，原本的 `hasText` 定位器會失效。
+
+**對策**：view mode 和 edit mode 使用不同定位策略：
+- View mode：`page.locator('div.bg-card').filter({ hasText: '生命值' })`
+- Edit mode：`page.locator('div.bg-card').filter({ has: page.getByRole('button', { name: '完成編輯' }) })`
+
+### 規則 21：Radix Select combobox 用 `filter({ hasText })` 定位
+
+shadcn/ui Select 渲染的 `<button role="combobox">` 通常沒有 accessible name（`<label>` 未用 `htmlFor` 關聯）。`getByRole('combobox', { name })` 不可用。
+
+**對策**：用 placeholder 或當前選中值的文字做 filter：
+
+```ts
+// 用 placeholder 定位未選擇的 combobox
+await dialog.getByRole('combobox').filter({ hasText: '選擇數值' }).click();
+// 用當前值定位已選擇的 combobox
+await dialog.getByRole('combobox').filter({ hasText: '數值變更' }).click();
+```
+
+### 規則 22：Dialog heading 避免 sr-only 重複
+
+shadcn/ui `DialogContent` 會同時產生 sr-only `<h2>` (DialogTitle) 和元件內部的可見 `<h1>`，兩者文字相同。`getByRole('heading', { name })` 在 strict mode 下會匹配兩個元素而失敗。
+
+**對策**：用 `dialog.locator('h1', { hasText: '新增技能' })` 精確定位可見的 heading。
+
+### 規則 23：Wizard「新增效果」後自動選取新效果
+
+Wizard Step 4 點「新增效果」後，`selectedEffectIndex` 會自動更新到新效果，右側面板已切換。不需要手動點 sidebar 的效果按鈕。若嘗試用 `getByText('效果 2')` 點 sidebar，會因 sidebar button 子元素 + 面板 paragraph 兩處匹配而觸發 strict mode 失敗。
+
+**對策**：用 `getByRole('paragraph').filter({ hasText: '效果 2' })` 確認面板已切換即可。
