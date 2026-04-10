@@ -185,10 +185,10 @@ export function SecretEditDialog({
           <AutoRevealConditionEditor
             condition={editingSecret.autoRevealCondition}
             onChange={(newCondition: AutoRevealCondition | undefined) =>
-              setEditingSecret({
-                ...editingSecret,
+              setEditingSecret((prev) => ({
+                ...prev!,
                 autoRevealCondition: newCondition,
-              })
+              }))
             }
             availableItems={availableItems}
             allowSecretsCondition={false}
