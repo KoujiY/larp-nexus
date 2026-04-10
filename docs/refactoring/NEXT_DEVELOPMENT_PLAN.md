@@ -840,7 +840,13 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #6b.1 item_take: contest + delayed selection → item destroyed (not transferred)
      - [x] #6b.2 item_steal: contest + delayed selection → item transferred to attacker
      - [x] #6b.3 item_steal: non-contest + delayed selection → item transferred
-   7. [ ] `e2e/flows/preset-event-runtime.spec.ts` — 對應 flow #9，依賴 #3 的 game runtime
+   7. [x] `e2e/flows/preset-event-runtime.spec.ts` — 對應 flow #9，依賴 #3 的 game runtime ✅
+     - [x] #9.1 baseline copy + execute + executionCount tracking
+     - [x] #9.2 Runtime CRUD — create, edit, delete preset events (runtimeOnly badge)
+     - [x] #9.3 broadcast (all + specific targets) — dual broadcast + PendingEvent=0 negative assertion
+     - [x] #9.4 stat_change — HP delta + role.updated WS + DB + Log
+     - [x] #9.5 reveal_secret + reveal_task — WS events + DB isRevealed/revealedAt + Log
+     - [x] #9.6 partial failure/skip — mixed results toast (1 success + 2 skipped)
    8. [ ] `e2e/flows/auto-reveal.spec.ts` — 對應 flow #10，依賴 #4 的 character+items+secrets
    9. [ ] `e2e/flows/preview-mode.spec.ts` — 對應 flow #11，依賴 baseline/runtime 分歧 seed
    10. [ ] `e2e/flows/time-dependent-edges.spec.ts` — 對應 flow #12，依賴 temporaryEffects + cooldown + PendingEvent seed
