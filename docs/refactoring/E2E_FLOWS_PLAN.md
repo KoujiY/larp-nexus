@@ -440,11 +440,16 @@ await form.evaluate(el => (el as HTMLFormElement).requestSubmit());
 // 新增任務 A → 新增任務 B → 一次 saveAllBtn.click()（此刻 Map handler 尚未被 refresh 打亂）
 ```
 
-### 規則 12：SaveBar aggregate toast 需用 partial match
+### 規則 12：SaveBar aggregate toast 需用專屬片段匹配
 
 SaveBar 的 `saveAll` 對每個 tab handler 傳入 `{ silent: true }` 抑制個別 tab 的 toast，最後統一顯示聚合 toast：「已儲存 N 個分頁的變更 (tab名1, tab名2)」。
 
-**對策**：`waitForToast(page, '已儲存')` 用部分匹配，不要寫死完整的聚合文案（tab 組合會變）。若是 `requestSubmit()` 直接觸發 tab 自有的 save（非透過 saveAll），則 tab 會顯示自己的 toast（如 `'背景故事已儲存'`），此時用精確匹配。
+**⚠️ Flow #10 修正**：原策略「`waitForToast(page, '已儲存')`」被證明不可靠。`'已儲存'` 同時匹配個別 tab toast（如 `'隱藏資訊已儲存'`）和聚合 toast，會在 saveAll 尚未完成時就提前通過，導致後續 DB 斷言失敗。
+
+**對策**：
+- SaveBar 聚合 toast：`waitForToast(page, '個分頁的變更')`（只出現在聚合 toast）
+- 個別 tab toast：用完整 tab 名稱如 `'隱藏資訊已儲存'`、`'背景故事已儲存'`
+- 通則：toast match text 必須在整個 codebase 中**唯一**匹配目標 toast，不可有歧義
 
 ### 規則 13：`router.refresh()` 後需等待 AnimatePresence 穩定
 
@@ -510,11 +515,16 @@ Soft delete（前端 `deletedIds` Set + `effectiveTasks/effectiveSecrets` useMem
 - **有 `<form>` 的 tab**（SecretsTab）：可用 `requestSubmit()` 驗證 soft delete 後 save → DB 反映刪除
 - **無 `<form>` 的 tab**（TasksEditForm）：只驗證 soft delete 的 **UI 行為**（刪除 → 復原 → 狀態回復），持久化由有 `<form>` 的 tab 代為覆蓋
 
-### 規則 18：`force: true` click 用於 SaveBar 遮蔽場景
+### 規則 18：`force: true` click 用於 SaveBar 遮蔽場景（有限制）
 
 SaveBar（`fixed bottom z-50`）在 dirty 狀態出現後，可能遮蔽位於頁面底部的按鈕（如「新增關係」DashedAddButton）。
 
-**對策**：`await button.click({ force: true })` 繞過 Playwright 的 visibility/interactibility 檢查。僅在確認按鈕確實存在但被遮蔽時使用。
+**對策**：`await button.click({ force: true })` 繞過 Playwright 的 visibility/stability/enabled 檢查。僅在確認按鈕確實存在但被遮蔽時使用。
+
+**⚠️ Phase 6 修正 — `force: true` 的限制**：
+- `force: true` **不跳過** attached 和 viewport 檢查 — 若元素被 AnimatePresence detach，`force: true` 一樣失敗
+- `force: true` 在動畫元素上可能命中已 detach 的 DOM 節點，click event 發送到「空氣中」而靜默失敗
+- **AnimatePresence 動畫元素**（如 StickySaveBar 進場中的按鈕）：改用 `page.waitForFunction() + page.evaluate()` 或 `page.evaluate(async)` + retry loop
 
 ### 規則 19：跨 Phase 必須等 toast 全部消失
 
@@ -623,3 +633,117 @@ await page.goto(`/c/${charId}`);  // 5-8s 消耗在這裡
 await page.getByRole('button', { name: '使用技能' }).click();
 const wsEvent = await wsPromise;  // 剩餘時間不足 → timeout
 ```
+
+### 規則 31：Radix Select / Dialog 內操作 — 用 `page.evaluate` 取代 Playwright locator
+
+**問題**：Radix Select 的 dropdown 通過 Portal 渲染到 `<body>`，trigger 使用 `pointerdown`（mouse）/ `click`（touch）雙路徑開啟。在 Dialog 內使用時，React re-render + AnimatePresence 動畫導致元素持續 detach/reattach，使 Playwright 所有 locator 方法都不可靠：
+
+| 嘗試方法 | 失敗原因 |
+|----------|---------|
+| `locator.click()` | actionability 檢查失敗（not stable / detached） |
+| `locator.click({ force: true })` | 跳過 stable 但不跳過 attached，且可能 click 到已 detach 的 DOM |
+| `locator.dispatchEvent('click')` | 仍等待 locator resolve，受 detach 影響 |
+| keyboard（ArrowDown + Enter） | Enter 被 Dialog 攔截，觸發 confirm 按鈕 |
+| `filter({ hasText })` 精確定位 | 不解決時序問題，且可能影響前序步驟 |
+
+**對策**：在 Dialog 內操作 Radix Select 時，全程使用 `page.evaluate()` 直接操作 DOM：
+
+```typescript
+// ✅ 正確：page.evaluate 直接 DOM 操作
+await page.evaluate(() => {
+  const dialogEl = document.querySelector('[role="dialog"]');
+  const triggers = dialogEl?.querySelectorAll('[data-slot="select-trigger"]');
+  (triggers![1] as HTMLElement).click();
+});
+
+// ❌ 錯誤：任何 Playwright locator API
+await dialog.getByText('選擇物品').click();  // timeout / detached
+```
+
+**例外**：Dialog 內的第一個 combobox（條件類型選擇器）如果在 re-render 穩定期之前操作，可用標準 `getByRole('combobox').click()`，因為此時 DOM 尚未進入不穩定狀態。
+
+### 規則 32：TOCTOU 防護 — wait 與 click 必須在同一次 browser JS 執行中
+
+**問題**：`waitForFunction()`（browser→Playwright IPC）和 `evaluate()`（Playwright→browser IPC）之間有數十毫秒的 IPC 間隙。React re-render 可在此間隙中移除目標元素。
+
+```typescript
+// ❌ TOCTOU 競爭：waitForFunction 確認 2 個 trigger，evaluate 執行時只剩 1 個
+await page.waitForFunction(() => {
+  const triggers = dialog?.querySelectorAll('[data-slot="select-trigger"]');
+  return triggers && triggers.length >= 2;  // ← check
+});
+await page.evaluate(() => {
+  const triggers = dialog!.querySelectorAll('[data-slot="select-trigger"]');
+  (triggers[1] as HTMLElement).click();  // ← use（可能已 undefined）
+});
+```
+
+**對策**：
+
+- **非 toggle 操作**（option select、button click）：在 `waitForFunction` 內同時執行 find + click，只 return true 一次即停止 polling：
+
+```typescript
+await page.waitForFunction(() => {
+  const btn = [...(dialogEl?.querySelectorAll('button') || [])]
+    .find(b => b.textContent?.trim() === '添加');
+  if (btn && !btn.disabled) {
+    btn.click();
+    return true;
+  }
+  return false;
+}, { timeout: 5000 });
+```
+
+- **toggle 操作**（Select trigger 開/關 dropdown）：用 `page.evaluate(async)` + 手動 retry loop，保證只 click 一次。`waitForFunction` 的 polling 可能在 dropdown 開啟動畫期間再次觸發 callback，造成 toggle 關閉：
+
+```typescript
+await page.evaluate(async () => {
+  for (let i = 0; i < 50; i++) {
+    const triggers = dialogEl?.querySelectorAll('[data-slot="select-trigger"]');
+    if (triggers && triggers.length >= 2) {
+      (triggers[1] as HTMLElement).click();
+      return;  // 只 click 一次，立即退出
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  throw new Error('Item picker trigger not found after 5s');
+});
+```
+
+### 規則 33：SaveBar「全部儲存」按鈕 — `page.evaluate` 取代 Playwright click
+
+**問題**：StickySaveBar 使用 Framer Motion spring animation（`damping=25, stiffness=300`）進場。進場期間按鈕持續 detach/reattach，Playwright 的 `click()`、`click({ force: true })`、`scrollIntoViewIfNeeded()` 都會失敗。
+
+**對策**：
+
+```typescript
+// ✅ 等待按鈕出現 + JS 直接 click
+await page.waitForFunction(() => {
+  return [...document.querySelectorAll('button')]
+    .some(b => b.textContent?.includes('全部儲存'));
+}, { timeout: 10000 });
+await page.evaluate(() => {
+  const btn = [...document.querySelectorAll('button')]
+    .find(b => b.textContent?.includes('全部儲存'));
+  btn?.scrollIntoView({ block: 'center' });
+  btn?.click();
+});
+```
+
+搭配規則 12 的修正，save 後用 `waitForToast(page, '個分頁的變更')` 等待聚合 toast。
+
+### 規則 34：E2E 失敗時 — 先判斷問題層級再動手
+
+反覆失敗的主因往往是在錯誤的層級嘗試修復。Flow #10 的 #10.5 test 在「換 Playwright locator 選擇器」這一層級反覆嘗試了 5+ 次，但問題根因在時序層和 production code 層。
+
+**決策樹**（失敗時依序判斷）：
+
+1. **選擇器問題**（找不到元素）：看 page snapshot 確認元素是否存在、text/role 是否正確。最多試 2 次。
+2. **時序/穩定性問題**（detached / not stable / outside viewport）：這不是選擇器問題，換選擇器無用。直接跳到 `page.evaluate()` 方案。
+3. **Production code 問題**（UI 顯示正確但 DB 不對、狀態丟失）：檢查 stale closure、render-time sync。這需要修 production code，不是改 test。
+4. **斷言匹配問題**（test 通過但驗證錯誤的東西）：檢查 toast text、locator 是否匹配到非預期元素。
+
+**反模式清單**：
+- ❌ 連續換 3+ 種不同的 locator 選擇器 → 停下來，問題可能不在選擇器
+- ❌ 加 `force: true` 後仍失敗 → 問題在 DOM 層級，需 `page.evaluate`
+- ❌ 加 `waitForTimeout` 後時好時壞 → 改用 `waitForFunction` 等待明確狀態

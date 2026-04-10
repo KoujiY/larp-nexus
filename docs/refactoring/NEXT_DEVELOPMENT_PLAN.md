@@ -847,7 +847,12 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #9.4 stat_change — HP delta + role.updated WS + DB + Log
      - [x] #9.5 reveal_secret + reveal_task — WS events + DB isRevealed/revealedAt + Log
      - [x] #9.6 partial failure/skip — mixed results toast (1 success + 2 skipped)
-   8. [ ] `e2e/flows/auto-reveal.spec.ts` — 對應 flow #10，依賴 #4 的 character+items+secrets
+   8. [x] `e2e/flows/auto-reveal.spec.ts` — 對應 flow #10，依賴 #4 的 character+items+secrets
+     - [x] #10.1 items_viewed — showcase triggers secret auto-reveal (dual player context)
+     - [x] #10.2 items_acquired — transfer triggers task auto-reveal (dual player context)
+     - [x] #10.3 secrets_revealed chain — GM manual reveal triggers task auto-reveal (GM+Player)
+     - [x] #10.4 AND/OR matchLogic — AND needs all items, OR needs any one (dual player context)
+     - [x] #10.5 condition editor UI — GM sets auto-reveal condition on secret (GM only)
    9. [ ] `e2e/flows/preview-mode.spec.ts` — 對應 flow #11，依賴 baseline/runtime 分歧 seed
    10. [ ] `e2e/flows/time-dependent-edges.spec.ts` — 對應 flow #12，依賴 temporaryEffects + cooldown + PendingEvent seed
 
