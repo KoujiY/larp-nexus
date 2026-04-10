@@ -165,8 +165,10 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 >
 > 原待涵蓋 3 項全部涵蓋：baseline 讀取(#11.1)、模式切換(#11.2)、Runtime 分歧驗證(#11.1 seed)。額外新增互動鎖定(#11.3)與 inactive game fallback(#11.4)
 
-### Flow #12 — 時間依賴 edge case
+### Flow #12 — 時間依賴 edge case ✅
 
+> **完成**：5 個 test case 全部通過（2026-04-11）。Spec 檔：`e2e/flows/time-dependent-edges.spec.ts`。
+>
 > **⚠ 已拆出為獨立檔案**：
 > - [E2E_FLOW_12_TIME_DEPENDENT_EDGE_CASES.md](./E2E_FLOW_12_TIME_DEPENDENT_EDGE_CASES.md) — 5 個 test case（#12.1 TemporaryEffect 過期 stat rollback + WS event、#12.2 多效果累疊逐步過期、#12.3 Skill cooldown clock mock、#12.4 Item cooldown clock mock、#12.5 PendingEvent TTL 清除）
 >

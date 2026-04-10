@@ -858,7 +858,12 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #11.2 preview → full access switch via relock + PIN+GameCode re-unlock (HP=60, 2 items, usageCount=2, 2 secrets, 2 tasks) + localStorage 驗證
      - [x] #11.3 preview mode disables item/skill use buttons (顯示「預覽模式」disabled)
      - [x] #11.4 inactive game — baselineData undefined, ?? fallback works without crash
-   10. [ ] `e2e/flows/time-dependent-edges.spec.ts` — 對應 flow #12，依賴 temporaryEffects + cooldown + PendingEvent seed
+   10. [x] `e2e/flows/time-dependent-edges.spec.ts` — 對應 flow #12，依賴 temporaryEffects + cooldown + PendingEvent seed ✅
+     - [x] #12.1 expired temporary effect — stat rollback via Cron + DB + Log + UI 驗證
+     - [x] #12.2 multi-effect stacking — selective rollback (A/C expired, B alive) + DB + UI
+     - [x] #12.3 skill cooldown — expired cooldown allows reuse, new cooldown starts after (overlay + DB)
+     - [x] #12.4 item cooldown — expired cooldown allows reuse, new cooldown starts after (dialog + DB)
+     - [x] #12.5 pending event TTL — expired/delivered events cleaned, fresh kept (Cron + DB)
 
 6. **Phase 6 — 開發者體驗 / 維運**（optional but valuable）
    - [ ] README 段落：如何跑 E2E、常見失敗排查
