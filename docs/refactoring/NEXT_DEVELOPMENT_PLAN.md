@@ -817,7 +817,13 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #5.4 usageLimit exhaustion + cooldown gate（UI + server 雙層）
      - [x] #5.5 readOnly mode + TemporaryEffect creation（需 hasPinLock）
      - [x] #5.6 PIN-locked character blocks unauthorized skill access
-   4. [ ] `e2e/flows/item-operations.spec.ts` — 對應 flow #7，依賴 #4 的 character+item
+   4. [x] `e2e/flows/item-operations.spec.ts` — 對應 flow #7，依賴 #4 的 character+item ✅
+     - [x] #7.1 happy path: consumable self-target stat_change + quantity decrement + baseline/runtime 隔離
+     - [x] #7.2 cross-target random check: pass (stat_change) + fail (效果未執行) 雙分支
+     - [x] #7.3 equip/unequip toggle: stat boost apply + revert + max recovery rule
+     - [x] #7.4 showcase: sender triggers + receiver readonly dialog (safe fields only)
+     - [x] #7.5 transfer: isTransferable guard + partial quantity + equipment auto-unequip + stat boost revert
+     - [x] #7.6 usage limit + cooldown + readOnly: UI guards prevent usage
    5. [ ] `e2e/flows/broadcast.spec.ts` — 對應 flow #8，依賴 #3 的 game
    6. [ ] `e2e/flows/contest.spec.ts` — 對應 flow #6/#6b，最複雜（multi-context）
    7. [ ] `e2e/flows/preset-event-runtime.spec.ts` — 對應 flow #9，依賴 #3 的 game runtime

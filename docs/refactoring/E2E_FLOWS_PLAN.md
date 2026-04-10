@@ -112,11 +112,13 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ---
 
-## Flow #7 — 道具操作：use / equip / showcase / transfer（flows 層）
+## Flow #7 — 道具操作：use / equip / showcase / transfer（flows 層） ✅
 
 > **⚠ 已拆出為獨立檔案**：Flow #7 的完整規格（6 個 test case）已移至 [E2E_FLOW_7_ITEM_OPERATIONS.md](./E2E_FLOW_7_ITEM_OPERATIONS.md)。
 >
 > 範圍從舊版的 3 子 flow（use/equip/showcase）擴充為 4 種操作 + 6 cases：consumable 使用（self/cross-target + random check）、equipment equip/unequip toggle + stat boost、showcase + receiver dialog、transfer + isTransferable + partial quantity、usage limit + cooldown + readOnly + error 拒絕。
+>
+> **實作完成**：6 個 test case 全數通過。實作過程中發現並修復 production bug（裝備轉移未 revert stat boosts）。
 >
 > 本位置保留標題作為 anchor，讓 `grep "Flow #7"` 與章節連結仍可定位。
 
