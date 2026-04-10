@@ -156,7 +156,7 @@ export async function applyItemTransfer(
   // 數量 > 1 時把減量版本推回目標角色
   if (quantity > 1) {
     const reducedItem = Object.fromEntries(
-      Object.entries({ ...targetItem as unknown as Record<string, unknown>, quantity: quantity - 1 })
+      Object.entries({ ...JSON.parse(JSON.stringify(targetItem)) as Record<string, unknown>, quantity: quantity - 1 })
         .filter(([k]) => k !== '_id' && k !== '__v')
     );
     await updateCharacterData(targetIdStr, {
