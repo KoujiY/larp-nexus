@@ -100,10 +100,10 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ---
 
-## Flow #6 — 對抗檢定（flows 層，multi-context）
+## Flow #6 — 對抗檢定（flows 層，multi-context） ✅
 
 > **⚠ 已拆出為獨立檔案**：Flow #6 的完整規格因涵蓋雙 browser context、三階段事件序列、多種勝負分支，體量龐大而拆成兩份姊妹檔：
-> - [E2E_FLOW_6_CONTEST.md](./E2E_FLOW_6_CONTEST.md) — 主線 6 個 test case（happy path、技能防禦+combat tag、道具防禦+equipment 過濾、random_contest+both_fail、互斥選擇+opponentMax、隱匿標籤）
+> - [E2E_FLOW_6_CONTEST.md](./E2E_FLOW_6_CONTEST.md) — 主線 6 個 test case（happy path、技能防禦+combat tag、道具防禦+equipment 過濾、random_contest+both_fail、單選限制+互斥切換、隱匿標籤）
 > - [E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md](./E2E_FLOW_6B_CONTEST_ITEM_TRANSFER.md) — 3 個 test case（#6b.1 item_take 對抗延遲、#6b.2 item_steal 對抗延遲、#6b.3 item_steal 非對抗延遲）
 >
 > 拆分理由：`item_take`/`item_steal` 的延遲物品選擇涉及額外的 `selectTargetItemForContest`（對抗）/ `selectTargetItemAfterUse`（非對抗）action 與 `TargetItemSelectionDialog`，與主線對抗流程的 `ContestResponseDialog` 解耦，分開維護可減少單一 spec 檔的爆炸面。

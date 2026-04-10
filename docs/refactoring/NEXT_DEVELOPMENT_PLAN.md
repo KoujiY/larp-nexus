@@ -829,7 +829,14 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #8.2 character message: GM 指定角色 → Player 通知 + Log + PendingEvent 反向驗證
      - [x] #8.3 form validation + mode toggle: PillToggle 切換 + 必填欄位守門
      - [x] #8.4 authorization guard: Player session → redirect to login + DB 無寫入
-   6. [ ] `e2e/flows/contest.spec.ts` — 對應 flow #6/#6b，最複雜（multi-context）
+   6. [x] `e2e/flows/contest-flow.spec.ts` — 對應 flow #6，最複雜（multi-context） ✅
+     - [x] #6.1 happy path: contest + no defense → attacker_wins + stat_change applied
+     - [x] #6.2 skill defense + attacker_wins + combat tag filtering
+     - [x] #6.3 item defense + defender_wins + combat/equipment filtering
+     - [x] #6.4 random_contest + conditional DB assertion (non-deterministic result)
+     - [x] #6.5 single-select + item/skill mutual exclusion
+     - [x] #6.6 stealth tag: attacker name hidden + effect source hidden
+   6b. [ ] `e2e/flows/contest-flow.spec.ts` — 對應 flow #6b（item_take/item_steal 延遲物品選擇）
    7. [ ] `e2e/flows/preset-event-runtime.spec.ts` — 對應 flow #9，依賴 #3 的 game runtime
    8. [ ] `e2e/flows/auto-reveal.spec.ts` — 對應 flow #10，依賴 #4 的 character+items+secrets
    9. [ ] `e2e/flows/preview-mode.spec.ts` — 對應 flow #11，依賴 baseline/runtime 分歧 seed
@@ -905,6 +912,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | 8 | #6 E2E 測試建置 | 中 | 純地端；Playwright + mongodb-memory-server + Pusher stub 兩層（smoke/flows）|
 | 9 | #5.6-1 React 19 set-state-in-effect 重構 | 中 | 需要 E2E 覆蓋作為重構安全網，故排在 #6 之後 |
 | 10 | #7 `item_give` 死碼移除 | 小 | `item_give` 在 schema enum 中定義但 executor 未實作（空殼註解），與現有物品轉移（`item_take`/`item_steal`）無關；需從 skill effect enum、types、executor stub、UI 元件、知識庫文件中統一清除 |
+| 11 | #8 裝備類物品對抗回應過濾 | 小 | `contest-response-dialog.tsx` 和 `contest-validator.ts` 缺少 `item.type !== 'equipment'` 排除條件，裝備（被動增益）不應出現在對抗回應選項。前後端兩處同步修正 |
 
 ## 注意事項
 
