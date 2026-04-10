@@ -810,7 +810,13 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #4b.3 items wizard interlock（contest checkType 強制 relatedStat）
      - [x] #4b.4 skills wizard + exclusive effects（stat_change + task_reveal 雙效果）
      - [x] #4b.5 skills wizard edit mode（載入既有 → Stepper 跳步 → 覆蓋更新）
-   3. [ ] `e2e/flows/skill-use.spec.ts` — 對應 flow #5，依賴 #4 的 character+skill
+   3. [x] `e2e/flows/player-use-skill.spec.ts` — 對應 flow #5，依賴 #4 的 character+skill ✅
+     - [x] #5.1 happy path: self-target stat_change + baseline/runtime 隔離
+     - [x] #5.2 cross-target random check: pass + fail 雙分支
+     - [x] #5.3 multi-effect sequential execution + empty effects 反向驗證
+     - [x] #5.4 usageLimit exhaustion + cooldown gate（UI + server 雙層）
+     - [x] #5.5 readOnly mode + TemporaryEffect creation（需 hasPinLock）
+     - [x] #5.6 PIN-locked character blocks unauthorized skill access
    4. [ ] `e2e/flows/item-operations.spec.ts` — 對應 flow #7，依賴 #4 的 character+item
    5. [ ] `e2e/flows/broadcast.spec.ts` — 對應 flow #8，依賴 #3 的 game
    6. [ ] `e2e/flows/contest.spec.ts` — 對應 flow #6/#6b，最複雜（multi-context）

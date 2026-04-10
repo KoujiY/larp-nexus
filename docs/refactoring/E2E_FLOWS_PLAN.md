@@ -88,11 +88,11 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 
 ---
 
-## Flow #5 — Player 使用技能（flows 層）
+## Flow #5 — Player 使用技能（flows 層）✅
 
-> **⚠ 已拆出為獨立檔案**：Flow #5 的完整規格（6 個 test case、WebSocket 事件鏈驗證、baseline/runtime 隔離斷言、基礎設施依賴清單）已移至 [E2E_FLOW_5_PLAYER_USE_SKILL.md](./E2E_FLOW_5_PLAYER_USE_SKILL.md)。
+> **完成**：6 個 test case 全部通過（2026-04-10）。Spec 檔：`e2e/flows/player-use-skill.spec.ts`。
 >
-> Flow #5 是第一個需要**實作 `asPlayer()` fixture 與 `wsCapture` helper** 的 flow，獨立檔案中明確標註基礎設施依賴清單，避免在 fixture 未備時先寫 spec 造成誤紅。
+> 完整規格與實作後修正見 [E2E_FLOW_5_PLAYER_USE_SKILL.md](./E2E_FLOW_5_PLAYER_USE_SKILL.md)。
 >
 > **對抗 (contest) 技能**刻意完全排除於 Flow #5，因 `skill-use.ts:237` 的提早 return 讓 effects 在 contest-respond 階段才執行——這條閉環拆至 Flow #6。**item_take / item_steal** 的 TargetItemSelectionDialog 延遲選擇拆至 Flow #7。
 >
@@ -558,3 +558,33 @@ shadcn/ui `DialogContent` 會同時產生 sr-only `<h2>` (DialogTitle) 和元件
 Wizard Step 4 點「新增效果」後，`selectedEffectIndex` 會自動更新到新效果，右側面板已切換。不需要手動點 sidebar 的效果按鈕。若嘗試用 `getByText('效果 2')` 點 sidebar，會因 sidebar button 子元素 + 面板 paragraph 兩處匹配而觸發 strict mode 失敗。
 
 **對策**：用 `getByRole('paragraph').filter({ hasText: '效果 2' })` 確認面板已切換即可。
+
+### 規則 24：`hasPinLock` 是 readOnly 的隱性前置條件
+
+`useLocalStorageUnlock` hook 有 early return：`if (!hasPinLock) return { isUnlocked: true, fullAccess: true }`。沒有 PIN 鎖的角色永遠是 `fullAccess=true`，無論 localStorage 或 `asPlayer({ readOnly: true })` 怎麼設定。
+
+**對策**：任何測試 readOnly 行為的 E2E（如 #5.5 預覽模式），seed 資料必須包含 `hasPinLock: true, pin: '...'`，且 character 和 characterRuntime 都要設。
+
+### 規則 25：Spec doc 的 server-side error code 假設必須先驗證
+
+Spec 設計階段容易假設 server action 有某個 guard check（如 `GAME_INACTIVE`），但很多 action 只做最基本的 session 驗證。假設錯誤時整個 test case 的 seed + 斷言邏輯都要重來。
+
+**對策**：寫 E2E spec 中的 error/auth case 時，先 `grep 'ERROR_CODE_NAME'` 或讀 server action 原始碼確認 error code 存在，再設計測試步驟。
+
+### 規則 26：`networkidle` 在 SSE 環境中永遠不可用
+
+SSE EventSource 保持連線永遠不關閉，`page.waitForLoadState('networkidle')` 會永遠 timeout。這不只影響 `page.goto()` — `page.reload()` 也受影響。
+
+**對策**：全面禁止使用 `networkidle`。Playwright 的 `page.goto()` / `page.reload()` 預設等待 `load` 事件已足夠，後續用 element locator 的隱式等待處理剩餘載入。
+
+### 規則 27：成功操作不一定有 Sonner toast
+
+部分 server action 成功後不顯示 Sonner toast，而是透過 WebSocket 發送通知到通知面板。例如 `skill-use.ts` 成功後只有 `notify.error()` 用於失敗，成功路徑無 toast。
+
+**對策**：斷言操作成功時，優先用 dialog 關閉（`await expect(dialog).not.toBeVisible()`）或 WebSocket 事件作為 success indicator，不要預設有 toast。寫 spec 前先讀 hook 確認 notify 呼叫點。
+
+### 規則 28：WS 事件需 `.payload` 取業務資料
+
+`trigger()` 函數將 payload 包裝為 `BaseEvent { type, timestamp, payload }`。`waitForWebSocketEvent` 回傳的是 `BaseEvent`（即 `parsed.data`），不是內層的業務資料。
+
+**對策**：`const wsRaw = await wsPromise; const wsEvent = wsRaw.payload;` — 永遠多取一層 `.payload`。

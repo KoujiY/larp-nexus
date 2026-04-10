@@ -9,7 +9,29 @@
 
 ---
 
-## ⚠ 基礎設施依賴（Blocker）
+## ✅ 實作後修正摘要（2026-04-10）
+
+以下列出 spec 設計階段的假設與實作後發現的差異：
+
+| # | Spec 假設 | 實際情況 |
+|---|----------|---------|
+| 1 | URL `/characters/{id}` | 實際為 `/c/{id}` |
+| 2 | `getByRole('tab', { name: '技能' })` | Bottom nav 使用 `<button>` 不是 Radix Tab → `page.getByRole('navigation').getByRole('button', { name: '技能' })` |
+| 3 | effect field `amount` | 實際為 `value` |
+| 4 | stat 用 `key: 'hp'` 識別 | `targetStat` 匹配的是 `stats[i].name`（如 `'生命值'`），不是 key |
+| 5 | `randomConfig: { sides, successThreshold }` | 實際為 `{ maxValue, threshold }` |
+| 6 | `skill.used` 成功後顯示 Sonner toast | 成功只發 WebSocket 通知，`notify.error()` 僅在失敗時使用 |
+| 7 | `wsCapture.waitFor()` API | 實際使用 `waitForWebSocketEvent(page, { event, channel })` helper，回傳 `BaseEvent { type, timestamp, payload }`，需 `.payload` 取得業務資料 |
+| 8 | `usageCount` 每次使用都遞增 | 僅在 `usageLimit > 0` 時遞增（`skill-use.ts:344`） |
+| 9 | `readOnly` 只需 `fullAccess: false` | `useLocalStorageUnlock` 在 `!hasPinLock` 時直接回傳 `fullAccess=true`，必須同時設 `hasPinLock: true` |
+| 10 | TemporaryEffect field `delta` / `sourceSkillId` | 實際為 `deltaValue` / `sourceId` + `sourceType: 'skill'` |
+| 11 | #5.6 Phase B：`GAME_INACTIVE` server check | `skill-use.ts` **無此檢查**，改為測試 PIN gate 阻擋未授權存取 |
+| 12 | 獨立 fixture 檔案 (`as-player.ts`, `ws-capture.ts`) | 統一在 `e2e/fixtures/index.ts`（`test.extend()` pattern） |
+| 13 | `checkResult` 注入用 `window.__E2E_HARNESS__` | 用 `page.evaluate(() => { Math.random = () => 0.7 })` 控制擲骰結果 |
+
+---
+
+## ⚠ 基礎設施依賴（Blocker）— ✅ 全部已完成
 
 Flow #5 是整個 E2E 計畫中第一個需要完整 WebSocket 事件鏈驗證的 flow，**以下基礎設施在寫 spec 之前必須就位**，否則 `page.goto` 之後完全無法斷言：
 
@@ -82,7 +104,7 @@ Flow #5 驗證 **「玩家在 active game 中使用技能」的完整閉環**，
 - 多 effects 同時執行順序 + 空 effects 反向驗證（#5.3）
 - `usageLimit` 耗盡 + `cooldown` 守門的雙層（UI disable + server reject）（#5.4）
 - readOnly 模式隱藏互動 + TemporaryEffect record 建立（**不驗證過期**）（#5.5）
-- 授權拒絕（非擁有者）+ game inactive 拒絕（#5.6）
+- ~~授權拒絕（非擁有者）+ game inactive 拒絕~~ → PIN gate 阻擋未授權存取（#5.6，已修正：server 無 GAME_INACTIVE check）
 
 ### 不測（延後/排除/橫切）
 | 項目 | 狀態 | 去處 |
@@ -110,7 +132,7 @@ Flow #5 驗證 **「玩家在 active game 中使用技能」的完整閉環**，
 | #5.3 多 effect + 空 effect | 2 角色 + 2 skills（複合 / 空效果）| active |
 | #5.4 限制條件 | 1 角色 + 2 skills（usageLimit=1 / cooldown=30）| active |
 | #5.5 readOnly + TemporaryEffect | 1 角色 + 1 skill（stat_change with duration=60）| active |
-| #5.6 授權與錯誤 | 2 角色（不同玩家）+ 1 skill；+ 1 inactive game 對照組 | mixed |
+| #5.6 PIN gate 授權 | 2 角色（A 無 PIN、B 有 PIN + 技能）| active |
 
 **原則**：每個 case 用獨立 seed-fixture 組合，避免互相污染。所有 case 的 asPlayer 預設 `fullAccess=true` 除 #5.5 有明確 readOnly 步驟。
 
@@ -119,70 +141,72 @@ Flow #5 驗證 **「玩家在 active game 中使用技能」的完整閉環**，
 ## 共用規格
 
 ### URL 模式
-- 玩家角色卡頁：`/characters/{characterId}`
+- 玩家角色卡頁：~~`/characters/{characterId}`~~ → **`/c/{characterId}`**
 - 無獨立技能路由（技能 tab 是 CharacterCardView 內的 tab）
 
-### 關鍵 Selectors
+### 關鍵 Selectors（實作後修正）
 
 ```ts
-// CharacterCardView tabs
-const tabSkills = page.getByRole('tab', { name: '技能' });
+// CharacterCardView bottom nav（不是 Radix Tab，是 <nav> 內的 <button>）
+const tabSkills = page.getByRole('navigation').getByRole('button', { name: '技能' });
 
-// SkillCard（list 中的單一卡片）
-const skillCard = (skillId: string) => page.getByTestId(`skill-card-${skillId}`);
-const skillCardDisabled = (skillId: string) =>
-  skillCard(skillId).getByTestId('skill-disabled-reason'); // tooltip 或 badge
+// SkillCard（list 中的單一卡片）— 用 text 定位而非 testId
+const skillCard = page.getByText('技能名稱');
 
-// SkillDetailDialog (Bottom Sheet)
-const skillSheet = page.getByRole('dialog', { name: /技能/ });
-const skillNameInSheet = skillSheet.getByTestId('skill-name');
-const targetCharSelect = skillSheet.getByLabel('目標角色');
-const useSkillBtn = skillSheet.getByRole('button', { name: '使用技能' });
-const checkResultDisplay = skillSheet.getByTestId('check-result');
+// SkillDetailDialog (Bottom Sheet) — role="dialog" + aria-label={skillName}
+const skillDialog = page.getByRole('dialog', { name: '技能名稱' });
+
+// 目標角色選擇 — Radix Select
+const targetSelect = skillDialog.getByRole('combobox');
+
+// 使用按鈕
+const useBtn = skillDialog.getByRole('button', { name: '使用技能' });
+// readOnly 模式下按鈕文字為 '預覽模式'（disabled）
 ```
 
-### Helpers
+### Helpers（實作後修正）
 
 ```ts
-// 等待 skill.used 事件並回傳 payload
-async function waitForSkillUsed(
-  wsCapture: WsCapture,
-  characterId: string,
-  skillId: string
-) {
-  return wsCapture.waitFor(`character-${characterId}`, 'skill.used', 3000);
-}
+// 等待 skill.used 事件（使用 waitForWebSocketEvent helper）
+// ⚠ 回傳 BaseEvent { type, timestamp, payload } — 需 .payload 取業務資料
+const wsPromise = waitForWebSocketEvent(page, {
+  event: 'skill.used',
+  channel: `private-character-${characterId}`,
+});
+// 先建 promise → 觸發動作 → await promise（防 race）
+await useBtn.click();
+const wsRaw = await wsPromise;
+const wsEvent = wsRaw.payload;
 
-// 直接從 runtime 讀角色（Flow #5 全程 active game，斷言改對 Runtime）
-async function loadRuntimeChar(gameId: string, charId: string) {
-  return GameRuntimeModel
-    .findOne({ gameId })
-    .lean()
-    .then(r => r?.characters?.find(c => c._id === charId));
-}
-
-// 對比 baseline 與 runtime（檢驗隔離）
-async function loadBaselineChar(charId: string) {
-  return CharacterModel.findById(charId).lean();
-}
+// DB 斷言透過 dbQuery fixture（不直接操作 Mongoose）
+const runtimeDocs = await dbQuery('character_runtime', { refId: characterId });
+const baselineDocs = await dbQuery('characters', { _id: characterId });
 ```
 
-### Seed helpers（需新增）
-- `seedFixture.skillForCharacter(charId, skillSpec)` — 直接寫入 `character.baselineData.skills`
-- `seedFixture.activeGameWithCharacter(gmUserId, charSpec, skillSpecs)` — 一次 seed 完整 active game 場景
-- `seedFixture.twoCharactersInActiveGame(gmUserId, specs)` — #5.2/#5.3/#5.6 需要的雙角色 seed
+### Seed pattern（實作後修正）
+
+使用統一 `e2e/fixtures/index.ts` 的 `seed` builder：
+
+```ts
+// Active game 三步驟 seed
+const { gmUserId } = await seed.gmWithGame();
+const game = await seed.game({ gmUserId, isActive: true });
+const char = await seed.character({ gameId: game._id, name: '...', skills: [...], stats: [...] });
+await seed.characterRuntime({ refId: char._id, gameId: game._id, ... });
+await seed.gameRuntime({ refId: game._id, gmUserId });
+```
 
 ---
 
 ## #5.1 Happy path：checkType=none + stat_change self + baseline/runtime 隔離
 
 ### 進入點
-- 角色：Player（`asPlayer(page, { characterId: A, gameId, fullAccess: true })`）
-- URL：`/characters/{A_id}`
+- 角色：Player（`asPlayer({ characterId: A })`）
+- URL：`/c/{A_id}`
 
 ### 前置 seed
 - 1 GMUser + 1 **active** Game
-- 1 角色 A：`baselineData.stats = [{ key: 'hp', label: '生命值', value: 50, maxValue: 100 }]`
+- 1 角色 A：`stats = [{ id: 'stat-hp', name: '生命值', value: 50, maxValue: 100 }]`
 - 1 Skill on A：
   ```
   {
@@ -195,9 +219,9 @@ async function loadBaselineChar(charId: string) {
     effects: [{
       type: 'stat_change',
       targetType: 'self',
-      targetStat: 'hp',
-      amount: 20,
-      duration: 0,  // 永久
+      targetStat: '生命值',    // ⚠ 匹配 stats[i].name，不是 key
+      value: 20,               // ⚠ 原 spec 寫 amount，實際為 value
+      duration: 0,
     }]
   }
   ```
@@ -205,11 +229,11 @@ async function loadBaselineChar(charId: string) {
 ### 操作步驟
 
 **Phase A — 進入技能 tab**
-1. `asPlayer(page, { characterId: A, gameId, fullAccess: true })`
-2. `page.goto('/characters/{A_id}')`
+1. `asPlayer({ characterId: A })`
+2. `page.goto('/c/{A_id}')`
 3. 等待角色卡 render 完成
-4. `tabSkills.click()`
-5. 斷言：`skillCard('skill-heal')` 可見、**未** disabled
+4. `page.getByRole('navigation').getByRole('button', { name: '技能' }).click()`
+5. 斷言：`page.getByText('小治療')` 可見
 
 **Phase B — 開啟 SkillDetailDialog**
 6. `skillCard('skill-heal').click()`
@@ -225,23 +249,21 @@ async function loadBaselineChar(charId: string) {
 14. 等待 Sheet 關閉（動畫結束）
 
 **Phase D — WebSocket 事件斷言**
-15. `const skillUsedEvent = await waitForSkillUsed(wsCapture, A_id, 'skill-heal')`
-16. 斷言：`skillUsedEvent.skillName === '小治療'`
-17. 斷言：`skillUsedEvent.checkType === 'none'`
-18. 斷言：`skillUsedEvent.checkPassed === true`
-19. 斷言：`skillUsedEvent.effectsApplied` 含 `stat_change { targetStat: 'hp', amount: 20 }`
-20. 斷言：`role.updated` 事件也在 `character-${A_id}` channel 出現，payload 含 `updates.stats` 包含 hp=70
+15. `const wsRaw = await wsPromise;` `const wsEvent = wsRaw.payload;`（⚠ 需 `.payload` 取業務資料）
+16. 斷言：`wsEvent.skillName === '小治療'`
+17. 斷言：`wsEvent.checkType === 'none'`
+18. 斷言：`wsEvent.checkPassed === true`
 
-**Phase E — Runtime 寫入斷言**
-21. `const runtime = await loadRuntimeChar(gameId, A_id)`
-22. 斷言：`runtime.stats.find(s => s.key === 'hp').value === 70`
-23. 斷言：`runtime.skills[0].usageCount === 1`（因 usageLimit=0，此欄位可能未 track，需確認實作）
-24. 斷言：`runtime.skills[0].lastUsedAt` 已設定（Date 物件）
+**Phase E — Runtime 寫入斷言**（透過 `dbQuery` fixture）
+21. `const runtimeDocs = await dbQuery('character_runtime', { refId: A_id })`
+22. 斷言：`runtime.stats.find(s => s.name === '生命值').value === 70`
+23. 斷言：`runtime.skills[0].usageCount` — ⚠ `usageLimit=0` 時**不遞增**（`skill-use.ts:344`）
+24. 斷言：`runtime.skills[0].lastUsedAt` 已設定
 
 **Phase F — Baseline 隔離斷言（關鍵！）**
-25. `const baseline = await loadBaselineChar(A_id)`
-26. 斷言：`baseline.baselineData.stats.find(s => s.key === 'hp').value === 50`（**未變**）
-27. 斷言：`baseline.baselineData.skills[0].lastUsedAt === undefined`（**未變**）
+25. `const baselineDocs = await dbQuery('characters', { _id: A_id })`
+26. 斷言：`baseline.stats.find(s => s.name === '生命值').value === 50`（**未變**）
+27. 斷言：`baseline.skills[0].lastUsedAt === undefined`（**未變**）
 
 ### 非同步等待點
 - Step 7：Bottom Sheet open animation
@@ -276,21 +298,21 @@ async function loadBaselineChar(charId: string) {
 
 ### 前置 seed
 - 1 GMUser + 1 **active** Game
-- 角色 A + 角色 B，B 有 `stats: [{ key: 'hp', value: 50, maxValue: 100 }]`
+- 角色 A + 角色 B，B 有 `stats: [{ id: 'stat-hp', name: '生命值', value: 50, maxValue: 100 }]`
 - Skill on A：
   ```
   {
     id: 'skill-bolt',
     name: '閃電箭',
     checkType: 'random',
-    randomConfig: { sides: 20, successThreshold: 11 },  // 1d20 ≥ 11 成功
+    randomConfig: { maxValue: 20, threshold: 11 },  // ⚠ 原 spec 寫 sides/successThreshold
     usageLimit: 0,
     cooldown: 0,
     effects: [{
       type: 'stat_change',
       targetType: 'other',
-      targetStat: 'hp',
-      amount: -15,  // 扣血
+      targetStat: '生命值',    // ⚠ 匹配 stats[i].name
+      value: -15,              // ⚠ 原 spec 寫 amount
       duration: 0,
     }]
   }
@@ -352,8 +374,8 @@ async function loadBaselineChar(charId: string) {
 - Skill #1 on A：`skill-combo` — checkType=none，effects 含：
   ```
   [
-    { type: 'stat_change', targetType: 'self', targetStat: 'mp', amount: -10 },
-    { type: 'stat_change', targetType: 'other', targetStat: 'hp', amount: -20 },
+    { type: 'stat_change', targetType: 'self', targetStat: '魔力', value: -10 },
+    { type: 'stat_change', targetType: 'other', targetStat: '生命值', value: -20 },
     { type: 'task_reveal', targetType: 'self', targetTaskId: 'task-hidden-1' },
   ]
   ```
@@ -431,31 +453,31 @@ async function loadBaselineChar(charId: string) {
 
 ### 前置 seed
 - active game + 1 角色
-- Skill：`skill-buff` — checkType=none, effects=[{ type: 'stat_change', targetType: 'self', targetStat: 'str', amount: 5, duration: 60 }]
+- Skill：`skill-buff` — checkType=none, effects=[{ type: 'stat_change', targetType: 'self', targetStat: '力量', value: 5, duration: 60 }]
+- ⚠ **角色必須設 `hasPinLock: true, pin: '...'`**，否則 readOnly 永遠不生效（規則 24）
 
 ### 操作步驟
 
-**Phase A — readOnly 遮蔽互動（fullAccess=false）**
-1. `asPlayer(page, { characterId, gameId, fullAccess: false })`（純 PIN 預覽模式）
-2. `goto('/characters/{id}')` → `tabSkills.click()`
-3. 斷言：`skillCard('skill-buff')` 可見
-4. 點擊 → 斷言：Sheet **不開啟** 或 Sheet 開啟但 `useSkillBtn` disabled 顯示「預覽模式」tooltip
-5. 若 Sheet 有開啟，關閉 Sheet
+**Phase A — readOnly 遮蔽互動**
+1. `asPlayer({ characterId, readOnly: true })`（角色需有 `hasPinLock: true`）
+2. `goto('/c/{id}')` → 技能 tab → `skillCard('skill-buff').click()`
+3. 斷言：Sheet 開啟，按鈕文字為「預覽模式」且 `disabled`
 
-**Phase B — 切換到 fullAccess=true**
-6. `asPlayer(page, { characterId, gameId, fullAccess: true })`（同 page，更新 cookie + localStorage）
-7. `page.reload()`
-8. `tabSkills.click()` → `skillCard('skill-buff').click()` → `useSkillBtn.click()`
+**Phase B — 切換到 fullAccess**
+4. `asPlayer({ characterId })`（fullAccess 預設 true）
+5. `page.reload()`（⚠ 不可用 `networkidle`，規則 26）
+6. 技能 tab → `skillCard('skill-buff').click()` → `useSkillBtn.click()`
 
 **Phase C — TemporaryEffect 斷言**
-9. 等待 `skill.used` 事件
-10. `const runtime = await loadRuntimeChar(gameId, charId)`
-11. 斷言：`runtime.stats.str.value += 5`
-12. 斷言：`runtime.temporaryEffects` 陣列出現一個新 record：
+7. 等待 `skill.used` WS 事件
+8. `const runtimeDocs = await dbQuery('character_runtime', { refId: charId })`
+9. 斷言：`runtime.stats.find(s => s.name === '力量').value === 15`（10 + 5）
+10. 斷言：`runtime.temporaryEffects[0]` 含：
     ```
-    { targetStat: 'str', delta: 5, expiresAt: <now + 60s>, sourceSkillId: 'skill-buff' }
+    { targetStat: '力量', deltaValue: 5, sourceType: 'skill', sourceId: 'skill-buff',
+      sourceName: '力量增幅', duration: 60, isExpired: false, expiresAt: <future> }
     ```
-13. **不驗證** 過期行為（延後）
+11. **不驗證** 過期行為（延後）
 
 ### 已知陷阱
 - **`asPlayer` 切換模式需同時更新 session + localStorage**：單純切 cookie 不夠，CharacterCardView 讀的是 localStorage
@@ -464,34 +486,29 @@ async function loadBaselineChar(charId: string) {
 
 ---
 
-## #5.6 授權與錯誤處理
+## #5.6 授權與錯誤處理（實作後修正）
+
+> ⚠ **重大修正**：原 spec 假設 `skill-use.ts` 有 `GAME_INACTIVE` check，但實際完全沒有。Phase B 已改為測試 PIN gate。
 
 ### 進入點
-- Player（A），但操作對象為 B
+- Player A，嘗試存取 PIN-locked 角色 B
 
 ### 前置 seed
-- **Seed #1**：active game G1 + 角色 A（owner: player-1）+ 角色 B（owner: player-2）
-- **Seed #2**：inactive game G2 + 角色 C（owner: player-1）+ skill on C
+- active game + 角色 A（無 PIN）+ 角色 B（`hasPinLock: true, pin: '9999'`，有技能）
 
 ### 操作步驟
 
-**Phase A — 非擁有者使用別人的技能**
-1. `asPlayer(page, { characterId: A, gameId: G1 })`（登入為 player-1，擁有 A）
-2. 嘗試透過 `page.evaluate(() => executeSkillAction({ characterId: B_id, skillId: ... }))` 使用 B 的技能
-3. 斷言：server 回 `{ success: false, error: /UNAUTHORIZED|FORBIDDEN/ }`
-4. 斷言：`loadRuntimeChar(B)` 的 stats 未變
-
-**Phase B — game inactive 下使用技能**
-5. `asPlayer(page, { characterId: C, gameId: G2 })`（登入為 player-1，擁有 C，但 G2 inactive）
-6. `goto('/characters/{C_id}')` → `tabSkills.click()`
-7. 斷言：技能 tab 的行為——**可能** 顯示 skillCard 但點擊後 server 拒絕，**或** UI 層直接隱藏按鈕（依實作）
-8. 透過 `page.evaluate` 直接呼叫 server action
-9. 斷言：server 回 `{ success: false, error: /GAME_INACTIVE/ }`
+**Phase A — PIN gate 阻擋未授權存取**
+1. `asPlayer({ characterId: A })`（只有 A 在 session 中）
+2. `page.goto('/c/{B_id}')`
+3. 斷言：PinUnlock 畫面出現（角色名可見）
+4. 斷言：導覽列（`<nav>`）**不可見**
+5. 斷言：技能內容（`page.getByText('秘密技能')`）**不可見**
 
 ### 已知陷阱
-- **繞 UI 呼叫 server action 的 harness**：需有 `window.__E2E_HARNESS__` 暴露 server action，或直接 `fetch('/api/...')`。此 harness 的設計需在 infra 階段定案
-- **inactive game 下玩家端的 UI 行為不一致**：CharacterCardView 可能允許進入技能 tab 但技能本身無法使用（readOnly 類似行為），也可能 redirect。spec 必須先讀實作決定斷言寫法
-- **`UNAUTHORIZED` vs `FORBIDDEN` vs `NOT_OWNER`**：error code 字串需讀 `skill-use.ts:41` 的 `validatePlayerAccess` 確定實際值
+- **`validatePlayerAccess` 邏輯**：session 中有 characterId **或** 角色無 PIN lock 即通過。只有 `hasPinLock: true` 且 characterId 不在 session 中才會被擋
+- **UI 層 PIN gate 先於 server 層**：CharacterCardView 在 `hasPinLock && !isUnlocked` 時直接顯示 PinUnlock 畫面，根本不會渲染技能 tab，因此無需測試 server-side reject
+- ~~**`GAME_INACTIVE` check**~~：`skill-use.ts` **無此檢查**，原 spec Phase B 整段已刪除
 
 ---
 
@@ -506,8 +523,8 @@ Flow #5 全程在 active game 下跑，所有 stats/skills 寫入都應該進 ru
 ### 陷阱 #3：item_take / item_steal 刻意不在 Flow #5
 同上原則。若 seed 出現 item_take 且 checkPassed=true 且 targetItemId 未給 → server 回 `needsTargetItemSelection`，Flow #5 沒有處理 TargetItemSelectionDialog 的 helper。禁止在 Flow #5 seed 使用這兩種 effect。完整覆蓋見 Flow #6b（#6b.1/#6b.2 對抗路徑、#6b.3 非對抗路徑）。
 
-### 陷阱 #4：`wsCapture.clear()` 必須在每次 action 前呼叫
-Stub Pusher 是 global event bus，事件會累積。若 `waitFor('skill.used')` 前沒 clear，可能拿到上一個 case 的殘留事件。**習慣性在每個操作 Phase 開頭 clear**。
+### 陷阱 #4：`waitForWebSocketEvent` 必須在 action 前建立 promise
+~~`wsCapture.clear()` 後再 `waitFor`~~ → 實際使用 `waitForWebSocketEvent`，必須先建 promise 再觸發 action 再 await（防 race）。
 
 ### 陷阱 #5：`runtime` 文件初始化時機
 `getCharacterData` 在 active game 第一次呼叫時會複製 baseline → runtime。這意味 `loadRuntimeChar` 在技能**未使用前** 可能回 null。斷言 runtime 必須在**使用後**。
@@ -520,28 +537,22 @@ MongoDB 的 Date 在 `.lean()` 後是 Date 物件，但透過 WebSocket 傳到 b
 - `character.affected`：發在「被影響角色」的 channel（該玩家聽）
 這兩個常混淆。Flow #5 的斷言必須明確指定 channel。
 
-### 陷阱 #8：`asPlayer` fixture 是 blocker
-`asPlayer()` fixture 在本 flow 撰寫時**尚不存在**。若實作 spec 時跳過這一步直接用 cookie 設定，會遇到 localStorage 缺失導致 CharacterCardView 的 `isReadOnly` 判斷錯誤。**必須先實作 fixture 再寫 spec**。
+### 陷阱 #8：`asPlayer` fixture — ✅ 已完成
+~~`asPlayer()` fixture 是 blocker~~ → 已在 Phase 3 的 `e2e/fixtures/index.ts` 中實作。
 
 ---
 
-## Fixture 需求
+## Fixture 需求 — ✅ 全部已完成
 
-### 新增（blocker）
-- `e2e/fixtures/as-player.ts` — `asPlayer(page, options)` fixture
-- `e2e/fixtures/ws-capture.ts` — `captureWsEvents(page)` helper 含 `waitFor / clear / assertEmitted / getAll`
-- `seedFixture.activeGameWithCharacter(gmUserId, charSpec, skillSpecs)`
-- `seedFixture.twoCharactersInActiveGame(gmUserId, specs)`
-- `seedFixture.skillForCharacter(charId, skillSpec)`
-- `loadRuntimeChar(gameId, charId)` helper
-- `loadBaselineChar(charId)` helper
+所有 fixture 統一在 `e2e/fixtures/index.ts`（`test.extend()` pattern）：
+- `asPlayer({ characterId, readOnly? })` — session + localStorage 設定
+- `seed` builder — `seed.gmWithGame()`, `seed.game()`, `seed.character()`, `seed.characterRuntime()`, `seed.gameRuntime()`
+- `dbQuery(collection, filter)` — DB 查詢 fixture
+- `resetDb` — auto per-test reset
+- `waitForWebSocketEvent(page, { event, channel })` — WS 事件捕捉 helper
+- `waitForToast(page, text)` — Sonner toast helper
 
-### 新增（非 blocker，優化）
-- `window.__E2E_HARNESS__.executeSkillAction(...)` — 繞 UI 呼叫 server action（用於注入 `checkResult` 與錯誤測試）
-
-### 複用
-- `seedFixture.gameForGm` 需支援 `isActive: true` 參數
-- Stub Pusher + SSE IPC（已備妥）
+不需要 `window.__E2E_HARNESS__`，`Math.random` 注入即可控制擲骰。
 
 ---
 
@@ -563,12 +574,10 @@ MongoDB 的 Date 在 `.lean()` 後是 Date 物件，但透過 WebSocket 傳到 b
 
 ---
 
-## 實作順序建議
+## 實作順序（實際執行順序）
 
-1. **先實作 fixtures**（`asPlayer`、`wsCapture`、active game seed helpers）
-2. **#5.1 先跑通**：最簡單的 self-target happy path，也是 baseline/runtime 隔離驗證的示範 case
-3. **#5.6 次之**：驗證授權層，這是每個後續 case 的前提（若 authz 壞了，後面全錯）
-4. **#5.4 限制條件**：seed 變化少，適合建立 `server-action-harness` helper
-5. **#5.2 跨角色 + random**：加入 `checkResult` 注入機制
-6. **#5.3 多 effect**：複雜 seed，最後寫
-7. **#5.5 readOnly + TemporaryEffect**：需要 asPlayer 切換模式的 helper 成熟後再寫
+✅ 按 spec 編號順序實作：#5.1 → #5.2 → #5.3 → #5.4 → #5.5 → #5.6
+- #5.1 扮演「探路者」角色，集中暴露 selector / URL / toast / WS event 差異
+- #5.2–#5.4 共用 #5.1 建立的 pattern，一次通過
+- #5.5 發現 `hasPinLock` 隱性前置條件（2 次修正）
+- #5.6 簡化為 PIN gate 測試（原 GAME_INACTIVE 假設不成立）
