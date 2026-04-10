@@ -326,6 +326,8 @@ export interface SkillEffect {
  */
 export interface ContestConfig {
   relatedStat: string; // 使用的數值名稱
+  // NOTE: 目前 GM UI（ability-edit-wizard）以 checkbox 操作，值為 0（不允許）或 99（允許）。
+  // 玩家端 Dialog 為單選設計（同類內只能選 1 個）。保留 number 型別供未來擴充多選。
   opponentMaxItems?: number; // 對方最多可使用道具數（預設 0）
   opponentMaxSkills?: number; // 對方最多可使用技能數（預設 0）
   tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 平手裁決方式

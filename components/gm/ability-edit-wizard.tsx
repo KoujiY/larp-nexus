@@ -528,6 +528,8 @@ export function AbilityEditWizard({
             )}
 
             <div className="space-y-3">
+              {/* NOTE: opponentMaxItems/Skills 型別為 number，但目前以 boolean checkbox 操作（0=不允許, 99=允許）。
+                  玩家端 Dialog 為單選設計。保留 number 供未來擴充多選。 */}
               <label className={LABEL_CLASS}>防禦方權限</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="flex items-center gap-3 p-4 bg-card/60 rounded-lg cursor-pointer hover:bg-card transition-colors">

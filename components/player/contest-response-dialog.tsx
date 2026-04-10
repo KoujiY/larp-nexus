@@ -108,6 +108,9 @@ export function ContestResponseDialog({
     return true;
   });
 
+  // NOTE: maxItems/maxSkills 為 number（0=不允許, >0=允許），但 UI 為單選設計：
+  // 同類內選 1 個後其他 disabled（isDisabledBySameType），跨類也 disabled（isDisabledBySkill/Item）。
+  // handleItemToggle/handleSkillToggle 的 max 檢查為未來多選擴充保留。
   const maxItems = contestEvent.opponentMaxItems ?? 0;
   const maxSkills = contestEvent.opponentMaxSkills ?? 0;
 
