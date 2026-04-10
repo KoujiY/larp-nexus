@@ -853,7 +853,11 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
      - [x] #10.3 secrets_revealed chain — GM manual reveal triggers task auto-reveal (GM+Player)
      - [x] #10.4 AND/OR matchLogic — AND needs all items, OR needs any one (dual player context)
      - [x] #10.5 condition editor UI — GM sets auto-reveal condition on secret (GM only)
-   9. [ ] `e2e/flows/preview-mode.spec.ts` — 對應 flow #11，依賴 baseline/runtime 分歧 seed
+   9. [x] `e2e/flows/preview-mode.spec.ts` — 對應 flow #11，依賴 baseline/runtime 分歧 seed ✅
+     - [x] #11.1 preview mode displays baseline data (HP=100, 1 item, usageCount=0, 1 secret, 1 task) + DB 層驗證
+     - [x] #11.2 preview → full access switch via relock + PIN+GameCode re-unlock (HP=60, 2 items, usageCount=2, 2 secrets, 2 tasks) + localStorage 驗證
+     - [x] #11.3 preview mode disables item/skill use buttons (顯示「預覽模式」disabled)
+     - [x] #11.4 inactive game — baselineData undefined, ?? fallback works without crash
    10. [ ] `e2e/flows/time-dependent-edges.spec.ts` — 對應 flow #12，依賴 temporaryEffects + cooldown + PendingEvent seed
 
 6. **Phase 6 — 開發者體驗 / 維運**（optional but valuable）

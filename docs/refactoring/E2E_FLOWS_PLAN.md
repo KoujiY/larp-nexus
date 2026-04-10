@@ -156,8 +156,10 @@ flow spec 的斷言 **必須同時包含至少 2 層**：
 >
 > 原待涵蓋 6 項全部涵蓋：條件編輯器 UI(#10.5)、runtime 觸發路徑(#10.1/#10.2/#10.3)、secrets/tasks 整合點(#10.1/#10.2/#10.3)、runtime 實際觸發(#10.1–#10.4)、轉移後自動揭露(#10.2)、recordItemView+showcase/transfer 後 auto-reveal(#10.1)
 
-### Flow #11 — 預覽模式 baseline 讀取分流
+### Flow #11 — 預覽模式 baseline 讀取分流 ✅
 
+> **完成**：4 個 test case 全部通過（2026-04-10）。Spec 檔：`e2e/flows/preview-mode.spec.ts`。
+>
 > **⚠ 已拆出為獨立檔案**：
 > - [E2E_FLOW_11_PREVIEW_MODE_BASELINE.md](./E2E_FLOW_11_PREVIEW_MODE_BASELINE.md) — 4 個 test case（#11.1 preview mode 顯示 baseline 資料、#11.2 preview→full access 切換後顯示 runtime、#11.3 預覽模式互動鎖定、#11.4 game 未啟動時 baselineData 不填充）
 >
