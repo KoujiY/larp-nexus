@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { PlayerThemeContext } from './player-theme-context';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -9,6 +9,11 @@ interface PlayerThemeWrapperProps {
 }
 
 const STORAGE_KEY = 'player-theme';
+
+// useSyncExternalStore helpers for hydration-safe mounted detection
+const emptySubscribe = () => () => {};
+const returnTrue = () => true;
+const returnFalse = () => false;
 
 /**
  * 玩家端主題包裹器
@@ -27,11 +32,9 @@ export function PlayerThemeWrapper({ children }: PlayerThemeWrapperProps) {
     return stored === null || stored === 'dark';
   });
 
-  // mounted=false on server; true after client hydration.
-  // Child components use this to defer theme-dependent rendering
-  // and avoid SSR/client aria-label + icon mismatches.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // mounted：server 端為 false，client 端為 true。
+  // 使用 useSyncExternalStore 取代 useState+useEffect 避免 cascading render。
+  const mounted = useSyncExternalStore(emptySubscribe, returnTrue, returnFalse);
 
   // 同步 dark class 到 <html>，讓 Portal（Dialog、Select 等）
   // 也能繼承正確的主題 CSS 變數

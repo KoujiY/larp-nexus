@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -83,22 +83,33 @@ export function MobileHeader() {
 // Desktop Sidebar (renders its own <aside>)
 // ─────────────────────────────────────────────
 
+// ── Sidebar collapsed external store ──
+// useSyncExternalStore 避免 useEffect 內 setState 的 cascading render，
+// 同時透過 getServerSnapshot 確保 SSR hydration 安全（server 端固定 false）。
+const sidebarListeners = new Set<() => void>();
+function subscribeSidebar(callback: () => void) {
+  sidebarListeners.add(callback);
+  return () => { sidebarListeners.delete(callback); };
+}
+function getSidebarSnapshot() {
+  return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
+}
+function getServerSidebarSnapshot() {
+  return false;
+}
+
 /** 桌面版可收合/展開的側邊欄，含外層 aside 容器 */
 export function DesktopSidebar() {
-  // 初始值必須與 server 一致（false），hydration 後才讀 localStorage，
-  // 避免 server/client DOM 結構不同導致 hydration mismatch
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    if (localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true') {
-      setCollapsed(true);
-    }
-  }, []);
+  const collapsed = useSyncExternalStore(
+    subscribeSidebar,
+    getSidebarSnapshot,
+    getServerSidebarSnapshot,
+  );
 
   const toggleCollapsed = () => {
     const next = !collapsed;
-    setCollapsed(next);
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+    for (const listener of sidebarListeners) listener();
   };
 
   return (

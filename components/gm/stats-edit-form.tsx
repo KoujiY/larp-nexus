@@ -263,9 +263,11 @@ interface StatCardProps {
  * 檢視模式：純文字展示，右上角按鈕為「編輯 / 刪除」。
  */
 function StatCard({ stat, effectiveStat, status, onChange, onDelete, onHardRemove, onRestore, disabled }: StatCardProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  // 新增的 stat 自動進入編輯模式（初始值直接計算，避免 useEffect cascading render）
+  const isNewEmpty = status === 'new' && !stat.name;
+  const [isEditing, setIsEditing] = useState(isNewEmpty);
   /** 編輯中的本地暫存，確認後才推給父層 */
-  const [draft, setDraft] = useState<Stat | null>(null);
+  const [draft, setDraft] = useState<Stat | null>(isNewEmpty ? { ...stat } : null);
   const isDeleted = status === 'deleted';
 
   /** 顯示用的資料：編輯中用 draft（base value），檢視模式用 effective value */
@@ -275,14 +277,6 @@ function StatCard({ stat, effectiveStat, status, onChange, onDelete, onHardRemov
   const percent = hasMax && displayStat.maxValue! > 0
     ? Math.round((displayStat.value / displayStat.maxValue!) * 100)
     : undefined;
-
-  /** 新增的 stat 自動進入編輯模式 */
-  useEffect(() => {
-    if (status === 'new' && !stat.name) {
-      setIsEditing(true);
-      setDraft({ ...stat });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** 更新 draft 的某個欄位 */
   const updateDraft = useCallback(

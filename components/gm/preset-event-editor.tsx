@@ -9,7 +9,7 @@
  * 設計對齊 AbilityEditWizard Step 4（效果設計）
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -77,24 +77,21 @@ export function PresetEventEditor({
   const [actions, setActions] = useState<PresetEventAction[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // 打開時初始化
-  useEffect(() => {
+  // Render-time state adjustment：追蹤前次 open/event，變更時重置表單
+  // 避免 useEffect 內 setState 造成 cascading render
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [prevEvent, setPrevEvent] = useState<PresetEvent | null>(null);
+  if (open !== prevOpen || (open && event !== prevEvent)) {
+    setPrevOpen(open);
+    setPrevEvent(event);
     if (open) {
-      if (event) {
-        setName(event.name);
-        setDescription(event.description || '');
-        setShowName(event.showName ?? false);
-        setActions(event.actions.map((a) => ({ ...a })));
-        setSelectedIndex(0);
-      } else {
-        setName('');
-        setDescription('');
-        setShowName(false);
-        setActions([createEmptyAction()]);
-        setSelectedIndex(0);
-      }
+      setName(event?.name ?? '');
+      setDescription(event?.description ?? '');
+      setShowName(event?.showName ?? false);
+      setActions(event ? event.actions.map((a) => ({ ...a })) : [createEmptyAction()]);
+      setSelectedIndex(0);
     }
-  }, [open, event]);
+  }
 
   const handleAddAction = useCallback(() => {
     const newAction = createEmptyAction();
