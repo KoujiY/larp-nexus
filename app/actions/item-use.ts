@@ -517,13 +517,13 @@ export async function transferItem(
     const targetItems = targetCharacter.items || [];
     const targetIndex = targetItems.findIndex((i: { id: string }) => i.id === itemId);
 
-    // 準備目標角色的更新
-    const targetUpdates: Record<string, unknown> = {};
+    // 準備目標角色的更新（直接構建完整 MongoDB update operation，避免混用 $set/$push）
+    let targetOp: Record<string, unknown>;
 
     if (targetIndex !== -1) {
       // 目標已有此物品，增加數量
       const newTargetQuantity = targetItems[targetIndex].quantity + quantity;
-      targetUpdates[`items.${targetIndex}.quantity`] = newTargetQuantity;
+      targetOp = { $set: { [`items.${targetIndex}.quantity`]: newTargetQuantity } };
     } else {
       // 目標沒有此物品，新增物品
       // Phase 10.4: 使用 JSON 序列化來複製對象，避免 Mongoose document 類型問題
@@ -535,7 +535,7 @@ export async function transferItem(
         ...(sourceItem.type === 'equipment' ? { equipped: false } : {}),
       };
       delete newItem._id; // 移除 MongoDB ID
-      targetUpdates.$push = { items: newItem };
+      targetOp = { $push: { items: newItem } };
     }
 
     // 準備來源角色的更新
@@ -567,15 +567,7 @@ export async function transferItem(
 
     // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
     // 執行更新：先更新目標角色，再更新來源角色
-    if (targetUpdates.$push) {
-      await updateCharacterData(targetCharacterId, {
-        $push: targetUpdates.$push,
-      });
-    } else {
-      await updateCharacterData(targetCharacterId, {
-        $set: targetUpdates,
-      });
-    }
+    await updateCharacterData(targetCharacterId, targetOp);
 
     // 組合來源角色更新（物品移除/減量 + stat boost revert）
     const hasEquipRevert = Object.keys(equipRevertUpdates).length > 0;

@@ -305,6 +305,7 @@ export function ContestResponseDialog({
                     return (
                       <div
                         key={item.id}
+                        aria-disabled={isDisabled}
                         className={`rounded-xl p-4 transition-all overflow-hidden ${
                           isSelected
                             ? 'bg-gradient-to-tr from-primary/15 to-primary/5 border border-primary/40'
@@ -398,6 +399,7 @@ export function ContestResponseDialog({
                     return (
                       <div
                         key={skill.id}
+                        aria-disabled={isDisabled}
                         className={`rounded-xl p-4 transition-all overflow-hidden ${
                           isSelected
                             ? 'bg-gradient-to-tr from-primary/15 to-primary/5 border border-primary/40'
