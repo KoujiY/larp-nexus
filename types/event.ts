@@ -371,16 +371,16 @@ export interface PendingEvent {
   eventPayload: Record<string, unknown>;
 
   /** 事件產生時間 */
-  createdAt: Date;
+  createdAt: string | Date;
 
   /** 是否已送達 */
   isDelivered: boolean;
 
   /** 送達時間 */
-  deliveredAt?: Date;
+  deliveredAt?: string | Date;
 
   /** 過期時間（createdAt + 24h） */
-  expiresAt: Date;
+  expiresAt: string | Date;
 }
 
 // WebSocket 事件聯合類型

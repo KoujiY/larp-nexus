@@ -38,8 +38,8 @@ export interface CharacterData {
    * 僅在 isActive=true 時由 getPublicCharacter 填充
    */
   baselineData?: CharacterBaselineSnapshot;
-  createdAt: string | Date;
-  updatedAt: string | Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -70,8 +70,8 @@ export interface Character {
   items: Item[];
   stats: Stat[];
   wsChannelId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** 角色背景區塊（標題或內文） */
@@ -200,14 +200,14 @@ export interface Task {
   // 隱藏目標機制
   isHidden: boolean;
   isRevealed: boolean;
-  revealedAt?: Date;
+  revealedAt?: string | Date;
   // 完成狀態
   status: 'pending' | 'in-progress' | 'completed' | 'failed';
-  completedAt?: Date;
+  completedAt?: string | Date;
   // GM 專用欄位（玩家端不顯示）
   revealCondition?: string;
   autoRevealCondition?: AutoRevealCondition;  // Phase 7.7: 結構化自動揭露條件
-  createdAt: Date;
+  createdAt: string | Date;
 }
 
 /**

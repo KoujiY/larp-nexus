@@ -105,12 +105,12 @@ export type UpdateCharacterInput = {
     description: string;
     isHidden: boolean;
     isRevealed: boolean;
-    revealedAt?: Date;
+    revealedAt?: string | Date;
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
-    completedAt?: Date;
+    completedAt?: string | Date;
     revealCondition?: string;
     autoRevealCondition?: AutoRevealCondition;
-    createdAt: Date;
+    createdAt: string | Date;
   }>;
   items?: Array<{
     id: string;

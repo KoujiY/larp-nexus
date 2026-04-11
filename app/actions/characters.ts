@@ -41,8 +41,8 @@ function serializeCharacterDoc(
     items: cleanItemData(raw.items as Parameters<typeof cleanItemData>[0]),
     stats: cleanStatData(raw.stats as Parameters<typeof cleanStatData>[0]),
     skills: cleanSkillData(raw.skills as Parameters<typeof cleanSkillData>[0]),
-    createdAt: raw.createdAt as string,
-    updatedAt: raw.updatedAt as string,
+    createdAt: new Date(raw.createdAt as string | Date).toISOString(),
+    updatedAt: new Date(raw.updatedAt as string | Date).toISOString(),
   } as CharacterData;
 }
 

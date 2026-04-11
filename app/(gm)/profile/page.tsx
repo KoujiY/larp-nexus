@@ -23,7 +23,7 @@ export default async function ProfilePage() {
     redirect('/auth/login');
   }
 
-  const formatDate = (date: Date | undefined) => {
+  const formatDate = (date: string | Date | undefined) => {
     if (!date) return '未知';
     return new Date(date).toLocaleDateString('zh-TW', {
       year: 'numeric',

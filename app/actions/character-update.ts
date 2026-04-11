@@ -148,7 +148,7 @@ export async function updateCharacter(
       ...task,
       description: task.description || "",
       revealCondition: task.revealCondition || "",
-      createdAt: task.createdAt || new Date(),
+      createdAt: new Date(task.createdAt || Date.now()).toISOString(),
     }));
     const cleanItems = cleanItemData(updatedCharacter.items);
     const cleanStats = cleanStatData(updatedCharacter.stats);
@@ -190,8 +190,8 @@ export async function updateCharacter(
         items: cleanItems,
         stats: cleanStats,
         skills: cleanSkills,
-        createdAt: updatedCharacter.createdAt,
-        updatedAt: updatedCharacter.updatedAt,
+        createdAt: new Date(updatedCharacter.createdAt).toISOString(),
+        updatedAt: new Date(updatedCharacter.updatedAt).toISOString(),
       },
       message: "角色更新成功",
     };

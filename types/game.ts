@@ -22,8 +22,8 @@ export interface GameData {
   presetEvents?: PresetEvent[];
   /** 角色數量（僅 getGames 列表頁回傳） */
   characterCount?: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -68,8 +68,8 @@ export interface Game {
   randomContestMaxValue?: number;
   /** 預設事件列表 */
   presetEvents?: PresetEvent[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateGameInput {

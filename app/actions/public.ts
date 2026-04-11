@@ -62,10 +62,10 @@ export async function getPublicCharacter(
         description: task.description,
         isHidden: task.isHidden,
         isRevealed: task.isRevealed,
-        revealedAt: task.revealedAt,
+        revealedAt: task.revealedAt ? new Date(task.revealedAt).toISOString() : undefined,
         status: task.status,
-        completedAt: task.completedAt,
-        createdAt: task.createdAt,
+        completedAt: task.completedAt ? new Date(task.completedAt).toISOString() : undefined,
+        createdAt: new Date(task.createdAt).toISOString(),
       }));
 
     // Phase 4.5: 清理道具的 _id
@@ -170,8 +170,8 @@ export async function getPublicCharacter(
         temporaryEffects: activeTemporaryEffects, // Phase 8: 時效性效果
         pendingEvents, // Phase 9: 離線事件佇列
         baselineData, // Phase 10: 唯讀預覽模式用 Baseline 快照
-        createdAt: character.createdAt,
-        updatedAt: character.updatedAt,
+        createdAt: new Date(character.createdAt).toISOString(),
+        updatedAt: new Date(character.updatedAt).toISOString(),
       },
     };
   } catch (error) {

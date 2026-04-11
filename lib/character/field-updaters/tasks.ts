@@ -19,9 +19,9 @@ export function updateCharacterTasks(
     description: string;
     isHidden: boolean;
     isRevealed: boolean;
-    revealedAt?: Date;
+    revealedAt?: string | Date;
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
-    completedAt?: Date;
+    completedAt?: string | Date;
     gmNotes?: string;
     revealCondition?: string;
     // Phase 7.7: 自動揭露條件
@@ -31,7 +31,7 @@ export function updateCharacterTasks(
       secretIds?: string[];
       matchLogic?: string;
     };
-    createdAt: Date;
+    createdAt: string | Date;
   }>,
   currentTasks: MongoTask[] = []
 ): MongoTask[] {
@@ -74,7 +74,7 @@ export function updateCharacterTasks(
       status: newTask.status,
       completedAt,
       revealCondition: newTask.revealCondition || '',
-      createdAt: newTask.createdAt || new Date(),
+      createdAt: newTask.createdAt ? new Date(newTask.createdAt) : new Date(),
       ...(autoRevealCondition !== undefined ? { autoRevealCondition } : {}),
     };
 

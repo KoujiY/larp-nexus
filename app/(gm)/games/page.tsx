@@ -87,7 +87,7 @@ type GameCardProps = {
     isActive: boolean;
     coverUrl?: string;
     characterCount?: number;
-    createdAt: Date;
+    createdAt: string;
   };
 };
 

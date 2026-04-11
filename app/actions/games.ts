@@ -66,8 +66,8 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
         randomContestMaxValue: game.randomContestMaxValue,
         presetEvents: game.presetEvents,
         characterCount: countMap.get(game._id.toString()) ?? 0,
-        createdAt: game.createdAt,
-        updatedAt: game.updatedAt,
+        createdAt: new Date(game.createdAt).toISOString(),
+        updatedAt: new Date(game.updatedAt).toISOString(),
       })),
     };
   } catch (error) {
@@ -120,8 +120,8 @@ export async function getGameById(
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
         presetEvents: game.presetEvents,
-        createdAt: game.createdAt,
-        updatedAt: game.updatedAt,
+        createdAt: new Date(game.createdAt).toISOString(),
+        updatedAt: new Date(game.updatedAt).toISOString(),
       },
     };
   } catch (error) {
@@ -189,7 +189,7 @@ export async function createGame(data: {
       gameCode = await generateUniqueGameCode();
     }
 
-    const game = await Game.create({
+    const gameDoc = await Game.create({
       gmUserId,
       name: validated.name,
       description: validated.description || '',
@@ -199,6 +199,9 @@ export async function createGame(data: {
         ? { randomContestMaxValue: data.randomContestMaxValue }
         : {}),
     });
+
+    // .create() 回傳 Mongoose Document，子文件帶 toJSON — 轉為 plain object
+    const game = gameDoc.toObject();
 
     revalidatePath('/games');
 
@@ -214,8 +217,8 @@ export async function createGame(data: {
         coverUrl: game.coverUrl,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
-        createdAt: game.createdAt,
-        updatedAt: game.updatedAt,
+        createdAt: new Date(game.createdAt).toISOString(),
+        updatedAt: new Date(game.updatedAt).toISOString(),
       },
       message: '劇本建立成功',
     };
@@ -331,8 +334,8 @@ export async function updateGame(
         coverUrl: game.coverUrl,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
-        createdAt: game.createdAt,
-        updatedAt: game.updatedAt,
+        createdAt: new Date(game.createdAt).toISOString(),
+        updatedAt: new Date(game.updatedAt).toISOString(),
       },
       message: '劇本更新成功',
     };
@@ -588,8 +591,8 @@ export async function updateGameCode(
         isActive: game.isActive,
         publicInfo: game.publicInfo,
         randomContestMaxValue: game.randomContestMaxValue,
-        createdAt: game.createdAt,
-        updatedAt: game.updatedAt,
+        createdAt: new Date(game.createdAt).toISOString(),
+        updatedAt: new Date(game.updatedAt).toISOString(),
       },
       message: 'Game Code 更新成功',
     };
