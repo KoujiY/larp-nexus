@@ -46,9 +46,9 @@ const TAB_CONFIG = [
 
 /**
  * Hook 用於安全地讀取 localStorage 解鎖狀態（避免 SSR/CSR hydration 問題）
- * Phase 10: 回傳 { isUnlocked, hasFullAccess }
+ * 所有角色（含無 PIN）統一走 localStorage 解鎖流程，確保入口一致
  */
-function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
+function useLocalStorageUnlock(characterId: string) {
   const unlockedKey = `character-${characterId}-unlocked`;
   const fullAccessKey = `character-${characterId}-fullAccess`;
 
@@ -61,17 +61,15 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
   );
 
   const getUnlockedSnapshot = useCallback(() => {
-    if (!hasPinLock) return true;
     return localStorage.getItem(unlockedKey) === 'true';
-  }, [hasPinLock, unlockedKey]);
+  }, [unlockedKey]);
 
   const getFullAccessSnapshot = useCallback(() => {
-    if (!hasPinLock) return true;
     return localStorage.getItem(fullAccessKey) === 'true';
-  }, [hasPinLock, fullAccessKey]);
+  }, [fullAccessKey]);
 
-  // Server 端的快照
-  const getServerSnapshot = useCallback(() => !hasPinLock, [hasPinLock]);
+  // Server 端一律回傳 false（未解鎖），由 useSyncExternalStore 處理 hydration 差異
+  const getServerSnapshot = useCallback(() => false, []);
 
   const isUnlocked = useSyncExternalStore(subscribe, getUnlockedSnapshot, getServerSnapshot);
   const hasFullAccess = useSyncExternalStore(subscribe, getFullAccessSnapshot, getServerSnapshot);
@@ -82,7 +80,7 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
 export function CharacterCardView({ character }: CharacterCardViewProps) {
   const router = useRouter();
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
-  const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id, character.hasPinLock);
+  const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id);
   const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
   // Phase 10: 唯讀狀態完全由 localStorage 的 fullAccess 決定
   // PIN-only 解鎖不會設 fullAccess → storageFullAccess=false → 唯讀
@@ -268,22 +266,23 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
     onGameEnded: () => setGameEndedDialogOpen(true),
   });
 
-  // 如果需要 PIN 且未解鎖，顯示解鎖畫面（主題切換保持固定右上角）
-  if (character.hasPinLock && !isUnlocked) {
+  // 未解鎖時顯示入口畫面（所有角色統一流程）
+  if (!isUnlocked) {
     return (
       <>
         <ThemeToggleButton variant="fixed" />
         <PinUnlock
           characterId={character.id}
           characterName={character.name}
+          hasPinLock={character.hasPinLock}
           onUnlocked={handleUnlocked}
         />
       </>
     );
   }
 
-  // 是否顯示頂部模式橫幅（影響 sticky 元素的 top offset）
-  const showBanner = isReadOnly || character.hasPinLock;
+  // 頂部模式橫幅（所有角色解鎖後都會顯示 preview 或 runtime 橫幅）
+  const showBanner = true;
   // Fixed banner 高度 ≈ 40px (py-2 + text)
   const bannerH = showBanner ? 40 : 0;
   // Sticky header 高度 ≈ 64px (py-3 + h-10)
@@ -298,7 +297,6 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
       {/* ── 1. Fixed 模式橫幅 ──────────────────────────────────── */}
       <CharacterModeBanner
         isReadOnly={isReadOnly}
-        hasPinLock={character.hasPinLock}
         gameCode={character.gameCode}
         onRelock={handleRelock}
       />

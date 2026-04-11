@@ -6,23 +6,27 @@ import { Info, Loader2, Zap, ChevronRight } from 'lucide-react';
 interface PinUnlockProps {
   characterId: string;
   characterName: string;
+  /** 是否有 PIN 鎖定（無 PIN 角色走簡化流程） */
+  hasPinLock?: boolean;
   /** 解鎖回調：readOnly 表示是否為唯讀預覽模式 */
   onUnlocked: (readOnly: boolean) => void;
 }
 
 /**
- * 角色卡解鎖元件
+ * 角色卡入口元件（統一解鎖/進入流程）
  *
- * 支援兩種解鎖模式：
- * 1. PIN + 遊戲代碼 → 完整互動模式（onUnlocked(false)）
- * 2. 僅 PIN → 唯讀預覽模式（onUnlocked(true)）
+ * 流程：
+ * - 有 PIN + 遊戲代碼 → 完整互動模式（onUnlocked(false)）
+ * - 有 PIN（無遊戲代碼）→ 唯讀預覽模式（onUnlocked(true)）
+ * - 無 PIN + 遊戲代碼 → 完整互動模式（onUnlocked(false)）
+ * - 無 PIN（無遊戲代碼）→ 直接進入預覽（onUnlocked(true)）
  *
  * PIN 與遊戲代碼均使用方格視覺 + 隱藏 input overlay 設計：
  * - 方格為純視覺層（pointer-events-none）
  * - 透明 input 覆蓋在上層（z-10）捕捉所有輸入
  * - 容器 onClick → ref.focus() 確保任何點擊均能喚起鍵盤
  */
-export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockProps) {
+export function PinUnlock({ characterId, characterName, hasPinLock = true, onUnlocked }: PinUnlockProps) {
   const [gameCode, setGameCode] = useState('');
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -64,35 +68,38 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!pin) {
-      setError('請輸入 PIN');
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
 
     try {
-      const pinOk = await verifyPin();
-      if (!pinOk) {
-        setError('PIN 或遊戲代碼錯誤');
-        return;
+      // 有 PIN 時需先驗證 PIN
+      if (hasPinLock) {
+        if (!pin) {
+          setError('請輸入 PIN');
+          setIsLoading(false);
+          return;
+        }
+        const pinOk = await verifyPin();
+        if (!pinOk) {
+          setError('PIN 或遊戲代碼錯誤');
+          return;
+        }
       }
 
+      // 有 Game Code 時驗證並進入完整互動模式
       if (hasGameCode) {
         const gameCodeResult = await verifyGameCode();
         if (!gameCodeResult.success) {
-          // 保留 server 回傳的特定訊息（如「遊戲尚未開始」），無則顯示通用錯誤
-          setError(gameCodeResult.message || 'PIN 或遊戲代碼錯誤');
+          setError(gameCodeResult.message || (hasPinLock ? 'PIN 或遊戲代碼錯誤' : '遊戲代碼錯誤'));
           return;
         }
         onUnlocked(false);
       } else {
+        // 無 Game Code → 唯讀預覽模式
         onUnlocked(true);
       }
     } catch {
-      setError('PIN 或遊戲代碼錯誤');
+      setError(hasPinLock ? 'PIN 或遊戲代碼錯誤' : '遊戲代碼錯誤');
     } finally {
       setIsLoading(false);
     }
@@ -125,148 +132,149 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
 
         {/* 表單區 */}
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6 px-1">
-          {/* PIN 輸入（4 位數字） */}
-          <div>
-            <p className="text-[11px] font-semibold text-primary uppercase tracking-widest mb-3 text-center">
-              輸入角色 PIN
-            </p>
+          {/* PIN 輸入（4 位數字）— 僅 hasPinLock 時顯示 */}
+          {hasPinLock && (
+            <div>
+              <p className="text-[11px] font-semibold text-primary uppercase tracking-widest mb-3 text-center">
+                輸入角色 PIN
+              </p>
 
-            {/* 方格視覺 + 透明 input overlay */}
-            <div
-              className="flex justify-center cursor-text"
-              onClick={() => pinInputRef.current?.focus()}
-            >
-              <div className="relative inline-flex gap-3">
-                {/* 純視覺方格（pointer-events-none，由上層 input 接收事件） */}
-                {[0, 1, 2, 3].map((i) => {
-                  const filled = i < pin.length;
-                  // 下一個待輸入的格子（全填滿時維持最後一格 active，讓使用者知道可刪除）
-                  // 唯讀模式（無遊戲代碼）錯誤時 PIN 變紅；完整模式錯誤時 PIN 也變紅
-                  const pinError = !!error;
-                  const isActive = isPinFocused && !error && (
-                    i === Math.min(pin.length, 3)
-                  );
-                  return (
-                    <div
-                      key={i}
-                      className={[
-                        'w-[50px] h-[50px] rounded-xl flex items-center justify-center transition-all duration-150 pointer-events-none',
-                        pinError
-                          ? 'bg-destructive/10 border border-destructive/60'
-                          : isActive
-                          ? 'bg-card border border-primary ring-2 ring-primary/20'
-                          : filled
-                          ? 'bg-card border border-primary/60'
-                          : 'bg-card border border-primary/20',
-                      ].join(' ')}
-                    >
-                      {filled ? (
-                        <div className={`w-2.5 h-2.5 rounded-full ${pinError ? 'bg-destructive' : 'bg-primary'}`} />
-                      ) : isActive ? (
-                        <div className="w-px h-5 bg-primary animate-pulse" />
-                      ) : null}
-                    </div>
-                  );
-                })}
-                {/* 透明 input 覆蓋整個方格區域，z-10 確保在方格之上 */}
-                <input
-                  ref={pinInputRef}
-                  type="text"
-                  value={pin}
-                  onChange={(e) => {
-                    setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
-                    setError(null);
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-text z-10"
-                  aria-label="PIN 輸入"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  maxLength={4}
-                  disabled={isLoading}
-                  autoFocus
-                  onFocus={() => setIsPinFocused(true)}
-                  onBlur={() => setIsPinFocused(false)}
-                />
+              {/* 方格視覺 + 透明 input overlay */}
+              <div
+                className="flex justify-center cursor-text"
+                onClick={() => pinInputRef.current?.focus()}
+              >
+                <div className="relative inline-flex gap-3">
+                  {[0, 1, 2, 3].map((i) => {
+                    const filled = i < pin.length;
+                    const pinError = !!error;
+                    const isActive = isPinFocused && !error && (
+                      i === Math.min(pin.length, 3)
+                    );
+                    return (
+                      <div
+                        key={i}
+                        className={[
+                          'w-[50px] h-[50px] rounded-xl flex items-center justify-center transition-all duration-150 pointer-events-none',
+                          pinError
+                            ? 'bg-destructive/10 border border-destructive/60'
+                            : isActive
+                            ? 'bg-card border border-primary ring-2 ring-primary/20'
+                            : filled
+                            ? 'bg-card border border-primary/60'
+                            : 'bg-card border border-primary/20',
+                        ].join(' ')}
+                      >
+                        {filled ? (
+                          <div className={`w-2.5 h-2.5 rounded-full ${pinError ? 'bg-destructive' : 'bg-primary'}`} />
+                        ) : isActive ? (
+                          <div className="w-px h-5 bg-primary animate-pulse" />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  <input
+                    ref={pinInputRef}
+                    type="text"
+                    value={pin}
+                    onChange={(e) => {
+                      setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+                      setError(null);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-text z-10"
+                    aria-label="PIN 輸入"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={4}
+                    disabled={isLoading}
+                    autoFocus
+                    onFocus={() => setIsPinFocused(true)}
+                    onBlur={() => setIsPinFocused(false)}
+                  />
+                </div>
               </div>
             </div>
+          )}
 
-          </div>
-
-          {/* 遊戲代碼（選填，6 碼英數） */}
+          {/* 遊戲代碼（選填，輸入後按鈕切換為 Runtime 模式入口） */}
           <div>
-            <p
-              className="text-[11px] font-semibold text-primary uppercase tracking-widest mb-3 text-center cursor-text"
-              onClick={() => gameCodeInputRef.current?.focus()}
-            >
-              遊戲代碼{' '}
-              <span className="text-muted-foreground font-normal normal-case tracking-normal">（選填）</span>
-            </p>
+              <p
+                className="text-[11px] font-semibold text-primary uppercase tracking-widest mb-3 text-center cursor-text"
+                onClick={() => gameCodeInputRef.current?.focus()}
+              >
+                遊戲代碼
+                <span className="text-muted-foreground font-normal normal-case tracking-normal">
+                  {' '}（選填）
+                </span>
+              </p>
 
-            {/* 6 碼方格，與 PIN 相同設計語言，但顯示字元而非圓點 */}
-            <div
-              className="flex justify-center cursor-text"
-              onClick={() => gameCodeInputRef.current?.focus()}
-            >
-              <div className="relative inline-flex gap-2">
-                {[0, 1, 2, 3, 4, 5].map((i) => {
-                  const char = gameCode[i];
-                  // 完整模式（有遊戲代碼）發生錯誤時，遊戲代碼方格也變紅
-                  const gameCodeError = !!error && hasGameCode;
-                  const isActive = isGameCodeFocused && !error && i === Math.min(gameCode.length, 5);
-                  return (
-                    <div
-                      key={i}
-                      className={[
-                        'w-[46px] h-[50px] rounded-xl flex items-center justify-center transition-all duration-150 font-mono text-sm font-bold pointer-events-none',
-                        gameCodeError
-                          ? 'bg-destructive/10 border border-destructive/60 text-destructive'
-                          : isActive
-                          ? 'bg-card border border-primary ring-2 ring-primary/20 text-foreground'
-                          : char
-                          ? 'bg-card border border-primary/60 text-foreground'
-                          : 'bg-card border border-primary/20 text-transparent',
-                      ].join(' ')}
-                    >
-                      {char ?? (isActive ? (
-                        <div className="w-px h-5 bg-primary animate-pulse" />
-                      ) : null)}
-                    </div>
-                  );
-                })}
-                <input
-                  ref={gameCodeInputRef}
-                  type="text"
-                  value={gameCode}
-                  onChange={(e) => {
-                    setGameCode(e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 6));
-                    setError(null);
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-text z-10"
-                  aria-label="遊戲代碼輸入"
-                  autoComplete="off"
-                  maxLength={6}
-                  disabled={isLoading}
-                  onFocus={() => setIsGameCodeFocused(true)}
-                  onBlur={() => setIsGameCodeFocused(false)}
-                />
+              {/* 6 碼方格 */}
+              <div
+                className="flex justify-center cursor-text"
+                onClick={() => gameCodeInputRef.current?.focus()}
+              >
+                <div className="relative inline-flex gap-2">
+                  {[0, 1, 2, 3, 4, 5].map((i) => {
+                    const char = gameCode[i];
+                    const gameCodeError = !!error && hasGameCode;
+                    const isActive = isGameCodeFocused && !error && i === Math.min(gameCode.length, 5);
+                    return (
+                      <div
+                        key={i}
+                        className={[
+                          'w-[46px] h-[50px] rounded-xl flex items-center justify-center transition-all duration-150 font-mono text-sm font-bold pointer-events-none',
+                          gameCodeError
+                            ? 'bg-destructive/10 border border-destructive/60 text-destructive'
+                            : isActive
+                            ? 'bg-card border border-primary ring-2 ring-primary/20 text-foreground'
+                            : char
+                            ? 'bg-card border border-primary/60 text-foreground'
+                            : 'bg-card border border-primary/20 text-transparent',
+                        ].join(' ')}
+                      >
+                        {char ?? (isActive ? (
+                          <div className="w-px h-5 bg-primary animate-pulse" />
+                        ) : null)}
+                      </div>
+                    );
+                  })}
+                  <input
+                    ref={gameCodeInputRef}
+                    type="text"
+                    value={gameCode}
+                    onChange={(e) => {
+                      setGameCode(e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 6));
+                      setError(null);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-text z-10"
+                    aria-label="遊戲代碼輸入"
+                    autoComplete="off"
+                    maxLength={6}
+                    disabled={isLoading}
+                    autoFocus={!hasPinLock}
+                    onFocus={() => setIsGameCodeFocused(true)}
+                    onBlur={() => setIsGameCodeFocused(false)}
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
           {/* 說明文字 */}
           <div className="flex items-start gap-2 justify-center">
             <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-[11px] leading-relaxed text-muted-foreground text-center">
-              PIN 由 GM 提供，如不清楚請詢問主持人
+              {hasPinLock
+                ? 'PIN 由 GM 提供，如不清楚請詢問主持人'
+                : '輸入遊戲代碼進入完整互動模式，或直接預覽角色卡'}
             </p>
           </div>
 
-          {/* 主要 CTA 按鈕 */}
+          {/* 主要 CTA 按鈕（有無 PIN 統一 UI，差異僅 disabled 條件） */}
           <button
             type="submit"
-            disabled={isLoading || !pin}
-            className="w-full h-14 rounded-xl font-bold text-base tracking-wide bg-gradient-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed hover:from-primary/90 hover:to-primary/70"
-            style={{ boxShadow: pin && !isLoading ? '0 4px 24px rgba(254, 197, 106, 0.2)' : 'none' }}
+            disabled={isLoading || (hasPinLock && !pin)}
+            className="w-full h-14 rounded-xl font-bold text-base tracking-wide bg-linear-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed hover:from-primary/90 hover:to-primary/70"
+            style={{ boxShadow: !isLoading ? '0 4px 24px rgba(254, 197, 106, 0.2)' : 'none' }}
           >
             {isLoading ? (
               <>
@@ -278,9 +286,14 @@ export function PinUnlock({ characterId, characterName, onUnlocked }: PinUnlockP
                 進入完整互動模式
                 <Zap className="h-5 w-5" />
               </>
-            ) : (
+            ) : hasPinLock ? (
               <>
                 以 PIN 預覽角色
+                <ChevronRight className="h-5 w-5" />
+              </>
+            ) : (
+              <>
+                直接進入
                 <ChevronRight className="h-5 w-5" />
               </>
             )}
