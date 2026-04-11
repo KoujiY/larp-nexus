@@ -208,7 +208,7 @@ function createSkillsSchemaField() {
           type: {
             type: String,
             enum: [
-              'stat_change', 'item_give', 'item_take', 'item_steal',
+              'stat_change', 'item_take', 'item_steal',
               'task_reveal', 'task_complete', 'custom',
             ],
             required: true,

@@ -54,7 +54,7 @@ type ItemEffect = {
 
 /** 技能效果（skill） */
 type SkillEffect = {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom';
+  type: 'stat_change' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom';
   targetType?: EffectTargetType;
   requiresTarget?: boolean;
   targetStat?: string;

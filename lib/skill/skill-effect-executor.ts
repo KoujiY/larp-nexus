@@ -179,8 +179,6 @@ export async function executeSkillEffects(
         statSet[`tasks.${taskIndex}.completedAt`] = now;
         effectsApplied.push(`完成任務：${tasks[taskIndex].title}`);
       }
-    } else if (effect.type === 'item_give' && effect.targetItemId) {
-      // 給予道具（未實作）
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       if (skill.checkType === 'contest' || skill.checkType === 'random_contest') continue;
       if (!targetItemId) {

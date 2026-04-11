@@ -22,7 +22,7 @@ import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effec
  * 技能或道具的效果類型
  */
 type Effect = {
-  type: 'stat_change' | 'item_take' | 'item_steal' | 'item_give' | 'task_reveal' | 'task_complete' | 'custom';
+  type: 'stat_change' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom';
   targetStat?: string;
   value?: number;
   statChangeTarget?: 'value' | 'maxValue';

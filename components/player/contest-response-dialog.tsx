@@ -564,7 +564,6 @@ function formatSkillEffectDescription(eff: { type: string; targetStat?: string; 
   if (eff.type === 'task_complete' && eff.targetTaskId) return `完成任務：${eff.targetTaskId}`;
   if (eff.type === 'item_steal') return '偷竊目標角色的物品';
   if (eff.type === 'item_take') return '移除目標角色的物品';
-  if (eff.type === 'item_give') return '給予目標角色物品';
   if (eff.type === 'custom' && eff.description) return eff.description;
   return eff.description || null;
 }

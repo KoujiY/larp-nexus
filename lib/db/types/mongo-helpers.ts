@@ -93,7 +93,7 @@ export interface MongoStat {
 
 /** 技能效果的單一項目（MongoSkill.effects 使用） */
 export interface MongoSkillEffect {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
+  type: 'stat_change' | 'item_take' | 'item_steal' |
         'task_reveal' | 'task_complete' | 'custom';
   targetType?: 'self' | 'other' | 'any';
   requiresTarget?: boolean;

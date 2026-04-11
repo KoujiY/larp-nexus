@@ -402,7 +402,6 @@ export function AbilityCard({
 /** 效果類型中文標籤 */
 const EFFECT_TYPE_LABELS: Record<string, string> = {
   stat_change: '數值變化',
-  item_give: '給予物品',
   item_take: '取得物品',
   item_steal: '奪取物品',
   task_reveal: '揭露任務',

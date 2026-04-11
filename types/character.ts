@@ -302,7 +302,7 @@ export interface Stat {
  * Phase 8: 添加 duration 欄位支援時效性效果
  */
 export interface SkillEffect {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
+  type: 'stat_change' | 'item_take' | 'item_steal' |
         'task_reveal' | 'task_complete' | 'custom';
 
   // Phase 6.5 方案 A: 目標設定
