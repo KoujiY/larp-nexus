@@ -97,6 +97,18 @@ export async function POST(request: Request): Promise<Response> {
 
   await connectDB();
 
+  // 安全防護：只允許 seed 到 E2E 專用資料庫，防止意外污染正式 DB
+  const db = mongoose.connection.db;
+  if (db) {
+    const dbName = db.databaseName;
+    if (!dbName.includes('e2e') && !dbName.includes('test')) {
+      return NextResponse.json(
+        { error: `Refusing to seed non-test database: "${dbName}"` },
+        { status: 403 },
+      );
+    }
+  }
+
   const result: Record<string, string[]> = {};
 
   try {

@@ -28,6 +28,15 @@ export async function POST(): Promise<Response> {
     return NextResponse.json({ error: 'DB not connected' }, { status: 500 });
   }
 
+  // 安全防護：只允許清空 E2E 專用資料庫，防止意外操作正式 DB
+  const dbName = db.databaseName;
+  if (!dbName.includes('e2e') && !dbName.includes('test')) {
+    return NextResponse.json(
+      { error: `Refusing to reset non-test database: "${dbName}"` },
+      { status: 403 },
+    );
+  }
+
   // 清空所有 collection（保留 index 結構，避免 dropDatabase 的 index 重建問題）
   const collections = await db.listCollections().toArray();
   await Promise.all(

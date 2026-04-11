@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# E2E temp file (MongoMemoryServer URI)
+.e2e-mongo-uri
+
 # dependencies
 /node_modules
 /.pnp

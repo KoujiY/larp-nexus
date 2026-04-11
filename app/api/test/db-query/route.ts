@@ -94,6 +94,15 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'DB not connected' }, { status: 500 });
   }
 
+  // 安全防護：只允許查詢 E2E 專用資料庫
+  const dbName = db.databaseName;
+  if (!dbName.includes('e2e') && !dbName.includes('test')) {
+    return NextResponse.json(
+      { error: `Refusing to query non-test database: "${dbName}"` },
+      { status: 403 },
+    );
+  }
+
   const documents = await db.collection(collection).find(filter).toArray();
 
   // _id 轉為字串方便 spec 斷言
