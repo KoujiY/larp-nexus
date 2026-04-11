@@ -65,7 +65,7 @@ interface PresetEventRuntime extends PresetEvent {
 | `components/gm/preset-event-action-editor.tsx` | 單一動作編輯器（依類型顯示不同欄位） |
 
 ### 卡片佈局
-- Grid 佈局（1/2/3 欄 RWD），對齊技能/道具分頁
+- Grid 佈局（1/2/3 欄 RWD），對齊技能/物品分頁
 - 收合時：動作類型 badges + 名稱 + 描述 line-clamp-1 + 動作數 footer
 - 展開時：完整描述 + 動作列表（左側邊線卡片風格，同 AbilityCard EffectCard）
 - Runtime 額外顯示：已執行次數、runtimeOnly badge（執行功能僅在控制台快速面板）

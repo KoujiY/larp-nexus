@@ -37,9 +37,9 @@
 |------|---------|------|
 | 上傳新圖（替換舊圖） | `uploadImageToBlob` 的 `oldImageUrl` 參數 | `del(oldUrl)` |
 | 刪除遊戲 | `deleteGame` 收集遊戲封面 + 所有角色圖片 | `deleteImagesFromBlob` |
-| 刪除角色 | `deleteCharacter` 收集頭像 + 道具/技能圖 | `collectCharacterImageUrls` → `deleteImagesFromBlob` |
-| GM 編輯移除道具/技能 | `updateCharacter` 從 diff 收集被刪除項目的 `imageUrl` | fire-and-forget `deleteImagesFromBlob` |
-| 玩家端偷竊/移除道具 | **不清理** — 道具移轉或減少數量，圖片跟隨道具 | N/A |
+| 刪除角色 | `deleteCharacter` 收集頭像 + 物品/技能圖 | `collectCharacterImageUrls` → `deleteImagesFromBlob` |
+| GM 編輯移除物品/技能 | `updateCharacter` 從 diff 收集被刪除項目的 `imageUrl` | fire-and-forget `deleteImagesFromBlob` |
+| 玩家端偷竊/移除物品 | **不清理** — 物品移轉或減少數量，圖片跟隨物品 | N/A |
 | 結束遊戲（刪除 Runtime） | **不清理** — 圖片永遠存於 Baseline | N/A |
 
 ## 歷史變更備註

@@ -10,7 +10,7 @@ Component: `components/player/character-card-view.tsx`
 | 資訊 | `ScrollText` | Public info (story, relationships, secrets) — `BackgroundBlockRenderer` + `CollapsibleSection` |
 | 數值 | `BarChart3` | Stats + active temporary effects |
 | 任務 | `ListChecks` | Normal tasks + revealed hidden tasks |
-| 道具 | `Backpack` | Item inventory + usage |
+| 物品 | `Backpack` | Item inventory + usage |
 | 技能 | `Zap` | Skills + usage |
 
 ## Unlock / Entry Flow

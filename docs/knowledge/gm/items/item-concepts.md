@@ -60,7 +60,7 @@ interface StatBoost {
 - 與時效性效果過期邏輯（`lib/effects/check-expired-effects.ts`）完全一致
 
 ## 裝備中視覺狀態（GM 物品卡片）
-- `components/gm/ability-card.tsx` 對 `type === 'equipment' && equipped === true` 的道具在卡片頂部顯示綠色「裝備中」badge（`GM_BADGE_VARIANTS.success`）
+- `components/gm/ability-card.tsx` 對 `type === 'equipment' && equipped === true` 的物品在卡片頂部顯示綠色「裝備中」badge（`GM_BADGE_VARIANTS.success`）
 - 即使 GM 正在編輯物品 tab（items dirty），badge 仍能即時跟上玩家穿脫 — 由 `items-edit-form.tsx` 的 `liveEquippedByWs` overlay 實現（見 [character-card.md WebSocket 衝突解決策略](../character/character-card.md#websocket-衝突解決策略character-edit-tabstsx)）
 
 ## Transferability
