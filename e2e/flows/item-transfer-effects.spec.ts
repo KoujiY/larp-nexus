@@ -354,7 +354,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       // A 獲得寶石（item_steal 轉移式），quantity=1
       const runtimeA = await dbQuery('character_runtime', { refId: charA._id });
       const aItems = runtimeA[0].items as Array<{ id: string; name: string; quantity: number; equipped?: boolean }>;
-      const aGem = aItems.find(i => i.name === '寶石');
+      const aGem = aItems.find(i => i.id === 'item-gem');
       expect(aGem).toBeDefined();
       expect(aGem!.quantity).toBe(1);
       // 轉移時自動卸除裝備狀態
@@ -493,7 +493,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
     // A 獲得盾牌（item_steal 轉移式），quantity=1，自動卸除裝備
     const runtimeA = await dbQuery('character_runtime', { refId: charA._id });
     const aItems = runtimeA[0].items as Array<{ id: string; name: string; quantity: number; equipped?: boolean }>;
-    const aShield = aItems.find(i => i.name === '盾牌');
+    const aShield = aItems.find(i => i.id === 'item-shield');
     expect(aShield).toBeDefined();
     expect(aShield!.quantity).toBe(1);
     expect(aShield!.equipped).toBeFalsy();

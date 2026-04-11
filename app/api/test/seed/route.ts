@@ -71,16 +71,20 @@ interface SeedBody {
 }
 
 /**
- * 建立一批文件並回傳 _id 字串陣列
+ * 建立一批文件並回傳序列化後的完整 document（_id 轉為字串）
  */
 async function createDocs(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Model: mongoose.Model<any>,
   inputs: SeedInput[],
-): Promise<string[]> {
+): Promise<Record<string, unknown>[]> {
   const converted = inputs.map((input) => convertObjectIds(input));
   const docs = await Model.create(converted);
-  return (Array.isArray(docs) ? docs : [docs]).map((d) => d._id.toString());
+  return (Array.isArray(docs) ? docs : [docs]).map((d) => {
+    const obj = d.toObject() as Record<string, unknown>;
+    obj._id = d._id.toString();
+    return obj;
+  });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -109,7 +113,7 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  const result: Record<string, string[]> = {};
+  const result: Record<string, Record<string, unknown>[]> = {};
 
   try {
     // 依序建立，確保 reference 關係成立
@@ -139,5 +143,5 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, ids: result });
+  return NextResponse.json({ ok: true, docs: result });
 }

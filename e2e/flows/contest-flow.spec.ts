@@ -938,13 +938,13 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       await contestDialog.getByText('防具一').click();
       await expect(contestDialog.getByRole('button', { name: '確認回應' })).toBeVisible();
 
-      // 防具二 應被 disabled（opacity 降低，無法點擊）
+      // 防具二 應被 disabled（aria-disabled 語義斷言，不耦合 Tailwind opacity 值）
       const item2Card = contestDialog.locator('.rounded-xl').filter({ hasText: '防具二' });
-      await expect(item2Card).toHaveCSS('opacity', '0.4');
+      await expect(item2Card).toHaveAttribute('aria-disabled', 'true');
 
       // 技能也應被 disabled（跨類別互斥）
       const skill1Card = contestDialog.locator('.rounded-xl').filter({ hasText: '防禦技一' });
-      await expect(skill1Card).toHaveCSS('opacity', '0.4');
+      await expect(skill1Card).toHaveAttribute('aria-disabled', 'true');
 
       // ── Phase E — 取消道具 → 切換到技能 ──
       // 再次點擊防具一 → 取消勾選
@@ -958,11 +958,11 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
 
       // 防禦技二 應被 disabled
       const skill2Card = contestDialog.locator('.rounded-xl').filter({ hasText: '防禦技二' });
-      await expect(skill2Card).toHaveCSS('opacity', '0.4');
+      await expect(skill2Card).toHaveAttribute('aria-disabled', 'true');
 
       // 道具也應被 disabled（跨類別互斥）
       const item1Card = contestDialog.locator('.rounded-xl').filter({ hasText: '防具一' });
-      await expect(item1Card).toHaveCSS('opacity', '0.4');
+      await expect(item1Card).toHaveAttribute('aria-disabled', 'true');
 
       // ── Phase F — 回應（以 skill-d1） ──
       const resultPromiseA = waitForWebSocketEvent(pageA, {

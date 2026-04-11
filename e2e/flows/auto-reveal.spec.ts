@@ -761,9 +761,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
 
     // Step 5: 儲存（evaluate retry loop 避免 TOCTOU — 規則 32/33）
     // dialog close 後 dirty state 需透過多層 component propagation 才觸發 SaveBar，
-    // 等待 AnimatePresence exit 動畫 + React 效果鏈完成
-    await page.waitForTimeout(500);
-    // evaluate retry loop 避免 AnimatePresence detach（方法 3）
+    // clickSaveBar 內建 retry loop 已處理 AnimatePresence exit 動畫延遲（方法 3）
     await clickSaveBar(page, { timeout: 15000 });
 
     // 等待儲存成功（StickySaveBar toast：「已儲存 N 個分頁的變更」，400ms delay）

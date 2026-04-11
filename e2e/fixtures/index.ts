@@ -137,8 +137,8 @@ async function callSeed(
     const body = await response.text();
     throw new Error(`Seed ${key} failed (${response.status()}): ${body}`);
   }
-  const json = await response.json() as { ids: Record<string, string[]> };
-  return { _id: json.ids[key][0], ...data };
+  const json = await response.json() as { docs: Record<string, Record<string, unknown>[]> };
+  return json.docs[key][0] as SeedResult;
 }
 
 // ─── Fixtures ────────────────────────────────────

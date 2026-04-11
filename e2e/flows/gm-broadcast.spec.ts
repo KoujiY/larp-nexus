@@ -196,14 +196,11 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     await expect(characterSelect).toHaveText('選擇角色');
 
     // ── Phase C — Player 端接收驗證 ──
+    // waitForWebSocketEvent 返回 parsed.data = BaseEvent { type, timestamp, payload }
+    // payload 一定存在（events.ts:62-73 手動包裝 BaseEvent 格式）
     const msgEvent = await wsPromise as Record<string, unknown>;
-    const payload = msgEvent.payload as Record<string, unknown> | undefined;
-    // character 模式的 event 是 BaseEvent 包裝，payload 在 .payload 中
-    // 但如果 pusher.trigger 直接發送整個 BaseEvent，data 就是整個 object
-    // 根據 events.ts:62-73，trigger 直接發送 { type, timestamp, payload: {...} }
-    // waitForWebSocketEvent 收到的 data 就是這整個 object
-    const actualPayload = payload ?? msgEvent;
-    expect(actualPayload).toMatchObject({
+    const payload = msgEvent.payload as Record<string, unknown>;
+    expect(payload).toMatchObject({
       characterId: charA._id,
       from: 'GM',
       title: '密令',
