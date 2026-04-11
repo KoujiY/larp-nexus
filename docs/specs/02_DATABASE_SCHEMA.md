@@ -300,7 +300,7 @@ interface Character {
     
     // 效果定義（可多個）- ✅ 部分已實作
     effects?: Array<{
-      type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+      type: 'stat_change' | 'item_take' | 'item_steal' | 
             'task_reveal' | 'task_complete' | 'custom';
       
       // 目標設定（Phase 6.5 方案 A）- ✅ 已實作

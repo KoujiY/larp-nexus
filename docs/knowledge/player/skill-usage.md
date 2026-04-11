@@ -15,7 +15,6 @@ Same pattern as item usage. See [item-usage.md](./item-usage.md) for check type 
 |--------|-------------|
 | `task_reveal` | Reveals a hidden task on target character |
 | `task_complete` | Marks a task as completed on target character |
-| `item_give` | Transfers an item to target character |
 | `stat_change` | Modifies a stat (can be timed) |
 
 ## Key Differences from Items

@@ -65,7 +65,7 @@ interface StatBoost {
 
 ## Transferability
 - `isTransferable: true` → player can transfer item to another character
-- Transfer action: `item_give` via player UI
+- Transfer action: `item_take` / `item_steal` via skill effects
 
 ## GM UI
 - **🎒 物品管理 tab**：Add/edit/remove items

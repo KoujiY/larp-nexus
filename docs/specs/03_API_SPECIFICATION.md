@@ -552,7 +552,6 @@ interface ItemInput {
    - `custom`：自訂效果描述 - ✅ 已實作
    - `item_take`：Phase 7: 從目標角色移除道具 - ✅ 已實作
    - `item_steal`：Phase 7: 從目標角色偷竊道具（轉移到施放者身上）- ✅ 已實作
-   - `item_give`：給予目標角色道具（未實作）
 7. 更新技能使用時間與次數
 8. 回傳結果
 

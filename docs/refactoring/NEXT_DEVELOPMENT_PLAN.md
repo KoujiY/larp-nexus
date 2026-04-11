@@ -991,7 +991,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | ~~7~~ | ~~#4 目標選擇改進~~ | ~~中~~ | ✅ per-effect 分派 + Wizard mutex 規則 |
 | ~~7.5~~ | ~~#5.5 控制台 UI 微調~~ | ~~小~~ | ✅ E2E 建置前先穩定 UI |
 | ~~7.6~~ | ~~#5.6 Lint 問題統一清理（5.6-2 ~ 5.6-5）~~ | ~~小~~ | ✅ 17 warnings 全清 |
-| 8 | #6 E2E 測試建置 🚧 | 中 | 純地端；Playwright + mongodb-memory-server + Pusher stub 兩層（smoke/flows）|
+| ~~8~~ | ~~#6 E2E 測試建置~~ | ~~中~~ | ✅ Phase 7 驗收全綠 |
 
 ### E2E 之後的待辦項目
 
@@ -999,8 +999,8 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 
 | 順序 | 項目 | 規模 | 類型 |
 |------|------|------|------|
-| 9 | #5.6-1 React 19 set-state-in-effect 重構 | 中 | 重構 |
-| 10 | #7 `item_give` 死碼移除 | 小 | 清理 |
+| ~~9~~ | ~~#5.6-1 React 19 set-state-in-effect 重構~~ | ~~中~~ | ✅ |
+| ~~10~~ | ~~#7 `item_give` 死碼移除~~ | ~~小~~ | ✅ |
 | 11 | #8 裝備類物品對抗回應過濾 | 小 | Bug 修復 |
 | 12 | #9 PIN 驗證邏輯統一 | 小 | 技術債 |
 | 13 | #10 E2E Code Review 殘留 MEDIUM 修復 | 小 | 改善 |

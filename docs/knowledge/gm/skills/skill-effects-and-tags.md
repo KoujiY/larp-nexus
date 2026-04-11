@@ -3,7 +3,7 @@
 ## Effect Types
 ```typescript
 interface SkillEffect {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
+  type: 'stat_change' | 'item_take' | 'item_steal' |
         'task_reveal' | 'task_complete' | 'custom';
   targetType?: 'self' | 'other' | 'any';  // Per-effect target
   requiresTarget?: boolean;                // Derived: targetType !== 'self'
@@ -39,7 +39,6 @@ GM 在 `ability-edit-wizard.tsx` 設計效果時有兩條硬性規則：
 | Effect Type | Behavior |
 |-------------|----------|
 | `stat_change` | Modify stat value. Supports timed effects (`duration`). |
-| `item_give` | Give an item to target character |
 | `item_take` | **Remove** specific item from target (disappears) |
 | `item_steal` | **Transfer** specific item from target to self |
 | `task_reveal` | Reveal a hidden task on target character |
