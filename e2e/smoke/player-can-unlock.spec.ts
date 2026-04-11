@@ -4,7 +4,7 @@
  * 驗證玩家 PIN 解鎖的真實路徑（不走 asPlayer fixture 繞過）：
  * - #2.1 PIN 正確 → 預覽模式（banner、read-only、localStorage 雙 key）
  * - #2.2 PIN 錯誤 → error path（不洩漏狀態）
- * - #2.3 hasPinLock:false → 直接進入完整互動模式
+ * - #2.3 hasPinLock:false → 入口頁面「直接進入」→ 預覽模式
  *
  * 設計決策：刻意走真實 PIN input，不用 asPlayer() fixture。
  * 參照規格：docs/refactoring/E2E_FLOW_2_PLAYER_PIN.md
@@ -121,7 +121,7 @@ test.describe('Flow #2 — Player PIN unlock → character card', () => {
     expect(fullAccess).toBeNull();
   });
 
-  test('#2.3 no-PIN character → direct entry (full interaction)', async ({
+  test('#2.3 no-PIN character → entry page → direct entry (preview)', async ({
     page,
     seed,
   }) => {
@@ -144,30 +144,32 @@ test.describe('Flow #2 — Player PIN unlock → character card', () => {
       ],
     });
 
-    // ── Phase 1：直接進入 → 無 PinUnlock ──
+    // ── Phase 1：無 PIN 角色也經過入口頁面 ──
     await page.goto(`/c/${character._id}`);
 
-    // PinUnlock 不存在
-    const pinInput = page.locator('input[aria-label="PIN 輸入"]').first();
-    await expect(pinInput).toHaveCount(0);
-    await expect(page.getByText('以 PIN 預覽角色')).not.toBeVisible();
+    // 入口頁面：無 PIN 輸入區，有「直接進入」按鈕和 Game Code 輸入區
+    await expect(page.locator('input[aria-label="PIN 輸入"]')).toHaveCount(0);
+    const directEntryBtn = page.getByRole('button', { name: '直接進入', exact: true });
+    await expect(directEntryBtn).toBeVisible();
+    await expect(page.locator('input[aria-label="遊戲代碼輸入"]').first()).toBeVisible();
 
-    // ── Phase 2：CharacterCardView 直接掛載 ──
+    // ── Phase 2：點「直接進入」→ 進入角色卡（預覽模式）──
+    await directEntryBtn.click();
+
     await expect(page.getByRole('heading', { name: 'E2E Test Character #2.3' })).toBeVisible();
-    // 預設 tab「資訊」（exact:true 避免匹配「額外資訊」）
     await expect(page.getByRole('button', { name: '資訊', exact: true })).toBeVisible();
 
-    // 反向驗證：不應出現預覽模式 banner（hasPinLock:false → isReadOnly:false）
+    // 預覽模式 banner 應顯示（所有角色統一流程）
     await expect(
       page.getByText('遊戲準備中 — 預覽模式'),
-    ).not.toBeVisible();
+    ).toBeVisible();
 
-    // ── Phase 3：localStorage 完全空（no-lock 不依賴 client persistence）──
+    // ── Phase 3：localStorage 記錄 unlocked（不含 fullAccess）──
     const unlocked = await page.evaluate(
       (id: string) => localStorage.getItem(`character-${id}-unlocked`),
       character._id,
     );
-    expect(unlocked).toBeNull();
+    expect(unlocked).toBe('true');
 
     const fullAccess = await page.evaluate(
       (id: string) => localStorage.getItem(`character-${id}-fullAccess`),

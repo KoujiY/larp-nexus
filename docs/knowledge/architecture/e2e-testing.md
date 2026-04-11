@@ -352,7 +352,7 @@ await expect(page.locator('[data-sonner-toast]')).toHaveCount(0, { timeout: 8000
 | Collection 名稱 | grep `collection:` 確認實際值，不要猜複數（`game_runtime` 非 `game_runtimes`） |
 | `*Id` 自動轉換 | db-query 的 `convertObjectIds` 會將 `*Id` key 從 string 轉 ObjectId。若目標欄位是 String 類型會永遠不匹配，改用其他欄位查詢 |
 | Active game 需 runtime | seed active game 的角色時一併 seed `characterRuntime` |
-| readOnly 需 PIN | 測試 readOnly 行為時，seed 必須包含 `hasPinLock: true, pin: '...'`（否則 hook 直接回傳 fullAccess） |
+| readOnly 統一流程 | 所有角色（含無 PIN）統一走 localStorage 解鎖流程，`asPlayer({ readOnly: true })` 對 PIN 和無 PIN 角色均有效 |
 
 ### D. 時序與 TOCTOU 防護
 
