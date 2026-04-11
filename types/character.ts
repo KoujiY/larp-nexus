@@ -8,6 +8,7 @@ export interface CharacterData {
   gameId: string;
   name: string;
   description: string;
+  slogan?: string;
   imageUrl?: string;
   hasPinLock: boolean;
   publicInfo?: PublicInfo;
@@ -37,8 +38,8 @@ export interface CharacterData {
    * 僅在 isActive=true 時由 getPublicCharacter 填充
    */
   baselineData?: CharacterBaselineSnapshot;
-  createdAt: string | Date;
-  updatedAt: string | Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -69,8 +70,8 @@ export interface Character {
   items: Item[];
   stats: Stat[];
   wsChannelId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** 角色背景區塊（標題或內文） */
@@ -148,7 +149,7 @@ export interface ViewedItem {
  */
 export interface TemporaryEffect {
   id: string;                           // 效果唯一識別碼（如 'teff-xxx-123'）
-  sourceType: 'skill' | 'item';        // 來源類型
+  sourceType: 'skill' | 'item' | 'preset_event';  // 來源類型
   sourceId: string;                     // 技能/道具 ID
   sourceCharacterId: string;            // 施放者角色 ID
   sourceCharacterName: string;          // 施放者角色名稱
@@ -199,14 +200,14 @@ export interface Task {
   // 隱藏目標機制
   isHidden: boolean;
   isRevealed: boolean;
-  revealedAt?: Date;
+  revealedAt?: string | Date;
   // 完成狀態
   status: 'pending' | 'in-progress' | 'completed' | 'failed';
-  completedAt?: Date;
+  completedAt?: string | Date;
   // GM 專用欄位（玩家端不顯示）
   revealCondition?: string;
   autoRevealCondition?: AutoRevealCondition;  // Phase 7.7: 結構化自動揭露條件
-  createdAt: Date;
+  createdAt: string | Date;
 }
 
 /**
@@ -246,19 +247,22 @@ export interface Item {
   description: string;
   imageUrl?: string;
   // 道具類型與數量
-  type: 'consumable' | 'equipment';
+  // - consumable: 消耗品（使用後數量減少）
+  // - tool: 道具（持久性道具，可重複使用）
+  // - equipment: 裝備（玩家可主動裝備/卸除，提供被動數值加成）
+  type: 'consumable' | 'tool' | 'equipment';
   quantity: number;
-  // 使用效果（陣列，支援多個效果）
+  // 使用效果（陣列，支援多個效果）— consumable / tool 使用
   effects?: ItemEffect[];
   // Phase 7.6: 標籤系統
   tags?: string[];
-  // 檢定系統（Phase 8，Phase 7.6: 擴展為包含 random_contest）
+  // 檢定系統（Phase 8，Phase 7.6: 擴展為包含 random_contest）— consumable / tool 使用
   checkType?: 'none' | 'contest' | 'random' | 'random_contest';
   // 對抗檢定設定（checkType === 'contest' 時使用）
   contestConfig?: ContestConfig;
   // 隨機檢定設定（checkType === 'random' 時使用）
   randomConfig?: RandomConfig;
-  // 使用限制
+  // 使用限制 — consumable / tool 使用
   usageLimit?: number;
   usageCount?: number;
   cooldown?: number;
@@ -266,6 +270,20 @@ export interface Item {
   // 流通性
   isTransferable: boolean;
   acquiredAt: Date;
+  // 裝備系統（僅 type === 'equipment'）
+  equipped?: boolean;
+  statBoosts?: StatBoost[];
+}
+
+/**
+ * 裝備數值加成
+ * 裝備啟用時，對指定數值提供持續性加成
+ */
+export interface StatBoost {
+  statName: string;
+  value: number;
+  /** 加成對象：value（當前值）、maxValue（上限值）、both（兩者皆加）。默認 both */
+  target?: 'value' | 'maxValue' | 'both';
 }
 
 /**
@@ -284,7 +302,7 @@ export interface Stat {
  * Phase 8: 添加 duration 欄位支援時效性效果
  */
 export interface SkillEffect {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
+  type: 'stat_change' | 'item_take' | 'item_steal' |
         'task_reveal' | 'task_complete' | 'custom';
 
   // Phase 6.5 方案 A: 目標設定
@@ -308,6 +326,8 @@ export interface SkillEffect {
  */
 export interface ContestConfig {
   relatedStat: string; // 使用的數值名稱
+  // NOTE: 目前 GM UI（ability-edit-wizard）以 checkbox 操作，值為 0（不允許）或 99（允許）。
+  // 玩家端 Dialog 為單選設計（同類內只能選 1 個）。保留 number 型別供未來擴充多選。
   opponentMaxItems?: number; // 對方最多可使用道具數（預設 0）
   opponentMaxSkills?: number; // 對方最多可使用技能數（預設 0）
   tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 平手裁決方式
@@ -328,7 +348,7 @@ export interface Skill {
   id: string;
   name: string;
   description: string;
-  iconUrl?: string;
+  imageUrl?: string;
   // Phase 7.6: 標籤系統
   tags?: string[];
   // 檢定系統（Phase 7.6: 擴展為包含 random_contest）
@@ -357,6 +377,8 @@ export interface CreateCharacterInput {
 
 export interface UpdateCharacterInput {
   name?: string;
+  description?: string;
+  slogan?: string;
   avatar?: string;
   hasPinLock?: boolean;
   pin?: string;
@@ -386,7 +408,7 @@ export interface CreateItemInput {
   name: string;
   description: string;
   imageUrl?: string;
-  type: 'consumable' | 'equipment';
+  type: 'consumable' | 'tool' | 'equipment';
   quantity?: number;
   effects?: ItemEffect[];
   /** @deprecated 使用 effects 陣列代替 */
@@ -397,6 +419,8 @@ export interface CreateItemInput {
   usageLimit?: number;
   cooldown?: number;
   isTransferable?: boolean;
+  // 裝備系統（僅 type === 'equipment'）
+  statBoosts?: StatBoost[];
 }
 
 /**
@@ -405,7 +429,7 @@ export interface CreateItemInput {
 export interface CreateSkillInput {
   name: string;
   description: string;
-  iconUrl?: string;
+  imageUrl?: string;
   checkType: 'none' | 'stat' | 'random';
   checkThreshold?: number;
   relatedStat?: string;

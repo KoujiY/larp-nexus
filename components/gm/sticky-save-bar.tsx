@@ -23,7 +23,7 @@ const TAB_LABELS: Record<CharacterTabKey, string> = {
   secrets: '隱藏資訊',
   stats: '數值',
   tasks: '任務',
-  items: '道具',
+  items: '物品',
   skills: '技能',
 };
 

@@ -12,15 +12,18 @@ export interface GameData {
   description: string;
   gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
+  coverUrl?: string;
   publicInfo?: {
     blocks: BackgroundBlock[];
   };
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
+  /** 預設事件列表 */
+  presetEvents?: PresetEvent[];
   /** 角色數量（僅 getGames 列表頁回傳） */
   characterCount?: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -30,6 +33,7 @@ export interface GamePublicData {
   id: string;
   name: string;
   description: string;
+  coverUrl?: string;
   publicInfo?: {
     blocks: BackgroundBlock[];
   };
@@ -56,13 +60,16 @@ export interface Game {
   description: string;
   gameCode: string; // Phase 10: 遊戲代碼（6 位英數字，必填）
   isActive: boolean;
+  coverUrl?: string;
   publicInfo?: {
     blocks: BackgroundBlock[];
   };
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
-  createdAt: Date;
-  updatedAt: Date;
+  /** 預設事件列表 */
+  presetEvents?: PresetEvent[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateGameInput {
@@ -82,4 +89,69 @@ export interface UpdateGameInput {
   };
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
+}
+
+// ─── Preset Events（預設事件系統）───────────────────
+
+/** 預設事件動作類型 */
+export type PresetEventActionType =
+  | 'broadcast'
+  | 'stat_change'
+  | 'reveal_secret'
+  | 'reveal_task';
+
+/** 預設事件動作目標：全體角色或指定角色 ID 陣列 */
+export type ActionTarget = 'all' | string[];
+
+/**
+ * 預設事件動作
+ *
+ * 依 `type` 使用對應欄位：
+ * - broadcast → broadcastTargets, broadcastTitle, broadcastMessage
+ * - stat_change → statTargets, statName, statChangeTarget, statChangeValue, syncValue, duration
+ * - reveal_secret / reveal_task → revealCharacterId, revealTargetId
+ */
+export interface PresetEventAction {
+  id: string;
+  type: PresetEventActionType;
+  // ── broadcast ──
+  broadcastTargets?: ActionTarget;
+  broadcastTitle?: string;
+  broadcastMessage?: string;
+  // ── stat_change ──
+  statTargets?: ActionTarget;
+  statName?: string;
+  statChangeTarget?: 'value' | 'maxValue';
+  statChangeValue?: number;
+  syncValue?: boolean;
+  duration?: number;
+  // ── reveal_secret / reveal_task ──
+  revealCharacterId?: string;
+  revealTargetId?: string;
+}
+
+/** 預設事件（Baseline 定義） */
+export interface PresetEvent {
+  id: string;
+  name: string;
+  description?: string;
+  /** 執行時是否向玩家顯示事件名稱（時效性效果、通知等） */
+  showName?: boolean;
+  actions: PresetEventAction[];
+}
+
+/** 預設事件（Runtime，含執行狀態） */
+export interface PresetEventRuntime extends PresetEvent {
+  executedAt?: Date;
+  executionCount: number;
+  /** 標記此事件僅存在於 Runtime（遊戲進行中新增），不會寫回 Baseline */
+  runtimeOnly?: boolean;
+}
+
+/** 預設事件 CRUD 輸入 */
+export interface PresetEventInput {
+  name: string;
+  description?: string;
+  showName?: boolean;
+  actions: PresetEventAction[];
 }

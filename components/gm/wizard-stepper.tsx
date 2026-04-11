@@ -5,6 +5,8 @@
  *
  * 設計來源：Stitch Step 3（Done=深色+check, Active=primary+white ring, Upcoming=淡灰）
  * 可複用於任何需要多步驟流程的 Wizard。
+ *
+ * 若提供 onStepClick，每個步驟圓圈會變成可點擊按鈕，允許使用者自由跳步。
  */
 
 import { Fragment } from 'react';
@@ -16,10 +18,51 @@ type WizardStepperProps = {
   currentStep: number;
   /** 步驟標籤陣列 */
   stepLabels: string[];
+  /** 點擊步驟時的 callback；未提供時圓圈為純顯示元件 */
+  onStepClick?: (step: number) => void;
 };
 
-export function WizardStepper({ currentStep, stepLabels }: WizardStepperProps) {
+export function WizardStepper({ currentStep, stepLabels, onStepClick }: WizardStepperProps) {
   const totalSteps = stepLabels.length;
+  const clickable = Boolean(onStepClick);
+
+  const renderCircle = (i: number) => {
+    const baseClass = 'w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-all';
+    const interactiveClass = clickable
+      ? 'cursor-pointer hover:scale-110 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/50'
+      : '';
+
+    let stateClass: string;
+    let content: React.ReactNode;
+    if (i < currentStep) {
+      stateClass = 'bg-foreground text-background';
+      content = <Check className="h-4 w-4" strokeWidth={3} />;
+    } else if (i === currentStep) {
+      stateClass = 'bg-primary text-primary-foreground shadow-md ring-2 ring-background text-xs font-bold';
+      content = i + 1;
+    } else {
+      stateClass = 'bg-muted text-muted-foreground/50 text-xs font-bold';
+      content = i + 1;
+    }
+
+    const className = cn(baseClass, stateClass, interactiveClass);
+
+    if (clickable) {
+      return (
+        <button
+          type="button"
+          onClick={() => onStepClick?.(i)}
+          aria-label={`跳至步驟 ${i + 1}：${stepLabels[i]}`}
+          aria-current={i === currentStep ? 'step' : undefined}
+          className={className}
+        >
+          {content}
+        </button>
+      );
+    }
+
+    return <div className={className}>{content}</div>;
+  };
 
   return (
     <div className="flex items-center gap-2">
@@ -35,22 +78,7 @@ export function WizardStepper({ currentStep, stepLabels }: WizardStepperProps) {
                 )}
               />
             )}
-            {i < currentStep ? (
-              /* Done */
-              <div className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center shadow-sm">
-                <Check className="h-4 w-4" strokeWidth={3} />
-              </div>
-            ) : i === currentStep ? (
-              /* Active */
-              <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shadow-md ring-2 ring-background">
-                {i + 1}
-              </div>
-            ) : (
-              /* Upcoming */
-              <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground/50 flex items-center justify-center text-xs font-bold">
-                {i + 1}
-              </div>
-            )}
+            {renderCircle(i)}
           </Fragment>
         ))}
       </div>

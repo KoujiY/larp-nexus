@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GmTabsList, GmTabsTrigger } from '@/components/gm/gm-tabs';
 import { BasicSettingsTab } from '@/components/gm/basic-settings-tab';
@@ -8,14 +9,18 @@ import { BackgroundStoryTab } from '@/components/gm/background-story-tab';
 import { SecretsTab } from '@/components/gm/secrets-tab';
 import { StatsEditForm } from '@/components/gm/stats-edit-form';
 import { TemporaryEffectsCard } from '@/components/gm/temporary-effects-card';
+import { EquipmentEffectsPanel } from '@/components/player/equipment-effects-panel';
 import { TasksEditForm } from '@/components/gm/tasks-edit-form';
 import { ItemsEditForm } from '@/components/gm/items-edit-form';
 import { SkillsEditForm } from '@/components/gm/skills-edit-form';
 import { StickySaveBar } from '@/components/gm/sticky-save-bar';
 import { useCharacterEditState } from '@/hooks/use-character-edit-state';
+import { useCharacterWebSocket, useRoleUpdated } from '@/hooks/use-websocket';
 import { cn } from '@/lib/utils';
 import type { CharacterData } from '@/types/character';
 import type { CharacterTabKey } from '@/types/gm-edit';
+import { toast } from 'sonner';
+import type { BaseEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
 
 /** Tab 設定：key → label + group */
 const TAB_CONFIG: {
@@ -28,7 +33,7 @@ const TAB_CONFIG: {
   { key: 'secrets', label: '隱藏資訊', group: 'narrative' },
   { key: 'stats', label: '數值', group: 'mechanic' },
   { key: 'tasks', label: '任務', group: 'mechanic' },
-  { key: 'items', label: '道具', group: 'mechanic' },
+  { key: 'items', label: '物品', group: 'mechanic' },
   { key: 'skills', label: '技能', group: 'mechanic' },
 ];
 
@@ -42,6 +47,8 @@ export type GameCharacterSummary = {
 interface CharacterEditTabsProps {
   character: CharacterData;
   gameId: string;
+  /** 遊戲是否進行中（Runtime 模式） */
+  gameIsActive?: boolean;
   randomContestMaxValue?: number;
   /** 同劇本所有角色摘要（排除自身），用於 Tab 2 人物關係 */
   gameCharacters?: GameCharacterSummary[];
@@ -60,10 +67,12 @@ interface CharacterEditTabsProps {
 export function CharacterEditTabs({
   character,
   gameId,
+  gameIsActive = false,
   randomContestMaxValue,
   gameCharacters = [],
 }: CharacterEditTabsProps) {
   const [activeTab, setActiveTab] = useState<CharacterTabKey>('basic');
+  const router = useRouter();
 
   /** 這些 tab 需要填滿視窗高度、禁止外層滾動，內部獨立捲動 */
   const isFullHeightTab = activeTab === 'background' || activeTab === 'secrets';
@@ -79,7 +88,118 @@ export function CharacterEditTabs({
     registerDiscardHandler,
     saveAll,
     discardAll,
+    discardOne,
   } = useCharacterEditState();
+
+  // 監聽數值相關 WebSocket 事件，當 stats / items tab 未編輯時自動刷新
+  //
+  // 此處刻意把 role.updated 拆出走 useRoleUpdated（顯式 includeSilentSync），
+  // 因為 silentSync 事件正是裝備切換 / 效果套用 / 效果過期的副作用同步來源，
+  // 而本元件就是用 props 通道（router.refresh）統一處理這類更新的單一入口。
+  //
+  // 其他事件（effect.expired / character.affected / equipment.toggled）走原本
+  // 的 useCharacterWebSocket，行為不變。
+  const refreshIfNotDirty = () => {
+    // stats / items 表單非 dirty 時靜默刷新；dirty 時不覆蓋 GM 正在編輯的值
+    if (!dirtyState.stats.isDirty && !dirtyState.items.isDirty) {
+      router.refresh();
+    }
+  };
+
+  /**
+   * 玩家動作優先（stats 範圍）：
+   * 當外部事件會造成數值顯示變化（裝備切換 / 效果套用 / 效果過期 / 技能使用 /
+   * role.updated silentSync）而 GM 正在編輯 stats tab 時，主動 discard stats 編輯
+   * 並 toast 告知，再刷新頁面帶入最新資料。
+   *
+   * 此做法與 item.transferred 的「玩家動作 trump GM 暫存」策略一致。
+   * 範圍暫時只涵蓋 stats；items tab 仍維持守門原則（dirty 時不覆蓋），
+   * 其他 tab（secrets / tasks / skills）影響較低，未來視需求再擴充。
+   */
+  const discardStatsAndRefresh = () => {
+    if (dirtyState.stats.isDirty) {
+      discardOne('stats');
+      toast.warning('未儲存的數值變更已取消', {
+        description: '玩家的動作造成了角色數值變化，您未儲存的數值編輯已被自動捨棄以避免資料衝突。',
+      });
+    }
+    // 仍以 items 為守門（stats 已主動處理）：避免 router.refresh 覆蓋 items 編輯
+    if (!dirtyState.items.isDirty) {
+      router.refresh();
+    }
+  };
+
+  useRoleUpdated(
+    character.id,
+    () => {
+      // silentSync 是各類副作用（裝備 / 效果 / 過期）的彙整入口，一律走 stats 優先路徑
+      discardStatsAndRefresh();
+    },
+    { includeSilentSync: true },
+  );
+
+  // 統一處理所有需要刷新角色編輯頁的 WebSocket 事件。
+  // 分類：
+  // - STATS_AFFECTING_EVENTS：會造成數值顯示變化 → 走 discardStatsAndRefresh（stats 優先）
+  // - ITEMS_ONLY_EVENTS：僅影響 items（不動到 stats）→ 走 refreshIfNotDirty（維持原守門）
+  //
+  // 注意：item.transferred 與 skill.contest 來自其他角色的動作，但因 server 端
+  // 也對本角色頻道發送，故都會在這裡命中。
+  const STATS_AFFECTING_EVENTS = [
+    'effect.expired',
+    'character.affected',
+    'equipment.toggled',
+    'skill.used',
+  ];
+  const ITEMS_ONLY_EVENTS = ['role.inventoryUpdated'];
+  useCharacterWebSocket(character.id, (event: BaseEvent) => {
+    if (STATS_AFFECTING_EVENTS.includes(event.type)) {
+      discardStatsAndRefresh();
+      return;
+    }
+    if (ITEMS_ONLY_EVENTS.includes(event.type)) {
+      refreshIfNotDirty();
+      return;
+    }
+
+    if (event.type === 'item.transferred') {
+      const payload = (event as ItemTransferredEvent).payload;
+      const involved =
+        payload.fromCharacterId === character.id || payload.toCharacterId === character.id;
+      if (!involved) return;
+
+      // 玩家動作優先：若 GM 此時正在編輯物品 Tab，主動 discard 並 toast 告知，
+      // 因為 Runtime 期間 GM 儲存物品 = 整個 items 陣列覆寫，會把已轉走的物品
+      // 又寫回原角色（=兩端重複）。安全做法是讓玩家動作 trump GM 暫存。
+      if (dirtyState.items.isDirty) {
+        discardOne('items');
+        toast.warning('未儲存的物品變更已取消', {
+          description: '玩家剛剛轉移了物品，您未儲存的物品編輯已被自動捨棄以避免資料衝突。',
+        });
+      }
+
+      // 不論是否 dirty，都要刷新（discardOne 後 items tab 已 clean，
+      // refreshIfNotDirty 會帶入最新 items 陣列）
+      refreshIfNotDirty();
+
+      toast.info('物品已轉移', {
+        description:
+          payload.fromCharacterId === character.id
+            ? `已將 ${payload.quantity} 個「${payload.itemName}」轉移給 ${payload.toCharacterName}`
+            : `從 ${payload.fromCharacterName} 收到 ${payload.quantity} 個「${payload.itemName}」`,
+      });
+      return;
+    }
+
+    if (event.type === 'skill.contest') {
+      const payload = (event as SkillContestEvent).payload;
+      if ((payload.attackerId === character.id || payload.defenderId === character.id) && payload.result) {
+        // 等待對抗結果完整寫入後再刷新
+        setTimeout(() => { refreshIfNotDirty(); }, 500);
+      }
+      return;
+    }
+  });
 
   const narrativeTabs = TAB_CONFIG.filter((t) => t.group === 'narrative');
   const mechanicTabs = TAB_CONFIG.filter((t) => t.group === 'mechanic');
@@ -196,6 +316,7 @@ export function CharacterEditTabs({
           <StatsEditForm
             characterId={character.id}
             initialStats={character.stats || []}
+            items={character.items}
             onDirtyChange={(dirty) =>
               registerDirty('stats', {
                 isDirty: dirty,
@@ -207,7 +328,11 @@ export function CharacterEditTabs({
             onRegisterSave={(h) => registerSaveHandler('stats', h)}
             onRegisterDiscard={(h) => registerDiscardHandler('stats', h)}
           />
-          <TemporaryEffectsCard characterId={character.id} />
+          {/* 時效性效果 + 裝備效果：桌面並排、手機堆疊 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <TemporaryEffectsCard characterId={character.id} />
+            <EquipmentEffectsPanel items={character.items} showEmptyState />
+          </div>
         </TabsContent>
 
         <TabsContent value="tasks" forceMount className="data-[state=inactive]:hidden">
@@ -237,6 +362,7 @@ export function CharacterEditTabs({
             characterId={character.id}
             initialItems={character.items || []}
             stats={character.stats || []}
+            gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>
               registerDirty('items', {
@@ -256,6 +382,7 @@ export function CharacterEditTabs({
             characterId={character.id}
             initialSkills={character.skills || []}
             stats={character.stats || []}
+            gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>
               registerDirty('skills', {

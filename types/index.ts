@@ -11,8 +11,9 @@ export interface GMUser {
   _id: string;
   email: string;
   displayName: string;
-  createdAt: Date;
-  updatedAt: Date;
+  avatarUrl?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Session 類型
@@ -30,6 +31,6 @@ export interface MagicLink {
   token: string;
   expiresAt: Date;
   used: boolean;
-  createdAt: Date;
+  createdAt: string;
 }
 

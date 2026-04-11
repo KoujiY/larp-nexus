@@ -2,11 +2,12 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateGame } from '@/app/actions/games';
+import { updateGame, uploadGameCover } from '@/app/actions/games';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { BackgroundBlockEditor } from '@/components/gm/background-block-editor';
+import { ImageUploadDialog } from '@/components/shared/image-upload-dialog';
 import { ImagePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -38,6 +39,8 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [showNameError, setShowNameError] = useState(false);
+  const [showCoverDialog, setShowCoverDialog] = useState(false);
+  const [currentCoverUrl, setCurrentCoverUrl] = useState(game.coverUrl);
   const nameFieldRef = useRef<HTMLDivElement>(null);
 
   const initialData = useMemo(() => ({
@@ -168,19 +171,61 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
             </div>
           </section>
 
-          {/* 劇本封面圖（預留） */}
+          {/* 劇本封面圖 */}
           <section className={GM_SECTION_CARD_CLASS}>
             <h2 className={GM_SECTION_TITLE_CLASS}>
               <span className="w-1 h-5 bg-primary rounded-full" />
               劇本封面圖
             </h2>
             <div className="mt-6">
-              <div className="group relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed border-border/40 rounded-xl bg-muted/30 hover:bg-muted/50 hover:border-primary/50 transition-all cursor-pointer">
-                <ImagePlus className="h-12 w-12 text-muted-foreground/40 group-hover:text-primary mb-4" strokeWidth={1.5} />
-                <p className="text-sm font-bold text-muted-foreground group-hover:text-foreground">上傳圖片</p>
-                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mt-1">建議 16:9（JPG, PNG）</p>
+              <div
+                onClick={() => setShowCoverDialog(true)}
+                className="group relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed border-border/40 rounded-xl bg-muted/30 hover:bg-muted/50 hover:border-primary/50 transition-all cursor-pointer overflow-hidden"
+              >
+                {currentCoverUrl ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={currentCoverUrl}
+                      alt="劇本封面"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center">
+                        <ImagePlus className="h-8 w-8 text-white mb-2" strokeWidth={1.5} />
+                        <p className="text-sm font-bold text-white">更換封面</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus className="h-12 w-12 text-muted-foreground/40 group-hover:text-primary mb-4" strokeWidth={1.5} />
+                    <p className="text-sm font-bold text-muted-foreground group-hover:text-foreground">上傳圖片</p>
+                    <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mt-1">建議 3:2（JPG, PNG）</p>
+                  </>
+                )}
               </div>
             </div>
+
+            <ImageUploadDialog
+              open={showCoverDialog}
+              onOpenChange={setShowCoverDialog}
+              title="上傳劇本封面"
+              description="選擇一張圖片作為劇本封面，建議 3:2 比例"
+              preset="gameCover"
+              onUpload={async (formData) => {
+                const result = await uploadGameCover(game.id, formData);
+                if (result.success && result.data) {
+                  setCurrentCoverUrl(result.data.coverUrl);
+                }
+                return { success: result.success, error: result.message };
+              }}
+              onSuccess={() => {
+                toast.success('封面更新成功');
+                router.refresh();
+              }}
+              onError={(msg) => toast.error(msg)}
+            />
           </section>
         </div>
 

@@ -5,78 +5,59 @@
 
 import type { BaseEvent } from '@/types/event';
 import type { Notification } from './types';
+import { formatStatDeltaText } from '@/lib/utils/format-stat-delta';
 
 /**
  * 映射角色更新事件
  */
 export function mapRoleUpdated(event: BaseEvent): Notification[] {
   const payload = event.payload as {
+    silentSync?: boolean;
     updates?: {
       stats?: Array<{ name?: string; value?: number; maxValue?: number; deltaValue?: number; deltaMax?: number }>;
     };
   };
+
+  // silentSync: 副作用同步事件，不產生玩家端通知
+  // 對應的玩家通知由 skill.used / item.used / effect.expired / character.affected 事件處理
+  if (payload?.silentSync) return [];
+
   const stats = payload?.updates?.stats;
-  if (stats && stats.length > 0) {
-    const notifList: Notification[] = [];
-    stats.forEach((s, idx) => {
-      const name = s.name ?? '數值';
-      const deltaVal = typeof s.deltaValue === 'number' ? s.deltaValue : null;
-      const deltaMax = typeof s.deltaMax === 'number' ? s.deltaMax : null;
-      const value = typeof s.value === 'number' ? s.value : null;
-      const maxVal = typeof s.maxValue === 'number' ? s.maxValue : null;
+  if (!stats || stats.length === 0) return [];
 
-      // 若同時變更最大值與當前值，合併為單則通知
-      if (deltaVal !== null && deltaVal !== 0 && deltaMax !== null && deltaMax !== 0) {
-        const maxText = maxVal !== null ? `（上限：${maxVal}）` : '';
-        notifList.push({
-          id: `evt-${event.timestamp}-${idx}-combined`,
-          title: '數值變更',
-          message: `${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}${maxText}，目前值 ${deltaVal > 0 ? '+' : ''}${deltaVal}`,
-          type: event.type,
-        });
-      } else {
-        // value 變化（非 0）
-        if (deltaVal !== null && deltaVal !== 0) {
-          notifList.push({
-            id: `evt-${event.timestamp}-${idx}-val`,
-            title: '數值變更',
-            message: `${name} ${deltaVal > 0 ? '+' : ''}${deltaVal}`,
-            type: event.type,
-          });
-        }
+  const notifList: Notification[] = [];
+  stats.forEach((s, idx) => {
+    const name = s.name ?? '數值';
+    const deltaVal = typeof s.deltaValue === 'number' ? s.deltaValue : 0;
+    const deltaMax = typeof s.deltaMax === 'number' ? s.deltaMax : 0;
+    const maxVal = typeof s.maxValue === 'number' ? s.maxValue : undefined;
 
-        // 最大值變化（非 0）
-        if (deltaMax !== null && deltaMax !== 0) {
-          const maxText = maxVal !== null ? `（上限：${maxVal}）` : '';
-          notifList.push({
-            id: `evt-${event.timestamp}-${idx}-max`,
-            title: '數值變更',
-            message: `${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}${maxText}`,
-            type: event.type,
-          });
-        }
-      }
-
-      // 若上述皆無，但有 value，可給一個 fallback 訊息
-      if (
-        (!deltaVal || deltaVal === 0) &&
-        (!deltaMax || deltaMax === 0) &&
-        value !== null &&
-        notifList.length === 0
-      ) {
-        notifList.push({
-          id: `evt-${event.timestamp}-${idx}-fallback`,
-          title: '數值變更',
-          message: `${name} → ${value}`,
-          type: event.type,
-        });
-      }
+    const text = formatStatDeltaText({
+      name,
+      deltaValue: deltaVal,
+      deltaMax: deltaMax || undefined,
+      newMax: deltaMax !== 0 ? maxVal : undefined,
     });
 
-    if (notifList.length > 0) return notifList;
-  }
-  // 沒有 stats 變化時，不顯示通知（可能是技能/任務更新）
-  return [];
+    if (text) {
+      notifList.push({
+        id: `evt-${event.timestamp}-${idx}`,
+        title: '數值變更',
+        message: text,
+        type: event.type,
+      });
+    } else if (typeof s.value === 'number' && notifList.length === 0) {
+      // 無 delta 但有 value 的 fallback
+      notifList.push({
+        id: `evt-${event.timestamp}-${idx}-fallback`,
+        title: '數值變更',
+        message: `${name} → ${s.value}`,
+        type: event.type,
+      });
+    }
+  });
+
+  return notifList;
 }
 
 /**
@@ -115,9 +96,7 @@ export function mapCharacterAffected(event: BaseEvent): Notification[] {
   };
 
   const stats = payload.changes?.stats;
-  if (!stats || stats.length === 0) {
-    return [];
-  }
+  if (!stats || stats.length === 0) return [];
 
   // Phase 7.6: 根據隱匿標籤決定是否顯示攻擊方名稱
   const hasStealthTag = payload.sourceHasStealthTag || false;
@@ -128,40 +107,23 @@ export function mapCharacterAffected(event: BaseEvent): Notification[] {
 
   stats.forEach((s, idx) => {
     const name = s.name ?? '數值';
-    const deltaVal = typeof s.deltaValue === 'number' ? s.deltaValue : null;
-    const deltaMax = typeof s.deltaMax === 'number' ? s.deltaMax : null;
+    const deltaVal = typeof s.deltaValue === 'number' ? s.deltaValue : 0;
+    const deltaMax = typeof s.deltaMax === 'number' ? s.deltaMax : 0;
 
-    // 如果同時有 deltaValue 和 deltaMax，且兩者都不為 0，合併成一個通知（表示同步調整）
-    if (deltaVal !== null && deltaVal !== 0 && deltaMax !== null && deltaMax !== 0) {
-      // 只在 newMax 有值時顯示上限資訊
-      const maxText = s.newMax !== undefined && s.newMax !== null ? `（上限：${s.newMax}）` : '';
+    const text = formatStatDeltaText({
+      name,
+      deltaValue: deltaVal,
+      deltaMax: deltaMax || undefined,
+      newMax: deltaMax !== 0 ? s.newMax : undefined,
+    });
+
+    if (text) {
       notifList.push({
         id: `evt-${event.timestamp}-${idx}`,
         title: '受到影響',
-        message: `${prefix}，效果：${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}，目前值同步調整${maxText}`,
+        message: `${prefix}，效果：${text}`,
         type: event.type,
       });
-    } else {
-      // 只有 deltaValue 或只有 deltaMax，分別處理
-      if (deltaVal !== null && deltaVal !== 0) {
-        notifList.push({
-          id: `evt-${event.timestamp}-${idx}-val`,
-          title: '受到影響',
-          message: `${prefix}，效果：${name} ${deltaVal > 0 ? '+' : ''}${deltaVal}`,
-          type: event.type,
-        });
-      }
-
-      if (deltaMax !== null && deltaMax !== 0) {
-        // 只在 newMax 有值時顯示上限資訊
-        const maxText = s.newMax !== undefined && s.newMax !== null ? `（上限：${s.newMax}）` : '';
-        notifList.push({
-          id: `evt-${event.timestamp}-${idx}-max`,
-          title: '受到影響',
-          message: `${prefix}，效果：${name} 最大值 ${deltaMax > 0 ? '+' : ''}${deltaMax}${maxText}`,
-          type: event.type,
-        });
-      }
     }
   });
 

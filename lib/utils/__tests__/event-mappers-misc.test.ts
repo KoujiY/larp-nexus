@@ -43,7 +43,7 @@ describe('mapItemShowcased', () => {
       item: { name: '魔法戒指' },
     })
     const [notif] = mapItemShowcased(event)
-    expect(notif.title).toBe('道具展示')
+    expect(notif.title).toBe('物品展示')
     expect(notif.message).toContain('Bob')
     expect(notif.message).toContain('魔法戒指')
   })

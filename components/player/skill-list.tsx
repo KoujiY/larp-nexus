@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Zap } from 'lucide-react';
 import type { Skill, Item, SkillEffect } from '@/types/character';
-import { notify } from '@/lib/notify';
 import { useTargetSelection } from '@/hooks/use-target-selection';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import type { BaseEvent } from '@/types/event';
@@ -14,7 +13,6 @@ import { useContestDialogState } from '@/hooks/use-contest-dialog-state';
 import { useContestStateRestore } from '@/hooks/use-contest-state-restore';
 import { useSkillUsage } from '@/hooks/use-skill-usage';
 import { useContestableItemUsage } from '@/hooks/use-contestable-item-usage';
-import { getTargetCharacterItems } from '@/app/actions/public';
 import { canUseSkill, getCooldownRemaining } from '@/lib/utils/skill-validators';
 import type { SkillListProps } from '@/types/skill-list';
 import { SkillCard } from './skill-card';
@@ -35,16 +33,22 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   const { dialogState, clearDialogState, isDialogForSource } = useContestDialogState(characterId);
   
   // Phase 3.2: 使用 useTargetSelection Hook 管理目標選擇
-  // Phase 6.5: 目標選擇相關邏輯
-  // Phase 7: 對抗檢定類型自動需要目標角色
-  const requiresTarget = Boolean(
-    selectedSkill?.checkType === 'contest' ||
-    selectedSkill?.checkType === 'random_contest' ||
-    selectedSkill?.effects?.some((effect: SkillEffect) => effect.requiresTarget)
-  );
-  const targetType = (selectedSkill?.checkType === 'contest' || selectedSkill?.checkType === 'random_contest')
-    ? 'other' // 對抗檢定只能對其他角色使用
-    : selectedSkill?.effects?.find((e: SkillEffect) => e.requiresTarget)?.targetType;
+  // §4: 由 effects 陣列整體推導 targetType（Wizard mutex 規則保證 other / any 不並存）
+  //   - 對抗檢定 → 固定 'other'
+  //   - 任一效果 other → 'other'
+  //   - 任一效果 any → 'any'
+  //   - 只有 self 效果 → 不需要目標（requiresTarget = false）
+  const isContestCheck = selectedSkill?.checkType === 'contest' || selectedSkill?.checkType === 'random_contest';
+  const hasOtherEffect = selectedSkill?.effects?.some((e: SkillEffect) => e.targetType === 'other') ?? false;
+  const hasAnyEffect = selectedSkill?.effects?.some((e: SkillEffect) => e.targetType === 'any') ?? false;
+  const requiresTarget = Boolean(isContestCheck || hasOtherEffect || hasAnyEffect);
+  const targetType: 'self' | 'other' | 'any' | undefined = isContestCheck
+    ? 'other'
+    : hasOtherEffect
+      ? 'other'
+      : hasAnyEffect
+        ? 'any'
+        : undefined;
 
   const {
     selectedTargetId,
@@ -53,12 +57,8 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     isLoading: isLoadingTargets,
     isTargetConfirmed,
     setIsTargetConfirmed,
-    targetItems,
-    setTargetItems,
     selectedTargetItemId,
     setSelectedTargetItemId,
-    isLoadingTargetItems,
-    setIsLoadingTargetItems,
     clearTargetState,
     saveTargetState,
     restoreTargetState,
@@ -414,56 +414,6 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     );
   }
 
-  // Phase 7: 確認目標角色並載入目標道具清單
-  const handleConfirmTarget = async () => {
-    if (!selectedTargetId) {
-      notify.error('請先選擇目標角色');
-      return;
-    }
-    
-    const effect = selectedSkill?.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
-    
-    if (!effect) {
-      // 不需要目標道具，直接確認
-      setIsTargetConfirmed(true);
-        // 儲存狀態
-        if (selectedSkill) {
-          saveTargetState();
-        }
-      return;
-    }
-    
-    // 需要目標道具，載入目標角色的道具清單
-    setIsLoadingTargetItems(true);
-    try {
-      const result = await getTargetCharacterItems(selectedTargetId);
-      if (result.success && result.data) {
-        setTargetItems(result.data);
-        setIsTargetConfirmed(true);
-        // 如果 localStorage 中有保存的 selectedTargetItemId，恢復它
-        // 注意：這個邏輯已經在 useTargetSelection hook 的 restoreTargetState 中處理
-        if (selectedSkill) {
-          saveTargetState();
-        }
-      } else {
-        notify.error(result.message || '無法載入目標角色的道具清單');
-      }
-    } catch (error) {
-      console.error('載入目標道具清單失敗:', error);
-      notify.error('載入目標道具清單失敗');
-    } finally {
-      setIsLoadingTargetItems(false);
-    }
-  };
-  
-  // Phase 7: 取消目標確認
-  const handleCancelTarget = () => {
-    setIsTargetConfirmed(false);
-    setTargetItems([]);
-    setSelectedTargetItemId('');
-    setSelectedTargetId(undefined);
-  };
-
   return (
     <div className="space-y-4">
       {/* 技能清單標題 */}
@@ -516,16 +466,9 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
         setSelectedTargetId={setSelectedTargetId}
         isLoadingTargets={isLoadingTargets}
         isTargetConfirmed={isTargetConfirmed}
-        setIsTargetConfirmed={setIsTargetConfirmed}
-        targetItems={targetItems}
-        selectedTargetItemId={selectedTargetItemId}
-        setSelectedTargetItemId={setSelectedTargetItemId}
-        isLoadingTargetItems={isLoadingTargetItems}
         requiresTarget={requiresTarget}
         isContestInProgress={isContestInProgress}
         handleUseSkill={handleUseSkill}
-        handleConfirmTarget={handleConfirmTarget}
-        handleCancelTarget={handleCancelTarget}
         isReadOnly={isReadOnly}
         canUseSkill={canUseSkill}
       />

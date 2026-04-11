@@ -60,6 +60,36 @@ export async function endGame(
     });
 
     if (!gameRuntime) {
+      // 資料不一致：isActive 為 true 但 Runtime 不存在
+      // 使用 updateOne 避免觸發整份文件 validation（老舊文件可能不符新 schema）
+      if (game.isActive) {
+        await Game.updateOne(
+          { _id: game._id },
+          { $set: { isActive: false } },
+        );
+
+        try {
+          await writeLog({
+            gameId: game._id.toString(),
+            actorType: 'gm',
+            actorId: gmUserId,
+            action: 'game_end',
+            details: {
+              gameName: game.name,
+              gameCode: game.gameCode,
+              note: 'Runtime 不存在，僅重設 isActive',
+            },
+          });
+        } catch (logError) {
+          console.error('[endGame] writeLog failed (non-fatal):', logError);
+        }
+
+        return {
+          success: true,
+          data: { message: '遊戲已結束（無 Runtime 資料可快照）' },
+        };
+      }
+
       return {
         success: false,
         error: 'RUNTIME_NOT_FOUND',
@@ -159,8 +189,11 @@ export async function endGame(
     }
 
     // ========== 步驟 4：設定 Game.isActive = false ==========
-    game.isActive = false;
-    await game.save();
+    // 使用 updateOne 避免觸發整份文件 validation（老舊文件可能不符新 schema）
+    await Game.updateOne(
+      { _id: game._id },
+      { $set: { isActive: false } },
+    );
 
     // ========== 步驟 5：記錄操作日誌 ==========
     await writeLog({

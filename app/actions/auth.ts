@@ -152,8 +152,9 @@ export async function getCurrentGMUser() {
       id: gmUser._id.toString(),
       email: gmUser.email,
       displayName: gmUser.displayName,
-      createdAt: gmUser.createdAt,
-      lastLoginAt: gmUser.lastLoginAt,
+      avatarUrl: gmUser.avatarUrl as string | undefined,
+      createdAt: new Date(gmUser.createdAt).toISOString(),
+      lastLoginAt: gmUser.lastLoginAt ? new Date(gmUser.lastLoginAt).toISOString() : undefined,
     };
   } catch (error) {
     console.error('Error getting current GM user:', error);

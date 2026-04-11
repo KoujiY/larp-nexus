@@ -20,9 +20,15 @@ Players receive in-app notifications when events happen to their character (skil
 | Stat changed | Character owner |
 | Item received/removed | Character owner |
 | Temporary effect expired | Character owner |
+| Preset event broadcast | Target characters |
+| Preset event stat change | Target characters |
 
 ## GM Broadcast
-GM can send broadcasts from the game detail page.
+GM can send broadcasts from the game detail page or via preset events.
 - Game broadcast → all players
 - Character message → specific character
+- Preset event broadcast → all or selected characters
 See [../gm/game/broadcast-system.md](../gm/game/broadcast-system.md)
+
+## Preset Event Display Name
+When `showName` is enabled on a preset event, players see the event name in notifications and active effects. When disabled (default), they see「未知來源」instead. See [../gm/game/preset-events.md](../gm/game/preset-events.md)

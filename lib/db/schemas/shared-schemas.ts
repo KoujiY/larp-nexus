@@ -93,7 +93,7 @@ function createItemsSchemaField() {
       imageUrl: { type: String },
       type: {
         type: String,
-        enum: ['consumable', 'equipment'],
+        enum: ['consumable', 'tool', 'equipment'],
         default: 'consumable',
       },
       quantity: { type: Number, default: 1 },
@@ -142,6 +142,16 @@ function createItemsSchemaField() {
       lastUsedAt: { type: Date },
       isTransferable: { type: Boolean, default: true },
       acquiredAt: { type: Date, default: Date.now },
+      // 裝備系統（僅 type === 'equipment'）
+      equipped: { type: Boolean, default: false },
+      statBoosts: [
+        {
+          _id: false,
+          statName: { type: String, required: true },
+          value: { type: Number, required: true },
+          target: { type: String, enum: ['value', 'maxValue', 'both'], default: 'value' },
+        },
+      ],
     },
   ];
 }
@@ -167,7 +177,7 @@ function createSkillsSchemaField() {
       id: { type: String, required: true },
       name: { type: String, required: true },
       description: { type: String, default: '' },
-      iconUrl: { type: String },
+      imageUrl: { type: String },
       tags: { type: [String], default: [] },
       checkType: {
         type: String,
@@ -198,7 +208,7 @@ function createSkillsSchemaField() {
           type: {
             type: String,
             enum: [
-              'stat_change', 'item_give', 'item_take', 'item_steal',
+              'stat_change', 'item_take', 'item_steal',
               'task_reveal', 'task_complete', 'custom',
             ],
             required: true,
@@ -225,7 +235,7 @@ function createTemporaryEffectsSchemaField() {
     {
       _id: false,
       id: { type: String, required: true },
-      sourceType: { type: String, enum: ['skill', 'item'], required: true },
+      sourceType: { type: String, enum: ['skill', 'item', 'preset_event'], required: true },
       sourceId: { type: String, required: true },
       sourceCharacterId: { type: String, required: true },
       sourceCharacterName: { type: String, required: true },
@@ -264,6 +274,7 @@ export function createBaseCharacterSchemaFields() {
     gameId: { type: Schema.Types.ObjectId, ref: 'Game', required: true },
     name: { type: String, required: true, maxlength: 100 },
     description: { type: String, default: '' },
+    slogan: { type: String, default: '' },
     imageUrl: { type: String },
     hasPinLock: { type: Boolean, default: false },
     pin: { type: String },

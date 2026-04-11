@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { put } from '@vercel/blob';
+import { uploadImageToBlob, deleteImagesFromBlob, collectCharacterImageUrls } from '@/lib/image/upload';
 import { Character, CharacterRuntime, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
@@ -12,6 +12,7 @@ import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
 import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
+import { PIN_REGEX, PIN_ERROR_MESSAGE } from '@/lib/character/character-validator';
 
 /**
  * 將原始角色文件序列化為可傳遞給 Client Component 的 CharacterData
@@ -32,6 +33,7 @@ function serializeCharacterDoc(
     gameId: overrides?.gameId ?? String(raw.gameId),
     name: raw.name as string,
     description: raw.description as string,
+    slogan: (raw.slogan as string) || undefined,
     imageUrl: raw.imageUrl as string | undefined,
     hasPinLock: raw.hasPinLock as boolean,
     publicInfo: serializePublicInfo(raw.publicInfo as Record<string, unknown>),
@@ -40,8 +42,8 @@ function serializeCharacterDoc(
     items: cleanItemData(raw.items as Parameters<typeof cleanItemData>[0]),
     stats: cleanStatData(raw.stats as Parameters<typeof cleanStatData>[0]),
     skills: cleanSkillData(raw.skills as Parameters<typeof cleanSkillData>[0]),
-    createdAt: raw.createdAt as string,
-    updatedAt: raw.updatedAt as string,
+    createdAt: new Date(raw.createdAt as string | Date).toISOString(),
+    updatedAt: new Date(raw.updatedAt as string | Date).toISOString(),
   } as CharacterData;
 }
 
@@ -290,11 +292,11 @@ export async function createCharacter(data: {
           message: '啟用 PIN 鎖必須設定 PIN 碼',
         };
       }
-      if (!/^\d{4}$/.test(validated.pin)) {
+      if (!PIN_REGEX.test(validated.pin)) {
         return {
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'PIN 碼必須為 4 位數字',
+          message: PIN_ERROR_MESSAGE,
         };
       }
     }
@@ -324,6 +326,15 @@ export async function createCharacter(data: {
         success: false,
         error: 'NOT_FOUND',
         message: '找不到此劇本',
+      };
+    }
+
+    // 遊戲進行中禁止新增角色
+    if (game.isActive) {
+      return {
+        success: false,
+        error: 'GAME_ACTIVE',
+        message: '遊戲進行中無法新增角色，請先結束遊戲',
       };
     }
 
@@ -375,6 +386,11 @@ export async function createCharacter(data: {
 
 /**
  * 上傳角色圖片
+ *
+ * 特殊行為：圖片永遠寫入 Baseline（source of truth），遊戲進行中額外同步到 Runtime。
+ * 這與 updateCharacter 不同 — updateCharacter 透過 getCharacterData 只寫入當前有效文件。
+ * 圖片是外部資源（Vercel Blob URL），如果只存 Runtime，遊戲結束後 Runtime 刪除會導致
+ * URL 遺失且 Blob 上的檔案變成 orphan。
  */
 export async function uploadCharacterImage(
   characterId: string,
@@ -412,48 +428,36 @@ export async function uploadCharacterImage(
       };
     }
 
-    // 處理檔案上傳
-    const file = formData.get('image') as File;
-    if (!file) {
-      return {
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: '請選擇圖片檔案',
-      };
-    }
-
-    // 驗證檔案類型
-    if (!file.type.startsWith('image/')) {
-      return {
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: '檔案必須為圖片格式',
-      };
-    }
-
-    // 驗證檔案大小（5MB）
-    if (file.size > 5 * 1024 * 1024) {
-      return {
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: '圖片檔案大小不可超過 5MB',
-      };
-    }
-
-    // 上傳到 Vercel Blob（消毒檔名，防止路徑注入）
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const blob = await put(`characters/${characterId}/${Date.now()}-${safeName}`, file, {
-      access: 'public',
+    // 上傳到 Vercel Blob（共用上傳邏輯：驗證 + 壓縮後上傳 + 舊圖清理）
+    const uploadResult = await uploadImageToBlob(formData, {
+      pathPrefix: `characters/${characterId}`,
+      oldImageUrl: character.imageUrl || undefined,
     });
 
-    // 更新角色圖片 URL（使用 findByIdAndUpdate 避免 mutation）
-    await Character.findByIdAndUpdate(characterId, { imageUrl: blob.url });
+    if (!uploadResult.success) {
+      return {
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: uploadResult.error,
+      };
+    }
+
+    // 永遠寫入 Baseline（圖片的 source of truth）
+    await Character.findByIdAndUpdate(characterId, { imageUrl: uploadResult.url });
+
+    // 遊戲進行中時同步到 Runtime
+    if (game.isActive) {
+      await CharacterRuntime.updateOne(
+        { refId: character._id, type: 'runtime' },
+        { imageUrl: uploadResult.url },
+      );
+    }
 
     revalidatePath(`/games/${character.gameId.toString()}`);
 
     return {
       success: true,
-      data: { imageUrl: blob.url },
+      data: { imageUrl: uploadResult.url },
       message: '圖片上傳成功',
     };
   } catch (error) {
@@ -463,6 +467,79 @@ export async function uploadCharacterImage(
       error: 'UPLOAD_FAILED',
       message: '無法上傳圖片',
     };
+  }
+}
+
+/**
+ * 上傳道具或技能圖片
+ *
+ * 與角色圖片相同的寫入策略：永遠寫入 Baseline，遊戲進行中額外同步到 Runtime。
+ */
+export async function uploadAbilityImage(
+  characterId: string,
+  abilityId: string,
+  mode: 'item' | 'skill',
+  formData: FormData,
+): Promise<ApiResponse<{ imageUrl: string }>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+    }
+
+    await dbConnect();
+
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return { success: false, error: 'NOT_FOUND', message: '找不到此角色' };
+    }
+
+    const game = await Game.findOne({ _id: character.gameId, gmUserId });
+    if (!game) {
+      return { success: false, error: 'UNAUTHORIZED', message: '無權編輯此角色' };
+    }
+
+    // 找到目標道具/技能的現有圖片 URL（用於舊圖清理）
+    const arrayField = mode === 'item' ? 'items' : 'skills';
+    const abilities = (character[arrayField] as Array<{ id: string; imageUrl?: string }>) || [];
+    const target = abilities.find((a) => a.id === abilityId);
+    if (!target) {
+      return { success: false, error: 'NOT_FOUND', message: `找不到此${mode === 'item' ? '物品' : '技能'}` };
+    }
+
+    const uploadResult = await uploadImageToBlob(formData, {
+      pathPrefix: `${mode}s/${characterId}/${abilityId}`,
+      oldImageUrl: target.imageUrl || undefined,
+    });
+
+    if (!uploadResult.success) {
+      return { success: false, error: 'VALIDATION_ERROR', message: uploadResult.error };
+    }
+
+    // 更新 Baseline — 使用 positional operator 定位子文件
+    await Character.updateOne(
+      { _id: characterId, [`${arrayField}.id`]: abilityId },
+      { $set: { [`${arrayField}.$.imageUrl`]: uploadResult.url } },
+    );
+
+    // 遊戲進行中同步到 Runtime
+    if (game.isActive) {
+      await CharacterRuntime.updateOne(
+        { refId: character._id, type: 'runtime', [`${arrayField}.id`]: abilityId },
+        { $set: { [`${arrayField}.$.imageUrl`]: uploadResult.url } },
+      );
+    }
+
+    revalidatePath(`/games/${character.gameId.toString()}`);
+
+    return {
+      success: true,
+      data: { imageUrl: uploadResult.url },
+      message: '圖片上傳成功',
+    };
+  } catch (error) {
+    console.error('Error uploading ability image:', error);
+    return { success: false, error: 'UPLOAD_FAILED', message: '無法上傳圖片' };
   }
 }
 
@@ -504,12 +581,28 @@ export async function deleteCharacter(
       };
     }
 
+    // 遊戲進行中禁止刪除角色
+    if (game.isActive) {
+      return {
+        success: false,
+        error: 'GAME_ACTIVE',
+        message: '遊戲進行中無法刪除角色，請先結束遊戲',
+      };
+    }
+
     const gameId = character.gameId.toString();
 
-    // 刪除角色
-    await Character.findByIdAndDelete(characterId);
+    // 收集所有圖片 URL（在刪除 DB 記錄之前）
+    const imageUrls = collectCharacterImageUrls(character);
 
-    // TODO: 刪除 Vercel Blob 上的圖片（如果有）
+    // 刪除角色（含 Runtime 如果有的話）
+    await Promise.all([
+      Character.findByIdAndDelete(characterId),
+      CharacterRuntime.deleteMany({ refId: characterId }),
+    ]);
+
+    // Blob 圖片清理（graceful degradation: 失敗不影響刪除結果）
+    await deleteImagesFromBlob(imageUrls);
 
     revalidatePath(`/games/${gameId}`);
 
@@ -546,15 +639,13 @@ export async function checkPinAvailability(
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
     }
 
-    // 驗證 PIN 格式（4 位數字）
-    const pinRegex = /^\d{4}$/;
     const trimmedPin = pin.trim();
 
-    if (!pinRegex.test(trimmedPin)) {
+    if (!PIN_REGEX.test(trimmedPin)) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: 'PIN 碼必須為 4 位數字',
+        message: PIN_ERROR_MESSAGE,
       };
     }
 

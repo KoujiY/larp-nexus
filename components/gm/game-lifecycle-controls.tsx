@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -111,29 +110,25 @@ export function GameLifecycleControls({
               showCloseButton={false}
             >
               <div className="p-8 space-y-6">
+                {/* 居中圖示 + 標題 */}
                 <div className="flex flex-col items-center text-center space-y-4">
                   <div className="w-16 h-16 rounded-full bg-success/15 flex items-center justify-center">
                     <PlayCircle className="h-8 w-8 text-success" />
                   </div>
                   <DialogTitle className="text-2xl font-bold tracking-tight">開始遊戲</DialogTitle>
-                  <DialogDescription className="text-sm text-muted-foreground">
-                    確認要開始遊戲嗎？系統將複製當前設定作為遊戲進行中的狀態。
-                  </DialogDescription>
-                </div>
 
-                <div className="bg-muted/50 border border-border/20 rounded-xl p-5 shadow-sm">
-                  <p className="font-semibold text-sm mb-2 flex items-center gap-1.5">
-                    <AlertTriangle className="h-4 w-4 text-warning" />
-                    注意事項
-                  </p>
-                  <ul className="list-disc text-sm text-muted-foreground space-y-1.5 ml-4">
-                    <li>遊戲開始後，玩家可以開始進行遊戲操作</li>
-                    <li>對設定資料的修改不會影響進行中的遊戲</li>
-                    <li>如果已有進行中的遊戲，現有進度將被覆蓋</li>
-                  </ul>
+                  {/* 注意事項卡片 */}
+                  <div className="w-full bg-muted/50 border border-border/20 rounded-xl p-5 shadow-sm">
+                    <ul className="list-disc text-[15px] font-semibold text-muted-foreground space-y-2 text-left inline-block">
+                      <li className="ml-4">遊戲開始後，玩家可以進行遊戲操作</li>
+                      <li className="ml-4">遊戲期間無法上傳物品及技能圖片，其餘圖片不受影響</li>
+                      <li className="ml-4">除圖片外，遊戲期間的修改不會同步回 Baseline</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
 
+              {/* Footer */}
               <div className="px-8 pb-8 pt-0 flex gap-3">
                 <button
                   type="button"
@@ -187,7 +182,7 @@ export function GameLifecycleControls({
                   <div className="w-full bg-muted/50 border border-border/20 rounded-xl p-5 shadow-sm">
                     <ul className="list-disc text-[15px] font-semibold text-muted-foreground space-y-2 text-left inline-block">
                       <li className="ml-4">所有 Runtime 資料將被封存為快照</li>
-                      <li className="ml-4">玩家將無法繼續使用道具和技能</li>
+                      <li className="ml-4">玩家將無法繼續使用物品和技能</li>
                       <li className="ml-4">系統將切回 Baseline 設定模式</li>
                     </ul>
                   </div>
@@ -229,7 +224,7 @@ export function GameLifecycleControls({
                   type="button"
                   onClick={handleEndGame}
                   disabled={isLoading}
-                  className="flex-1 py-3 px-4 rounded-lg text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/10 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+                  className="flex-1 py-3 px-4 rounded-lg text-sm font-bold cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/10 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {isLoading ? '結束中...' : '結束遊戲'}
                 </button>

@@ -16,6 +16,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { checkPinAvailability } from '@/app/actions/characters';
+import { PIN_REGEX } from '@/lib/character/pin-constants';
 import { Input } from '@/components/ui/input';
 import { Check, X, AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -62,18 +63,22 @@ export function PinField({
   className,
 }: PinFieldProps) {
   const [showPin, setShowPin] = useState(false);
-  const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>('idle');
+  const [pinCheckStatus, setPinCheckStatusRaw] = useState<PinCheckStatus>('idle');
 
-  // 同步狀態給父元件
-  useEffect(() => {
-    onStatusChange?.(pinCheckStatus);
-  }, [pinCheckStatus, onStatusChange]);
+  // 包裝 setter：每次狀態變更同步通知父元件，避免 useEffect cascading render
+  const setPinCheckStatus = useCallback(
+    (status: PinCheckStatus) => {
+      setPinCheckStatusRaw(status);
+      onStatusChange?.(status);
+    },
+    [onStatusChange],
+  );
 
   // PIN 即時檢查（防抖 500ms）
   const checkPin = useCallback(
     async (pin: string) => {
       const trimmedPin = pin.trim();
-      if (!trimmedPin || trimmedPin.length !== 4 || !/^\d{4}$/.test(trimmedPin)) {
+      if (!trimmedPin || !PIN_REGEX.test(trimmedPin)) {
         setPinCheckStatus('invalid');
         return;
       }
@@ -90,15 +95,13 @@ export function PinField({
         setPinCheckStatus('invalid');
       }
     },
-    [gameId, excludeCharacterId],
+    [gameId, excludeCharacterId, setPinCheckStatus],
   );
 
-  // 當 PIN 變更時觸發即時檢查
+  // 防抖 PIN 檢查：useEffect 僅管理 timeout lifecycle，
+  // setState 在 setTimeout callback 中（非同步），不觸發 set-state-in-effect
   useEffect(() => {
-    if (!value) {
-      setPinCheckStatus('idle');
-      return;
-    }
+    if (!value) return;
     const timeoutId = setTimeout(() => {
       checkPin(value);
     }, 500);
@@ -106,7 +109,12 @@ export function PinField({
   }, [value, checkPin]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value.replace(/\D/g, '').slice(0, 4));
+    const newValue = e.target.value.replace(/\D/g, '').slice(0, 4);
+    // value 清空時立即設為 idle（event handler 中，非 effect）
+    if (!newValue) {
+      setPinCheckStatus('idle');
+    }
+    onChange(newValue);
   };
 
   return (

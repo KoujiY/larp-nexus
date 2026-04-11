@@ -73,7 +73,7 @@ export async function queryContestStatus(
     return {
       success: false,
       error: 'QUERY_FAILED',
-      message: `無法查詢對抗檢定狀態：${error instanceof Error ? error.message : '未知錯誤'}`,
+      message: '無法查詢對抗檢定狀態，請稍後再試',
     };
   }
 }

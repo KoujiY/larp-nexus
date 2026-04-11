@@ -31,11 +31,13 @@ import {
 
 type CreateCharacterButtonProps = {
   gameId: string;
-  /** 'button'（預設）= header 按鈕；'card' = grid 內的空狀態卡片 */
-  variant?: 'button' | 'card';
+  /** 'button'（預設）= header 按鈕；'card' = grid 內的虛線框卡片；'empty-state' = GmEmptyState 內嵌 DashedAddButton */
+  variant?: 'button' | 'card' | 'empty-state';
+  /** 遊戲進行中時禁止新增角色 */
+  isActive?: boolean;
 };
 
-export function CreateCharacterButton({ gameId, variant = 'button' }: CreateCharacterButtonProps) {
+export function CreateCharacterButton({ gameId, variant = 'button', isActive }: CreateCharacterButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,11 +81,45 @@ export function CreateCharacterButton({ gameId, variant = 'button' }: CreateChar
     }
   };
 
+  // 遊戲進行中：顯示提示卡片或禁用按鈕
+  if (isActive) {
+    if (variant === 'card') {
+      return (
+        <div className="w-full min-h-[180px] py-5 border-2 border-dashed border-border/20 rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground/50">
+          <Lock className="h-6 w-6" />
+          <span className="text-xs font-bold">遊戲進行中無法新增角色</span>
+        </div>
+      );
+    }
+    if (variant === 'empty-state') {
+      return (
+        <div className="max-w-xs py-4 text-center text-xs text-muted-foreground/50 font-bold">
+          遊戲進行中無法新增角色
+        </div>
+      );
+    }
+    return (
+      <Button
+        disabled
+        className="bg-primary/50 text-primary-foreground px-6 py-3 rounded-xl font-bold opacity-50 cursor-not-allowed"
+      >
+        <UserPlus className="h-4 w-4 mr-2" />
+        新增角色
+      </Button>
+    );
+  }
+
   const trigger = variant === 'card' ? (
     <DashedAddButton
       label="建立新角色"
       onClick={() => setOpen(true)}
       className="min-h-[180px] py-5"
+    />
+  ) : variant === 'empty-state' ? (
+    <DashedAddButton
+      label="建立第一個角色"
+      onClick={() => setOpen(true)}
+      className="max-w-xs py-4"
     />
   ) : (
     <Button

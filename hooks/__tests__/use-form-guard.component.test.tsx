@@ -155,7 +155,6 @@ describe('useFormGuard', () => {
   it('isDirty 時攔截 history.pushState', () => {
     // Mock window.confirm
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const originalPushState = history.pushState;
 
     const { result } = renderFormGuard({
       currentData: { name: 'Changed', value: 10 },

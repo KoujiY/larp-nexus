@@ -33,7 +33,7 @@ export function PillToggle<T extends string>({
           type="button"
           onClick={() => onValueChange(option.value)}
           className={cn(
-            'flex-1 py-2 text-xs font-bold rounded-md transition-all',
+            'flex-1 py-2 text-xs font-bold rounded-md transition-all cursor-pointer',
             value === option.value
               ? 'bg-background shadow-sm text-foreground'
               : 'text-muted-foreground opacity-60 hover:opacity-100',

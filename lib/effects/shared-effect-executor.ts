@@ -156,7 +156,7 @@ export async function applyItemTransfer(
   // 數量 > 1 時把減量版本推回目標角色
   if (quantity > 1) {
     const reducedItem = Object.fromEntries(
-      Object.entries({ ...targetItem as unknown as Record<string, unknown>, quantity: quantity - 1 })
+      Object.entries({ ...JSON.parse(JSON.stringify(targetItem)) as Record<string, unknown>, quantity: quantity - 1 })
         .filter(([k]) => k !== '_id' && k !== '__v')
     );
     await updateCharacterData(targetIdStr, {
@@ -188,9 +188,9 @@ export async function applyItemTransfer(
         $push: { items: updatedItem },
       });
     } else {
-      // 沒有此道具：新增完整複本
+      // 沒有此道具：新增完整複本（裝備自動卸除）
       const stolenItem = Object.fromEntries(
-        Object.entries({ ...JSON.parse(JSON.stringify(targetItem)) as Record<string, unknown>, quantity: 1, acquiredAt: new Date() })
+        Object.entries({ ...JSON.parse(JSON.stringify(targetItem)) as Record<string, unknown>, quantity: 1, acquiredAt: new Date(), equipped: false })
           .filter(([k]) => k !== '_id' && k !== '__v')
       );
       await updateCharacterData(sourceIdStr, {

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRightLeft, Eye, Zap } from 'lucide-react';
+import { ArrowRightLeft, Eye, Shield, ShieldOff, Zap } from 'lucide-react';
 import Image from 'next/image';
 import type { Item } from '@/types/character';
 import { formatDate } from '@/lib/utils/date';
@@ -71,6 +71,14 @@ export interface ItemDetailDialogProps {
   showShowcaseButton: boolean;
   /** 是否顯示轉移按鈕 */
   showTransferButton: boolean;
+
+  // ── 裝備切換 ──
+  /** 當前角色 ID（用於判斷是否選擇自己作為目標） */
+  characterId?: string;
+  /** 裝備切換 handler（僅 equipment 類型） */
+  onToggleEquipment?: () => void;
+  /** 裝備切換是否進行中 */
+  isTogglingEquipment?: boolean;
 }
 
 export function ItemDetailDialog({
@@ -99,6 +107,9 @@ export function ItemDetailDialog({
   showUseButton,
   showShowcaseButton,
   showTransferButton,
+  characterId,
+  onToggleEquipment,
+  isTogglingEquipment = false,
 }: ItemDetailDialogProps) {
   // Escape 鍵關閉
   useEffect(() => {
@@ -133,6 +144,8 @@ export function ItemDetailDialog({
     if (!isDialogLocked) onClose();
   };
 
+  const isEquipment = selectedItem.type === 'equipment';
+
   // 使用按鈕標籤
   const { canUse, reason: cantUseReason } = canUseItem(selectedItem);
   const useButtonLabel = isUsing
@@ -142,8 +155,8 @@ export function ItemDetailDialog({
       : requiresTarget && !selectedUseTargetId
         ? '請選擇目標角色'
         : !canUse && cantUseReason
-          ? `使用道具 (${cantUseReason})`
-          : '使用道具';
+          ? `使用物品 (${cantUseReason})`
+          : '使用物品';
   // 目標下拉已顯示但尚未選擇目標
   const noTargetSelected = hasTargets && !selectedUseTargetId;
 
@@ -154,7 +167,9 @@ export function ItemDetailDialog({
     (requiresTarget && !selectedUseTargetId) ||
     isDialogLocked;
 
-  const showAnyAction = showUseButton || showShowcaseButton || showTransferButton;
+  const isSelfSelected = !!characterId && selectedUseTargetId === characterId;
+  const showEquipButton = isEquipment && !!onToggleEquipment;
+  const showAnyAction = showUseButton || showShowcaseButton || showTransferButton || showEquipButton;
 
   return (
     <div
@@ -224,8 +239,43 @@ export function ItemDetailDialog({
             )}
           </div>
 
-          {/* 特殊效果區塊 */}
-          {hasItemEffects(selectedItem) && (
+          {/* 裝備加成區塊（equipment 類型） — 格式對齊效果系統 */}
+          {selectedItem.type === 'equipment' && selectedItem.statBoosts && selectedItem.statBoosts.length > 0 && (
+            <div className="space-y-3 mb-8">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1 mb-2">
+                裝備加成
+              </h3>
+              {selectedItem.statBoosts.map((boost, i) => {
+                const value = boost.value ?? 0;
+                const sign = value >= 0 ? '+' : '';
+                const isMax = boost.target === 'maxValue' || boost.target === 'both';
+                const syncCurrent = boost.target === 'both';
+                const text = isMax
+                  ? `${boost.statName} 最大值 ${sign}${value}${syncCurrent ? '，目前值同步調整' : ''}`
+                  : `${boost.statName} ${sign}${value}`;
+                return (
+                  <div
+                    key={i}
+                    className="p-4 rounded-r-xl bg-surface-base/40 border-l-2 border-primary/60"
+                  >
+                    <p className="text-xs font-medium text-foreground">{text}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <span className="font-medium text-foreground">目標：</span>自身
+                    </p>
+                  </div>
+                );
+              })}
+              {selectedItem.equipped && (
+                <p className="text-[10px] text-primary/70 font-bold ml-1">
+                  <Shield className="h-3 w-3 inline-block mr-1 -mt-0.5" />
+                  裝備中 — 加成已生效
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* 特殊效果區塊（非 equipment 類型） */}
+          {selectedItem.type !== 'equipment' && hasItemEffects(selectedItem) && (
             <div className="space-y-3 mb-8">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1 mb-2">
                 特殊效果
@@ -248,8 +298,8 @@ export function ItemDetailDialog({
             </div>
           )}
 
-          {/* 檢定資訊 */}
-          {selectedItem.checkType && selectedItem.checkType !== 'none' && (
+          {/* 檢定資訊（非 equipment 類型） */}
+          {selectedItem.type !== 'equipment' && selectedItem.checkType && selectedItem.checkType !== 'none' && (
             <div className="mb-8">
               <CheckInfoDisplay
                 checkType={selectedItem.checkType}
@@ -261,8 +311,8 @@ export function ItemDetailDialog({
             </div>
           )}
 
-          {/* 使用次數 / 冷卻 */}
-          {(selectedItem.usageLimit != null || selectedItem.cooldown != null) && (
+          {/* 使用次數 / 冷卻（非 equipment 類型） */}
+          {selectedItem.type !== 'equipment' && (selectedItem.usageLimit != null || selectedItem.cooldown != null) && (
             <div className="grid grid-cols-2 gap-3 mb-8">
               {selectedItem.usageLimit != null && (
                 <div className="p-3 rounded-2xl bg-card/30 border border-border/10 flex flex-col items-center">
@@ -342,8 +392,35 @@ export function ItemDetailDialog({
                 </div>
               )}
 
-              {/* 使用按鈕 */}
-              {showUseButton && (
+              {/* 裝備類型提示：目標選擇僅供展示/轉移 */}
+              {isEquipment && hasTargets && (
+                <p className="text-[10px] text-muted-foreground/60 text-center -mt-1">
+                  裝備的目標選擇僅供展示或轉移之用
+                </p>
+              )}
+
+              {/* 裝備切換按鈕（equipment 類型專用） */}
+              {/* 卸除：不需選擇目標，直接可用。裝備：需選擇自己。 */}
+              {showEquipButton && (
+                <button
+                  className={`w-full py-4 rounded-xl font-black text-sm tracking-widest uppercase shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    selectedItem.equipped
+                      ? 'bg-card border-2 border-primary/40 text-primary shadow-none'
+                      : 'bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-primary/20'
+                  }`}
+                  onClick={onToggleEquipment}
+                  disabled={isReadOnly || isTogglingEquipment}
+                >
+                  {selectedItem.equipped ? (
+                    <><ShieldOff className="h-5 w-5" />{isTogglingEquipment ? '卸除中...' : '卸除裝備'}</>
+                  ) : (
+                    <><Shield className="h-5 w-5" />{isTogglingEquipment ? '裝備中...' : '穿戴裝備'}</>
+                  )}
+                </button>
+              )}
+
+              {/* 使用按鈕（非 equipment 類型） */}
+              {showUseButton && !isEquipment && (
                 <button
                   className="w-full py-4 rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-black text-sm tracking-widest uppercase shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleUseItem}
@@ -361,7 +438,7 @@ export function ItemDetailDialog({
                     <button
                       className="flex-1 py-3 rounded-xl border border-primary/40 bg-card/40 text-primary font-bold text-[11px] tracking-widest uppercase hover:bg-primary/5 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleOpenShowcase}
-                      disabled={isReadOnly || isContestInProgress || isShowcasing || noTargetSelected}
+                      disabled={isReadOnly || isContestInProgress || isShowcasing || noTargetSelected || isSelfSelected}
                     >
                       <Eye className="h-4 w-4" />
                       {isShowcasing ? '展示中...' : '展示'}
@@ -371,7 +448,7 @@ export function ItemDetailDialog({
                     <button
                       className="flex-1 py-3 rounded-xl border border-primary/40 bg-card/40 text-primary font-bold text-[11px] tracking-widest uppercase hover:bg-primary/5 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleOpenTransfer}
-                      disabled={isReadOnly || isContestInProgress || isTransferring || noTargetSelected}
+                      disabled={isReadOnly || isContestInProgress || isTransferring || noTargetSelected || isSelfSelected}
                     >
                       <ArrowRightLeft className="h-4 w-4" />
                       {isTransferring ? '轉移中...' : '轉移'}

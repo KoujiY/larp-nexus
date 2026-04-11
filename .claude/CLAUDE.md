@@ -97,7 +97,7 @@ docs/             # 文檔
   ├── knowledge/  # 原子化知識庫（主要參考）
   ├── specs/      # 技術規格（詳細 API/WebSocket 規格）
   ├── archive/    # 歷史文件（唯讀參考）
-  └── refactoring/ # 重構進度追蹤
+  └── refactoring/ # 開發規劃（NEXT_DEVELOPMENT_PLAN.md）
 ```
 
 ## 開發工具
@@ -118,17 +118,30 @@ docs/             # 文檔
 
 ### 新功能開發
 1. 讀取相關知識庫文件（`docs/knowledge/`）
-2. `/plan` 規劃實作步驟
-3. `/tdd` 測試驅動實作
-4. `/code-review` 審查程式碼
-5. 更新知識庫（若邏輯有變動）
-6. Commit & PR
+2. 更新開發規劃文件（需求定義、影響範圍、欄位釐清）
+3. `/plan` 規劃實作步驟
+4. `/tdd` 測試驅動實作
+5. `/code-review` 審查程式碼
+6. 同步檢查（知識庫 + 開發規劃 + E2E 影響評估）
+7. Commit（按 type 拆分）& PR
 
 ### Bug 修復
 1. 讀取相關知識庫文件理解現行邏輯
 2. 實作修復
 3. 補回歸測試
 4. `/code-review` 審查
+5. 同步檢查（知識庫 + E2E 影響評估）
+
+### Commit 前檢查（MANDATORY）
+1. **靜態分析（必做）**：`tsc --noEmit` + `eslint <affected-dir>` 兩者都必須 0 error。每個修改步驟完成後也應跑，不只 commit 前
+2. **使用者驗證優先**：完成功能開發後**不可**自動 commit。先給使用者**手動驗收指引**，等使用者明確說「驗證通過」「OK」或同義詞後才能 commit。`tsc` / `lint` / `vitest` 通過**不算**驗證，那只是基本健康檢查。例外：使用者在指令中明確包含「commit 動作」（例如「做完直接 commit」）才能略過此步
+3. **按 type 拆分**：`feat` / `docs` / `fix` / `refactor` 等不同類型不混在同一 commit
+4. **禁止 scope 括號**：commit subject 格式必須是 `type: description`，**不可**寫成 `type(scope): description`。理由：本專案不使用 conventional-commits 的 scope 欄位，多餘的 `(xxx)` 會讓訊息格式不一致，且 scope 選擇易流於主觀（`(gm)` vs `(console)` vs `(effects)`）。正確範例：`feat: add foo` / `refactor: simplify bar`；錯誤範例：`feat(gm): add foo` / `refactor(console): simplify bar`
+5. **同步檢查**：
+   - 知識庫：`docs/knowledge/` 下的對應文件是否需要更新
+   - 開發規劃：`docs/refactoring/` 下的活躍開發規劃是否需要標記項目完成
+   - E2E：既有 `e2e/` spec 是否因行為變更需要更新、是否需要新增測試覆蓋
+6. **中文亂碼掃描**：Grep `��` 確認 Write/Edit 後沒有編碼錯誤
 
 ## 知識庫 (Knowledge Base)
 
@@ -173,12 +186,11 @@ docs/knowledge/
 **常見陷阱**：Next.js `page.tsx` 不需要 import 即可作為路由存在，靜態分析工具無法偵測「已無入口導航的頁面」，必須人工確認。
 
 ## 文件同步規則
-- 完成一個開發步驟後，**必須立即**更新重構進度文件 `docs/refactoring/REFACTOR_PROGRESS.md`（將對應項目從 `[ ]` 改為 `[x]`）
-- 若進度文件中的狀態與 codebase 實際狀態不一致，應優先修正文件
 - 新增或刪除檔案時，檢查是否有其他文件（包含知識庫）引用了該路徑，一併更新
+- 若有對應的開發規劃文件（`docs/refactoring/` 下的活躍計畫），完成項目後更新完成狀態
 
 ## 架構文檔參考
-- 重構進度：`docs/refactoring/REFACTOR_PROGRESS.md`
+- 開發規劃：`docs/refactoring/`（活躍計畫文件）
 - API 規範：`docs/specs/03_API_SPECIFICATION.md`
 - WebSocket 事件：`docs/specs/04_WEBSOCKET_EVENTS.md`
 - 資料模型：`docs/knowledge/architecture/data-models.md`

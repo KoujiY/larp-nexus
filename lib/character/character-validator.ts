@@ -9,6 +9,10 @@ import { z } from 'zod';
 import dbConnect from '@/lib/db/mongodb';
 import { Character, Game } from '@/lib/db/models';
 import type { CharacterDocument } from '@/lib/db/models';
+import { PIN_REGEX, PIN_ERROR_MESSAGE } from './pin-constants';
+
+// Re-export，讓 server-side 使用者也可以從此處 import
+export { PIN_REGEX, PIN_ERROR_MESSAGE };
 
 /**
  * Character 驗證 Schema
@@ -52,11 +56,11 @@ export function validateCharacterData(data: {
       characterSchema.shape.hasPinLock.parse(data.hasPinLock);
     }
     if (data.pin !== undefined && data.pin !== null && data.pin !== '') {
-      if (!/^\d{4}$/.test(data.pin)) {
+      if (!PIN_REGEX.test(data.pin)) {
         return {
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'PIN 碼必須為 4 位數字',
+          message: PIN_ERROR_MESSAGE,
         };
       }
     }
@@ -254,7 +258,7 @@ export function validateItems(items: Array<{
   id: string;
   name: string;
   description: string;
-  type: 'consumable' | 'equipment';
+  type: 'consumable' | 'tool' | 'equipment';
   quantity: number;
   // Phase 7.6: 擴展為包含 random_contest
   checkType?: 'none' | 'contest' | 'random' | 'random_contest';

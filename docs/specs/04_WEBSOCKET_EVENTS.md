@@ -54,16 +54,48 @@ interface RoleUpdatedEvent extends BaseEvent {
   type: 'role.updated';
   payload: {
     characterId: string;
+    /**
+     * 內部同步標記：為 true 時表示此事件為「副作用同步」而非「主動編輯」。
+     * 詳見下方「silentSync 旗標語意」。
+     */
+    silentSync?: boolean;
     updates: {
       name?: string;
       avatar?: string;
       publicInfo?: Partial<PublicInfo>;
       tasks?: Array<Task>;
       items?: Array<Item>;
+      stats?: Array<Stat>;
+      skills?: Array<Skill>;
     };
   };
 }
 ```
+
+#### silentSync 旗標語意
+
+`silentSync: true` 的 role.updated 事件代表「server 端為了同步 GM Console 而額外
+推送的副作用事件」，例如：
+
+| 觸發場景 | 主事件 | silentSync 用途 |
+|---|---|---|
+| 玩家穿戴/卸除裝備 | `equipment.toggled` | 同步 GM 端 stats 與 items.equipped |
+| 技能/道具效果改變 stats | `character.affected` | 同步 GM 端 base stats |
+| 時效性效果過期 | `effect.expired` | 同步 GM 端恢復後的 stats |
+
+**訂閱者責任**：
+
+1. **玩家端通知層**（`mapRoleUpdated`）：必須過濾 `silentSync === true`，
+   否則會與主事件的通知重複。
+2. **GM 編輯頁 listener**（`useRoleUpdated`）：預設過濾 `silentSync === true`，
+   避免假冒「外部變更」toast、誤觸 sticky bar、重複 router.refresh。
+   想接收 silentSync 事件的呼叫端必須顯式 `useRoleUpdated(..., { includeSilentSync: true })`。
+3. **GM 控制台 listener**（`runtime-console-ws-listener`）：直接用原生 Pusher
+   訂閱，**刻意**接收 silentSync 事件來做增量 stats 更新，因為它是 GM Console
+   的單一資料同步入口。
+
+**新增 listener 時請務必處理 silentSync**，否則容易踩到「裝備切換 → 假冒外部
+變更 toast / sticky bar 假 dirty」的坑。
 
 **範例**
 ```json

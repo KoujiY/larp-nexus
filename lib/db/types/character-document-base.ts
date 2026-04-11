@@ -19,6 +19,7 @@ export interface CharacterDocumentBase {
   gameId: mongoose.Types.ObjectId;
   name: string;
   description: string;
+  slogan?: string;
   imageUrl?: string;
   hasPinLock: boolean;
   pin?: string;
@@ -67,7 +68,7 @@ export interface CharacterDocumentBase {
     name: string;
     description: string;
     imageUrl?: string;
-    type: 'consumable' | 'equipment';
+    type: 'consumable' | 'tool' | 'equipment';
     quantity: number;
     effects?: MongoItemEffect[];
     tags?: string[];
@@ -88,6 +89,8 @@ export interface CharacterDocumentBase {
     lastUsedAt?: Date;
     isTransferable: boolean;
     acquiredAt: Date;
+    equipped?: boolean;
+    statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
   }>;
 
   // Phase 4: 數值系統
@@ -103,7 +106,7 @@ export interface CharacterDocumentBase {
     id: string;
     name: string;
     description: string;
-    iconUrl?: string;
+    imageUrl?: string;
     tags?: string[];
     checkType: 'none' | 'contest' | 'random' | 'random_contest';
     contestConfig?: {

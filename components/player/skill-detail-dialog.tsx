@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/select';
 import Image from 'next/image';
 import type { Skill, SkillEffect } from '@/types/character';
-import type { TargetItemInfo } from '@/app/actions/public';
 import { getCooldownRemaining } from '@/lib/utils/skill-validators';
 import { EffectDisplay } from './effect-display';
 
@@ -45,12 +44,8 @@ export interface SkillDetailDialogProps {
   selectedTargetId: string | undefined;
   setSelectedTargetId: (id: string | undefined) => void;
   isLoadingTargets: boolean;
+  /** 對抗檢定情境下是否已確認目標（影響使用按鈕狀態） */
   isTargetConfirmed: boolean;
-  setIsTargetConfirmed: (v: boolean) => void;
-  targetItems: TargetItemInfo[];
-  selectedTargetItemId: string;
-  setSelectedTargetItemId: (id: string) => void;
-  isLoadingTargetItems: boolean;
 
   // ── 衍生狀態 ──
   requiresTarget: boolean;
@@ -58,8 +53,6 @@ export interface SkillDetailDialogProps {
 
   // ── 事件處理 ──
   handleUseSkill: () => void;
-  handleConfirmTarget: () => Promise<void>;
-  handleCancelTarget: () => void;
 
   /** 是否為唯讀模式 */
   isReadOnly: boolean;
@@ -80,16 +73,9 @@ export function SkillDetailDialog({
   setSelectedTargetId,
   isLoadingTargets,
   isTargetConfirmed,
-  setIsTargetConfirmed,
-  targetItems,
-  selectedTargetItemId,
-  setSelectedTargetItemId,
-  isLoadingTargetItems,
   requiresTarget,
   isContestInProgress,
   handleUseSkill,
-  handleConfirmTarget,
-  handleCancelTarget,
   isReadOnly,
   canUseSkill,
 }: SkillDetailDialogProps) {
@@ -193,9 +179,9 @@ export function SkillDetailDialog({
           className="relative z-10 w-full h-full rounded-full overflow-hidden border border-primary/30 bg-background"
           style={{ boxShadow: '0 0 40px -10px rgba(254,197,106,0.35)' }}
         >
-          {selectedSkill.iconUrl ? (
+          {selectedSkill.imageUrl ? (
             <Image
-              src={selectedSkill.iconUrl}
+              src={selectedSkill.imageUrl}
               alt={selectedSkill.name}
               fill
               className="object-cover"

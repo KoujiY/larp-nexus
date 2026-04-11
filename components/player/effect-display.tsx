@@ -1,4 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatDuration } from '@/lib/utils/format-duration';
 import type { SkillEffect, ItemEffect } from '@/types/character';
 import type { TransferTargetCharacter } from '@/app/actions/public';
 
@@ -9,18 +10,6 @@ interface EffectDisplayProps {
   onTargetChange?: (targetId: string) => void;
   className?: string;
   disabled?: boolean;
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds >= 3600) {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return mins > 0 ? `${hours} 小時 ${mins} 分鐘` : `${hours} 小時`;
-  }
-  if (seconds >= 60) {
-    return `${Math.floor(seconds / 60)} 分鐘`;
-  }
-  return `${seconds} 秒`;
 }
 
 export function EffectDisplay({
@@ -48,13 +37,10 @@ export function EffectDisplay({
       return <p className="text-xs font-medium text-foreground">完成任務：{effect.targetTaskId}</p>;
     }
     if (effect.type === 'item_steal') {
-      return <p className="text-xs font-medium text-foreground">偷竊目標角色的道具</p>;
+      return <p className="text-xs font-medium text-foreground">偷竊目標角色的物品</p>;
     }
     if (effect.type === 'item_take') {
-      return <p className="text-xs font-medium text-foreground">移除目標角色的道具</p>;
-    }
-    if (effect.type === 'item_give') {
-      return <p className="text-xs font-medium text-foreground">給予目標角色道具</p>;
+      return <p className="text-xs font-medium text-foreground">移除目標角色的物品</p>;
     }
     if (effect.type === 'custom' && effect.description) {
       return <p className="text-xs font-medium text-foreground">{effect.description}</p>;

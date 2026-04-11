@@ -1,5 +1,5 @@
 /**
- * 道具相關事件映射器
+ * 物品相關事件映射器
  * mapItemTransferred, mapInventoryUpdated
  */
 
@@ -11,7 +11,7 @@ export function createItemEventMappers(
   recentTransferredItemsRef: RecentTransferTracker
 ) {
   /**
-   * 映射道具轉移事件
+   * 映射物品轉移事件
    */
   const mapItemTransferred = (event: BaseEvent): Notification[] => {
     const payload = event.payload as {
@@ -25,7 +25,7 @@ export function createItemEventMappers(
       transferType?: 'give' | 'take' | 'steal';
     };
     const qty = payload.quantity ?? 1;
-    const name = payload.itemName ?? '道具';
+    const name = payload.itemName ?? '物品';
     const transferType = payload.transferType || 'give';
 
     // 記錄轉移事件，用於過濾 inventoryUpdated 通知
@@ -49,7 +49,7 @@ export function createItemEventMappers(
       const fromName = payload.fromCharacterName || '其他角色';
       return [{
         id: `evt-${event.timestamp}`,
-        title: '道具獲得',
+        title: '物品獲得',
         message: `從 ${fromName} 收到 ${name} x${qty}`,
         type: event.type,
       }];
@@ -60,7 +60,7 @@ export function createItemEventMappers(
       const toName = payload.toCharacterName || '其他角色';
       return [{
         id: `evt-${event.timestamp}`,
-        title: '道具轉移',
+        title: '物品轉移',
         message: `已將 ${name} x${qty} 轉移給 ${toName}`,
         type: event.type,
       }];
@@ -70,7 +70,7 @@ export function createItemEventMappers(
   };
 
   /**
-   * 映射道具更新事件
+   * 映射物品更新事件
    */
   const mapInventoryUpdated = (event: BaseEvent): Notification[] => {
     const payload = event.payload as {
@@ -79,7 +79,7 @@ export function createItemEventMappers(
       characterId?: string;
     };
 
-    // 檢查這個道具是否在最近的轉移/偷竊事件中（2秒內）
+    // 檢查這個物品是否在最近的轉移/偷竊事件中（2秒內）
     const itemId = payload.item?.id;
     const eventCharacterId = payload.characterId || characterId;
 
@@ -98,7 +98,7 @@ export function createItemEventMappers(
           // - 偷竊者（eventCharacterId === toCharacterId）：不顯示 inventoryUpdated 通知
           // - 被偷竊方（eventCharacterId === fromCharacterId）：顯示 inventoryUpdated 通知
           if (recentTransfer.transferType === 'steal') {
-            // 檢查是否是偷竊者（收到道具的角色）
+            // 檢查是否是偷竊者（收到物品的角色）
             const isThief = recentTransfer.toCharacterId &&
               (String(eventCharacterId) === String(recentTransfer.toCharacterId) ||
                eventCharacterId === recentTransfer.toCharacterId);
@@ -113,14 +113,14 @@ export function createItemEventMappers(
       }
     }
 
-    const name = payload.item?.name || '道具';
+    const name = payload.item?.name || '物品';
     const actionText =
       payload.action === 'added' ? '新增'
       : payload.action === 'deleted' ? '移除'
       : '更新';
     return [{
       id: `evt-${event.timestamp}`,
-      title: '道具更新',
+      title: '物品更新',
       message: `${name} 已${actionText}`,
       type: event.type,
     }];

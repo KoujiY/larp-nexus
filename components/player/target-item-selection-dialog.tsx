@@ -293,7 +293,7 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
               <div className="w-12 h-12 rounded-full bg-card/30 border border-white/5 flex items-center justify-center">
                 <Package className="w-6 h-6 text-muted-foreground" />
               </div>
-              <p className="text-foreground font-medium">目標角色沒有道具</p>
+              <p className="text-foreground font-medium">目標角色沒有物品</p>
               <p className="text-sm text-muted-foreground">
                 點擊下方按鈕結束流程
               </p>

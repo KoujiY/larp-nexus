@@ -123,3 +123,10 @@ export function getContestInfo(contestId: string): ContestInfo | undefined {
   return activeContests.get(contestId);
 }
 
+/**
+ * E2E 測試專用：清空所有對抗檢定追蹤（避免跨 test 的 stale 狀態）
+ */
+export function __testResetAll(): void {
+  activeContests.clear();
+}
+

@@ -8,7 +8,6 @@ import { UploadCharacterImageButton } from '@/components/gm/upload-character-ima
 import { GenerateQRCodeButton } from '@/components/gm/generate-qrcode-button';
 import { ViewPinButton } from '@/components/gm/view-pin-button';
 import { DeleteCharacterButton } from '@/components/gm/delete-character-button';
-import { CharacterWebSocketListener } from '@/components/gm/character-websocket-listener';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import { LockKeyhole } from 'lucide-react';
@@ -124,24 +123,27 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
                 characterName={character.name}
               />
             )}
-            <div className="mx-1 h-6 w-px bg-border/30" />
-            <DeleteCharacterButton
-              characterId={character.id}
-              characterName={character.name}
-              gameId={gameId}
-            />
+            {!game.isActive && (
+              <>
+                <div className="mx-1 h-6 w-px bg-border/30" />
+                <DeleteCharacterButton
+                  characterId={character.id}
+                  characterName={character.name}
+                  gameId={gameId}
+                />
+              </>
+            )}
           </div>
         </header>
       }
       maxWidth="lg"
     >
-      {/* WebSocket 事件監聯器 */}
-      <CharacterWebSocketListener characterId={character.id} />
-
-      {/* Tab 導航 + 內容 + Sticky Save Bar */}
+      {/* Tab 導航 + 內容 + Sticky Save Bar
+          （所有 WebSocket 事件由 CharacterEditTabs 內部統一訂閱，含 dirty check） */}
       <CharacterEditTabs
         character={character}
         gameId={gameId}
+        gameIsActive={game.isActive}
         randomContestMaxValue={game.randomContestMaxValue}
         gameCharacters={gameCharacters}
       />

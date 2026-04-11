@@ -32,6 +32,32 @@ export interface GameRuntimeDocument extends Document {
   // Phase 7.6: 隨機對抗檢定設定
   randomContestMaxValue?: number;
 
+  // 預設事件（Runtime，含執行狀態）
+  presetEvents?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    showName?: boolean;
+    actions: Array<{
+      id: string;
+      type: 'broadcast' | 'stat_change' | 'reveal_secret' | 'reveal_task';
+      broadcastTargets?: 'all' | string[];
+      broadcastTitle?: string;
+      broadcastMessage?: string;
+      statTargets?: 'all' | string[];
+      statName?: string;
+      statChangeTarget?: 'value' | 'maxValue';
+      statChangeValue?: number;
+      syncValue?: boolean;
+      duration?: number;
+      revealCharacterId?: string;
+      revealTargetId?: string;
+    }>;
+    executedAt?: Date;
+    executionCount: number;
+    runtimeOnly?: boolean;
+  }>;
+
   // Snapshot 專屬欄位（只有 type='snapshot' 時使用）
   snapshotName?: string; // 快照名稱
   snapshotCreatedAt?: Date; // 快照建立時間
@@ -111,6 +137,42 @@ const GameRuntimeSchema = new Schema<GameRuntimeDocument>(
       type: Number,
       default: 100,
     },
+
+    // 預設事件（Runtime，含執行狀態）
+    presetEvents: [
+      {
+        _id: false,
+        id: { type: String, required: true },
+        name: { type: String, required: true, maxlength: 100 },
+        description: { type: String, default: '', maxlength: 500 },
+        showName: { type: Boolean, default: false },
+        actions: [
+          {
+            _id: false,
+            id: { type: String, required: true },
+            type: {
+              type: String,
+              enum: ['broadcast', 'stat_change', 'reveal_secret', 'reveal_task'],
+              required: true,
+            },
+            broadcastTargets: { type: Schema.Types.Mixed },
+            broadcastTitle: { type: String },
+            broadcastMessage: { type: String },
+            statTargets: { type: Schema.Types.Mixed },
+            statName: { type: String },
+            statChangeTarget: { type: String, enum: ['value', 'maxValue'] },
+            statChangeValue: { type: Number },
+            syncValue: { type: Boolean },
+            duration: { type: Number },
+            revealCharacterId: { type: String },
+            revealTargetId: { type: String },
+          },
+        ],
+        executedAt: { type: Date },
+        executionCount: { type: Number, default: 0 },
+        runtimeOnly: { type: Boolean, default: false },
+      },
+    ],
 
     // Snapshot 專屬欄位
     snapshotName: {

@@ -8,17 +8,22 @@
  * 琥珀豎線區段標題、ghost border 卡片、大型等寬數值。
  */
 
-import type { Stat } from '@/types/character';
+import type { Stat, Item } from '@/types/character';
+import { computeEffectiveStats, type EffectiveStat } from '@/lib/utils/compute-effective-stats';
 import { getProgressColor } from '@/lib/styles/health-status';
 
 interface StatsDisplayProps {
   stats?: Stat[];
+  /** 角色道具（用於計算裝備加成） */
+  items?: Item[];
 }
 
-export function StatsDisplay({ stats }: StatsDisplayProps) {
+export function StatsDisplay({ stats, items }: StatsDisplayProps) {
   if (!stats || stats.length === 0) {
     return null;
   }
+
+  const effectiveStats = items ? computeEffectiveStats(stats, items) : null;
 
   return (
     <div className="space-y-6">
@@ -32,22 +37,26 @@ export function StatsDisplay({ stats }: StatsDisplayProps) {
 
       {/* 數值卡片 grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.id} stat={stat} />
-        ))}
+        {effectiveStats
+          ? effectiveStats.map((stat) => (
+              <StatCard key={stat.id} stat={stat} effectiveStat={stat} />
+            ))
+          : stats.map((stat) => (
+              <StatCard key={stat.id} stat={stat} />
+            ))
+        }
       </div>
     </div>
   );
 }
 
-interface StatCardProps {
-  stat: Stat;
-}
+function StatCard({ stat, effectiveStat }: { stat: Stat; effectiveStat?: EffectiveStat }) {
+  const displayValue = effectiveStat?.value ?? stat.value;
+  const displayMaxValue = effectiveStat?.maxValue ?? stat.maxValue;
 
-function StatCard({ stat }: StatCardProps) {
-  const hasMaxValue = stat.maxValue !== undefined && stat.maxValue !== null;
+  const hasMaxValue = displayMaxValue !== undefined && displayMaxValue !== null;
   const percentage = hasMaxValue
-    ? Math.min(100, Math.max(0, (stat.value / stat.maxValue!) * 100))
+    ? Math.min(100, Math.max(0, (displayValue / displayMaxValue!) * 100))
     : null;
 
   return (
@@ -66,11 +75,11 @@ function StatCard({ stat }: StatCardProps) {
               : 'text-5xl text-primary'
           }`}
         >
-          {stat.value}
+          {displayValue}
         </span>
         {hasMaxValue && (
           <span className="text-muted-foreground/50 font-mono text-xl tabular-nums">
-            / {stat.maxValue}
+            / {displayMaxValue}
           </span>
         )}
       </div>

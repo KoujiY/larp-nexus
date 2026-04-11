@@ -55,7 +55,7 @@ export interface MongoItem {
   name: string;
   description: string;
   imageUrl?: string;
-  type: 'consumable' | 'equipment';
+  type: 'consumable' | 'tool' | 'equipment';
   quantity: number;
   effects?: MongoItemEffect[];
   /** @deprecated 請改用 effects 陣列 */
@@ -78,6 +78,8 @@ export interface MongoItem {
   lastUsedAt?: Date;
   isTransferable: boolean;
   acquiredAt: Date;
+  equipped?: boolean;
+  statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
   _id?: unknown;
 }
 
@@ -91,7 +93,7 @@ export interface MongoStat {
 
 /** 技能效果的單一項目（MongoSkill.effects 使用） */
 export interface MongoSkillEffect {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' |
+  type: 'stat_change' | 'item_take' | 'item_steal' |
         'task_reveal' | 'task_complete' | 'custom';
   targetType?: 'self' | 'other' | 'any';
   requiresTarget?: boolean;
@@ -109,7 +111,7 @@ export interface MongoSkill {
   id: string;
   name: string;
   description: string;
-  iconUrl?: string;
+  imageUrl?: string;
   tags?: string[];
   checkType: 'none' | 'contest' | 'random' | 'random_contest';
   contestConfig?: {

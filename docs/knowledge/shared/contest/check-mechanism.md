@@ -42,6 +42,11 @@ interface ContestConfig {
 - Neither skills nor items affect the roll value
 - Defender can only respond with `random_contest` skills/items (same check type rule)
 
+## 對抗檢定的效果目標限制
+當 `checkType` 為 `contest` 或 `random_contest` 時，GM 在 Wizard 設計效果時只能選擇 `self` 或 `other` 作為 `targetType`，`any` 會被 disable。這是為了對抗語意明確：效果要嘛作用於發起者自己，要嘛作用於對手，不會「隨便挑一個人」。
+
+執行階段由 `lib/contest/contest-effect-executor.ts` 做 per-effect 分派，`sourceOwner` 為擁有 actualSource 的角色（依 `contestResult`：攻擊方獲勝 → attacker；防守方獲勝 → defender）。`self` 效果套用到 sourceOwner，`other` 效果套用到對手。`item_take` / `item_steal` 固定為「對手 → sourceOwner」，與 targetType 無關。
+
 ## 設計決策：對抗配置欄位與回應限制
 
 ### GM 側：`opponentMaxItems` / `opponentMaxSkills` 維持數字型別
@@ -60,3 +65,8 @@ interface ContestConfig {
 When attacker uses combat-tagged skill/item:
 - Defender can only respond with items/skills that also have the combat tag
 - Defender must use the same stat (contest) or same check type (random_contest)
+
+## Equipment Exclusion
+裝備類物品（`type: 'equipment'`）為被動增益，不可用於對抗回應：
+- 前端 `contest-response-dialog.tsx`：過濾 `item.type === 'equipment'` 排除於回應選項
+- 後端 `contest-validator.ts`：驗證時拒絕裝備類，回傳 `INVALID_ITEM_TYPE` 錯誤

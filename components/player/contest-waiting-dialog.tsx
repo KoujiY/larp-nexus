@@ -127,7 +127,7 @@ export function ContestWaitingDialog({
                   等待防守方回應中
                 </h2>
                 <p className="text-sm text-muted-foreground max-w-[240px]">
-                  對方正在決定是否使用道具或技能回應
+                  對方正在決定是否使用物品或技能回應
                 </p>
               </div>
             </div>

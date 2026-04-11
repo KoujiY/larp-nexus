@@ -85,6 +85,15 @@ export async function startGame(
           isActive: true,
           publicInfo: game.publicInfo,
           randomContestMaxValue: game.randomContestMaxValue,
+          // 複製預設事件，初始化執行狀態
+          presetEvents: (game.presetEvents || []).map(
+            (event: unknown) => {
+              const plain = typeof (event as { toObject?: unknown }).toObject === 'function'
+                ? (event as { toObject: () => Record<string, unknown> }).toObject()
+                : event as Record<string, unknown>;
+              return { ...plain, executionCount: 0, executedAt: undefined };
+            },
+          ),
         },
         {
           upsert: true, // 不存在則建立

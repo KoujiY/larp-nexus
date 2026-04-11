@@ -1,7 +1,12 @@
 import { getCurrentGMUser } from '@/app/actions/auth';
 import { PageLayout } from '@/components/gm/page-layout';
+import { AvatarUpload } from '@/components/gm/avatar-upload';
 import { redirect } from 'next/navigation';
-import { User, Mail, CalendarDays, Clock, Info, BookOpen, Camera } from 'lucide-react';
+import { User, Mail, CalendarDays, Clock, Info, BookOpen } from 'lucide-react';
+
+// 此頁面完全是使用者私有資料（依登入 session 讀取 GM user），
+// 必須 opt out of static prerender。詳見 app/(gm)/games/page.tsx 的註解。
+export const dynamic = 'force-dynamic';
 
 /** 資訊列資料定義 */
 const INFO_ROWS = [
@@ -18,7 +23,7 @@ export default async function ProfilePage() {
     redirect('/auth/login');
   }
 
-  const formatDate = (date: Date | undefined) => {
+  const formatDate = (date: string | Date | undefined) => {
     if (!date) return '未知';
     return new Date(date).toLocaleDateString('zh-TW', {
       year: 'numeric',
@@ -45,9 +50,6 @@ export default async function ProfilePage() {
     }
   };
 
-  /** 取得名稱首字作為頭貼佔位 */
-  const avatarInitial = gmUser.displayName.charAt(0);
-
   return (
     <PageLayout
       header={
@@ -62,14 +64,10 @@ export default async function ProfilePage() {
       <div className="space-y-10 py-4">
         {/* Header：頭貼 + 名稱 */}
         <header className="flex items-center gap-6">
-          <div className="relative group cursor-pointer shrink-0">
-            <div className="w-20 h-20 rounded-full bg-muted-foreground/30 flex items-center justify-center text-white text-3xl font-bold shadow-sm">
-              {avatarInitial}
-            </div>
-            <div className="absolute -bottom-1 -right-1 bg-primary p-1.5 rounded-full border-4 border-background shadow-sm group-hover:scale-110 transition-transform">
-              <Camera className="h-4 w-4 text-primary-foreground" />
-            </div>
-          </div>
+          <AvatarUpload
+            displayName={gmUser.displayName}
+            avatarUrl={gmUser.avatarUrl}
+          />
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{gmUser.displayName}</h1>
             <p className="text-sm text-muted-foreground font-medium">{gmUser.email}</p>
@@ -101,7 +99,7 @@ export default async function ProfilePage() {
         <div className="bg-primary/10 border-l-[3px] border-primary px-5 py-4 rounded-r-lg flex items-start gap-3">
           <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
           <p className="text-muted-foreground text-sm font-medium leading-relaxed">
-            目前僅支援查看帳號資訊。如需修改，請聯繫系統管理員或等待後續版本更新。
+            點擊頭像即可上傳新的個人頭像。如需修改其他資訊，請聯繫系統管理員。
           </p>
         </div>
 

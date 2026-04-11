@@ -3,7 +3,7 @@
 /**
  * 角色編輯 — Tab 1：基本設定
  *
- * 欄位：角色名稱（必填）、角色描述、PIN 解鎖保護、人格特質
+ * 欄位：角色名稱（必填）、角色描述、角色標語、人格特質、PIN 解鎖保護
  * 佈局：平坦 flex-col gap-8（無 Card wrapper）
  * 樣式：GM_LABEL_CLASS / GM_INPUT_CLASS 統一風格
  *
@@ -18,12 +18,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { PinField, type PinCheckStatus } from '@/components/gm/pin-field';
+import { PinField } from '@/components/gm/pin-field';
 import {
   GM_LABEL_CLASS,
   GM_INPUT_CLASS,
   GM_SECTION_CARD_CLASS,
-  GM_SECTION_TITLE_CLASS,
 } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
 import type { CharacterData } from '@/types/character';
@@ -43,15 +42,11 @@ interface BasicSettingsTabProps {
 export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterSave, onRegisterDiscard }: BasicSettingsTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>('idle');
-
-  const handlePinStatusChange = useCallback((status: PinCheckStatus) => {
-    setPinCheckStatus(status);
-  }, []);
 
   const initialData = useMemo(() => ({
     name: character.name,
     description: character.description || '',
+    slogan: character.slogan || '',
     hasPinLock: character.hasPinLock,
     pin: '',
     personality: character.publicInfo?.personality || '',
@@ -82,12 +77,14 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
       const updateData: {
         name: string;
         description: string;
+        slogan: string;
         hasPinLock: boolean;
         pin?: string;
         publicInfo?: { personality: string };
       } = {
         name: formData.name,
         description: formData.description,
+        slogan: formData.slogan,
         hasPinLock: formData.hasPinLock,
         publicInfo: { personality: formData.personality },
       };
@@ -163,7 +160,22 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
         </p>
       </section>
 
-      {/* 3. 人格特質 */}
+      {/* 3. 角色標語 */}
+      <section>
+        <label className={GM_LABEL_CLASS}>角色標語</label>
+        <Input
+          value={formData.slogan}
+          onChange={(e) => update('slogan', e.target.value)}
+          disabled={isLoading}
+          placeholder="例：外表高雅的貴婦人，實則是黑市情報販子"
+          className={GM_INPUT_CLASS}
+        />
+        <p className="text-[11px] text-muted-foreground/60 font-medium mt-2">
+          顯示在玩家角色卡上的一句話提示，可包含扮演方向或角色真面目
+        </p>
+      </section>
+
+      {/* 4. 人格特質 */}
       <section>
         <label className={GM_LABEL_CLASS}>人格特質</label>
         <Textarea
@@ -176,7 +188,7 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
         />
       </section>
 
-      {/* 4. PIN 解鎖保護 */}
+      {/* 5. PIN 解鎖保護 */}
       <section className={cn(GM_SECTION_CARD_CLASS, 'max-w-lg space-y-6')}>
         {/* Header */}
         <div className="flex justify-between items-start">
@@ -204,13 +216,12 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
               onChange={(value) => update('pin', value)}
               disabled={isLoading}
               required={formData.hasPinLock && !character.hasPinLock}
-              placeholder={character.hasPinLock ? '留空保持不變' : '4-6 位數字'}
+              placeholder={character.hasPinLock ? '留空保持不變' : '4 位數字'}
               idleHint={
                 character.hasPinLock
                   ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
                   : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'
               }
-              onStatusChange={handlePinStatusChange}
             />
           </div>
         )}

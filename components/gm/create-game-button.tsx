@@ -34,8 +34,8 @@ import {
 } from '@/lib/styles/gm-form';
 
 type CreateGameButtonProps = {
-  /** 顯示模式：預設 header 按鈕，card 模式為虛線框卡片 */
-  variant?: 'button' | 'card';
+  /** 顯示模式：button=header 按鈕、card=虛線框卡片、empty-state=GmEmptyState 內嵌 DashedAddButton */
+  variant?: 'button' | 'card' | 'empty-state';
 };
 
 export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) {
@@ -145,6 +145,12 @@ export function CreateGameButton({ variant = 'button' }: CreateGameButtonProps) 
             onClick={() => {}}
             variant="card"
             className="h-[280px]"
+          />
+        ) : variant === 'empty-state' ? (
+          <DashedAddButton
+            label="建立第一個劇本"
+            onClick={() => {}}
+            className="max-w-xs py-4"
           />
         ) : (
           <Button className="bg-primary text-primary-foreground font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">

@@ -213,7 +213,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
 
   return (
     <>
-      <div className="flex gap-6 h-full min-h-0">
+      <div className="flex items-start gap-6 h-full min-h-0">
         {/* ── 左欄：一般任務 ── */}
         <TaskColumn
           title="一般任務"
@@ -448,8 +448,8 @@ function TaskColumn({
 
 /** 自動揭露條件類型標籤 */
 const CONDITION_TYPE_LABELS: Record<string, string> = {
-  items_viewed: '檢視道具',
-  items_acquired: '取得道具',
+  items_viewed: '檢視物品',
+  items_acquired: '取得物品',
   secrets_revealed: '隱藏資訊揭露',
 };
 

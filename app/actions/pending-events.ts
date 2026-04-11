@@ -68,10 +68,10 @@ export async function fetchPendingEvents(
       targetGameId: event.targetGameId,
       eventType: event.eventType,
       eventPayload: event.eventPayload,
-      createdAt: event.createdAt,
+      createdAt: new Date(event.createdAt).toISOString(),
       isDelivered: true, // 已標記為已送達
-      deliveredAt: now,
-      expiresAt: event.expiresAt,
+      deliveredAt: now.toISOString(),
+      expiresAt: new Date(event.expiresAt).toISOString(),
     }));
 
     return {

@@ -9,7 +9,7 @@ interface Skill {
   id: string;
   name: string;
   description: string;
-  iconUrl?: string;
+  imageUrl?: string;
   tags?: string[];
   checkType: 'none' | 'contest' | 'random' | 'random_contest';  // required
   contestConfig?: ContestConfig;
@@ -36,7 +36,7 @@ interface Skill {
 | Persistent | Yes (always in skills tab) | Yes (in inventory) |
 | Transferable | No | Yes (if `isTransferable`) |
 | `checkType` | Required | Optional |
-| Unique effect types | `task_reveal`, `task_complete`, `item_give` | — |
+| Unique effect types | `task_reveal`, `task_complete` | — |
 | After uses exhausted | Unusable but remains | Unusable but remains |
 
 ## GM UI

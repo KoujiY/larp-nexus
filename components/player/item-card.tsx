@@ -8,7 +8,7 @@
  * 純展示元件，不持有任何狀態。
  */
 
-import { Clock, Lock } from 'lucide-react';
+import { Clock, Lock, Shield } from 'lucide-react';
 import Image from 'next/image';
 import type { Item } from '@/types/character';
 
@@ -24,6 +24,7 @@ export interface ItemCardProps {
 
 const TYPE_LABELS: Record<string, string> = {
   consumable: '消耗品',
+  tool: '道具',
   equipment: '裝備',
 };
 
@@ -33,6 +34,8 @@ export function ItemCard({
   onClick,
   disabled = false,
 }: ItemCardProps) {
+  const isEquipment = item.type === 'equipment';
+  const isEquipped = isEquipment && item.equipped === true;
   const isOnCooldown = cooldownRemaining !== null && cooldownRemaining > 0;
   const isExhausted =
     item.usageLimit != null &&
@@ -42,7 +45,11 @@ export function ItemCard({
 
   return (
     <div
-      className={`relative rounded-xl overflow-hidden bg-card border border-border/30 flex flex-col transition-all ${
+      className={`relative rounded-xl overflow-hidden bg-card flex flex-col transition-all ${
+        isEquipped
+          ? 'border-2 border-primary/60 shadow-[0_0_12px_-3px_rgba(254,197,106,0.3)]'
+          : 'border border-border/30'
+      } ${
         disabled
           ? 'opacity-60 cursor-not-allowed'
           : isExhausted
@@ -94,6 +101,13 @@ export function ItemCard({
             <Lock className="h-6 w-6 text-foreground/40 relative z-10" />
           </div>
         )}
+
+        {/* 裝備中徽章 */}
+        {isEquipped && (
+          <div className="absolute top-1.5 right-1.5 z-10 bg-primary/90 rounded-full p-1 shadow-md">
+            <Shield className="h-3 w-3 text-primary-foreground" />
+          </div>
+        )}
       </div>
 
       {/* 文字區域 */}
@@ -127,7 +141,12 @@ export function ItemCard({
                   {tag === 'combat' ? '戰鬥' : tag === 'stealth' ? '隱匿' : tag}
                 </span>
               ))}
-              {item.effects && item.effects.length > 0 && (
+              {isEquipment && item.statBoosts && item.statBoosts.length > 0 && (
+                <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase">
+                  {item.statBoosts.length} 項加成
+                </span>
+              )}
+              {!isEquipment && item.effects && item.effects.length > 0 && (
                 <span
                   className={`text-[9px] bg-primary/10 px-1.5 py-0.5 rounded font-bold uppercase ${
                     isOnCooldown ? 'text-primary/60' : 'text-primary'

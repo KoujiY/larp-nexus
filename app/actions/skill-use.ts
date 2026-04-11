@@ -20,7 +20,7 @@ export async function useSkill(
   skillId: string,
   checkResult?: number, // 檢定結果（由前端傳入，如果是 random 類型）
   targetCharacterId?: string, // Phase 6.5: 目標角色 ID（跨角色效果用）
-  targetItemId?: string // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+  targetItemId?: string // Phase 7: 目標物品 ID（用於 item_take 和 item_steal 效果）
 ): Promise<ApiResponse<{
   skillUsed: boolean;
   checkPassed?: boolean;
@@ -32,7 +32,7 @@ export async function useSkill(
   attackerValue?: number;
   defenderValue?: number;
   preliminaryResult?: 'attacker_wins' | 'defender_wins' | 'both_fail';
-  // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+  // 非對抗偷竊/移除：使用成功後需要選擇目標物品
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
@@ -42,11 +42,12 @@ export async function useSkill(
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
     }
 
+    // Phase 8: 使用技能前檢查並處理過期的時效性效果
+    // 必須在 getCharacterData 之前執行，否則讀取的數值可能包含已過期效果的加值
+    await checkExpiredEffects(characterId);
+
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
-
-    // Phase 8: 使用技能前檢查並處理過期的時效性效果
-    await checkExpiredEffects(characterId);
 
     // 找到目標技能
     const skills = character.skills || [];
@@ -73,9 +74,18 @@ export async function useSkill(
     }
 
     // Phase 6.5: 驗證目標角色（如果需要）
+    // §4: 由 effects 陣列整體推導 targetType（Wizard mutex 規則保證 other / any 不並存）
+    //   - 有任一效果 targetType = 'other' 或 'any' → 需要選擇目標角色
+    //   - 只有 self 效果 → 不需要目標角色（玩家端仍可能傳入但不應強制）
+    //   - 對抗檢定類型 → 固定需要對手作為目標
     let targetCharacter = null;
-    const requiresTarget = skill.effects?.some((effect) => effect.requiresTarget) || skill.checkType === 'contest' || skill.checkType === 'random_contest';
-    const hasItemTakeOrSteal = skill.effects?.some((e) => e.type === 'item_take' || e.type === 'item_steal') ?? false;
+    const skillEffects = skill.effects || [];
+    const hasOtherEffect = skillEffects.some((e) => 'targetType' in e && e.targetType === 'other');
+    const hasAnyEffect = skillEffects.some((e) => 'targetType' in e && e.targetType === 'any');
+    const hasNonSelfEffect = hasOtherEffect || hasAnyEffect;
+    const isContestCheck = skill.checkType === 'contest' || skill.checkType === 'random_contest';
+    const requiresTarget = hasNonSelfEffect || isContestCheck;
+    const hasItemTakeOrSteal = skillEffects.some((e) => e.type === 'item_take' || e.type === 'item_steal');
 
     if (requiresTarget) {
       if (!targetCharacterId) {
@@ -107,21 +117,12 @@ export async function useSkill(
         };
       }
 
-      // 驗證目標類型匹配
-      const effectWithTarget = skill.effects?.find((e) => e.requiresTarget);
-      const targetType = effectWithTarget && 'targetType' in effectWithTarget
-        ? (effectWithTarget.targetType as string)
-        : undefined;
-
-      if (targetType === 'self' && targetCharacterId !== characterId) {
-        return {
-          success: false,
-          error: 'INVALID_TARGET',
-          message: '此技能只能對自己使用',
-        };
-      }
-
-      if (targetType === 'other' && targetCharacterId === characterId) {
+      // §4: 目標類型驗證（mutex 規則下只需檢查 other / contest 的非自身限制）
+      //   - hasOtherEffect: 至少一個效果明確指定「對方」→ 不得對自己使用
+      //   - isContestCheck: 對抗檢定本質上需要對手 → 不得對自己發起
+      //   - hasAnyEffect（單獨存在）: 允許自選，不做限制
+      //   - 純 self 效果: 不會進入此分支
+      if ((hasOtherEffect || isContestCheck) && targetCharacterId === characterId) {
         return {
           success: false,
           error: 'INVALID_TARGET',
@@ -259,9 +260,9 @@ export async function useSkill(
       };
     }
 
-    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標道具 → 延遲所有效果
-    // 所有效果（含 stat_change）都延遲到選擇目標道具後由 selectTargetItemAfterUse 一起執行
-    // 即使目標無道具，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無道具可互動」通知）
+    // Step 9: 非對抗偷竊/移除：檢定通過但尚未選擇目標物品 → 延遲所有效果
+    // 所有效果（含 stat_change）都延遲到選擇目標物品後由 selectTargetItemAfterUse 一起執行
+    // 即使目標無物品，仍走延遲流程 — 用戶點「確認」後觸發結算（含「無物品可互動」通知）
     if (hasItemTakeOrSteal && !targetItemId && checkPassed) {
       // 仍然更新使用記錄（usageCount, lastUsedAt）
       const usageUpdates: Record<string, unknown> = {};
@@ -285,7 +286,7 @@ export async function useSkill(
           needsTargetItemSelection: true,
           targetCharacterId,
         },
-        message: `技能使用成功，請選擇要${skill.effects?.some((e) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標道具`,
+        message: `技能使用成功，請選擇要${skill.effects?.some((e) => e.type === 'item_steal') ? '偷竊' : '移除'}的目標物品`,
       };
     }
 
@@ -308,7 +309,7 @@ export async function useSkill(
             message: errorMessage,
           };
         }
-        if (errorMessage.includes('請選擇目標道具')) {
+        if (errorMessage.includes('請選擇目標物品')) {
           return {
             success: false,
             error: 'TARGET_ITEM_REQUIRED',
@@ -322,7 +323,7 @@ export async function useSkill(
             message: errorMessage,
           };
         }
-        if (errorMessage.includes('沒有此道具')) {
+        if (errorMessage.includes('沒有此物品')) {
           return {
             success: false,
             error: 'TARGET_ITEM_NOT_FOUND',

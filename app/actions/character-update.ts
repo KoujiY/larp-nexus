@@ -35,6 +35,7 @@ import {
 import type { MongoItem, MongoSecret, MongoTask } from "@/lib/db/types/mongo-helpers";
 import type { UpdateCharacterInput } from "./character-update-types";
 import { emitUpdateSideEffects, type InventoryDiff } from "./character-update-side-effects";
+import { deleteImagesFromBlob } from "@/lib/image/upload";
 
 /**
  * 更新角色（Server Action）
@@ -109,7 +110,13 @@ export async function updateCharacter(
       }
       throw e;
     }
-    const { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds } = buildResult;
+    const {
+      updateData,
+      inventoryDiffs,
+      hasManualSecretReveal,
+      unrevealedViewedItemIds,
+      deletedImageUrls,
+    } = buildResult;
 
     // ── 5. Persist to Mongoose ───────────────────
     // 清除被重置為未揭露的 viewedItems
@@ -141,11 +148,17 @@ export async function updateCharacter(
       ...task,
       description: task.description || "",
       revealCondition: task.revealCondition || "",
-      createdAt: task.createdAt || new Date(),
+      createdAt: new Date(task.createdAt || Date.now()).toISOString(),
     }));
     const cleanItems = cleanItemData(updatedCharacter.items);
     const cleanStats = cleanStatData(updatedCharacter.stats);
     const cleanSkills = cleanSkillData(updatedCharacter.skills);
+
+    // ── 6.5. Blob 圖片清理（被刪除的道具/技能圖片）──
+    if (deletedImageUrls.length > 0) {
+      // 不 await — fire-and-forget，避免拖慢主流程
+      deleteImagesFromBlob(deletedImageUrls).catch(() => {});
+    }
 
     // ── 7. Side effects (WS + auto-reveal + log) ─
     await emitUpdateSideEffects({
@@ -168,6 +181,7 @@ export async function updateCharacter(
         gameId: updatedCharacter.gameId.toString(),
         name: updatedCharacter.name,
         description: updatedCharacter.description,
+        slogan: updatedCharacter.slogan || undefined,
         imageUrl: updatedCharacter.imageUrl,
         hasPinLock: updatedCharacter.hasPinLock,
         publicInfo: serializePublicInfo(updatedCharacter.publicInfo),
@@ -176,8 +190,8 @@ export async function updateCharacter(
         items: cleanItems,
         stats: cleanStats,
         skills: cleanSkills,
-        createdAt: updatedCharacter.createdAt,
-        updatedAt: updatedCharacter.updatedAt,
+        createdAt: new Date(updatedCharacter.createdAt).toISOString(),
+        updatedAt: new Date(updatedCharacter.updatedAt).toISOString(),
       },
       message: "角色更新成功",
     };
@@ -191,6 +205,7 @@ type BuildResult = {
   inventoryDiffs: InventoryDiff[];
   hasManualSecretReveal: boolean;
   unrevealedViewedItemIds: Set<string>;
+  deletedImageUrls: string[];
 };
 
 /**
@@ -207,10 +222,12 @@ function buildUpdateData(
   let hasManualSecretReveal = false;
   const unrevealedViewedItemIds = new Set<string>();
   let inventoryDiffs: InventoryDiff[] = [];
+  const deletedImageUrls: string[] = [];
 
   // Basic fields
   if (data.name !== undefined) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
+  if (data.slogan !== undefined) updateData.slogan = data.slogan;
   if (data.hasPinLock !== undefined) updateData.hasPinLock = data.hasPinLock;
   if (data.pin !== undefined) updateData.pin = data.pin;
 
@@ -275,27 +292,54 @@ function buildUpdateData(
   }
 
   // items
+  // 先 normalize 再 validate：normalizer 會為 random_contest 等類型補齊遺漏的預設值，
+  // 讓過去被 bug 腐蝕的舊資料在下一次儲存時自動修復，而不是被驗證器永久擋下。
   if (data.items !== undefined) {
-    const validation = validateItems(data.items);
+    const currentItems = (beforeState.items || []) as MongoItem[];
+    const submittedItems = data.items as unknown as MongoItem[];
+
+    const result = updateCharacterItems(submittedItems, currentItems);
+    const validation = validateItems(result.items as unknown as Parameters<typeof validateItems>[0]);
     if (!validation.success) {
       throw new ValidationError(validation.error || "VALIDATION_ERROR", validation.message || "Items 驗證失敗");
     }
-    const currentItems = (beforeState.items || []) as MongoItem[];
-    const result = updateCharacterItems(data.items, currentItems);
     updateData.items = result.items;
     inventoryDiffs = result.inventoryDiffs;
+
+    // 收集被刪除道具的圖片 URL
+    for (const diff of inventoryDiffs) {
+      if (diff.action === "deleted" && diff.item.imageUrl) {
+        deletedImageUrls.push(diff.item.imageUrl);
+      }
+    }
   }
 
   // skills
+  // 先 normalize 再 validate（同上理由）
   if (data.skills !== undefined) {
-    const validation = validateSkills(data.skills);
+    const normalizedSkills = updateCharacterSkills(data.skills);
+    const validation = validateSkills(normalizedSkills as unknown as Parameters<typeof validateSkills>[0]);
     if (!validation.success) {
       throw new ValidationError(validation.error || "VALIDATION_ERROR", validation.message || "Skills 驗證失敗");
     }
-    updateData.skills = updateCharacterSkills(data.skills);
+    // 收集被刪除技能的圖片 URL（比對 before snapshot）
+    const currentSkills = (beforeState.skills || []) as Array<{ id: string; imageUrl?: string }>;
+    const newSkillIds = new Set(data.skills.map((s) => s.id));
+    for (const oldSkill of currentSkills) {
+      if (!newSkillIds.has(oldSkill.id) && oldSkill.imageUrl) {
+        deletedImageUrls.push(oldSkill.imageUrl);
+      }
+    }
+    updateData.skills = normalizedSkills;
   }
 
-  return { updateData, inventoryDiffs, hasManualSecretReveal, unrevealedViewedItemIds };
+  return {
+    updateData,
+    inventoryDiffs,
+    hasManualSecretReveal,
+    unrevealedViewedItemIds,
+    deletedImageUrls,
+  };
 }
 
 /** Validation error — 由 buildUpdateData 拋出，主函式 catch 後轉換為 API response */

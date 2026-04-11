@@ -43,8 +43,8 @@ const CONDITION_TYPE_OPTIONS: Array<{
   requiresSecrets?: boolean;
 }> = [
   { value: 'none', label: '無其他自動揭露條件' },
-  { value: 'items_viewed', label: '檢視過某幾樣道具' },
-  { value: 'items_acquired', label: '取得了某幾樣道具' },
+  { value: 'items_viewed', label: '檢視過某幾樣物品' },
+  { value: 'items_acquired', label: '取得了某幾樣物品' },
   { value: 'secrets_revealed', label: '某幾樣隱藏資訊已揭露', requiresSecrets: true },
 ];
 
@@ -240,8 +240,8 @@ export function AutoRevealConditionEditor({
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder={
                   availableItemsFiltered.length === 0
-                    ? '沒有可選的道具'
-                    : '選擇道具'
+                    ? '沒有可選的物品'
+                    : '選擇物品'
                 } />
               </SelectTrigger>
               <SelectContent>
@@ -289,7 +289,7 @@ export function AutoRevealConditionEditor({
               </div>
             ) : (
               <p className="text-xs text-muted-foreground text-center py-1">
-                尚無匹配道具，請點選添加按鈕新增
+                尚無匹配物品，請點選添加按鈕新增
               </p>
             )}
           </div>

@@ -7,6 +7,20 @@ export interface BaseEvent<T = unknown> {
 
 export interface RoleUpdatedEvent extends BaseEvent<{
   characterId: string;
+  /**
+   * 內部同步標記：為 true 時表示此事件為「副作用同步」而非「主動編輯」。
+   *
+   * 用途：裝備切換、技能/道具效果套用、時效性效果過期等場景，server 端會
+   * 在主事件（equipment.toggled / character.affected / effect.expired）之外
+   * 額外推送一個 role.updated 來同步 GM Console，但這個 role.updated **不應**：
+   *   1. 在玩家端產生通知（已由 mapRoleUpdated 過濾）
+   *   2. 在 GM 編輯頁觸發 sticky bar / 重複 refresh / 假冒「外部變更」toast
+   *      （由 useRoleUpdated hook 預設過濾，listener 顯式 opt-in 才會收到）
+   *
+   * 想接收 silentSync 事件的訂閱端必須使用 `useRoleUpdated(..., { includeSilentSync: true })`
+   * 或直接使用原生 Pusher 訂閱（如 runtime-console-ws-listener）。
+   */
+  silentSync?: boolean;
   updates: {
     name?: string;
     avatar?: string;
@@ -251,7 +265,7 @@ export interface ItemShowcasedEvent extends BaseEvent<{
     name: string;
     description: string;
     imageUrl?: string;
-    type: 'consumable' | 'equipment';
+    type: 'consumable' | 'tool' | 'equipment';
     quantity: number;
     tags?: string[];
   };
@@ -265,7 +279,7 @@ export interface ItemShowcasedEvent extends BaseEvent<{
 export interface EffectExpiredEvent extends BaseEvent<{
   targetCharacterId: string;
   effectId: string;
-  sourceType: 'skill' | 'item';
+  sourceType: 'skill' | 'item' | 'preset_event';
   sourceId: string;
   sourceCharacterId: string;
   sourceCharacterName: string;
@@ -319,6 +333,22 @@ export interface GameEndedEvent extends BaseEvent<{
 }
 
 /**
+ * 裝備切換事件
+ *
+ * 玩家裝備或卸除 equipment 類型道具時推送，
+ * 通知 GM 端更新角色狀態。
+ */
+export interface EquipmentToggledEvent extends BaseEvent<{
+  characterId: string;
+  itemId: string;
+  itemName: string;
+  equipped: boolean;
+  statBoosts: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
+}> {
+  type: 'equipment.toggled';
+}
+
+/**
  * Phase 9: 離線事件佇列記錄
  *
  * 用於儲存玩家離線時錯過的 WebSocket 事件，
@@ -341,16 +371,16 @@ export interface PendingEvent {
   eventPayload: Record<string, unknown>;
 
   /** 事件產生時間 */
-  createdAt: Date;
+  createdAt: string | Date;
 
   /** 是否已送達 */
   isDelivered: boolean;
 
   /** 送達時間 */
-  deliveredAt?: Date;
+  deliveredAt?: string | Date;
 
   /** 過期時間（createdAt + 24h） */
-  expiresAt: Date;
+  expiresAt: string | Date;
 }
 
 // WebSocket 事件聯合類型
@@ -371,6 +401,7 @@ export type WebSocketEvent =
   | TaskRevealedEvent        // Phase 7.7
   | ItemShowcasedEvent       // Phase 7.7
   | EffectExpiredEvent       // Phase 8
+  | EquipmentToggledEvent
   | GameStartedEvent         // Phase 10.7
   | GameEndedEvent;          // Phase 10.7
 

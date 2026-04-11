@@ -48,18 +48,28 @@ describe('normalizeCheckConfig', () => {
   });
 
   // ─── random_contest ───────────────────────────────────────────────────────────
+  //
+  // 注意：random_contest 需要 contestConfig 和 randomConfig 兩者。
+  // 這與驗證器 (character-validator.ts) 對 random_contest 的要求一致。
 
-  it('random_contest: relatedStat 強制清空', () => {
+  it('random_contest: relatedStat 強制清空，同時保留 randomConfig（缺漏補預設）', () => {
     const result = normalizeCheckConfig('random_contest', { relatedStat: 'ATK', opponentMaxItems: 3 }, undefined);
     expect(result.contestConfig?.relatedStat).toBe('');
     expect(result.contestConfig?.opponentMaxItems).toBe(3);
-    expect(result.randomConfig).toBeUndefined();
+    expect(result.randomConfig).toEqual({ maxValue: 100, threshold: 50 });
   });
 
   it('random_contest: contestConfig 為 undefined 時補預設值', () => {
     const result = normalizeCheckConfig('random_contest', undefined, undefined);
     expect(result.contestConfig?.relatedStat).toBe('');
     expect(result.contestConfig?.tieResolution).toBe('attacker_wins');
+    expect(result.randomConfig).toEqual({ maxValue: 100, threshold: 50 });
+  });
+
+  it('random_contest: 保留使用者提供的 randomConfig', () => {
+    const result = normalizeCheckConfig('random_contest', { opponentMaxItems: 1 }, { maxValue: 200, threshold: 120 });
+    expect(result.randomConfig).toEqual({ maxValue: 200, threshold: 120 });
+    expect(result.contestConfig?.opponentMaxItems).toBe(1);
   });
 
   // ─── random ──────────────────────────────────────────────────────────────────

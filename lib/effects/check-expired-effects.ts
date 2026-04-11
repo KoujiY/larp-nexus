@@ -11,6 +11,8 @@ import { Character } from '@/lib/db/models';
 import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import { emitEffectExpired, emitRoleUpdated } from '@/lib/websocket/events';
 import { getBaselineCharacterId } from '@/lib/game/get-character-data';
+import { writeLog } from '@/lib/logs/write-log';
+import { computeEffectiveStats } from '@/lib/utils/compute-effective-stats';
 import type { TemporaryEffect } from '@/types/character';
 import type { CharacterDocument } from '@/lib/db/models/Character';
 
@@ -192,6 +194,36 @@ async function processExpiredEffect(
   // Phase 10.4: 使用 Baseline ID 作為 WebSocket 頻道，確保玩家端能收到事件
   const channelId = getBaselineCharacterId(character);
 
+  // 計算含裝備加成的有效恢復值（玩家/GM 通知應顯示玩家實際看到的數值）
+  // 用 try-catch 包裹，確保即使計算失敗也不影響 WebSocket 事件發送
+  let displayRestoredValue = restoredValue;
+  let displayRestoredMax = restoredMax;
+
+  try {
+    const charObj = character.toObject();
+    const plainItems = charObj.items ?? [];
+    const plainStats = charObj.stats ?? [];
+    if (plainItems.length > 0 && plainStats.length > 0) {
+      // 建構恢復後的 stats 快照（只替換被恢復的那個 stat）
+      const patchedStats = plainStats.map((s: Record<string, unknown>, i: number) => {
+        if (i !== statIndex) return s;
+        return {
+          ...s,
+          value: restoredValue ?? s.value,
+          maxValue: restoredMax ?? s.maxValue,
+        };
+      });
+      const effectiveStats = computeEffectiveStats(patchedStats, plainItems);
+      const effectiveStat = effectiveStats.find((s) => s.name === effect.targetStat);
+      if (effectiveStat) {
+        if (displayRestoredValue !== undefined) displayRestoredValue = effectiveStat.value;
+        if (displayRestoredMax !== undefined) displayRestoredMax = effectiveStat.maxValue;
+      }
+    }
+  } catch (err) {
+    console.error('[processExpiredEffect] Failed to compute effective restored value, using base value:', err);
+  }
+
   // 推送 WebSocket 事件
   await emitEffectExpired(channelId, {
     targetCharacterId: channelId,
@@ -203,19 +235,75 @@ async function processExpiredEffect(
     sourceName: effect.sourceName,
     effectType: effect.effectType,
     targetStat: effect.targetStat,
-    restoredValue: restoredValue!,
-    restoredMax,
+    restoredValue: displayRestoredValue!,
+    restoredMax: displayRestoredMax,
     deltaValue: effect.deltaValue,
     deltaMax: effect.deltaMax,
     statChangeTarget: effect.statChangeTarget,
     duration: effect.duration,
   });
 
-  // 額外發送 role.updated 事件確保頁面刷新（belt-and-suspenders）
-  emitRoleUpdated(channelId, {
-    characterId: channelId,
-    updates: {},
-  }).catch((error) => console.error('Failed to emit role.updated (effect expired)', error));
+  // 寫入 Log，讓 GM 端歷史紀錄可見
+  const gameId = character.gameId?.toString();
+  if (gameId) {
+    await writeLog({
+      gameId,
+      characterId: channelId,
+      actorType: 'system',
+      actorId: 'system',
+      action: 'effect_expired',
+      details: {
+        effectId: effect.id,
+        sourceName: effect.sourceName,
+        sourceType: effect.sourceType,
+        targetStat: effect.targetStat,
+        statChangeTarget: effect.statChangeTarget,
+        restoredValue: displayRestoredValue,
+        restoredMax: displayRestoredMax,
+        deltaValue: effect.deltaValue,
+        deltaMax: effect.deltaMax,
+      },
+    });
+  }
+
+  // 額外發送 role.updated 事件確保頁面刷新 + GM Console 即時同步
+  // 帶 DB base stats（不含裝備加成），讓 GM Console 的顯示層自行套用裝備加成
+  // 避免雙重計算（過去送 effective stats → overview 再算一次 → 加成被加兩次）
+  try {
+    const charObj = character.toObject();
+    const plainStats = (charObj.stats ?? []) as Array<Record<string, unknown>>;
+    // 建構恢復後的 base stats 快照
+    const patchedStats = plainStats.map((s, i) => {
+      if (i !== statIndex) return s;
+      return {
+        ...s,
+        value: restoredValue ?? s.value,
+        maxValue: restoredMax ?? s.maxValue,
+      };
+    });
+
+    // silentSync: 副作用同步事件 — 玩家通知由 effect.expired 處理，
+    // GM 端 useRoleUpdated 預設過濾此事件
+    emitRoleUpdated(channelId, {
+      characterId: channelId,
+      silentSync: true,
+      updates: {
+        stats: patchedStats.map((s) => ({
+          id: s.id as string,
+          name: s.name as string,
+          value: s.value as number,
+          maxValue: s.maxValue as number | undefined,
+        })),
+      },
+    }).catch((error) => console.error('Failed to emit role.updated (effect expired)', error));
+  } catch {
+    // Fallback: 不帶 stats，僅觸發頁面刷新
+    emitRoleUpdated(channelId, {
+      characterId: channelId,
+      silentSync: true,
+      updates: {},
+    }).catch((error) => console.error('Failed to emit role.updated (effect expired)', error));
+  }
 
   return {
     effectId: effect.id,

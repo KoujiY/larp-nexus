@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { logout } from '@/app/actions/auth';
+import { NavLink } from '@/components/shared/nav-link';
 import {
   BookOpen,
   Settings,
@@ -15,6 +16,7 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -81,22 +83,33 @@ export function MobileHeader() {
 // Desktop Sidebar (renders its own <aside>)
 // ─────────────────────────────────────────────
 
+// ── Sidebar collapsed external store ──
+// useSyncExternalStore 避免 useEffect 內 setState 的 cascading render，
+// 同時透過 getServerSnapshot 確保 SSR hydration 安全（server 端固定 false）。
+const sidebarListeners = new Set<() => void>();
+function subscribeSidebar(callback: () => void) {
+  sidebarListeners.add(callback);
+  return () => { sidebarListeners.delete(callback); };
+}
+function getSidebarSnapshot() {
+  return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
+}
+function getServerSidebarSnapshot() {
+  return false;
+}
+
 /** 桌面版可收合/展開的側邊欄，含外層 aside 容器 */
 export function DesktopSidebar() {
-  // 初始值必須與 server 一致（false），hydration 後才讀 localStorage，
-  // 避免 server/client DOM 結構不同導致 hydration mismatch
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    if (localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true') {
-      setCollapsed(true);
-    }
-  }, []);
+  const collapsed = useSyncExternalStore(
+    subscribeSidebar,
+    getSidebarSnapshot,
+    getServerSidebarSnapshot,
+  );
 
   const toggleCollapsed = () => {
     const next = !collapsed;
-    setCollapsed(next);
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+    for (const listener of sidebarListeners) listener();
   };
 
   return (
@@ -151,7 +164,7 @@ function ExpandedNavigation({ onToggle }: { onToggle?: () => void }) {
             pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
-            <Link
+            <NavLink
               key={item.href}
               href={item.href}
               className={cn(
@@ -160,10 +173,17 @@ function ExpandedNavigation({ onToggle }: { onToggle?: () => void }) {
                   ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 font-bold'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
               )}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              <span>{item.label}</span>
-            </Link>
+              render={(isPending) => (
+                <>
+                  {isPending ? (
+                    <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
+                  ) : (
+                    <item.icon className="h-5 w-5 shrink-0" />
+                  )}
+                  <span>{item.label}</span>
+                </>
+              )}
+            />
           );
         })}
       </div>
@@ -258,7 +278,7 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
             return (
               <Tooltip key={item.href}>
                 <TooltipTrigger asChild>
-                  <Link
+                  <NavLink
                     href={item.href}
                     className={cn(
                       'flex items-center justify-center w-12 h-12 rounded-xl transition-all active:scale-95',
@@ -266,9 +286,14 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                     )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                  </Link>
+                    render={(isPending) =>
+                      isPending ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <item.icon className="h-5 w-5" />
+                      )
+                    }
+                  />
                 </TooltipTrigger>
                 <TooltipContent side="right">{item.label}</TooltipContent>
               </Tooltip>

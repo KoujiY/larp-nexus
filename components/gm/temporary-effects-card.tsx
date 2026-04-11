@@ -5,10 +5,10 @@
 
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getTemporaryEffects, checkExpiredEffects } from '@/app/actions/temporary-effects';
+import { useCallback, useEffect, useState } from 'react';
+import { getTemporaryEffects } from '@/app/actions/temporary-effects';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
-import { Clock, Zap, Package } from 'lucide-react';
+import { Clock, Zap, Package, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GM_SECTION_TITLE_CLASS } from '@/lib/styles/gm-form';
 import { GmEmptyState } from '@/components/gm/gm-empty-state';
@@ -49,12 +49,10 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
   }, [loadEffects]);
 
   useCharacterWebSocket(characterId, (event: BaseEvent) => {
-    if (event.type === 'character.affected' || event.type === 'skill.used' || event.type === 'effect.expired') {
+    if (event.type === 'character.affected' || event.type === 'skill.used' || event.type === 'item.used' || event.type === 'effect.expired') {
       loadEffects();
     }
   });
-
-  const isCheckingExpiredRef = useRef(false);
 
   useEffect(() => {
     if (effects.length === 0) return;
@@ -66,24 +64,14 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
           remainingSeconds: Math.max(0, effect.remainingSeconds - 1),
         }));
 
-        const hasNewlyExpired = updated.some((effect) => effect.remainingSeconds <= 0);
-        if (hasNewlyExpired && !isCheckingExpiredRef.current) {
-          isCheckingExpiredRef.current = true;
-          setTimeout(async () => {
-            try {
-              await checkExpiredEffects(characterId);
-            } finally {
-              isCheckingExpiredRef.current = false;
-            }
-          }, 0);
-        }
-
+        // 僅從本地移除歸零的效果卡片；伺服器端過期處理由玩家端觸發，
+        // GM 端透過 WebSocket effect.expired 事件被動接收更新（第 51-55 行）
         return updated.filter((effect) => effect.remainingSeconds > 0);
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [effects.length, characterId]);
+  }, [effects.length]);
 
   /** 格式化剩餘時間 */
   const formatRemainingTime = (seconds: number): string => {
@@ -142,7 +130,7 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
         <GmEmptyState
           icon={<Clock className="h-10 w-10" />}
           title="目前沒有進行中的效果"
-          description="當玩家使用帶有持續時間的技能或道具時，效果會顯示在這裡。"
+          description="當玩家使用帶有持續時間的技能或物品時，效果會顯示在這裡。"
         />
       </div>
     );
@@ -155,7 +143,7 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
         進行中的時效性效果
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {effects.map((effect) => {
           // 估算進度（假設初始 duration 來自 effect，fallback 用 remainingSeconds）
           const totalDuration = effect.duration ?? effect.remainingSeconds;
@@ -173,7 +161,7 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-1">
-                    {effect.sourceType === 'skill' ? '技能' : '道具'}
+                    {effect.sourceType === 'skill' ? '技能' : effect.sourceType === 'preset_event' ? '預設事件' : '物品'}
                   </p>
                   <h3 className="text-xl font-extrabold text-foreground">
                     {effect.sourceName}
@@ -186,6 +174,8 @@ export function TemporaryEffectsCard({ characterId }: TemporaryEffectsCardProps)
                   <span className="flex items-center gap-1 text-primary text-sm font-bold">
                     {effect.sourceType === 'skill' ? (
                       <Zap className="h-4 w-4" />
+                    ) : effect.sourceType === 'preset_event' ? (
+                      <CalendarClock className="h-4 w-4" />
                     ) : (
                       <Package className="h-4 w-4" />
                     )}

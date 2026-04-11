@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore, useCallback, useEffect } from 'react';
+import { useState, useSyncExternalStore, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { CharacterData } from '@/types/character';
@@ -8,6 +8,7 @@ import { PinUnlock } from './pin-unlock';
 import { InfoTab } from './info-tab';
 import { StatsDisplay } from './stats-display';
 import { ActiveEffectsPanel } from './active-effects-panel';
+import { EquipmentEffectsPanel } from './equipment-effects-panel';
 import { TaskList } from './task-list';
 import { ItemList } from './item-list';
 import { SkillList } from './skill-list';
@@ -32,12 +33,11 @@ import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, ShieldCheck } f
 
 interface CharacterCardViewProps {
   character: CharacterData;
-  isReadOnly?: boolean; // Phase 10.5.4: 預覽模式標記
 }
 
 /** 分頁配置（供 sticky nav 和 mobile bottom nav 共用） */
 const TAB_CONFIG = [
-  { value: 'items', icon: Package, label: '道具' },
+  { value: 'items', icon: Package, label: '物品' },
   { value: 'skills', icon: Wand2, label: '技能' },
   { value: 'info', icon: BookOpen, label: '資訊' },
   { value: 'stats', icon: BarChart3, label: '數值' },
@@ -46,9 +46,9 @@ const TAB_CONFIG = [
 
 /**
  * Hook 用於安全地讀取 localStorage 解鎖狀態（避免 SSR/CSR hydration 問題）
- * Phase 10: 回傳 { isUnlocked, hasFullAccess }
+ * 所有角色（含無 PIN）統一走 localStorage 解鎖流程，確保入口一致
  */
-function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
+function useLocalStorageUnlock(characterId: string) {
   const unlockedKey = `character-${characterId}-unlocked`;
   const fullAccessKey = `character-${characterId}-fullAccess`;
 
@@ -61,17 +61,15 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
   );
 
   const getUnlockedSnapshot = useCallback(() => {
-    if (!hasPinLock) return true;
     return localStorage.getItem(unlockedKey) === 'true';
-  }, [hasPinLock, unlockedKey]);
+  }, [unlockedKey]);
 
   const getFullAccessSnapshot = useCallback(() => {
-    if (!hasPinLock) return true;
     return localStorage.getItem(fullAccessKey) === 'true';
-  }, [hasPinLock, fullAccessKey]);
+  }, [fullAccessKey]);
 
-  // Server 端的快照
-  const getServerSnapshot = useCallback(() => !hasPinLock, [hasPinLock]);
+  // Server 端一律回傳 false（未解鎖），由 useSyncExternalStore 處理 hydration 差異
+  const getServerSnapshot = useCallback(() => false, []);
 
   const isUnlocked = useSyncExternalStore(subscribe, getUnlockedSnapshot, getServerSnapshot);
   const hasFullAccess = useSyncExternalStore(subscribe, getFullAccessSnapshot, getServerSnapshot);
@@ -79,16 +77,16 @@ function useLocalStorageUnlock(characterId: string, hasPinLock: boolean) {
   return { isUnlocked, hasFullAccess };
 }
 
-export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = false }: CharacterCardViewProps) {
+export function CharacterCardView({ character }: CharacterCardViewProps) {
   const router = useRouter();
   // 使用 useSyncExternalStore 安全地從 localStorage 讀取解鎖狀態
-  const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id, character.hasPinLock);
+  const { isUnlocked: isStorageUnlocked, hasFullAccess: storageFullAccess } = useLocalStorageUnlock(character.id);
   const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
   // Phase 10: 唯讀狀態完全由 localStorage 的 fullAccess 決定
   // PIN-only 解鎖不會設 fullAccess → storageFullAccess=false → 唯讀
   // Game Code + PIN 解鎖設 fullAccess=true → storageFullAccess=true → 完整互動
   // 這樣即使頁面重新載入，唯讀狀態也不會遺失
-  const isReadOnly = isReadOnlyProp || !storageFullAccess;
+  const isReadOnly = !storageFullAccess;
 
   // Phase 10: 唯讀模式使用 Baseline 資料（顯示未被 Runtime 修改的原始值）
   // full-access 模式使用 Runtime 資料（遊戲進行中的即時值）
@@ -100,7 +98,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
   const displaySecretInfo = bl?.secretInfo ?? character.secretInfo;
 
   // Phase 8: 分頁狀態管理（用於自動切換到對應分頁）
-  const [activeTab, setActiveTab] = useState<string>('items');
+  const [activeTab, setActiveTab] = useState<string>('info');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   // Phase 10: 遊戲結束 Dialog 狀態（即時收到 game.ended 時顯示）
@@ -174,6 +172,65 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     router.refresh();
   }, [character.id, router]);
 
+  /**
+   * 全域過期計時器：無論玩家在哪個分頁，都能在效果到期時觸發伺服器端檢查。
+   * ActiveEffectsPanel 只在 stats 分頁掛載，因此需要此獨立的計時器作為保底。
+   *
+   * 處理兩種情境：
+   * 1. 已過期但未處理（expiresAt 在過去、isExpired 仍為 false）→ 立即呼叫
+   * 2. 即將過期（expiresAt 在未來）→ setTimeout 延遲呼叫
+   */
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCheckingRef = useRef(false);
+  useEffect(() => {
+    const unprocessed = (character.temporaryEffects ?? []).filter(
+      (e) => !e.isExpired
+    );
+    if (unprocessed.length === 0) return;
+
+    const now = Date.now();
+
+    // 區分已過期（需立即處理）和未過期（需排程）
+    const alreadyExpired = unprocessed.some(
+      (e) => new Date(e.expiresAt).getTime() <= now
+    );
+    const futureEffects = unprocessed.filter(
+      (e) => new Date(e.expiresAt).getTime() > now
+    );
+
+    /** 執行伺服器端過期檢查並刷新 */
+    const doCheck = async () => {
+      if (isCheckingRef.current) return;
+      isCheckingRef.current = true;
+      try {
+        await checkExpiredEffects(character.id);
+        router.refresh();
+      } finally {
+        isCheckingRef.current = false;
+      }
+    };
+
+    // 情境 1：有已過期但未處理的效果 → 立即處理
+    if (alreadyExpired) {
+      doCheck();
+    }
+
+    // 情境 2：排程最近即將到期的效果
+    if (futureEffects.length > 0) {
+      const soonestMs = Math.min(
+        ...futureEffects.map((e) => new Date(e.expiresAt).getTime() - now)
+      );
+      // 加 1 秒緩衝，確保伺服器端判定 expiresAt <= now 時已過期
+      const delayMs = soonestMs + 1000;
+
+      expiryTimerRef.current = setTimeout(doCheck, delayMs);
+    }
+
+    return () => {
+      if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
+    };
+  }, [character.temporaryEffects, character.id, router]);
+
   // 道具使用 callback
   // Phase 8: 添加檢定結果參數，返回結果以便處理對抗檢定
   const handleUseItem = useCallback(async (itemId: string, targetCharacterId?: string, checkResult?: number, targetItemId?: string) => {
@@ -192,7 +249,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     if (result.success) {
       router.refresh();
     } else {
-      notify.error(result.message || '道具轉移失敗');
+      notify.error(result.message || '物品轉移失敗');
     }
   }, [character.id, router]);
 
@@ -209,22 +266,23 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
     onGameEnded: () => setGameEndedDialogOpen(true),
   });
 
-  // 如果需要 PIN 且未解鎖，顯示解鎖畫面（主題切換保持固定右上角）
-  if (character.hasPinLock && !isUnlocked) {
+  // 未解鎖時顯示入口畫面（所有角色統一流程）
+  if (!isUnlocked) {
     return (
       <>
         <ThemeToggleButton variant="fixed" />
         <PinUnlock
           characterId={character.id}
           characterName={character.name}
+          hasPinLock={character.hasPinLock}
           onUnlocked={handleUnlocked}
         />
       </>
     );
   }
 
-  // 是否顯示頂部模式橫幅（影響 sticky 元素的 top offset）
-  const showBanner = isReadOnly || character.hasPinLock;
+  // 頂部模式橫幅（所有角色解鎖後都會顯示 preview 或 runtime 橫幅）
+  const showBanner = true;
   // Fixed banner 高度 ≈ 40px (py-2 + text)
   const bannerH = showBanner ? 40 : 0;
   // Sticky header 高度 ≈ 64px (py-3 + h-10)
@@ -239,7 +297,6 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
       {/* ── 1. Fixed 模式橫幅 ──────────────────────────────────── */}
       <CharacterModeBanner
         isReadOnly={isReadOnly}
-        hasPinLock={character.hasPinLock}
         gameCode={character.gameCode}
         onRelock={handleRelock}
       />
@@ -307,17 +364,17 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         )}
 
         {/* 漸層 scrim：統一遮罩，讓文字在兩種背景下都易讀 */}
-        <div className="absolute inset-0 bg-linear-to-b from-transparent via-background/40 to-background/85 z-10 pointer-events-none" />
+        <div className="absolute inset-0 bg-linear-to-b from-transparent from-15% via-background/40 via-55% to-background/90 z-10 pointer-events-none" />
 
-        {/* 角色名稱、個性、描述 overlay（壓在圖片上，顏色為主題金色） */}
+        {/* 角色名稱 + 標語 overlay（壓在圖片上，顏色為主題金色） */}
         <div className="absolute bottom-12 left-0 w-full px-8 z-20">
           <h1 className="text-5xl font-extrabold tracking-tight text-primary [text-shadow:0_2px_8px_rgba(0,0,0,0.8)]">
             {character.name}
           </h1>
-          {character.description && (
+          {character.slogan && (
             <div className="mt-6 max-w-lg">
               <p className="text-muted-foreground/90 text-sm leading-relaxed font-light italic">
-                {character.description}
+                {character.slogan}
               </p>
             </div>
           )}
@@ -351,7 +408,7 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
         </nav>
 
         {/* 分頁內容 */}
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 pt-4">
           <TabsContent value="info" className="mt-0">
             <InfoTab
               publicInfo={character.publicInfo}
@@ -361,19 +418,22 @@ export function CharacterCardView({ character, isReadOnly: isReadOnlyProp = fals
           </TabsContent>
 
           <TabsContent value="stats" className="mt-0">
-            <StatsDisplay stats={displayStats} />
+            <StatsDisplay stats={displayStats} items={displayItems} />
             {(!displayStats || displayStats.length === 0) && (
               <div className="text-center py-12 text-muted-foreground/60">
                 <p className="text-sm">尚無角色數值</p>
               </div>
             )}
 
-            {/* Phase 8.7: 活躍效果面板 */}
-            <ActiveEffectsPanel
-              effects={character.temporaryEffects}
-              characterId={character.id}
-              onEffectExpired={handleEffectExpired}
-            />
+            {/* 時效性效果 + 裝備效果：桌面並排、手機堆疊 */}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ActiveEffectsPanel
+                effects={character.temporaryEffects}
+                characterId={character.id}
+                onEffectExpired={handleEffectExpired}
+              />
+              <EquipmentEffectsPanel items={displayItems} variant="player" />
+            </div>
           </TabsContent>
 
           <TabsContent value="tasks" className="mt-0">

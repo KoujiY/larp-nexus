@@ -145,7 +145,6 @@ describe('PinUnlock', () => {
   // ── 提交：空 PIN ──────────────────────────────────────────────────────────
 
   it('空 PIN 提交時顯示錯誤', async () => {
-    const user = userEvent.setup();
     renderPinUnlock();
 
     // 按鈕 disabled 無法直接 click，但也可以透過 form submit 測試

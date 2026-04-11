@@ -270,7 +270,7 @@ interface Character {
     id: string;                     // 唯一識別碼
     name: string;                   // 技能名稱
     description: string;            // 技能描述
-    iconUrl?: string;               // 技能圖示
+    imageUrl?: string;              // 技能圖片
     
     // 檢定系統
     checkType: 'none' | 'contest' | 'random' | 'random_contest';  // 檢定類型（Phase 7.6: 新增 random_contest）
@@ -300,7 +300,7 @@ interface Character {
     
     // 效果定義（可多個）- ✅ 部分已實作
     effects?: Array<{
-      type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 
+      type: 'stat_change' | 'item_take' | 'item_steal' | 
             'task_reveal' | 'task_complete' | 'custom';
       
       // 目標設定（Phase 6.5 方案 A）- ✅ 已實作

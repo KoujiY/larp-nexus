@@ -54,7 +54,7 @@ type ItemEffect = {
 
 /** 技能效果（skill） */
 type SkillEffect = {
-  type: 'stat_change' | 'item_give' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom';
+  type: 'stat_change' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom';
   targetType?: EffectTargetType;
   requiresTarget?: boolean;
   targetStat?: string;
@@ -71,6 +71,7 @@ type SkillEffect = {
 export type UpdateCharacterInput = {
   name?: string;
   description?: string;
+  slogan?: string;
   hasPinLock?: boolean;
   pin?: string;
   publicInfo?: {
@@ -104,19 +105,19 @@ export type UpdateCharacterInput = {
     description: string;
     isHidden: boolean;
     isRevealed: boolean;
-    revealedAt?: Date;
+    revealedAt?: string | Date;
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
-    completedAt?: Date;
+    completedAt?: string | Date;
     revealCondition?: string;
     autoRevealCondition?: AutoRevealCondition;
-    createdAt: Date;
+    createdAt: string | Date;
   }>;
   items?: Array<{
     id: string;
     name: string;
     description: string;
     imageUrl?: string;
-    type: 'consumable' | 'equipment';
+    type: 'consumable' | 'tool' | 'equipment';
     quantity: number;
     effects?: ItemEffect[];
     /** @deprecated 使用 effects 陣列代替 */
@@ -131,12 +132,14 @@ export type UpdateCharacterInput = {
     lastUsedAt?: Date;
     isTransferable: boolean;
     acquiredAt: Date;
+    equipped?: boolean;
+    statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
   }>;
   skills?: Array<{
     id: string;
     name: string;
     description: string;
-    iconUrl?: string;
+    imageUrl?: string;
     tags?: string[];
     checkType: CheckType;
     contestConfig?: ContestConfig;

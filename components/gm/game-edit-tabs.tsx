@@ -4,10 +4,13 @@ import { useState, useCallback } from 'react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GmTabsList, GmTabsTrigger } from '@/components/gm/gm-tabs';
 import { GameEditForm } from '@/components/gm/game-edit-form';
+import { PresetEventsEditForm } from '@/components/gm/preset-events-edit-form';
 import type { GameData } from '@/types/game';
+import type { CharacterData } from '@/types/character';
 
 interface GameEditTabsProps {
   game: GameData;
+  characters: CharacterData[];
   charactersTab: React.ReactNode;
   /** Runtime 控制台內容（僅 isActive 時傳入） */
   consoleTab?: React.ReactNode;
@@ -18,10 +21,10 @@ interface GameEditTabsProps {
  * 管理分頁切換攔截，當 form 有未儲存變更時以 window.confirm 提醒使用者
  *
  * Tab 結構：
- * - Baseline 模式：劇本資訊 / 角色列表
- * - Runtime 模式：控制台 / 劇本資訊 / 角色列表
+ * - Baseline 模式：劇本資訊 / 預設事件 / 角色列表
+ * - Runtime 模式：控制台 / 劇本資訊 / 預設事件 / 角色列表
  */
-export function GameEditTabs({ game, charactersTab, consoleTab }: GameEditTabsProps) {
+export function GameEditTabs({ game, characters, charactersTab, consoleTab }: GameEditTabsProps) {
   const hasConsole = !!consoleTab;
   const [activeTab, setActiveTab] = useState(hasConsole ? 'console' : 'info');
   const [infoDirty, setInfoDirty] = useState(false);
@@ -55,6 +58,7 @@ export function GameEditTabs({ game, charactersTab, consoleTab }: GameEditTabsPr
             <GmTabsTrigger value="console">控制台</GmTabsTrigger>
           )}
           <GmTabsTrigger value="info">劇本資訊</GmTabsTrigger>
+          <GmTabsTrigger value="events">預設事件</GmTabsTrigger>
           <GmTabsTrigger value="characters">角色列表</GmTabsTrigger>
         </GmTabsList>
       </div>
@@ -70,6 +74,15 @@ export function GameEditTabs({ game, charactersTab, consoleTab }: GameEditTabsPr
 
       <TabsContent value="info" className="space-y-6">
         <GameEditForm game={game} onDirtyChange={setInfoDirty} />
+      </TabsContent>
+
+      <TabsContent value="events" className="space-y-6">
+        <PresetEventsEditForm
+          gameId={game.id}
+          initialEvents={game.presetEvents || []}
+          characters={characters}
+          isRuntime={game.isActive}
+        />
       </TabsContent>
 
       <TabsContent value="characters" className="space-y-4">

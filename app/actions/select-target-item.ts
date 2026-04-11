@@ -5,13 +5,12 @@ import dbConnect from '@/lib/db/mongodb';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { emitSkillUsed, emitItemUsed } from '@/lib/websocket/events';
 import type { ApiResponse } from '@/types/api';
-import type { CharacterDocument } from '@/lib/db/models';
 import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
- * 非對抗偷竊/移除道具的後續目標道具選擇
+ * 非對抗偷竊/移除物品的後續目標物品選擇
  *
- * Step 9 重構：選擇目標道具後，透過 executeSkillEffects/executeItemEffects 執行所有效果。
+ * Step 9 重構：選擇目標物品後，透過 executeSkillEffects/executeItemEffects 執行所有效果。
  * 效果執行器內部已處理：stat_change、item_steal/take、task_reveal、custom 等，
  * 並發送 character.affected、inventoryUpdated、role.updated 給防守方。
  * 本 action 只需在效果執行完成後 emit skill.used/item.used 給攻擊方。
@@ -41,7 +40,7 @@ export async function selectTargetItemAfterUse(
       };
     }
 
-    // 找到來源技能/道具
+    // 找到來源技能/物品
     let source: SkillType | ItemType | null = null;
     let sourceName = '';
 
@@ -62,7 +61,7 @@ export async function selectTargetItemAfterUse(
         return {
           success: false,
           error: 'NOT_FOUND',
-          message: '找不到道具',
+          message: '找不到物品',
         };
       }
       source = item;
@@ -122,7 +121,7 @@ export async function selectTargetItemAfterUse(
     }
 
     // Phase 7.7: 通知發送完成後，觸發自動揭露評估（items_acquired）
-    // 延遲到此處執行，確保揭露通知不會搶先於技能/道具使用結果通知送達客戶端
+    // 延遲到此處執行，確保揭露通知不會搶先於技能/物品使用結果通知送達客戶端
     if (pendingReveal) {
       const { executeAutoReveal } = await import('@/lib/reveal/auto-reveal-evaluator');
       executeAutoReveal(pendingReveal.receiverId, { type: 'items_acquired' })
@@ -144,7 +143,7 @@ export async function selectTargetItemAfterUse(
     return {
       success: false,
       error: 'SELECT_FAILED',
-      message: `選擇目標道具失敗：${error instanceof Error ? error.message : '未知錯誤'}`,
+      message: '選擇目標物品失敗，請稍後再試',
     };
   }
 }

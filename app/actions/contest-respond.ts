@@ -1,6 +1,7 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
+import { validatePlayerAccess } from '@/lib/auth/session';
 import { removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { validateContestRequest, validateContestSource, validateDefenderItems, validateDefenderSkills, validateDefenderCombatTag, validateDefenderCheckType, validateDefenderRelatedStat } from '@/lib/contest/contest-validator';
 import { calculateAttackerValue, calculateDefenderValue, calculateContestResult } from '@/lib/contest/contest-calculator';
@@ -11,21 +12,31 @@ import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-charact
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import type { ApiResponse } from '@/types/api';
 import { getItemEffects } from '@/lib/item/get-item-effects';
+import { getEffectiveStatValue } from '@/lib/utils/compute-effective-stats';
 import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 
 /**
  * Phase 7: 防守方回應對抗檢定
- * 當防守方收到對抗檢定請求時，可以選擇使用道具/技能來增強防禦
+ * 當防守方收到對抗檢定請求時，可以選擇使用物品/技能來增強防禦
  */
 export async function respondToContest(
   contestId: string, // 對抗請求 ID（由前端傳入，格式：attackerId::skillId::timestamp）
   defenderId: string,
-  defenderItems?: string[], // 防守方使用的道具 ID 陣列
+  defenderItems?: string[], // 防守方使用的物品 ID 陣列
   defenderSkills?: string[], // 防守方使用的技能 ID 陣列
-  targetItemId?: string // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果，從 contestEvent 中獲取）
+  targetItemId?: string // Phase 7: 目標物品 ID（用於 item_take 和 item_steal 效果，從 contestEvent 中獲取）
 ): Promise<ApiResponse<{ contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail'; effectsApplied?: string[] }>> {
   try {
     await dbConnect();
+
+    // 驗證呼叫方確實擁有 defenderId（防止 IDOR）
+    if (!(await validatePlayerAccess(defenderId))) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '未授權操作此角色（請嘗試重新整理頁面並重新解鎖）',
+      };
+    }
 
     // Phase 3.2: 解析對抗請求 ID
     const { parseContestId } = await import('@/lib/contest/contest-id');
@@ -57,13 +68,13 @@ export async function respondToContest(
     const attackerIdStr = getBaselineCharacterId(attacker!);
     const defenderIdStr = getBaselineCharacterId(defender!);
 
-    // Phase 3.2: 使用驗證模組驗證技能/道具
+    // Phase 3.2: 使用驗證模組驗證技能/物品
     const sourceValidation = validateContestSource(attacker!, sourceId);
     if (!sourceValidation.success || !sourceValidation.contestConfig || !sourceValidation.sourceType) {
       return {
         success: false,
         error: sourceValidation.error || 'INVALID_SOURCE',
-        message: sourceValidation.message || '無效的技能或道具',
+        message: sourceValidation.message || '無效的技能或物品',
       };
     }
 
@@ -71,7 +82,7 @@ export async function respondToContest(
     // Phase 7.6: 對於 random_contest 類型，relatedStat 可能不存在
     const relatedStatName = contestConfig.relatedStat;
 
-    // Phase 3.2: 提前獲取技能或道具對象（用於檢查攻擊方標籤和檢定類型）
+    // Phase 3.2: 提前獲取技能或物品對象（用於檢查攻擊方標籤和檢定類型）
     let attackerSource: SkillType | ItemType | null = null;
 
     if (sourceType === 'skill') {
@@ -92,7 +103,7 @@ export async function respondToContest(
       return {
         success: false,
         error: 'NOT_FOUND',
-        message: '找不到攻擊技能或道具',
+        message: '找不到攻擊技能或物品',
       };
     }
 
@@ -102,8 +113,8 @@ export async function respondToContest(
       attackerCheckType = 'random_contest';
     }
 
-    // Phase 7.6: 驗證防守方標籤（僅當防守方有使用技能/道具時才驗證）
-    // 防守方可以不使用技能/道具，直接用基礎數值回應
+    // Phase 7.6: 驗證防守方標籤（僅當防守方有使用技能/物品時才驗證）
+    // 防守方可以不使用技能/物品，直接用基礎數值回應
     // 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤；如果攻擊方沒有戰鬥標籤，防守方也不需要有戰鬥標籤
     const hasDefenderItems = defenderItems && defenderItems.length > 0;
     const hasDefenderSkills = defenderSkills && defenderSkills.length > 0;
@@ -122,28 +133,28 @@ export async function respondToContest(
         return {
           success: false,
           error: defenderTagValidation.error || 'MISSING_COMBAT_TAG',
-          message: defenderTagValidation.message || '防守方使用的技能/道具必須具有「戰鬥」標籤才能回應具備戰鬥標籤的對抗檢定',
+          message: defenderTagValidation.message || '防守方使用的技能/物品必須具有「戰鬥」標籤才能回應具備戰鬥標籤的對抗檢定',
         };
       }
 
-      // Phase 7.6: 驗證防守方檢定類型必須與攻擊方相同（僅當防守方有使用技能/道具時才驗證）
+      // Phase 7.6: 驗證防守方檢定類型必須與攻擊方相同（僅當防守方有使用技能/物品時才驗證）
       const defenderCheckTypeValidation = validateDefenderCheckType(attackerCheckType, defender!, defenderItems || [], defenderSkills || []);
       if (!defenderCheckTypeValidation.success) {
         return {
           success: false,
           error: defenderCheckTypeValidation.error || 'INVALID_CHECK_TYPE',
-          message: defenderCheckTypeValidation.message || '防守方使用的技能/道具檢定類型必須與攻擊方相同',
+          message: defenderCheckTypeValidation.message || '防守方使用的技能/物品檢定類型必須與攻擊方相同',
         };
       }
 
-      // Phase 7.6: 驗證防守方 relatedStat 必須與攻擊方相同（僅適用於 contest 類型，且防守方有使用技能/道具時）
+      // Phase 7.6: 驗證防守方 relatedStat 必須與攻擊方相同（僅適用於 contest 類型，且防守方有使用技能/物品時）
       if (attackerCheckType === 'contest' && relatedStatName) {
         const defenderRelatedStatValidation = validateDefenderRelatedStat(relatedStatName, defender!, defenderItems || [], defenderSkills || []);
         if (!defenderRelatedStatValidation.success) {
           return {
             success: false,
             error: defenderRelatedStatValidation.error || 'INVALID_RELATED_STAT',
-            message: defenderRelatedStatValidation.message || '防守方使用的技能/道具數值判定必須與攻擊方相同',
+            message: defenderRelatedStatValidation.message || '防守方使用的技能/物品數值判定必須與攻擊方相同',
           };
         }
       }
@@ -154,13 +165,13 @@ export async function respondToContest(
     let defenderValue: number;
     let result: 'attacker_wins' | 'defender_wins' | 'both_fail';
 
-    // Phase 3.2: 使用驗證模組驗證防守方的道具和技能
+    // Phase 3.2: 使用驗證模組驗證防守方的物品和技能
     const defenderItemsValidation = validateDefenderItems(defender!, defenderItems || [], contestConfig);
     if (!defenderItemsValidation.success) {
       return {
         success: false,
         error: defenderItemsValidation.error || 'VALIDATION_FAILED',
-        message: defenderItemsValidation.message || '防守方道具驗證失敗',
+        message: defenderItemsValidation.message || '防守方物品驗證失敗',
       };
     }
 
@@ -202,10 +213,13 @@ export async function respondToContest(
       result = calculateContestResult(attackerValue, defenderValue, contestConfig.tieResolution);
     } else {
       // 原有對抗檢定邏輯（contest 類型）
-      // 取得攻擊方和防守方的相關數值
-      const attackerStats = attacker!.stats || [];
-      const attackerStat = attackerStats.find((s: { name: string }) => s.name === relatedStatName);
-      if (!attackerStat) {
+      // 取得攻擊方和防守方的有效數值（含裝備加成）
+      const attackerEffective = getEffectiveStatValue(
+        attacker!.stats || [],
+        attacker!.items || [],
+        relatedStatName!,
+      );
+      if (attackerEffective === undefined) {
         return {
           success: false,
           error: 'INVALID_STAT',
@@ -213,9 +227,12 @@ export async function respondToContest(
         };
       }
 
-      const defenderStats = defender!.stats || [];
-      const defenderStat = defenderStats.find((s: { name: string }) => s.name === relatedStatName);
-      if (!defenderStat) {
+      const defenderEffective = getEffectiveStatValue(
+        defender!.stats || [],
+        defender!.items || [],
+        relatedStatName!,
+      );
+      if (defenderEffective === undefined) {
         return {
           success: false,
           error: 'INVALID_STAT',
@@ -224,10 +241,12 @@ export async function respondToContest(
       }
 
       // Phase 3.2: 使用計算模組計算攻擊方和防守方數值
-      attackerValue = calculateAttackerValue(attackerStat.value);
+      // 攻擊方：有效值已含裝備加成
+      attackerValue = calculateAttackerValue(attackerEffective);
+      // 防守方：有效值已含裝備加成，再加上對抗中選用的物品/技能效果
       defenderValue = calculateDefenderValue(
-        defenderStat.value,
-        relatedStatName,
+        defenderEffective,
+        relatedStatName!,
         defender!,
         defenderItemsList,
         defenderSkillsList
@@ -237,7 +256,7 @@ export async function respondToContest(
       result = calculateContestResult(attackerValue, defenderValue, contestConfig.tieResolution);
     }
 
-    // Phase 3.2: 使用已獲取的攻擊方技能或道具對象（用於效果執行）
+    // Phase 3.2: 使用已獲取的攻擊方技能或物品對象（用於效果執行）
     const source = attackerSource;
     let skill: SkillType | null = null;
     let item: ItemType | null = null;
@@ -248,8 +267,8 @@ export async function respondToContest(
       item = source as ItemType;
     }
 
-    // 檢查是否需要選擇目標道具（攻擊方獲勝時）
-    // 即使目標無道具，仍需走延遲流程 — 用戶點「確認」後觸發結算
+    // 檢查是否需要選擇目標物品（攻擊方獲勝時）
+    // 即使目標無物品，仍需走延遲流程 — 用戶點「確認」後觸發結算
     let needsTargetItemSelection = false;
     if (sourceType === 'skill' && skill) {
       const effects = skill.effects || [];
@@ -292,7 +311,7 @@ export async function respondToContest(
       }
     }
 
-    // Phase 9: 檢查防守方獲勝時是否需要選擇目標道具
+    // Phase 9: 檢查防守方獲勝時是否需要選擇目標物品
     let defenderNeedsTargetItemSelection = false;
     if (hasDefenderResponse && defenderSourceObj) {
       const defenderEffects = defenderSourceType === 'skill'
@@ -342,13 +361,13 @@ export async function respondToContest(
       console.error('[contest-respond] Failed to send initial contest notifications', error);
     }
 
-    // Step 9: 效果執行 — 若需要選擇目標道具則完全跳過（所有效果延遲到 contest-select-item 一起執行）
+    // Step 9: 效果執行 — 若需要選擇目標物品則完全跳過（所有效果延遲到 contest-select-item 一起執行）
     let effectsApplied: string[] = [];
     // 延遲自動揭露：在所有對抗通知發送完成後才觸發，確保客戶端先收到對抗結果
     let pendingReveal: { receiverId: string } | undefined;
 
     if (result === 'attacker_wins' && !needsTargetItemSelection) {
-      // 攻擊方獲勝且不需要選擇目標道具：立即執行所有效果
+      // 攻擊方獲勝且不需要選擇目標物品：立即執行所有效果
       try {
         const effectResult = await executeContestEffects(attacker!, defender!, source, targetItemId, 'attacker_wins');
         effectsApplied = effectResult.effectsApplied;
@@ -357,7 +376,7 @@ export async function respondToContest(
         console.error('[contest-respond] 執行攻擊方效果時發生錯誤:', error);
       }
     } else if (result === 'defender_wins' && !defenderNeedsTargetItemSelection) {
-      // 防守方獲勝且不需要選擇目標道具：立即執行防守方效果
+      // 防守方獲勝且不需要選擇目標物品：立即執行防守方效果
       const defenderSources: Array<{ type: 'skill' | 'item'; id: string }> = [];
       if (defenderSkills && defenderSkills.length > 0) {
         defenderSkills.forEach((skillId) => {
@@ -399,21 +418,21 @@ export async function respondToContest(
         }
       }
     }
-    // result === 'both_fail' 或需要選擇目標道具時不執行任何效果
+    // result === 'both_fail' 或需要選擇目標物品時不執行任何效果
 
     // Phase 3.2: 舊的效果執行代碼已移除，改用 executeContestEffects
     // 以下代碼已移除（約 600+ 行）：
     // - 技能效果執行邏輯
-    // - 道具效果執行邏輯
+    // - 物品效果執行邏輯
     // - 數值變化處理
     // - 任務揭露/完成處理
-    // - 道具移除/偷竊處理
+    // - 物品移除/偷竊處理
     // - WebSocket 事件發送（已整合到 executeContestEffects 中）
 
-    // Phase 3.2: 更新防守方使用的道具/技能的使用記錄
+    // Phase 3.2: 更新防守方使用的物品/技能的使用記錄
     const now = new Date();
 
-    // 更新防守方使用的道具/技能的使用記錄
+    // 更新防守方使用的物品/技能的使用記錄
     const defenderUpdates: Record<string, unknown> = {};
     if (defenderItems && defenderItems.length > 0) {
       const defenderItemsData = defender.items || [];
@@ -450,15 +469,15 @@ export async function respondToContest(
       });
     }
 
-    // 注意：攻擊方技能/道具使用記錄已在 skill-use.ts/item-use.ts 中更新，這裡不需要再次更新
+    // 注意：攻擊方技能/物品使用記錄已在 skill-use.ts/item-use.ts 中更新，這裡不需要再次更新
 
-    // Step 9: 若需要選擇目標道具，跳過最終通知（由 contest-select-item 在效果執行後發送）
+    // Step 9: 若需要選擇目標物品，跳過最終通知（由 contest-select-item 在效果執行後發送）
     const finalNeedsTargetItemSelection = result === 'attacker_wins'
       ? needsTargetItemSelection
       : (result === 'defender_wins' ? defenderNeedsTargetItemSelection : false);
 
     if (!finalNeedsTargetItemSelection) {
-      // 不需要選擇目標道具：發送包含 effectsApplied 的最終通知
+      // 不需要選擇目標物品：發送包含 effectsApplied 的最終通知
       try {
         await ContestNotificationManager.sendContestResultNotifications(
           {
@@ -500,12 +519,12 @@ export async function respondToContest(
     }
 
     // Phase 8: 對抗檢定完成後，從追蹤系統中移除
-    // 注意：如果需要選擇目標道具（finalNeedsTargetItemSelection），不應該立即清除記錄
-    // 記錄將在選擇完目標道具後由 selectTargetItemForContest 清除
+    // 注意：如果需要選擇目標物品（finalNeedsTargetItemSelection），不應該立即清除記錄
+    // 記錄將在選擇完目標物品後由 selectTargetItemForContest 清除
     const shouldClearContest = !finalNeedsTargetItemSelection;
     
     if (shouldClearContest) {
-      // 不需要選擇目標道具，立即清除對抗檢定記錄
+      // 不需要選擇目標物品，立即清除對抗檢定記錄
       removeActiveContest(contestId);
       // 同時根據攻擊方和防守方的 ID 清除所有相關的對抗檢定（確保清除完整）
       // 這可以處理 contestId 格式不匹配的情況
@@ -548,10 +567,11 @@ export async function respondToContest(
       console.error('[contest-respond] 清除對抗狀態時發生錯誤:', cleanupError);
     }
     
+    // 不將內部 error.message 回傳給玩家，避免洩漏實作細節
     return {
       success: false,
       error: 'RESPOND_FAILED',
-      message: `無法回應對抗檢定：${error instanceof Error ? error.message : '未知錯誤'}`,
+      message: '無法回應對抗檢定，請稍後再試',
     };
   }
 }
