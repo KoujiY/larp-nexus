@@ -79,6 +79,7 @@ export function ContestResponseDialog({
 
   // ── 過濾可用道具 ─────────────────────────────────────────────
   const availableItems = items.filter((item) => {
+    if (item.type === 'equipment') return false;
     if (item.cooldown && item.cooldown > 0 && item.lastUsedAt) {
       const lastUsed = new Date(item.lastUsedAt).getTime();
       if (Date.now() - lastUsed < item.cooldown * 1000) return false;

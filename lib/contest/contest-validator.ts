@@ -186,6 +186,15 @@ export function validateDefenderItems(
       };
     }
 
+    // 裝備類道具為被動增益，不可用於對抗回應
+    if (item.type === 'equipment') {
+      return {
+        success: false,
+        error: 'INVALID_ITEM_TYPE',
+        message: `裝備「${item.name}」為被動增益，無法用於對抗回應`,
+      };
+    }
+
     // 檢查道具是否可用（冷卻、次數限制等）
     if (item.cooldown && item.cooldown > 0 && item.lastUsedAt) {
       const lastUsed = new Date(item.lastUsedAt).getTime();
