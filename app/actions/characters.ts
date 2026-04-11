@@ -12,6 +12,7 @@ import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
 import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
+import { PIN_REGEX, PIN_ERROR_MESSAGE } from '@/lib/character/character-validator';
 
 /**
  * 將原始角色文件序列化為可傳遞給 Client Component 的 CharacterData
@@ -291,11 +292,11 @@ export async function createCharacter(data: {
           message: '啟用 PIN 鎖必須設定 PIN 碼',
         };
       }
-      if (!/^\d{4}$/.test(validated.pin)) {
+      if (!PIN_REGEX.test(validated.pin)) {
         return {
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'PIN 碼必須為 4 位數字',
+          message: PIN_ERROR_MESSAGE,
         };
       }
     }
@@ -638,15 +639,13 @@ export async function checkPinAvailability(
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
     }
 
-    // 驗證 PIN 格式（4 位數字）
-    const pinRegex = /^\d{4}$/;
     const trimmedPin = pin.trim();
 
-    if (!pinRegex.test(trimmedPin)) {
+    if (!PIN_REGEX.test(trimmedPin)) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: 'PIN 碼必須為 4 位數字',
+        message: PIN_ERROR_MESSAGE,
       };
     }
 

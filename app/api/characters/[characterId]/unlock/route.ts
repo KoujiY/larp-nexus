@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Character } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { getSession } from '@/lib/auth/session';
+import { PIN_REGEX, PIN_ERROR_MESSAGE } from '@/lib/character/character-validator';
 
 interface RouteContext {
   params: Promise<{
@@ -27,9 +28,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    if (!/^\d{4}$/.test(pin)) {
+    if (!PIN_REGEX.test(pin)) {
       return NextResponse.json(
-        { success: false, message: 'PIN 碼格式錯誤（需為 4 位數字）' },
+        { success: false, message: PIN_ERROR_MESSAGE },
         { status: 400 }
       );
     }

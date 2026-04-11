@@ -16,6 +16,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { checkPinAvailability } from '@/app/actions/characters';
+import { PIN_REGEX } from '@/lib/character/pin-constants';
 import { Input } from '@/components/ui/input';
 import { Check, X, AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -77,7 +78,7 @@ export function PinField({
   const checkPin = useCallback(
     async (pin: string) => {
       const trimmedPin = pin.trim();
-      if (!trimmedPin || trimmedPin.length !== 4 || !/^\d{4}$/.test(trimmedPin)) {
+      if (!trimmedPin || !PIN_REGEX.test(trimmedPin)) {
         setPinCheckStatus('invalid');
         return;
       }

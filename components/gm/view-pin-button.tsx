@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { getCharacterPin } from '@/app/actions/characters';
 import { updateCharacter } from '@/app/actions/character-update';
+import { PIN_REGEX, PIN_ERROR_MESSAGE } from '@/lib/character/pin-constants';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Copy, Loader2 } from 'lucide-react';
 import { IconActionButton } from '@/components/gm/icon-action-button';
@@ -72,8 +73,8 @@ export function ViewPinButton({ characterId, characterName }: ViewPinButtonProps
   }, [open, loadCurrentPin]);
 
   const handleSave = async () => {
-    if (!/^\d{4}$/.test(editPin)) {
-      toast.error('PIN 碼必須為 4 位數字');
+    if (!PIN_REGEX.test(editPin)) {
+      toast.error(PIN_ERROR_MESSAGE);
       return;
     }
 
