@@ -45,6 +45,7 @@ When item has `checkType: 'contest'`:
 - If combat tag: defender can only respond with combat-tagged items/skills
 - Stealth tag: defender sees "某人" instead of attacker name
 - After resolution: effects applied to winner's target
+- **裝備類物品不可用於對抗回應**（被動增益，前後端均過濾）
 
 ## Related
 - [../shared/contest/contest-flow.md](../shared/contest/contest-flow.md)

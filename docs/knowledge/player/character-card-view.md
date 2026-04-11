@@ -13,9 +13,17 @@ Component: `components/player/character-card-view.tsx`
 | 道具 | `Backpack` | Item inventory + usage |
 | 技能 | `Zap` | Skills + usage |
 
+## Unlock / Entry Flow
+所有角色（含無 PIN）統一經過入口頁面（`pin-unlock.tsx`），localStorage 控制解鎖狀態：
+- **有 PIN 角色**：輸入 PIN → 預覽模式；PIN + Game Code → Runtime 模式
+- **無 PIN 角色**：「直接進入」→ 預覽模式；輸入 Game Code → Runtime 模式
+- Game Code 輸入區永遠顯示（選填），按鈕文字根據有無 Game Code 切換
+- `useLocalStorageUnlock` hook 不再區分 `hasPinLock`，統一走 localStorage 讀寫
+
 ## Mode Banners
-- **預覽模式** — Read-only. PIN-only unlock or game not active.
-- **遊戲進行中** — Full interactive mode. Game Code + PIN + `isActive=true`.
+所有角色解鎖後統一顯示模式橫幅（`character-mode-banner.tsx`）：
+- **預覽模式** — Read-only. 橫幅提供「重新解鎖」按鈕返回入口頁面
+- **遊戲進行中** — Full interactive mode. 橫幅提供「重新鎖定」按鈕返回入口頁面
 
 In preview mode, all action buttons (use item, use skill, transfer, showcase) are disabled.
 

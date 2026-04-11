@@ -65,3 +65,8 @@ interface ContestConfig {
 When attacker uses combat-tagged skill/item:
 - Defender can only respond with items/skills that also have the combat tag
 - Defender must use the same stat (contest) or same check type (random_contest)
+
+## Equipment Exclusion
+裝備類物品（`type: 'equipment'`）為被動增益，不可用於對抗回應：
+- 前端 `contest-response-dialog.tsx`：過濾 `item.type === 'equipment'` 排除於回應選項
+- 後端 `contest-validator.ts`：驗證時拒絕裝備類，回傳 `INVALID_ITEM_TYPE` 錯誤
