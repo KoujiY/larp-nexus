@@ -893,6 +893,12 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
    - [x] **Round 4**：個別 spec 斷言品質修復（H5–H10）+ TS/ESLint 錯誤清零
    - [x] **Round 5**：MEDIUM 層改善（M2 5xx 拋錯、M5 pageerror 位置、M9 精確斷言）
 
+   **Phase 7 — Infra 修復 + Strict Mode 根治** ✅
+
+   - [x] MongoMemoryServer URI 改用 temp file 傳遞（`resolveMongoUri()` + `.e2e-mongo-uri`），解決 Next.js `loadEnvConfig` 覆蓋問題
+   - [x] DB name 安全防護（reset/seed/db-query 檢查資料庫名稱含 `e2e` 或 `test`，否則 403）
+   - [x] Radix UI Tabs 重複 DOM 造成的 strict mode violation 全面修復（52+ 處 `.first()`）
+
    <details>
    <summary>完整 Code Review 發現清單</summary>
 
@@ -985,7 +991,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | ~~7~~ | ~~#4 目標選擇改進~~ | ~~中~~ | ✅ per-effect 分派 + Wizard mutex 規則 |
 | ~~7.5~~ | ~~#5.5 控制台 UI 微調~~ | ~~小~~ | ✅ E2E 建置前先穩定 UI |
 | ~~7.6~~ | ~~#5.6 Lint 問題統一清理（5.6-2 ~ 5.6-5）~~ | ~~小~~ | ✅ 17 warnings 全清 |
-| 8 | #6 E2E 測試建置 | 中 | 純地端；Playwright + mongodb-memory-server + Pusher stub 兩層（smoke/flows）|
+| 8 | #6 E2E 測試建置 🚧 | 中 | 純地端；Playwright + mongodb-memory-server + Pusher stub 兩層（smoke/flows）|
 
 ### E2E 之後的待辦項目
 

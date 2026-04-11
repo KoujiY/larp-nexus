@@ -35,6 +35,36 @@ E2E 測試使用 **Playwright** + **mongodb-memory-server**，完全離線可跑
 | 並行度 | `workers: 1` | 共享同一 in-memory DB，避免競態 |
 | 重試 | 本地 1 次、CI 2 次 | 兜底非確定性失敗，但不取代根因修復 |
 
+## MongoMemoryServer URI 傳遞機制（Temp File）
+
+### 問題
+
+`global-setup.ts` 在 `process.env.MONGODB_URI` 設定 MongoMemoryServer 的 URI，但 Next.js 的 `loadEnvConfig` 會從 `.env.local` 重新載入環境變數，**覆蓋** `process.env.MONGODB_URI`。結果 Next.js webServer 連到 Atlas 而非 MongoMemoryServer，導致：
+- E2E `reset` 操作清空真實資料
+- 測試結果不穩定（資料在 Atlas 殘留）
+
+### 解法：Temp File 雙重寫入
+
+```
+global-setup.ts
+  ├── process.env.MONGODB_URI = uri     （Playwright runner 自己用）
+  └── fs.writeFileSync('.e2e-mongo-uri', uri)  （跨進程傳遞）
+
+lib/db/mongodb.ts（resolveMongoUri()）
+  └── E2E=1 時優先讀 .e2e-mongo-uri temp file → 取得正確 URI
+```
+
+| 檔案 | 變更 |
+|------|------|
+| `e2e/global-setup.ts` | 導出 `E2E_MONGO_URI_FILE`，啟動後寫入 temp file |
+| `e2e/global-teardown.ts` | 清理 temp file |
+| `lib/db/mongodb.ts` | 新增 `resolveMongoUri()`，`E2E=1` 時讀 temp file |
+| `.gitignore` | 加入 `.e2e-mongo-uri` |
+
+### 驗證方式
+
+連線成功時印出 `[MongoDB] Connected successfully → host/dbName`，spec 中可從 console log 確認連到 `larp-nexus-e2e` 而非 `larp-nexus`。
+
 ## Pusher Stub 機制（SSE IPC）
 
 E2E 環境透過 `webpack alias` 將 Pusher 替換為 stub 實作，不連真正的 Pusher cluster。
@@ -86,7 +116,18 @@ E2E 環境提供 4 個僅在 `E2E=1` 時可用的 API route：
 
 ### 安全機制
 
-所有 test route 在第一行檢查 `process.env.E2E !== '1'` → 404，production 環境永遠不可達。
+1. **環境檢查**：所有 test route 在第一行檢查 `process.env.E2E !== '1'` → 404，production 環境永遠不可達。
+2. **DB 名稱防護**：`reset`、`seed`、`db-query` 三個 route 在操作前檢查連線的資料庫名稱必須包含 `e2e` 或 `test`，否則回傳 403。這是防禦縱深——即使 URI 設定錯誤連到 Atlas，也不會清空/汙染真實資料。
+
+```typescript
+const dbName = db.databaseName;
+if (!dbName.includes('e2e') && !dbName.includes('test')) {
+  return NextResponse.json(
+    { error: `Refusing to reset non-test database: "${dbName}"` },
+    { status: 403 },
+  );
+}
+```
 
 ## Fixtures（`e2e/fixtures/index.ts`）
 
@@ -264,7 +305,24 @@ e2e/
 | Seed 命名避免子字串 | 角色名稱不可包含技能/道具名稱作為前綴（「竊取者」✅ vs「竊取攻擊者」❌） |
 | CSS selector 限定 scope | `page.locator('main .game-card')` 避免 RSC streaming 隱藏 DOM 副本 |
 
-**根因**：Playwright strict mode 在 locator 匹配 2+ 元素時直接 fail。Next.js RSC streaming 會短暫保留隱藏 DOM 節點（不在 ARIA tree 中，但 CSS selector 能匹配），使問題 flaky。
+**根因**：Playwright strict mode 在 locator 匹配 2+ 元素時直接 fail。Next.js production build 搭配 Radix UI Tabs 會渲染重複的 DOM 節點（頁面出現兩份 tab content），使 `getByText()` / `locator()` / `getByPlaceholder()` / `getByLabel()` 匹配到 2 個元素。
+
+**Radix Tabs 重複 DOM 應對**：凡是在 Radix Tabs 管理的頁面（GM 控制台、角色編輯、玩家角色卡）中使用 `page.getByPlaceholder()`、`page.locator('.bg-card')`、`page.locator('button[aria-label]')` 等非唯一 locator，**一律加 `.first()`**。常見受影響的 pattern：
+
+```typescript
+// ✅ 正確
+page.getByPlaceholder('章節標題...').first().fill(...)
+page.locator('.bg-card').filter({ hasText: '快速廣播' }).first()
+page.locator('button[aria-label*="通知"]').first().waitFor(...)
+page.getByLabel('遊戲代碼輸入').first()
+page.getByRole('switch').first().click()
+
+// ❌ 會 fail（strict mode）
+page.getByPlaceholder('章節標題...').fill(...)
+page.locator('.bg-card').filter({ hasText: '快速廣播' })
+```
+
+**例外**：已 scope 到 dialog（`dialog.getByPlaceholder(...)`）或 `locator('main')` 中的 locator 通常不需要 `.first()`，因為 dialog 和 `<main>` 不受 Radix Tabs 重複影響。
 
 ### B. SaveBar 操作指南
 
