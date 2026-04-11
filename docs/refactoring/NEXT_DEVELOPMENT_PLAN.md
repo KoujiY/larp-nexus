@@ -1003,7 +1003,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | ~~10~~ | ~~#7 `item_give` 死碼移除~~ | ~~小~~ | ✅ |
 | ~~11~~ | ~~#8 裝備類物品對抗回應過濾~~ | ~~小~~ | ✅ |
 | ~~12~~ | ~~#9 PIN 驗證邏輯統一~~ | ~~小~~ | ✅ |
-| 13 | #10 E2E Code Review 殘留 MEDIUM 修復 | 小 | 改善 |
+| ~~13~~ | ~~#10 E2E Code Review 殘留 MEDIUM 修復~~ | ~~小~~ | ✅ |
 | ~~14~~ | ~~#11 無 PIN 角色入口流程統一~~ | ~~小~~ | ✅ |
 
 #### #5.6-1 React 19 set-state-in-effect 重構
@@ -1020,14 +1020,14 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 
 #### #10 E2E Code Review 殘留 MEDIUM 修復
 
-Phase 6b code review 中評估為低優先的 MEDIUM 項目，擇時修復：
+Phase 6b code review 中評估為低優先的 MEDIUM 項目，已全部修復：
 
-- M1: `fixtures/index.ts` — `callSeed` 回傳 input data 而非 DB 值（需改 seed API 回傳完整 document）
-- M3: `gm-broadcast.spec.ts:199-212` — broadcast payload fallback 掩蓋 schema 歧義
-- M4: `contest-flow.spec.ts:983-1006` — CSS opacity 斷言耦合 Tailwind class
-- M6: `auto-reveal.spec.ts:809` — `waitForTimeout(500)` 可被 clickSaveBar retry 取代
-- M7: `item-transfer-effects.spec.ts:400,539` — 用 `.name` 找物品無唯一性保護
-- M10: `app/actions/item-use.ts:521-578` — `targetUpdates` 混用 `$push`（production code，需謹慎）
+- ~~M1~~: seed API 改為回傳完整 document，`callSeed` 使用 DB 值而非 input data
+- ~~M3~~: 移除 broadcast payload fallback，直接斷言 `.payload`
+- ~~M4~~: 對抗回應卡加 `aria-disabled` 屬性，E2E 改用語義斷言取代 CSS opacity 硬值
+- ~~M6~~: 移除多餘 `waitForTimeout(500)`，依賴 `clickSaveBar` 內建 retry
+- ~~M7~~: 物品查找從 `.name` 改為 `.id`，與同檔案既有模式一致
+- ~~M10~~: `targetUpdates` 重構為直接構建 `$set`/`$push` operation，消除 operator 混用風險
 
 #### #9 PIN 驗證邏輯統一
 
