@@ -36,10 +36,10 @@
 |------|------|------|
 | GM/角色 | `knowledge/gm/character/` | 角色卡、基本資訊、公開資訊、隱藏資訊、數值 |
 | GM/遊戲 | `knowledge/gm/game/` | 遊戲設定、廣播、遊戲狀態、預設事件 |
-| GM/道具 | `knowledge/gm/items/` | 道具概念、效果、標籤、裝備系統 |
+| GM/物品 | `knowledge/gm/items/` | 物品概念、效果、標籤、裝備系統 |
 | GM/技能 | `knowledge/gm/skills/` | 技能概念、效果、標籤 |
 | GM/任務 | `knowledge/gm/tasks/` | 任務管理、隱藏任務與自動揭露 |
-| 玩家 | `knowledge/player/` | 角色卡視圖、道具使用、技能使用 |
+| 玩家 | `knowledge/player/` | 角色卡視圖、物品使用、技能使用 |
 | 共用 | `knowledge/shared/` | 對抗流程、檢定機制、自動揭露、通知、WebSocket |
 | 架構 | `knowledge/architecture/` | 資料模型、API、部署、E2E 測試 |
 
@@ -93,7 +93,7 @@ larp-nexus/
 │   ├── auth/            # 認證（session、magic link）
 │   ├── contest/         # 對抗檢定系統
 │   ├── skill/           # 技能系統
-│   ├── item/            # 道具系統（含裝備加成）
+│   ├── item/            # 物品系統（含裝備加成）
 │   ├── effects/         # 時效性效果系統
 │   ├── preset-event/    # 預設事件系統
 │   ├── websocket/       # WebSocket（Pusher）
@@ -165,7 +165,7 @@ perf: 效能改善
 
 ### E2E 測試
 - **Playwright** + **mongodb-memory-server** — 完全離線可跑，不需要 Atlas/Pusher/SMTP
-- 覆蓋 12 個業務流程（70+ test cases）：GM 登入、角色 CRUD、技能/道具使用、對抗檢定、廣播、預設事件、自動揭露等
+- 覆蓋 12 個業務流程（70+ test cases）：GM 登入、角色 CRUD、技能/物品使用、對抗檢定、廣播、預設事件、自動揭露等
 - 自訂 fixtures（auto DB reset、seed builder、GM/Player session、WebSocket event listener）
 - 執行：`pnpm test:e2e`
 - 詳細架構：[E2E 測試架構](./knowledge/architecture/e2e-testing.md)

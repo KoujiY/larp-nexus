@@ -89,7 +89,7 @@ components/        # React 組件
 lib/              # 業務邏輯和工具
   ├── db/models/  # MongoDB 模型
   ├── contest/    # 對抗系統
-  ├── item/       # 道具系統
+  ├── item/       # 物品系統
   └── skill/      # 技能系統
 types/            # TypeScript 類型定義
 hooks/            # 自定義 React Hooks
@@ -151,10 +151,10 @@ docs/             # 文檔
 docs/knowledge/
   gm/character/     ← 角色卡、基本資訊、公開資訊、隱藏資訊、數值
   gm/tasks/         ← 任務管理、隱藏任務與自動揭露
-  gm/items/         ← 道具概念、效果與標籤
+  gm/items/         ← 物品概念、效果與標籤
   gm/skills/        ← 技能概念、效果與標籤
   gm/game/          ← 遊戲設定、廣播系統、遊戲狀態
-  player/           ← 角色卡視圖、道具使用、技能使用
+  player/           ← 角色卡視圖、物品使用、技能使用
   shared/contest/   ← 對抗流程、檢定機制、標籤規則
   shared/           ← 自動揭露系統、通知系統、WebSocket 事件
   architecture/     ← 資料模型、API 參考、部署、技術棧
@@ -214,7 +214,7 @@ docs/knowledge/
 2. **一步到位** — 玩家端關鍵操作單手可達（畫面下半部）
 3. **資訊層次清晰** — GM 端資訊密度高，依尺寸/色彩/間距分層
 4. **深淺並重** — 兩種模式均為精心設計
-5. **狀態感知** — Baseline/Runtime、對抗中、道具耗盡等狀態需明確視覺提示
+5. **狀態感知** — Baseline/Runtime、對抗中、物品耗盡等狀態需明確視覺提示
 
 ### 技術約束
 - Tailwind CSS 4（oklch 色彩空間）

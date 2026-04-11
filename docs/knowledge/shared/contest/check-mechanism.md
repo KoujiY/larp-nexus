@@ -59,7 +59,7 @@ interface ContestConfig {
 
 ### 玩家側：回應類型互斥
 
-即使 GM 同時允許道具與技能回應（`opponentMaxItems > 0` 且 `opponentMaxSkills > 0`），玩家只能選擇**一種**回應類型（道具 OR 技能，不可同時使用）。此限制僅在前端 `contest-response-dialog.tsx` 強制執行。
+即使 GM 同時允許物品與技能回應（`opponentMaxItems > 0` 且 `opponentMaxSkills > 0`），玩家只能選擇**一種**回應類型（物品 OR 技能，不可同時使用）。此限制僅在前端 `contest-response-dialog.tsx` 強制執行。
 
 ## Defender Response Rules
 When attacker uses combat-tagged skill/item:

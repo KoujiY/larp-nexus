@@ -19,11 +19,11 @@ interface ItemEffect {
 
 ## Target Dispatch (per-effect)
 每個效果獨立指定 `targetType`，執行時會分派到對應角色（與技能系統規則相同，見 [../skills/skill-effects-and-tags.md](../skills/skill-effects-and-tags.md)）：
-- `self` → 使用道具的角色
+- `self` → 使用物品的角色
 - `other` → 選到的對象（不含自己）
 - `any` → 選到的對象（可含自己）
 
-**混合目標範例**：道具可以同時包含「補自己 HP +10」和「扣對方 HP -5」兩個效果，executor 會各自累積並分別同步。`item_take` / `item_steal` 則永遠是「從對手拿 → 給自己」，Wizard 擋住這兩類效果的 `self` 選項。
+**混合目標範例**：物品可以同時包含「補自己 HP +10」和「扣對方 HP -5」兩個效果，executor 會各自累積並分別同步。`item_take` / `item_steal` 則永遠是「從對手拿 → 給自己」，Wizard 擋住這兩類效果的 `self` 選項。
 
 ## Wizard 目標選擇規則
 與技能相同，同一張卡片的 effects 陣列遵守兩條硬性規則：

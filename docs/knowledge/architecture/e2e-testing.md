@@ -302,7 +302,7 @@ e2e/
 | 預設 `exact: true` | `getByRole('button', { name, exact: true })`，避免「編輯」匹配「編輯遊戲代碼」 |
 | Scope 到 `main` | `page.locator('main').getByText(...)` 排除 breadcrumb/nav 重複文字 |
 | 先讀元件原始碼 | 確認文字出現幾次、是否有父元件累積文字、是否多處渲染同樣文字 |
-| Seed 命名避免子字串 | 角色名稱不可包含技能/道具名稱作為前綴（「竊取者」✅ vs「竊取攻擊者」❌） |
+| Seed 命名避免子字串 | 角色名稱不可包含技能/物品名稱作為前綴（「竊取者」✅ vs「竊取攻擊者」❌） |
 | CSS selector 限定 scope | `page.locator('main .game-card')` 避免 RSC streaming 隱藏 DOM 副本 |
 
 **根因**：Playwright strict mode 在 locator 匹配 2+ 元素時直接 fail。Next.js production build 搭配 Radix UI Tabs 會渲染重複的 DOM 節點（頁面出現兩份 tab content），使 `getByText()` / `locator()` / `getByPlaceholder()` / `getByLabel()` 匹配到 2 個元素。

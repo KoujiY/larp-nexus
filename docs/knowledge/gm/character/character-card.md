@@ -19,7 +19,7 @@ The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs**
 |-----|-----------|---------|
 | 數值 | `stats-edit-form.tsx` | Stats grid with percentage watermark |
 | 任務 | `tasks-edit-form.tsx` | Dual-column layout (normal + hidden) |
-| 道具 | `items-edit-form.tsx` | AbilityCard grid with expand/collapse |
+| 物品 | `items-edit-form.tsx` | AbilityCard grid with expand/collapse |
 | 技能 | `skills-edit-form.tsx` | AbilityCard grid (shared with items) |
 
 ### Shared Patterns（所有 Tab 共用）
@@ -69,12 +69,12 @@ The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs**
 | 圖片類型 | Server Action | Blob 路徑 | 壓縮 Preset |
 |---------|--------------|-----------|------------|
 | 角色頭像 | `uploadCharacterImage` | `characters/{id}/...` | `characterImage` 1200×1200 |
-| 道具圖片 | `uploadAbilityImage` mode='item' | `items/{charId}/{itemId}/...` | `itemImage` 600×600 |
+| 物品圖片 | `uploadAbilityImage` mode='item' | `items/{charId}/{itemId}/...` | `itemImage` 600×600 |
 | 技能圖片 | `uploadAbilityImage` mode='skill' | `skills/{charId}/{skillId}/...` | `skillImage` 600×600 |
 
 **寫入策略**：圖片永遠寫入 Baseline，遊戲進行中額外同步到 Runtime。詳見 `docs/knowledge/architecture/data-models.md`。
 
-**清理策略**：上傳新圖時自動刪除舊圖；刪除角色時批次清理所有關聯圖片；GM 編輯移除道具/技能時清理其圖片。詳見 `data-models.md` Vercel Blob 圖片生命週期。
+**清理策略**：上傳新圖時自動刪除舊圖；刪除角色時批次清理所有關聯圖片；GM 編輯移除物品/技能時清理其圖片。詳見 `data-models.md` Vercel Blob 圖片生命週期。
 
 ## Runtime 限制
 遊戲進行中（`isActive`）禁止新增或刪除角色：
