@@ -1002,7 +1002,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 | ~~9~~ | ~~#5.6-1 React 19 set-state-in-effect 重構~~ | ~~中~~ | ✅ |
 | ~~10~~ | ~~#7 `item_give` 死碼移除~~ | ~~小~~ | ✅ |
 | ~~11~~ | ~~#8 裝備類物品對抗回應過濾~~ | ~~小~~ | ✅ |
-| 12 | #9 PIN 驗證邏輯統一 | 小 | 技術債 |
+| ~~12~~ | ~~#9 PIN 驗證邏輯統一~~ | ~~小~~ | ✅ |
 | 13 | #10 E2E Code Review 殘留 MEDIUM 修復 | 小 | 改善 |
 | ~~14~~ | ~~#11 無 PIN 角色入口流程統一~~ | ~~小~~ | ✅ |
 
@@ -1031,15 +1031,7 @@ Phase 6b code review 中評估為低優先的 MEDIUM 項目，擇時修復：
 
 #### #9 PIN 驗證邏輯統一
 
-PIN 驗證規則（4 位數字 `/^\d{4}$/`）目前散落在至少 6 個檔案中，各自硬編碼 regex：
-- `lib/character/character-validator.ts`（Zod schema + 手動 regex）
-- `app/api/characters/[characterId]/unlock/route.ts`
-- `app/actions/characters.ts`（createCharacter + checkPinAvailability）
-- `components/gm/view-pin-button.tsx`
-- `components/gm/pin-field.tsx`
-- `components/gm/create-character-button.tsx`
-
-應提取為單一 constant 或 Zod schema，前後端共用。可放在 `lib/character/character-validator.ts` 中 export regex + 錯誤訊息，其他檔案 import 使用。
+PIN 驗證規則（4 位數字 `/^\d{4}$/`）原散落在 5 個檔案 6 處，各自硬編碼 regex 和錯誤訊息。已提取為 `lib/character/pin-constants.ts`（`PIN_REGEX` + `PIN_ERROR_MESSAGE`），client component 從此處 import，server-side 可從 `character-validator.ts` re-export 取得。
 
 #### #11 無 PIN 角色入口流程統一
 

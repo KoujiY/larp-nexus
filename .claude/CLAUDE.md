@@ -122,7 +122,7 @@ docs/             # 文檔
 3. `/plan` 規劃實作步驟
 4. `/tdd` 測試驅動實作
 5. `/code-review` 審查程式碼
-6. 更新知識庫（反映實作結果）
+6. 同步檢查（知識庫 + 開發規劃 + E2E 影響評估）
 7. Commit（按 type 拆分）& PR
 
 ### Bug 修復
@@ -130,15 +130,18 @@ docs/             # 文檔
 2. 實作修復
 3. 補回歸測試
 4. `/code-review` 審查
+5. 同步檢查（知識庫 + E2E 影響評估）
 
 ### Commit 前檢查（MANDATORY）
 1. **靜態分析（必做）**：`tsc --noEmit` + `eslint <affected-dir>` 兩者都必須 0 error。每個修改步驟完成後也應跑，不只 commit 前
 2. **使用者驗證優先**：完成功能開發後**不可**自動 commit。先給使用者**手動驗收指引**，等使用者明確說「驗證通過」「OK」或同義詞後才能 commit。`tsc` / `lint` / `vitest` 通過**不算**驗證，那只是基本健康檢查。例外：使用者在指令中明確包含「commit 動作」（例如「做完直接 commit」）才能略過此步
 3. **按 type 拆分**：`feat` / `docs` / `fix` / `refactor` 等不同類型不混在同一 commit
 4. **禁止 scope 括號**：commit subject 格式必須是 `type: description`，**不可**寫成 `type(scope): description`。理由：本專案不使用 conventional-commits 的 scope 欄位，多餘的 `(xxx)` 會讓訊息格式不一致，且 scope 選擇易流於主觀（`(gm)` vs `(console)` vs `(effects)`）。正確範例：`feat: add foo` / `refactor: simplify bar`；錯誤範例：`feat(gm): add foo` / `refactor(console): simplify bar`
-5. **知識庫同步**：此次變更是否需要更新 `docs/knowledge/` 下的對應文件
-6. **開發規劃同步**：是否需要在 `NEXT_DEVELOPMENT_PLAN.md` 標記項目完成
-7. **中文亂碼掃描**：Grep `��` 確認 Write/Edit 後沒有編碼錯誤
+5. **同步檢查**：
+   - 知識庫：`docs/knowledge/` 下的對應文件是否需要更新
+   - 開發規劃：`docs/refactoring/` 下的活躍開發規劃是否需要標記項目完成
+   - E2E：既有 `e2e/` spec 是否因行為變更需要更新、是否需要新增測試覆蓋
+6. **中文亂碼掃描**：Grep `��` 確認 Write/Edit 後沒有編碼錯誤
 
 ## 知識庫 (Knowledge Base)
 
@@ -184,10 +187,10 @@ docs/knowledge/
 
 ## 文件同步規則
 - 新增或刪除檔案時，檢查是否有其他文件（包含知識庫）引用了該路徑，一併更新
-- 若有對應的開發規劃文件（如 `docs/refactoring/NEXT_DEVELOPMENT_PLAN.md`），完成項目後更新完成狀態
+- 若有對應的開發規劃文件（`docs/refactoring/` 下的活躍計畫），完成項目後更新完成狀態
 
 ## 架構文檔參考
-- 開發規劃：`docs/refactoring/NEXT_DEVELOPMENT_PLAN.md`
+- 開發規劃：`docs/refactoring/`（活躍計畫文件）
 - API 規範：`docs/specs/03_API_SPECIFICATION.md`
 - WebSocket 事件：`docs/specs/04_WEBSOCKET_EVENTS.md`
 - 資料模型：`docs/knowledge/architecture/data-models.md`
