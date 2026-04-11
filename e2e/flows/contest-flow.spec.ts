@@ -136,7 +136,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       // ── Phase A — 防守方先載入頁面（建立 SSE 連線） ──
       await pageB.goto(`/c/${charB._id}`);
       // 等待角色卡載入（用通知按鈕作為載入指標）
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       // 建立 WS listener：request 事件（防守方收到對抗請求）
       const requestPromise = waitForWebSocketEvent(pageB, {
@@ -350,7 +350,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     try {
       // ── Phase A — 防守方先載入 ──
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       // 建立 request WS listener
       const requestPromise = waitForWebSocketEvent(pageB, {
@@ -582,7 +582,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     try {
       // ── Phase A — 防守方先載入 ──
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
@@ -731,7 +731,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     try {
       // ── Phase A — 防守方先載入 ──
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
@@ -911,7 +911,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     try {
       // ── Phase A — 防守方先載入 ──
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',
@@ -1099,7 +1099,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     try {
       // ── Phase A — 防守方先載入 ──
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       const requestPromise = waitForWebSocketEvent(pageB, {
         event: 'skill.contest',

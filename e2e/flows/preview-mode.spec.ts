@@ -120,7 +120,7 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
     // 先切換到數值 tab
     await page.getByRole('button', { name: '數值' }).click();
     // StatsDisplay 中 stat value 使用 font-mono span
-    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' });
+    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' }).first();
     await expect(hpCard).toBeVisible();
     // value 100 顯示為大數字，maxValue 100 在其後
     await expect(hpCard.locator('span.font-mono.font-bold').first()).toHaveText('100');
@@ -184,19 +184,19 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
 
     // 切換到數值 tab 確認初始 HP=100
     await page.getByRole('button', { name: '數值' }).click();
-    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' });
+    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' }).first();
     await expect(hpCard.locator('span.font-mono.font-bold').first()).toHaveText('100');
 
     // ── 點擊「重新解鎖」→ PIN 解鎖畫面 ──
     await page.getByRole('button', { name: '重新解鎖' }).click();
 
     // 等待 PIN 輸入出現
-    const pinInput = page.getByLabel('PIN 輸入');
+    const pinInput = page.getByLabel('PIN 輸入').first();
     await expect(pinInput).toBeVisible({ timeout: 5000 });
 
     // 輸入 PIN + Game Code
     await pinInput.fill('1234');
-    const gameCodeInput = page.getByLabel('遊戲代碼輸入');
+    const gameCodeInput = page.getByLabel('遊戲代碼輸入').first();
     await gameCodeInput.fill('PREV11');
 
     // 提交（有 Game Code 時按鈕文字為「進入完整互動模式」）
@@ -209,7 +209,7 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
 
     // ── UI 斷言：Stats — HP 現在顯示 60（runtime） ──
     await page.getByRole('button', { name: '數值' }).click();
-    const hpCardAfter = page.locator('.bg-card').filter({ hasText: '生命值' });
+    const hpCardAfter = page.locator('.bg-card').filter({ hasText: '生命值' }).first();
     await expect(hpCardAfter.locator('span.font-mono.font-bold').first()).toHaveText('60');
 
     // ── UI 斷言：Items — 出現長劍和治療藥水 ──
@@ -326,7 +326,7 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
 
     // ── Stats 正常顯示（fallback ?? 路徑，baselineData=undefined → 用 top-level） ──
     await page.getByRole('button', { name: '數值' }).click();
-    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' });
+    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' }).first();
     await expect(hpCard).toBeVisible();
     await expect(hpCard.locator('span.font-mono.font-bold').first()).toHaveText('100');
 

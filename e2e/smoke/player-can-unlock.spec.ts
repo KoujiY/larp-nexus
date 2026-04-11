@@ -37,13 +37,13 @@ test.describe('Flow #2 — Player PIN unlock → character card', () => {
 
     // ── Phase 1：未認證進入 → PinUnlock 畫面 ──
     await page.goto(`/c/${character._id}`);
-    const pinInput = page.locator('input[aria-label="PIN 輸入"]');
+    const pinInput = page.locator('input[aria-label="PIN 輸入"]').first();
     await expect(pinInput).toBeVisible();
-    await expect(page.getByText('輸入角色 PIN')).toBeVisible();
+    await expect(page.getByText('輸入角色 PIN').first()).toBeVisible();
 
     // ── Phase 2：輸入正確 PIN（不填 game code → 預覽模式）──
     await pinInput.fill('1234');
-    await page.getByText('以 PIN 預覽角色').click();
+    await page.getByText('以 PIN 預覽角色').first().click();
 
     // ── Phase 3：等待解鎖完成 → CharacterCardView 掛載 ──
     // PinUnlock 消失
@@ -88,19 +88,19 @@ test.describe('Flow #2 — Player PIN unlock → character card', () => {
     });
 
     await page.goto(`/c/${character._id}`);
-    const pinInput = page.locator('input[aria-label="PIN 輸入"]');
+    const pinInput = page.locator('input[aria-label="PIN 輸入"]').first();
     await expect(pinInput).toBeVisible();
 
     // 輸入錯誤 PIN
     await pinInput.fill('9999');
-    await page.getByText('以 PIN 預覽角色').click();
+    await page.getByText('以 PIN 預覽角色').first().click();
 
     // 等待 error feedback 出現（錯誤訊息文字）
     await expect(page.getByText('PIN 或遊戲代碼錯誤')).toBeVisible({ timeout: 5000 });
 
     // PinUnlock 仍然存在（沒有被 dismiss）
     await expect(pinInput).toBeVisible();
-    await expect(page.getByText('輸入角色 PIN')).toBeVisible();
+    await expect(page.getByText('輸入角色 PIN').first()).toBeVisible();
 
     // CharacterCardView 不應該掛載（用 tab bar 作為存在性指標）
     // 注意：PinUnlock 本身會顯示角色名，所以不能用角色名來斷言
@@ -148,7 +148,7 @@ test.describe('Flow #2 — Player PIN unlock → character card', () => {
     await page.goto(`/c/${character._id}`);
 
     // PinUnlock 不存在
-    const pinInput = page.locator('input[aria-label="PIN 輸入"]');
+    const pinInput = page.locator('input[aria-label="PIN 輸入"]').first();
     await expect(pinInput).toHaveCount(0);
     await expect(page.getByText('以 PIN 預覽角色')).not.toBeVisible();
 

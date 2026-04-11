@@ -981,7 +981,7 @@ test.describe('Flow #5 — Player Use Skill', () => {
     await expect(nav).not.toBeVisible({ timeout: 5000 });
 
     // PIN 輸入介面應可見
-    await expect(page.getByText('E2E 鎖定角色')).toBeVisible();
+    await expect(page.getByText('E2E 鎖定角色').first()).toBeVisible();
     // PinUnlock 畫面不會顯示技能相關內容
     await expect(page.getByText('秘密技能')).not.toBeVisible();
   });

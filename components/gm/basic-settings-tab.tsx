@@ -216,7 +216,7 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
               onChange={(value) => update('pin', value)}
               disabled={isLoading}
               required={formData.hasPinLock && !character.hasPinLock}
-              placeholder={character.hasPinLock ? '留空保持不變' : '4-6 位數字'}
+              placeholder={character.hasPinLock ? '留空保持不變' : '4 位數字'}
               idleHint={
                 character.hasPinLock
                   ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'

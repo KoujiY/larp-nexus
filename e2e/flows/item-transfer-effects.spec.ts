@@ -103,10 +103,10 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
     try {
       // ── Phase A — 雙方頁面載入（在 EventSource timer 之前完成，避免 page load 佔用 timeout） ──
       await pageA.goto(`/c/${charA._id}`);
-      await pageA.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageA.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       // ── Phase B — 設定 WS listener → 攻擊方使用技能（頁面已載入，只做 UI 互動） ──
       const requestPromise = waitForWebSocketEvent(pageB, {
@@ -280,10 +280,10 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
     try {
       // ── Phase A — 雙方頁面載入（在 EventSource timer 之前完成，避免 page load 佔用 timeout） ──
       await pageA.goto(`/c/${charA._id}`);
-      await pageA.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageA.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       // ── Phase B — 設定 WS listener → 攻擊方使用技能（頁面已載入，只做 UI 互動） ──
       const requestPromise = waitForWebSocketEvent(pageB, {
@@ -445,7 +445,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
 
     // ── Phase A — 載入攻擊方頁面 ──
     await page.goto(`/c/${charA._id}`);
-    await page.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+    await page.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
     // ── Phase B — 使用技能（checkType='none' → 直接成功，回傳 needsTargetItemSelection） ──
     const navA = page.getByRole('navigation');

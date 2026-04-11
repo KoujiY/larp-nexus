@@ -118,7 +118,7 @@ test.describe('Flow #12 — Time-Dependent Edge Cases', () => {
     await asPlayer({ characterId: character._id, readOnly: false });
     await page.goto(`/c/${character._id}`);
     await page.getByRole('button', { name: '數值' }).click();
-    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' });
+    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' }).first();
     await expect(hpCard.locator('span.font-mono.font-bold').first()).toHaveText('80', { timeout: 15000 });
   });
 
@@ -254,7 +254,7 @@ test.describe('Flow #12 — Time-Dependent Edge Cases', () => {
     await asPlayer({ characterId: character._id, readOnly: false });
     await page.goto(`/c/${character._id}`);
     await page.getByRole('button', { name: '數值' }).click();
-    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' });
+    const hpCard = page.locator('.bg-card').filter({ hasText: '生命值' }).first();
     await expect(hpCard.locator('span.font-mono.font-bold').first()).toHaveText('85', { timeout: 15000 });
   });
 

@@ -40,7 +40,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // ── Phase A — 新增兩個 stat（合併為單次 save 避免 stale closure） ──
     // 空狀態顯示引導文案
-    await expect(page.getByText('尚未定義任何數值')).toBeVisible();
+    await expect(page.getByText('尚未定義任何數值').first()).toBeVisible();
     await page.getByRole('button', { name: '新增第一個數值' }).click();
 
     // 新增 stat 自動進入編輯模式（name input auto-focus）
@@ -59,7 +59,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
     // 新增第二個 stat（此時已離開空狀態，用 DashedAddButton）
     await page.getByRole('button', { name: '新增數值' }).click();
     // 第二個 stat card 進入編輯模式
-    const nameInput2 = page.getByPlaceholder('數值名稱');
+    const nameInput2 = page.getByPlaceholder('數值名稱').first();
     await expect(nameInput2).toBeVisible();
     await nameInput2.fill('魔力');
 
@@ -135,7 +135,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // 新增一個 stat，不填 name 就嘗試儲存
     await page.getByRole('button', { name: '新增數值' }).click();
-    const emptyNameInput = page.getByPlaceholder('數值名稱');
+    const emptyNameInput = page.getByPlaceholder('數值名稱').first();
     await expect(emptyNameInput).toBeVisible();
 
     // 不填 name，直接完成編輯（draft 的 name 是空字串）
@@ -187,7 +187,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
     const saveAllBtn = page.getByRole('button', { name: '全部儲存' });
 
     // ── Phase A — 空狀態 → 開啟 Wizard ──
-    await expect(page.getByText('尚無物品')).toBeVisible();
+    await expect(page.getByText('尚無物品').first()).toBeVisible();
     await page.getByRole('button', { name: '新增第一個物品' }).click();
 
     // Wizard Dialog 開啟
@@ -306,7 +306,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
     const saveAllBtn = page.getByRole('button', { name: '全部儲存' });
 
     // ── Phase A — 開啟 Wizard，填 Step 1 ──
-    await expect(page.getByText('尚無物品')).toBeVisible();
+    await expect(page.getByText('尚無物品').first()).toBeVisible();
     await page.getByRole('button', { name: '新增第一個物品' }).click();
 
     const dialog = page.getByRole('dialog');
@@ -386,7 +386,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
     const saveAllBtn = page.getByRole('button', { name: '全部儲存' });
 
     // ── Phase A — 開啟 Skills Wizard ──
-    await expect(page.getByText('尚無技能')).toBeVisible();
+    await expect(page.getByText('尚無技能').first()).toBeVisible();
     await page.getByRole('button', { name: '新增第一個技能' }).click();
 
     const dialog = page.getByRole('dialog');
@@ -504,7 +504,7 @@ test.describe('Flow #4b — Ability Wizard & Stats CRUD', () => {
 
     // ── Phase A — 點擊既有 skill 的「編輯」按鈕 ──
     // AbilityCard 包含技能名稱文字
-    await expect(page.getByText('初始技能')).toBeVisible();
+    await expect(page.getByText('初始技能').first()).toBeVisible();
 
     // 只有一個 skill card → 只有一個「編輯」按鈕
     await page.getByRole('button', { name: '編輯' }).click();

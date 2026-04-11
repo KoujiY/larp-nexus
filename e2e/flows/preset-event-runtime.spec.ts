@@ -29,7 +29,7 @@ async function executePresetEvent(
   eventName: string,
 ) {
   // 定位事件選單面板
-  const quickPanel = gmPage.locator('.bg-card').filter({ hasText: '事件選單' });
+  const quickPanel = gmPage.locator('.bg-card').filter({ hasText: '事件選單' }).first();
   await expect(quickPanel).toBeVisible();
 
   // 選擇事件
@@ -101,7 +101,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     await waitForToast(gmPage, '遊戲已成功開始', { timeout: 10000 });
 
     // 等待 UI 切換到 Runtime 模式
-    await expect(gmPage.locator('main').getByText('進行中', { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(gmPage.locator('main').first().getByText('進行中', { exact: true })).toBeVisible({ timeout: 10000 });
 
     // ── DB 驗證：GameRuntime 已建立，presetEvents 正確複製 ──
     const runtimes = await dbQuery('game_runtime', { refId: game._id });
@@ -127,7 +127,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
 
     // Player 先載入頁面（規則 30：在 WS listener 之前完成頁面載入）
     await playerPage.goto(`/c/${charA._id}`);
-    await playerPage.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+    await playerPage.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
     // 切換到控制台 tab
     await gmPage.getByRole('tab', { name: '控制台' }).click();
@@ -241,7 +241,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
 
     // Player 先載入（規則 30）
     await playerPage.goto(`/c/${charA._id}`);
-    await playerPage.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+    await playerPage.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
     // GM 進入控制台
     await gmPage.goto(`/games/${gameId}`);
@@ -366,9 +366,9 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     try {
       // Player A/B 先載入頁面（規則 30）
       await pageA.goto(`/c/${charA._id}`);
-      await pageA.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageA.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
       await pageB.goto(`/c/${charB._id}`);
-      await pageB.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+      await pageB.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
       // GM 進入控制台
       await gmPage.goto(`/games/${gameId}`);
@@ -523,7 +523,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
 
     // Player 先載入（規則 30）
     await playerPage.goto(`/c/${charA._id}`);
-    await playerPage.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+    await playerPage.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
     // GM 進入控制台
     await gmPage.goto(`/games/${gameId}`);
@@ -792,7 +792,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     await waitForToast(page, '預設事件已建立');
 
     // 頁面應顯示新事件卡片 + 「僅本場次」badge
-    const createdCard = page.locator('.bg-card').filter({ hasText: '臨時公告' });
+    const createdCard = page.locator('.bg-card').filter({ hasText: '臨時公告' }).first();
     await expect(createdCard).toBeVisible();
     await expect(createdCard.getByText('僅本場次')).toBeVisible();
 
@@ -818,7 +818,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     // Phase B — 編輯 Runtime-only 事件
     // ══════════════════════════════════════
     // 找到臨時公告的卡片，點擊編輯
-    const newCard = page.locator('.bg-card').filter({ hasText: '臨時公告' });
+    const newCard = page.locator('.bg-card').filter({ hasText: '臨時公告' }).first();
     await newCard.getByRole('button', { name: '編輯' }).click();
 
     const editDialog = page.getByRole('dialog', { name: '編輯預設事件' });
@@ -855,7 +855,7 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     // ══════════════════════════════════════
     // Phase C — 刪除 Runtime-only 事件
     // ══════════════════════════════════════
-    const updatedCard = page.locator('.bg-card').filter({ hasText: '緊急公告' });
+    const updatedCard = page.locator('.bg-card').filter({ hasText: '緊急公告' }).first();
     await updatedCard.getByRole('button', { name: '刪除' }).click();
 
     // 確認刪除 Dialog

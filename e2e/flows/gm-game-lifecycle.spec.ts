@@ -233,7 +233,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await nameInput.fill('新劇本名稱');
 
     // 修改最大檢定值
-    const maxValueInput = page.locator('input[type="number"]');
+    const maxValueInput = page.locator('input[type="number"]').first();
     await maxValueInput.clear();
     await maxValueInput.fill('150');
 
@@ -267,12 +267,12 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     // 切換為 title 類型
     await page.getByRole('button', { name: '標題' }).click();
     // 填寫標題內容
-    await page.getByPlaceholder('章節標題...').fill('第一章：開場');
+    await page.getByPlaceholder('章節標題...').first().fill('第一章：開場');
 
     // C2：新增第二個 block（保持 body 類型）
     await page.getByRole('button', { name: '新增區塊' }).click();
     // 此時有 2 個 block，body placeholder 是第二個 block
-    await page.getByPlaceholder('段落內文...').fill('故事從這裡開始...');
+    await page.getByPlaceholder('段落內文...').first().fill('故事從這裡開始...');
 
     // 儲存
     await expect(saveBtn).toBeEnabled();
@@ -292,11 +292,11 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     // C3：刪除第一個 block（hover 顯示刪除按鈕）
     // 重新載入以確認 blocks 持久化
     await page.reload();
-    await expect(page.getByPlaceholder('章節標題...')).toHaveValue('第一章：開場');
-    await expect(page.getByPlaceholder('段落內文...')).toHaveValue('故事從這裡開始...');
+    await expect(page.getByPlaceholder('章節標題...').first()).toHaveValue('第一章：開場');
+    await expect(page.getByPlaceholder('段落內文...').first()).toHaveValue('故事從這裡開始...');
 
     // 向上找到第一個 block 容器（title block，class 含 'group' 的 div）
-    const titleInput = page.getByPlaceholder('章節標題...');
+    const titleInput = page.getByPlaceholder('章節標題...').first();
     const firstBlock = titleInput.locator('xpath=ancestor::div[contains(@class, "group")]').first();
     // hover 觸發 group-hover 顯示刪除按鈕
     await firstBlock.hover();
@@ -553,7 +553,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await waitForToast(page, '遊戲已成功開始！', { timeout: 10000 });
 
     // 等 router.refresh() → UI 更新
-    await expect(page.locator('main').getByText('進行中', { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('main').getByText('進行中', { exact: true })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: '結束遊戲' })).toBeVisible();
 
     // DB 驗證

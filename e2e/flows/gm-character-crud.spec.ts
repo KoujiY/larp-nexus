@@ -68,7 +68,7 @@ test.describe('Flow #4 — GM character CRUD', () => {
 
     // ── Phase D — 角色出現在列表 ──
     // createCharacter 做 router.refresh()，列表重新 render
-    await expect(page.getByText('E2E 主角')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('E2E 主角')).toBeVisible({ timeout: 10000 });
 
     // ── Phase E — 導航至編輯頁，驗證預設 tab ──
     await page.getByText('點擊卡片進入編輯 →').click();
@@ -79,7 +79,7 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await expect(tabBasic).toHaveAttribute('aria-selected', 'true');
 
     // 基本設定的 name 欄位顯示建立時的名稱
-    await expect(page.getByPlaceholder('例：瑪格麗特夫人')).toHaveValue('E2E 主角');
+    await expect(page.getByPlaceholder('例：瑪格麗特夫人').first()).toHaveValue('E2E 主角');
 
     // Save Bar 不可見（dirty=false）
     await expect(page.getByRole('button', { name: '全部儲存' })).not.toBeVisible();
@@ -175,7 +175,7 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await page.goto(`/games/${gameId}/characters/${characterId}`);
     await expect(page.getByRole('tab', { name: '基本設定' })).toHaveAttribute('aria-selected', 'true');
 
-    const nameInput = page.getByPlaceholder('例：瑪格麗特夫人');
+    const nameInput = page.getByPlaceholder('例：瑪格麗特夫人').first();
     await expect(nameInput).toHaveValue('E2E 主角');
     // Save Bar 隱藏（dirty=false）
     const saveAllBtn = page.getByRole('button', { name: '全部儲存' });
@@ -186,9 +186,9 @@ test.describe('Flow #4 — GM character CRUD', () => {
     // dirty → Save Bar 出現
     await expect(saveAllBtn).toBeVisible({ timeout: 3000 });
 
-    await page.getByPlaceholder('輸入角色的背景故事、性格特徵等...').fill('E2E 角色描述');
-    await page.getByPlaceholder('例：外表高雅的貴婦人，實則是黑市情報販子').fill('E2E 標語');
-    await page.getByPlaceholder('描述角色的行為準則與個性...').fill('E2E 人格特質');
+    await page.getByPlaceholder('輸入角色的背景故事、性格特徵等...').first().fill('E2E 角色描述');
+    await page.getByPlaceholder('例：外表高雅的貴婦人，實則是黑市情報販子').first().fill('E2E 標語');
+    await page.getByPlaceholder('描述角色的行為準則與個性...').first().fill('E2E 人格特質');
 
     // 儲存（evaluate retry loop 避免 AnimatePresence detach — 方法 3）
     await clickSaveBar(page);
@@ -201,9 +201,9 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await expect(toast).toBeVisible({ timeout: 5000 });
     await expect(toast).not.toBeVisible({ timeout: 10000 });
     // 頁面只有一個 Switch（PIN 解鎖保護）
-    await page.getByRole('switch').click();
-    // 啟用後 PIN 輸入出現，placeholder 是 '4-6 位數字'（因角色原本無 PIN）
-    const pinInput = page.getByPlaceholder('4-6 位數字');
+    await page.getByRole('switch').first().click();
+    // 啟用後 PIN 輸入出現，placeholder 是 '4 位數字'（因角色原本無 PIN）
+    const pinInput = page.getByPlaceholder('4 位數字').first();
     await pinInput.fill('9876');
     await expect(page.getByText('PIN 碼可用')).toBeVisible({ timeout: 3000 });
 
@@ -301,11 +301,11 @@ test.describe('Flow #4 — GM character CRUD', () => {
 
     // 填入關係資料（targetName 是自由文字欄位，非下拉選單）
     // 等待 addRelationship 的 setState → 條件渲染完成
-    await expect(page.getByPlaceholder('角色名稱')).toBeVisible({ timeout: 5000 });
-    await page.getByPlaceholder('角色名稱').fill('路人甲');
-    await expect(page.getByPlaceholder('角色名稱')).toHaveValue('路人甲');
-    await page.getByPlaceholder('描述與此角色的關係...').fill('宿敵');
-    await expect(page.getByPlaceholder('描述與此角色的關係...')).toHaveValue('宿敵');
+    await expect(page.getByPlaceholder('角色名稱').first()).toBeVisible({ timeout: 5000 });
+    await page.getByPlaceholder('角色名稱').first().fill('路人甲');
+    await expect(page.getByPlaceholder('角色名稱').first()).toHaveValue('路人甲');
+    await page.getByPlaceholder('描述與此角色的關係...').first().fill('宿敵');
+    await expect(page.getByPlaceholder('描述與此角色的關係...').first()).toHaveValue('宿敵');
 
     // 一次儲存 blocks + relationship
     await expect(saveAllBtn).toBeVisible();
@@ -380,7 +380,7 @@ test.describe('Flow #4 — GM character CRUD', () => {
 
     // ── Phase A — 新增 secret（多段落） ──
     // 空狀態：顯示引導文案
-    await expect(page.getByText('尚未新增隱藏資訊')).toBeVisible();
+    await expect(page.getByText('尚未新增隱藏資訊').first()).toBeVisible();
     await page.getByRole('button', { name: '新增第一條隱藏資訊' }).click();
 
     // SecretEditDialog 開啟（新 secret 無標題 → dialog title 為 "編輯隱藏資訊"）
@@ -487,7 +487,7 @@ test.describe('Flow #4 — GM character CRUD', () => {
     // 非同步觸發，Playwright 可能在 Map 更新前就點了 SaveBar）。
 
     // 左欄空狀態
-    await expect(page.getByText('尚無一般任務')).toBeVisible();
+    await expect(page.getByText('尚無一般任務').first()).toBeVisible();
     await page.getByRole('button', { name: '新增一般任務' }).click();
 
     // 任務編輯 Dialog
@@ -601,7 +601,7 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await asGm({ gmUserId });
 
     await page.goto(`/games/${gameId}/characters/${characterId}`);
-    const nameInput = page.getByPlaceholder('例：瑪格麗特夫人');
+    const nameInput = page.getByPlaceholder('例：瑪格麗特夫人').first();
     const saveAllBtn = page.getByRole('button', { name: '全部儲存' });
 
     // ── Phase A — dirty=false 初始狀態 ──

@@ -44,7 +44,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     await gmPage.getByRole('tab', { name: '控制台' }).click();
 
     // 確認廣播面板可見（「快速廣播」標題）
-    const broadcastPanel = gmPage.locator('.bg-card').filter({ hasText: '快速廣播' });
+    const broadcastPanel = gmPage.locator('.bg-card').filter({ hasText: '快速廣播' }).first();
     await expect(broadcastPanel).toBeVisible();
 
     // 確認預設為全體廣播模式
@@ -59,7 +59,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
 
     // Player: 進入角色頁面，等待角色卡載入完成
     await playerPage.goto(`/c/${charA._id}`);
-    await playerPage.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+    await playerPage.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
     // 先建立 WS listener，再觸發動作（避免 race condition）
     const wsPromise = waitForWebSocketEvent(playerPage, {
@@ -90,7 +90,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     });
 
     // Player UI 通知：打開通知面板確認
-    const bellButton = playerPage.locator('button[aria-label*="通知"]');
+    const bellButton = playerPage.locator('button[aria-label*="通知"]').first();
     await bellButton.click();
     await expect(playerPage.getByText('Boss 出現')).toBeVisible();
     await expect(playerPage.getByText('全員警戒')).toBeVisible();
@@ -150,7 +150,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     await gmPage.goto(`/games/${gameId}`);
     await gmPage.getByRole('tab', { name: '控制台' }).click();
 
-    const broadcastPanel = gmPage.locator('.bg-card').filter({ hasText: '快速廣播' });
+    const broadcastPanel = gmPage.locator('.bg-card').filter({ hasText: '快速廣播' }).first();
     await expect(broadcastPanel).toBeVisible();
 
     // 切換到指定角色模式
@@ -173,7 +173,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
 
     // Player: 進入角色頁面，等待角色卡載入完成
     await playerPage.goto(`/c/${charA._id}`);
-    await playerPage.locator('button[aria-label*="通知"]').waitFor({ state: 'visible' });
+    await playerPage.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
 
     // 先建立 WS listener，再觸發動作（避免 race condition）
     const wsPromise = waitForWebSocketEvent(playerPage, {
@@ -212,7 +212,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     });
 
     // Player UI 通知
-    const bellButton = playerPage.locator('button[aria-label*="通知"]');
+    const bellButton = playerPage.locator('button[aria-label*="通知"]').first();
     await bellButton.click();
     await expect(playerPage.getByText('密令')).toBeVisible();
     await expect(playerPage.getByText('前往地下城')).toBeVisible();
@@ -257,7 +257,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     await page.goto(`/games/${gameId}`);
     await page.getByRole('tab', { name: '控制台' }).click();
 
-    const broadcastPanel = page.locator('.bg-card').filter({ hasText: '快速廣播' });
+    const broadcastPanel = page.locator('.bg-card').filter({ hasText: '快速廣播' }).first();
     await expect(broadcastPanel).toBeVisible();
 
     // ── Phase A — PillToggle 模式切換 ──
