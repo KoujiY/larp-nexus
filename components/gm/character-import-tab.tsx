@@ -11,7 +11,7 @@ import { parseCharacterFromText, parseCharacterFromDocx } from '@/app/actions/ch
 import { createCharacter } from '@/app/actions/characters';
 import { updateCharacter } from '@/app/actions/character-update';
 import type { CharacterImportResult } from '@/lib/ai/schemas/character-import';
-import type { UpdateCharacterInput } from '@/types/character';
+import type { UpdateCharacterInput } from '@/app/actions/character-update-types';
 import { GM_SECTION_CARD_CLASS, GM_CTA_BUTTON_CLASS } from '@/lib/styles/gm-form';
 import { cn } from '@/lib/utils';
 
@@ -198,8 +198,8 @@ export function CharacterImportTab({ gameId, hasAiConfig, isActive, onDirtyChang
     );
   }
 
-  // Preview 階段
-  if (stage === 'preview' && parseResult) {
+  // Preview / Creating 階段
+  if ((stage === 'preview' || stage === 'creating') && parseResult) {
     return (
       <CharacterImportPreview
         data={parseResult}
