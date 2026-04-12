@@ -20,6 +20,7 @@ describe('crypto', () => {
     const parts = result.split(':');
     expect(parts).toHaveLength(3);
     expect(parts[0]).toHaveLength(24); // IV = 12 bytes = 24 hex chars
+    expect(parts[2]).toHaveLength(32); // authTag = 16 bytes = 32 hex chars
   });
 
   it('decrypt 可還原 encrypt 的結果', async () => {
@@ -50,5 +51,11 @@ describe('crypto', () => {
     delete process.env.AI_ENCRYPTION_SECRET;
     const { encrypt } = await import('@/lib/crypto');
     expect(() => encrypt('test')).toThrow('AI_ENCRYPTION_SECRET');
+  });
+
+  it('密文格式不正確時 decrypt 拋錯', async () => {
+    const { decrypt } = await import('@/lib/crypto');
+    expect(() => decrypt('')).toThrow('密文格式錯誤');
+    expect(() => decrypt('abc:def')).toThrow('密文格式錯誤');
   });
 });
