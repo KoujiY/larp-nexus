@@ -16,6 +16,7 @@ import { GameHeaderActions } from '@/components/gm/game-header-actions';
 import { EnvironmentBanner } from '@/components/gm/environment-banner';
 import { GmBreadcrumb } from '@/components/gm/gm-breadcrumb';
 import { RuntimeConsole } from '@/components/gm/runtime-console';
+import { getAiConfig } from '@/app/actions/ai-config';
 
 interface GamePageProps {
   params: Promise<{ gameId: string }>;
@@ -46,6 +47,9 @@ export default async function GamePage({ params }: GamePageProps) {
   const game = result.data;
   const charactersResult = await getCharactersByGameId(gameId);
   const characters = charactersResult.success ? charactersResult.data || [] : [];
+
+  const aiConfigResult = await getAiConfig();
+  const hasAiConfig = aiConfigResult.success && aiConfigResult.data?.hasApiKey === true;
 
   return (
     <PageLayout
@@ -89,6 +93,7 @@ export default async function GamePage({ params }: GamePageProps) {
       <GameEditTabs
         game={game}
         characters={characters}
+        hasAiConfig={hasAiConfig}
         consoleTab={
           game.isActive ? (
             <RuntimeConsole gameId={game.id} characters={characters} />

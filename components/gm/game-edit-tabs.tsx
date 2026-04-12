@@ -5,6 +5,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GmTabsList, GmTabsTrigger } from '@/components/gm/gm-tabs';
 import { GameEditForm } from '@/components/gm/game-edit-form';
 import { PresetEventsEditForm } from '@/components/gm/preset-events-edit-form';
+import { CharacterImportTab } from '@/components/gm/character-import-tab';
 import type { GameData } from '@/types/game';
 import type { CharacterData } from '@/types/character';
 
@@ -14,6 +15,7 @@ interface GameEditTabsProps {
   charactersTab: React.ReactNode;
   /** Runtime 控制台內容（僅 isActive 時傳入） */
   consoleTab?: React.ReactNode;
+  hasAiConfig: boolean;
 }
 
 /**
@@ -24,10 +26,11 @@ interface GameEditTabsProps {
  * - Baseline 模式：劇本資訊 / 預設事件 / 角色列表
  * - Runtime 模式：控制台 / 劇本資訊 / 預設事件 / 角色列表
  */
-export function GameEditTabs({ game, characters, charactersTab, consoleTab }: GameEditTabsProps) {
+export function GameEditTabs({ game, characters, charactersTab, consoleTab, hasAiConfig }: GameEditTabsProps) {
   const hasConsole = !!consoleTab;
   const [activeTab, setActiveTab] = useState(hasConsole ? 'console' : 'info');
   const [infoDirty, setInfoDirty] = useState(false);
+  const [importDirty, setImportDirty] = useState(false);
 
   const handleTabChange = useCallback((newTab: string) => {
     if (activeTab === 'info' && infoDirty) {
@@ -60,6 +63,12 @@ export function GameEditTabs({ game, characters, charactersTab, consoleTab }: Ga
           <GmTabsTrigger value="info">劇本資訊</GmTabsTrigger>
           <GmTabsTrigger value="events">預設事件</GmTabsTrigger>
           <GmTabsTrigger value="characters">角色列表</GmTabsTrigger>
+          <GmTabsTrigger value="import">
+            角色匯入
+            {importDirty && (
+              <span className="ml-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+            )}
+          </GmTabsTrigger>
         </GmTabsList>
       </div>
 
@@ -87,6 +96,19 @@ export function GameEditTabs({ game, characters, charactersTab, consoleTab }: Ga
 
       <TabsContent value="characters" className="space-y-4">
         {charactersTab}
+      </TabsContent>
+
+      <TabsContent
+        value="import"
+        forceMount
+        className={activeTab !== 'import' ? 'hidden' : 'space-y-6'}
+      >
+        <CharacterImportTab
+          gameId={game.id}
+          hasAiConfig={hasAiConfig}
+          isActive={game.isActive}
+          onDirtyChange={setImportDirty}
+        />
       </TabsContent>
     </Tabs>
   );
