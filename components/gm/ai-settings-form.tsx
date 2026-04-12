@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Bot, ChevronDown, ChevronUp, Trash2, Loader2, CheckCircle2 } from 'lucide-react';
+import {
+  Bot, ChevronDown, ChevronUp, Trash2, Loader2,
+  CheckCircle2, KeyRound, AlertTriangle, Zap,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -13,6 +16,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   GM_LABEL_CLASS,
   GM_INPUT_CLASS,
   GM_SELECT_CLASS,
@@ -20,7 +26,9 @@ import {
   GM_SECTION_TITLE_CLASS,
   GM_CTA_BUTTON_CLASS,
 } from '@/lib/styles/gm-form';
-import { saveAiConfig, deleteAiConfig } from '@/app/actions/ai-config';
+import {
+  saveAiConfig, updateAiSettings, testAiConfig, deleteAiConfig,
+} from '@/app/actions/ai-config';
 import { cn } from '@/lib/utils';
 
 /**
@@ -58,24 +66,28 @@ interface AiSettingsFormProps {
     provider?: string;
     baseUrl?: string;
     model?: string;
+    keyProvider?: string;
   };
 }
 
 export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSavingKey, setIsSavingKey] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // 表單狀態
+  // API Key 區塊
+  const [apiKey, setApiKey] = useState('');
+
+  // Provider / 進階設定區塊
   const [provider, setProvider] = useState<ProviderId>(
     (initialConfig.provider as ProviderId) || 'openai'
   );
-  const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState(initialConfig.baseUrl || AI_PROVIDERS[0].baseUrl);
   const [model, setModel] = useState(initialConfig.model || AI_PROVIDERS[0].defaultModel);
 
-  // Provider 切換時自動帶入預設值
   const handleProviderChange = (newProvider: string) => {
     const p = newProvider as ProviderId;
     setProvider(p);
@@ -84,19 +96,19 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
       setBaseUrl(preset.baseUrl);
       setModel(preset.defaultModel);
     }
-    // custom 時展開進階設定
     if (p === 'custom') {
       setShowAdvanced(true);
     }
   };
 
-  const handleSave = async () => {
+  /** 儲存 API Key（同時寫入 provider/baseUrl/model） */
+  const handleSaveKey = async () => {
     if (!apiKey.trim()) {
       toast.error('請輸入 API Key');
       return;
     }
 
-    setIsLoading(true);
+    setIsSavingKey(true);
     try {
       const result = await saveAiConfig({
         provider,
@@ -106,16 +118,54 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
       });
 
       if (result.success) {
-        toast.success('AI 設定已儲存');
-        setApiKey(''); // 清除輸入的 key
+        toast.success(initialConfig.hasApiKey ? 'API Key 已更新' : 'API Key 已儲存');
+        setApiKey('');
         router.refresh();
       } else {
-        toast.error(result.message || 'AI 設定儲存失敗');
+        toast.error(result.message || 'API Key 儲存失敗');
       }
     } catch {
       toast.error('發生錯誤，請稍後再試');
     } finally {
-      setIsLoading(false);
+      setIsSavingKey(false);
+    }
+  };
+
+  /** 驗證目前的 AI 設定是否可連線 */
+  const handleTest = async () => {
+    setIsTesting(true);
+    try {
+      const result = await testAiConfig();
+
+      if (result.success) {
+        toast.success('連線驗證成功');
+        router.refresh();
+      } else {
+        toast.error(result.message || '連線驗證失敗');
+      }
+    } catch {
+      toast.error('發生錯誤，請稍後再試');
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  /** 更新 Provider / Base URL / Model（不需要重新輸入 API Key） */
+  const handleUpdateSettings = async () => {
+    setIsUpdating(true);
+    try {
+      const result = await updateAiSettings({ provider, baseUrl, model });
+
+      if (result.success) {
+        toast.success('設定已更新');
+        router.refresh();
+      } else {
+        toast.error(result.message || '更新失敗');
+      }
+    } catch {
+      toast.error('發生錯誤，請稍後再試');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -140,6 +190,21 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
     }
   };
 
+  const isAnyLoading = isSavingKey || isUpdating || isTesting || isDeleting;
+
+  // 判斷 provider/model 是否有變更（相對於已儲存的值）
+  const settingsChanged =
+    provider !== (initialConfig.provider || 'openai') ||
+    baseUrl !== (initialConfig.baseUrl || AI_PROVIDERS[0].baseUrl) ||
+    model !== (initialConfig.model || AI_PROVIDERS[0].defaultModel);
+
+  // Provider 與 key 驗證時的 provider 不一致
+  const keyProvider = initialConfig.keyProvider;
+  const providerMismatch = initialConfig.hasApiKey && keyProvider && provider !== keyProvider;
+
+  // 找出 keyProvider 的顯示名稱
+  const keyProviderLabel = AI_PROVIDERS.find((p) => p.id === keyProvider)?.label || keyProvider;
+
   return (
     <section className={cn(GM_SECTION_CARD_CLASS, 'space-y-6')}>
       {/* 標題 */}
@@ -160,78 +225,109 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
         設定 AI 服務以啟用角色匯入功能。您的 API Key 將加密儲存，系統不會保留明文。
       </p>
 
-      {/* Provider 選擇 */}
+      {/* ─── API Key 區塊 ─── */}
       <div className="space-y-2">
-        <label className={GM_LABEL_CLASS}>Provider</label>
-        <Select value={provider} onValueChange={handleProviderChange}>
-          <SelectTrigger className={GM_SELECT_CLASS}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AI_PROVIDERS.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* API Key */}
-      <div className="space-y-2">
-        <label className={GM_LABEL_CLASS}>API Key</label>
-        <Input
-          type="password"
-          placeholder={initialConfig.hasApiKey ? '已設定（輸入新的 Key 可更新）' : '輸入你的 API Key'}
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          disabled={isLoading}
-          className={cn(GM_INPUT_CLASS, 'h-12')}
-        />
-      </div>
-
-      {/* 進階設定 */}
-      <button
-        type="button"
-        onClick={() => setShowAdvanced((prev) => !prev)}
-        className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-      >
-        {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        進階設定
-      </button>
-
-      {showAdvanced && (
-        <div className="space-y-4 pl-4 border-l-2 border-border/30">
-          <div className="space-y-2">
-            <label className={GM_LABEL_CLASS}>Base URL</label>
-            <Input
-              placeholder="https://api.openai.com/v1"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              disabled={isLoading}
-              className={GM_INPUT_CLASS}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className={GM_LABEL_CLASS}>Model</label>
-            <Input
-              placeholder="gpt-4o"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              disabled={isLoading}
-              className={GM_INPUT_CLASS}
-            />
-          </div>
+        <label className={GM_LABEL_CLASS}>
+          <KeyRound className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />
+          API Key
+        </label>
+        <div className="flex gap-2">
+          <Input
+            type="password"
+            placeholder={initialConfig.hasApiKey ? '已設定（輸入新的 Key 可更新）' : '輸入你的 API Key'}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            disabled={isAnyLoading}
+            className={cn(GM_INPUT_CLASS, 'h-11 flex-1')}
+          />
+          <button
+            type="button"
+            onClick={handleSaveKey}
+            disabled={isAnyLoading || !apiKey.trim()}
+            className={cn(GM_CTA_BUTTON_CLASS, 'shrink-0 h-11 px-5')}
+          >
+            {isSavingKey ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : initialConfig.hasApiKey ? (
+              '更新 Key'
+            ) : (
+              '儲存'
+            )}
+          </button>
         </div>
-      )}
+      </div>
 
-      {/* 操作按鈕 */}
+      {/* ─── 分隔線 ─── */}
+      <div className="border-t border-border/30" />
+
+      {/* ─── Provider / 進階設定區塊 ─── */}
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label className={GM_LABEL_CLASS}>Provider</label>
+          <Select value={provider} onValueChange={handleProviderChange} disabled={isAnyLoading}>
+            <SelectTrigger className={GM_SELECT_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AI_PROVIDERS.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Provider 與 key 不符提示 */}
+          {providerMismatch && (
+            <p className="flex items-center gap-1.5 text-xs text-destructive font-medium">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              目前的 API Key 是在 {keyProviderLabel} 驗證通過的，切換供應商後建議重新驗證連線。
+            </p>
+          )}
+        </div>
+
+        {/* 進階設定 */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+          className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          進階設定
+        </button>
+
+        {showAdvanced && (
+          <div className="space-y-4 pl-4 border-l-2 border-border/30">
+            <div className="space-y-2">
+              <label className={GM_LABEL_CLASS}>Base URL</label>
+              <Input
+                placeholder="https://api.openai.com/v1"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                disabled={isAnyLoading}
+                className={GM_INPUT_CLASS}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className={GM_LABEL_CLASS}>Model</label>
+              <Input
+                placeholder="gpt-4o"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                disabled={isAnyLoading}
+                className={GM_INPUT_CLASS}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ─── 操作按鈕 ─── */}
       <div className="flex items-center justify-between pt-2">
         {initialConfig.hasApiKey ? (
           <button
             type="button"
             onClick={handleDelete}
-            disabled={isDeleting || isLoading}
+            disabled={isAnyLoading}
             className="flex items-center gap-1.5 text-xs font-bold text-destructive hover:text-destructive/80 transition-colors cursor-pointer disabled:opacity-50"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -240,23 +336,47 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
         ) : (
           <div />
         )}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isLoading || (!apiKey.trim() && !initialConfig.hasApiKey)}
-          className={GM_CTA_BUTTON_CLASS}
-        >
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              驗證中...
-            </span>
-          ) : initialConfig.hasApiKey ? (
-            '更新設定'
-          ) : (
-            '儲存設定'
-          )}
-        </button>
+        {initialConfig.hasApiKey && (
+          <div className="flex items-center gap-3">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleTest}
+                    disabled={isAnyLoading}
+                    className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isTesting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Zap className="h-4 w-4" />
+                    )}
+                    驗證連線
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  使用已儲存的資料驗證，請先更新 Key/設定
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <button
+              type="button"
+              onClick={handleUpdateSettings}
+              disabled={isAnyLoading || !settingsChanged}
+              className={GM_CTA_BUTTON_CLASS}
+            >
+              {isUpdating ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  更新中...
+                </span>
+              ) : (
+                '更新設定'
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

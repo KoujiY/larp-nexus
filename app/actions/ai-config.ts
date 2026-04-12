@@ -4,7 +4,7 @@ import { z } from 'zod';
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import GMUser from '@/lib/db/models/GMUser';
-import { encrypt } from '@/lib/crypto';
+import { encrypt, decrypt } from '@/lib/crypto';
 import { testAiConnection } from '@/lib/ai/provider';
 import { revalidatePath } from 'next/cache';
 import type { ApiResponse } from '@/types/api';
@@ -15,6 +15,8 @@ type AiConfigResponse = {
   provider?: string;
   baseUrl?: string;
   model?: string;
+  /** key 儲存時的 provider，用於前端顯示 provider 不符提示 */
+  keyProvider?: string;
 };
 
 /** saveAiConfig 輸入驗證 */
@@ -50,12 +52,14 @@ export async function getAiConfig(): Promise<ApiResponse<AiConfigResponse>> {
       provider: user.aiConfig.provider,
       baseUrl: user.aiConfig.baseUrl,
       model: user.aiConfig.model,
+      // 向下相容：舊資料沒有 keyProvider 時，fallback 到 provider
+      keyProvider: user.aiConfig.keyProvider || user.aiConfig.provider,
     },
   };
 }
 
 /**
- * 儲存 AI 設定（含驗證測試呼叫）
+ * 儲存 API Key（不驗證連線，同時寫入 provider/baseUrl/model）
  */
 export async function saveAiConfig(
   input: SaveAiConfigInput
@@ -65,7 +69,6 @@ export async function saveAiConfig(
     return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
   }
 
-  // 驗證輸入
   const parsed = saveAiConfigSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -77,29 +80,6 @@ export async function saveAiConfig(
 
   const { provider, apiKey, baseUrl, model } = parsed.data;
 
-  // 測試 AI 連線
-  try {
-    await testAiConnection(apiKey, baseUrl, model);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    // 根據 OpenAI SDK 錯誤訊息分類
-    if (message.includes('401') || message.includes('Incorrect API key')) {
-      return { success: false, error: 'INVALID_INPUT', message: 'API Key 驗證失敗，請檢查設定' };
-    }
-    if (message.includes('429') || message.includes('quota')) {
-      return { success: false, error: 'INVALID_INPUT', message: 'API 額度不足，請檢查您的帳戶' };
-    }
-    if (message.includes('model')) {
-      return { success: false, error: 'INVALID_INPUT', message: '指定的模型不可用，請檢查設定' };
-    }
-    if (message.includes('ECONNREFUSED') || message.includes('fetch failed')) {
-      return { success: false, error: 'INVALID_INPUT', message: '無法連線至 AI 服務，請檢查 Base URL' };
-    }
-    return { success: false, error: 'INVALID_INPUT', message: 'AI 服務回傳錯誤，請檢查您的 API 設定' };
-  }
-
-  // 加密 API Key 並儲存
   await dbConnect();
   const encryptedApiKey = encrypt(apiKey);
 
@@ -112,6 +92,102 @@ export async function saveAiConfig(
         encryptedApiKey,
       },
     },
+  });
+
+  revalidatePath('/profile');
+  return { success: true };
+}
+
+/** updateAiSettings 輸入驗證（不含 API Key） */
+const updateAiSettingsSchema = z.object({
+  provider: z.string().min(1, 'Provider 不可為空'),
+  baseUrl: z.string().url('Base URL 格式不正確'),
+  model: z.string().min(1, 'Model 不可為空'),
+});
+
+/**
+ * 更新 AI 設定（Provider / Base URL / Model），不變更 API Key
+ */
+export async function updateAiSettings(
+  input: z.infer<typeof updateAiSettingsSchema>
+): Promise<ApiResponse<undefined>> {
+  const userId = await getCurrentGMUserId();
+  if (!userId) {
+    return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+  }
+
+  const parsed = updateAiSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'INVALID_INPUT',
+      message: parsed.error.issues[0]?.message || '輸入驗證失敗',
+    };
+  }
+
+  await dbConnect();
+  const user = await GMUser.findById(userId).lean();
+
+  if (!user?.aiConfig?.encryptedApiKey) {
+    return { success: false, error: 'INVALID_INPUT', message: '請先設定 API Key' };
+  }
+
+  const { provider, baseUrl, model } = parsed.data;
+
+  await GMUser.findByIdAndUpdate(userId, {
+    $set: {
+      'aiConfig.provider': provider,
+      'aiConfig.baseUrl': baseUrl,
+      'aiConfig.model': model,
+    },
+  });
+
+  revalidatePath('/profile');
+  return { success: true };
+}
+
+/**
+ * 使用已儲存的 API Key 驗證目前的 AI 設定是否可用
+ */
+export async function testAiConfig(): Promise<ApiResponse<undefined>> {
+  const userId = await getCurrentGMUserId();
+  if (!userId) {
+    return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
+  }
+
+  await dbConnect();
+  const user = await GMUser.findById(userId).lean();
+
+  if (!user?.aiConfig) {
+    return { success: false, error: 'INVALID_INPUT', message: '尚未設定 AI 服務' };
+  }
+
+  const { baseUrl, model, encryptedApiKey } = user.aiConfig;
+  const apiKey = decrypt(encryptedApiKey);
+
+  try {
+    await testAiConnection(apiKey, baseUrl, model);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes('401') || message.includes('Incorrect API key')) {
+      return { success: false, error: 'INVALID_INPUT', message: 'API Key 驗證失敗，請重新設定 Key' };
+    }
+    if (message.includes('429') || message.includes('quota')) {
+      return { success: false, error: 'INVALID_INPUT', message: 'API 額度不足或請求過於頻繁，請稍後再試' };
+    }
+    if (message.includes('model') || message.includes('404')) {
+      return { success: false, error: 'INVALID_INPUT', message: '指定的模型不可用，請檢查模型名稱' };
+    }
+    if (message.includes('ECONNREFUSED') || message.includes('fetch failed')) {
+      return { success: false, error: 'INVALID_INPUT', message: '無法連線至 AI 服務，請檢查 Base URL' };
+    }
+    return { success: false, error: 'INVALID_INPUT', message: `驗證失敗：${message}` };
+  }
+
+  // 驗證成功，記錄此 key 對應的 provider
+  await GMUser.findByIdAndUpdate(userId, {
+    $set: { 'aiConfig.keyProvider': user.aiConfig.provider },
   });
 
   revalidatePath('/profile');

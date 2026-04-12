@@ -28,6 +28,7 @@ async function createClientForUser(
   const client = new OpenAI({
     apiKey,
     baseURL: baseUrl,
+    maxRetries: 0,
   });
 
   return { client, model };
@@ -84,7 +85,7 @@ export async function testAiConnection(
   baseUrl: string,
   model: string
 ): Promise<void> {
-  const client = new OpenAI({ apiKey, baseURL: baseUrl });
+  const client = new OpenAI({ apiKey, baseURL: baseUrl, maxRetries: 0 });
 
   await client.chat.completions.create({
     model,

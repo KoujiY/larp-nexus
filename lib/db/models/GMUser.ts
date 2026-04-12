@@ -26,6 +26,7 @@ const GMUserSchema = new Schema<GMUserDocument>(
         baseUrl: { type: String, required: true },
         model: { type: String, required: true },
         encryptedApiKey: { type: String, required: true },
+        keyProvider: { type: String, required: false },
       },
       required: false,
       default: undefined,

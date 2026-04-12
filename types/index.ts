@@ -17,6 +17,7 @@ export interface GMUser {
     baseUrl: string;
     model: string;
     encryptedApiKey: string;
+    keyProvider: string;
   };
   createdAt: string;
   updatedAt: string;
