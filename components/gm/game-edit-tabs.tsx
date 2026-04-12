@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, createContext, useContext } from 'react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GmTabsList, GmTabsTrigger } from '@/components/gm/gm-tabs';
 import { GameEditForm } from '@/components/gm/game-edit-form';
@@ -8,6 +8,16 @@ import { PresetEventsEditForm } from '@/components/gm/preset-events-edit-form';
 import { CharacterImportTab } from '@/components/gm/character-import-tab';
 import type { GameData } from '@/types/game';
 import type { CharacterData } from '@/types/character';
+
+const GameEditTabContext = createContext<{
+  switchToImportTab: () => void;
+}>({
+  switchToImportTab: () => {},
+});
+
+export function useGameEditTabContext() {
+  return useContext(GameEditTabContext);
+}
 
 interface GameEditTabsProps {
   game: GameData;
@@ -45,6 +55,7 @@ export function GameEditTabs({ game, characters, charactersTab, consoleTab, hasA
   const isConsoleActive = hasConsole && activeTab === 'console';
 
   return (
+    <GameEditTabContext.Provider value={{ switchToImportTab: () => setActiveTab('import') }}>
     <Tabs
       value={activeTab}
       onValueChange={handleTabChange}
@@ -111,5 +122,6 @@ export function GameEditTabs({ game, characters, charactersTab, consoleTab, hasA
         />
       </TabsContent>
     </Tabs>
+    </GameEditTabContext.Provider>
   );
 }
