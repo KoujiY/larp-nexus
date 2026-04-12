@@ -20,6 +20,16 @@ const GMUserSchema = new Schema<GMUserDocument>(
     avatarUrl: {
       type: String,
     },
+    aiConfig: {
+      type: {
+        provider: { type: String, required: true },
+        baseUrl: { type: String, required: true },
+        model: { type: String, required: true },
+        encryptedApiKey: { type: String, required: true },
+      },
+      required: false,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
