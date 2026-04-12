@@ -3,7 +3,6 @@
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { Upload, FileText, Sparkles, Loader2, ChevronDown } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
   GM_LABEL_CLASS,
@@ -64,29 +63,81 @@ export function CharacterImportInput({
 
   return (
     <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-6')}>
+      {/* 標題列 — 桌面版 toggle 在右側 */}
       <div className="space-y-2">
-        <h3 className="text-lg font-bold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          AI 角色匯入
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            AI 角色匯入
+          </h3>
+          {/* 桌面版 toggle */}
+          <div className="hidden md:flex items-center rounded-lg bg-muted/50 p-0.5">
+            <button
+              type="button"
+              onClick={() => setInputMode('text')}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer',
+                inputMode === 'text'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              貼上文字
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode('docx')}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer',
+                inputMode === 'docx'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              上傳 .docx
+            </button>
+          </div>
+        </div>
         <p className="text-sm text-muted-foreground">
           貼上角色文字資料或上傳 .docx 檔案，AI 將自動解析並填入角色欄位。
         </p>
       </div>
 
-      <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as 'text' | 'docx')}>
-        <TabsList className="w-full">
-          <TabsTrigger value="text" className="flex-1 gap-1.5">
-            <FileText className="h-4 w-4" />
-            貼上文字
-          </TabsTrigger>
-          <TabsTrigger value="docx" className="flex-1 gap-1.5">
-            <Upload className="h-4 w-4" />
-            上傳 .docx
-          </TabsTrigger>
-        </TabsList>
+      {/* 手機版分頁列 */}
+      <div className="flex md:hidden rounded-lg bg-muted/50 p-0.5">
+        <button
+          type="button"
+          onClick={() => setInputMode('text')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-sm font-medium transition-colors cursor-pointer',
+            inputMode === 'text'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <FileText className="h-4 w-4" />
+          貼上文字
+        </button>
+        <button
+          type="button"
+          onClick={() => setInputMode('docx')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-sm font-medium transition-colors cursor-pointer',
+            inputMode === 'docx'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Upload className="h-4 w-4" />
+          上傳 .docx
+        </button>
+      </div>
 
-        <TabsContent value="text" className="space-y-4 mt-4">
+      {/* 內容區 */}
+      {inputMode === 'text' ? (
+        <div className="space-y-4">
           <div className="space-y-2">
             <label className={GM_LABEL_CLASS}>角色資料文字</label>
             <Textarea
@@ -117,32 +168,30 @@ export function CharacterImportInput({
               '開始解析'
             )}
           </button>
-        </TabsContent>
-
-        <TabsContent value="docx" className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <label className={GM_LABEL_CLASS}>.docx 檔案</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".docx"
-              onChange={handleFileChange}
-              disabled={isParsing || !hasAiConfig}
-              className="block w-full text-sm text-muted-foreground
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-lg file:border-0
-                file:text-sm file:font-semibold
-                file:bg-primary file:text-primary-foreground
-                hover:file:bg-primary/90
-                file:cursor-pointer cursor-pointer
-                disabled:opacity-50"
-            />
-            <p className="text-xs text-muted-foreground">
-              僅支援 .docx 格式，最大 5MB
-            </p>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label className={GM_LABEL_CLASS}>.docx 檔案</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx"
+            onChange={handleFileChange}
+            disabled={isParsing || !hasAiConfig}
+            className="block w-full text-sm text-muted-foreground
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-lg file:border-0
+              file:text-sm file:font-semibold
+              file:bg-primary file:text-primary-foreground
+              hover:file:bg-primary/90
+              file:cursor-pointer cursor-pointer
+              disabled:opacity-50"
+          />
+          <p className="text-xs text-muted-foreground">
+            僅支援 .docx 格式，最大 5MB
+          </p>
+        </div>
+      )}
 
       <div>
         <button
