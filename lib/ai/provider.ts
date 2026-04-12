@@ -66,7 +66,13 @@ export async function callAiForCharacterImport(
     throw new Error('AI 回傳格式異常，請稍後重試');
   }
 
-  const parsed = JSON.parse(content) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error('AI 回傳內容非有效 JSON，請稍後重試');
+  }
+
   return characterImportSchema.parse(parsed);
 }
 
