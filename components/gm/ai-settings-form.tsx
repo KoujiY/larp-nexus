@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  Bot, ChevronDown, ChevronUp, Trash2, Loader2,
+  Bot, Trash2, Loader2,
   CheckCircle2, KeyRound, AlertTriangle, Zap,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -34,21 +34,20 @@ import { cn } from '@/lib/utils';
 /**
  * AI Provider 預設設定
  *
- * 新增 provider 只需在此陣列加一筆資料。
- * model 為預設值，使用者可自由修改。
+ * 新增 provider 只需在此陣列加一筆，並在 PROVIDER_MODELS 加入對應的模型清單。
  */
 const AI_PROVIDERS = [
   {
     id: 'openai',
-    label: 'OpenAI',
+    label: 'OpenAI（付費方案）',
     baseUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o',
+    defaultModel: 'gpt-4.1-nano',
   },
   {
     id: 'gemini',
     label: 'Google Gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    defaultModel: 'gemini-2.5-flash',
+    defaultModel: 'gemini-3.1-flash-lite-preview',
   },
   {
     id: 'custom',
@@ -57,6 +56,27 @@ const AI_PROVIDERS = [
     defaultModel: '',
   },
 ] as const;
+
+/** 各 provider 的常用模型清單 */
+const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
+  openai: [
+    { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano（推薦）' },
+    { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { id: 'gpt-4.1', label: 'GPT-4.1' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { id: 'gpt-4o', label: 'GPT-4o' },
+  ],
+  gemini: [
+    { id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite（推薦）' },
+    { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
+    { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro（付費方案）' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro（付費方案）' },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+    { id: 'gemini-2.0-flash', label: 'Gemini 2 Flash（付費方案）' },
+    { id: 'gemini-2.0-flash-lite', label: 'Gemini 2 Flash Lite（付費方案）' },
+  ],
+};
 
 type ProviderId = (typeof AI_PROVIDERS)[number]['id'];
 
@@ -76,17 +96,19 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // API Key 區塊
   const [apiKey, setApiKey] = useState('');
 
-  // Provider / 進階設定區塊
+  // Provider / Model 區塊
   const [provider, setProvider] = useState<ProviderId>(
     (initialConfig.provider as ProviderId) || 'openai'
   );
   const [baseUrl, setBaseUrl] = useState(initialConfig.baseUrl || AI_PROVIDERS[0].baseUrl);
   const [model, setModel] = useState(initialConfig.model || AI_PROVIDERS[0].defaultModel);
+
+  const isKnownProvider = provider !== 'custom';
+  const modelOptions = PROVIDER_MODELS[provider];
 
   const handleProviderChange = (newProvider: string) => {
     const p = newProvider as ProviderId;
@@ -95,9 +117,6 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
     if (preset) {
       setBaseUrl(preset.baseUrl);
       setModel(preset.defaultModel);
-    }
-    if (p === 'custom') {
-      setShowAdvanced(true);
     }
   };
 
@@ -260,8 +279,9 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
       {/* ─── 分隔線 ─── */}
       <div className="border-t border-border/30" />
 
-      {/* ─── Provider / 進階設定區塊 ─── */}
+      {/* ─── Provider / Model 區塊 ─── */}
       <div className="space-y-4">
+        {/* Provider */}
         <div className="space-y-2">
           <label className={GM_LABEL_CLASS}>Provider</label>
           <Select value={provider} onValueChange={handleProviderChange} disabled={isAnyLoading}>
@@ -276,7 +296,6 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
               ))}
             </SelectContent>
           </Select>
-          {/* Provider 與 key 不符提示 */}
           {providerMismatch && (
             <p className="flex items-center gap-1.5 text-xs text-destructive font-medium">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -285,22 +304,29 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
           )}
         </div>
 
-        {/* 進階設定 */}
-        <button
-          type="button"
-          onClick={() => setShowAdvanced((prev) => !prev)}
-          className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-        >
-          {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          進階設定
-        </button>
-
-        {showAdvanced && (
-          <div className="space-y-4 pl-4 border-l-2 border-border/30">
+        {/* Model — known provider: 下拉選單 / custom: text input */}
+        {isKnownProvider && modelOptions ? (
+          <div className="space-y-2">
+            <label className={GM_LABEL_CLASS}>Model</label>
+            <Select value={model} onValueChange={setModel} disabled={isAnyLoading}>
+              <SelectTrigger className={GM_SELECT_CLASS}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {modelOptions.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <>
             <div className="space-y-2">
               <label className={GM_LABEL_CLASS}>Base URL</label>
               <Input
-                placeholder="https://api.openai.com/v1"
+                placeholder="https://api.example.com/v1"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 disabled={isAnyLoading}
@@ -310,14 +336,14 @@ export function AiSettingsForm({ initialConfig }: AiSettingsFormProps) {
             <div className="space-y-2">
               <label className={GM_LABEL_CLASS}>Model</label>
               <Input
-                placeholder="gpt-4o"
+                placeholder="model-name"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 disabled={isAnyLoading}
                 className={GM_INPUT_CLASS}
               />
             </div>
-          </div>
+          </>
         )}
       </div>
 

@@ -46,6 +46,9 @@ export async function callAiForCharacterImport(
 ): Promise<CharacterImportResult> {
   const { client, model } = await createClientForUser(userId);
 
+  console.log('[AI] 開始請求 model:', model, '| 輸入字數:', text.length);
+  const startTime = Date.now();
+
   const response = await client.chat.completions.create({
     model,
     messages: [
@@ -61,6 +64,9 @@ export async function callAiForCharacterImport(
       },
     },
   });
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log('[AI] 回應完成 |', elapsed, '秒 | tokens:', JSON.stringify(response.usage));
 
   const content = response.choices[0]?.message?.content;
   if (!content) {

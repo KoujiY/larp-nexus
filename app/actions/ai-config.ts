@@ -165,24 +165,28 @@ export async function testAiConfig(): Promise<ApiResponse<undefined>> {
   const { baseUrl, model, encryptedApiKey } = user.aiConfig;
   const apiKey = decrypt(encryptedApiKey);
 
+  console.log('[testAiConfig] baseUrl:', baseUrl, '| model:', model);
+
   try {
     await testAiConnection(apiKey, baseUrl, model);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const raw = error instanceof Error ? error.message : String(error);
+    const detail = `baseUrl=${baseUrl} model=${model} error=${raw}`;
+    console.error('[testAiConfig] 驗證失敗:', detail);
 
-    if (message.includes('401') || message.includes('Incorrect API key')) {
-      return { success: false, error: 'INVALID_INPUT', message: 'API Key 驗證失敗，請重新設定 Key' };
+    if (raw.includes('401') || raw.includes('Incorrect API key')) {
+      return { success: false, error: 'INVALID_INPUT', message: `API Key 驗證失敗（${model}）` };
     }
-    if (message.includes('429') || message.includes('quota')) {
-      return { success: false, error: 'INVALID_INPUT', message: 'API 額度不足或請求過於頻繁，請稍後再試' };
+    if (raw.includes('429') || raw.includes('quota')) {
+      return { success: false, error: 'INVALID_INPUT', message: `API 額度不足或請求過於頻繁（${model}）` };
     }
-    if (message.includes('model') || message.includes('404')) {
-      return { success: false, error: 'INVALID_INPUT', message: '指定的模型不可用，請檢查模型名稱' };
+    if (raw.includes('404')) {
+      return { success: false, error: 'INVALID_INPUT', message: `模型 ${model} 不存在，請確認模型名稱` };
     }
-    if (message.includes('ECONNREFUSED') || message.includes('fetch failed')) {
-      return { success: false, error: 'INVALID_INPUT', message: '無法連線至 AI 服務，請檢查 Base URL' };
+    if (raw.includes('ECONNREFUSED') || raw.includes('fetch failed')) {
+      return { success: false, error: 'INVALID_INPUT', message: `無法連線至 ${baseUrl}` };
     }
-    return { success: false, error: 'INVALID_INPUT', message: `驗證失敗：${message}` };
+    return { success: false, error: 'INVALID_INPUT', message: `驗證失敗：${raw}` };
   }
 
   // 驗證成功，記錄此 key 對應的 provider
