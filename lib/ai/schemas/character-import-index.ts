@@ -48,7 +48,11 @@ export const characterImportIndexSchema = z.object({
     paragraphs: z.array(z.number()),
   })),
 
-  /** 數值（AI 直接提取，因為是結構化資料） */
+  /**
+   * 數值（AI 直接提取，因為是結構化資料）
+   * 注意：maxValue 用 nullable 而非 optional，因 OpenAI strict mode 要求所有欄位在 required 中。
+   * assembleResult 會將 null 轉為 undefined（Result schema 使用 optional）。
+   */
   stats: z.array(z.object({
     name: z.string(),
     value: z.number(),

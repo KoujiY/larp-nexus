@@ -37,14 +37,23 @@ export function formatForAi(paragraphs: NumberedParagraph[]): string {
 
 /**
  * 根據段落索引取得原文內容，多段以換行符連接
+ * 無效索引會被跳過並輸出警告（AI 偶爾會回傳超出範圍的編號）
  */
 function getParagraphContent(
   paragraphs: NumberedParagraph[],
   indices: number[]
 ): string {
   const indexMap = new Map(paragraphs.map((p) => [p.index, p.content]));
+  const maxIndex = paragraphs.length;
   return indices
-    .map((idx) => indexMap.get(idx) ?? '')
+    .map((idx) => {
+      const content = indexMap.get(idx);
+      if (content === undefined) {
+        console.warn(`[paragraph-indexer] 無效段落索引 ${idx}（有效範圍 1-${maxIndex}），已跳過`);
+        return '';
+      }
+      return content;
+    })
     .filter((c) => c.length > 0)
     .join('\n');
 }

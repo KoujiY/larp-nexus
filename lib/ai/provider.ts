@@ -60,9 +60,6 @@ export async function callAiForCharacterImport(
   const paragraphs = splitIntoParagraphs(text);
   const numberedText = formatForAi(paragraphs);
 
-  console.log('[AI] 開始請求 model:', model, '| 段落數:', paragraphs.length, '| includeSecret:', includeSecret, '| allowAiFill:', allowAiFill);
-  const startTime = Date.now();
-
   // Step 2: 呼叫 AI — 回傳段落索引
   const systemPrompt = buildCharacterImportPrompt(includeSecret, allowAiFill, customPrompt);
 
@@ -83,9 +80,7 @@ export async function callAiForCharacterImport(
     },
   });
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   const finishReason = response.choices[0]?.finish_reason;
-  console.log('[AI] 回應完成 |', elapsed, '秒 | finish:', finishReason, '| tokens:', JSON.stringify(response.usage));
 
   if (finishReason === 'length') {
     throw new Error('AI 回應被截斷（輸出 token 不足），請縮短輸入內容後重試');
@@ -104,9 +99,6 @@ export async function callAiForCharacterImport(
   }
 
   const indexResult = characterImportIndexSchema.parse(parsed);
-
-  // 印出 AI 分類思路供 debug
-  console.log('[AI] reasoning:\n', indexResult.reasoning);
 
   // Step 3: 後處理 — 根據索引從原文組裝結果
   return assembleResult(indexResult, paragraphs, allowAiFill);

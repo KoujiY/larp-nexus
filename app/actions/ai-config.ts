@@ -165,8 +165,6 @@ export async function testAiConfig(): Promise<ApiResponse<undefined>> {
   const { baseUrl, model, encryptedApiKey } = user.aiConfig;
   const apiKey = decrypt(encryptedApiKey);
 
-  console.log('[testAiConfig] baseUrl:', baseUrl, '| model:', model);
-
   try {
     await testAiConnection(apiKey, baseUrl, model);
   } catch (error) {
