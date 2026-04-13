@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   characterImportSchema,
-  characterImportJsonSchema,
   type CharacterImportResult,
 } from '@/lib/ai/schemas/character-import';
+import {
+  characterImportIndexSchema,
+  characterImportIndexJsonSchema,
+} from '@/lib/ai/schemas/character-import-index';
 
 describe('characterImportSchema', () => {
   it('驗證完整的合法輸入', () => {
@@ -74,11 +77,42 @@ describe('characterImportSchema', () => {
     const result = characterImportSchema.safeParse(input);
     expect(result.success).toBe(false);
   });
+});
 
-  it('JSON schema 結構正確（有 name property）', () => {
-    expect(characterImportJsonSchema.type).toBe('object');
-    expect(characterImportJsonSchema.properties).toHaveProperty('name');
-    expect(characterImportJsonSchema.properties).toHaveProperty('publicInfo');
-    expect(characterImportJsonSchema.required).toContain('name');
+describe('characterImportIndexSchema', () => {
+  it('驗證最小合法索引結果', () => {
+    const input = {
+      reasoning: 'Step 1: ...',
+      name: '測試角色',
+      description: '',
+      slogan: null,
+      backgroundSections: [],
+      personalityParagraphs: [],
+      relationships: [],
+      secrets: [],
+      tasks: [],
+      stats: [],
+      aiFilled: {
+        description: null,
+        slogan: null,
+        personality: null,
+        backgroundText: null,
+        relationships: [],
+        tasks: [],
+      },
+    };
+
+    const result = characterImportIndexSchema.safeParse(input);
+    expect(result.success).toBe(true);
+  });
+
+  it('JSON schema 結構包含所有必要欄位', () => {
+    expect(characterImportIndexJsonSchema.type).toBe('object');
+    expect(characterImportIndexJsonSchema.properties).toHaveProperty('reasoning');
+    expect(characterImportIndexJsonSchema.properties).toHaveProperty('name');
+    expect(characterImportIndexJsonSchema.properties).toHaveProperty('backgroundSections');
+    expect(characterImportIndexJsonSchema.properties).toHaveProperty('aiFilled');
+    expect(characterImportIndexJsonSchema.required).toContain('reasoning');
+    expect(characterImportIndexJsonSchema.required).toContain('name');
   });
 });

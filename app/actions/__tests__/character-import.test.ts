@@ -57,7 +57,28 @@ describe('parseCharacterFromText', () => {
     const result = await parseCharacterFromText('角色名稱：測試角色');
     expect(result.success).toBe(true);
     expect(result.data?.name).toBe('測試角色');
-    expect(callAiForCharacterImport).toHaveBeenCalledWith('user1', '角色名稱：測試角色');
+    expect(callAiForCharacterImport).toHaveBeenCalledWith(
+      'user1', '角色名稱：測試角色', false, false, ''
+    );
+  });
+
+  it('帶選項呼叫 AI', async () => {
+    vi.mocked(getCurrentGMUserId).mockResolvedValueOnce('user1');
+    vi.mocked(callAiForCharacterImport).mockResolvedValueOnce(MOCK_RESULT);
+
+    const result = await parseCharacterFromText('角色文字', true, true, '額外指示');
+    expect(result.success).toBe(true);
+    expect(callAiForCharacterImport).toHaveBeenCalledWith(
+      'user1', '角色文字', true, true, '額外指示'
+    );
+  });
+
+  it('customPrompt 超過 500 字時回傳錯誤', async () => {
+    vi.mocked(getCurrentGMUserId).mockResolvedValueOnce('user1');
+    const longPrompt = 'a'.repeat(501);
+    const result = await parseCharacterFromText('角色文字', false, false, longPrompt);
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('自訂提示');
   });
 
   it('AI 呼叫失敗時回傳錯誤訊息', async () => {
@@ -84,6 +105,20 @@ describe('parseCharacterFromDocx', () => {
     const result = await parseCharacterFromDocx(formData);
     expect(result.success).toBe(true);
     expect(parseDocx).toHaveBeenCalled();
-    expect(callAiForCharacterImport).toHaveBeenCalledWith('user1', '從 docx 提取的文字');
+    expect(callAiForCharacterImport).toHaveBeenCalledWith(
+      'user1', '從 docx 提取的文字', false, false, ''
+    );
+  });
+
+  it('非 .docx 檔案回傳錯誤', async () => {
+    vi.mocked(getCurrentGMUserId).mockResolvedValueOnce('user1');
+
+    const formData = new FormData();
+    const blob = new Blob(['fake'], { type: 'text/plain' });
+    formData.append('file', blob, 'test.txt');
+
+    const result = await parseCharacterFromDocx(formData);
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('.docx');
   });
 });

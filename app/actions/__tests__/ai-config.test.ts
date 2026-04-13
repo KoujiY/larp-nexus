@@ -23,7 +23,6 @@ vi.mock('next/cache', () => ({
 import { getAiConfig, saveAiConfig, deleteAiConfig } from '@/app/actions/ai-config';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import GMUser from '@/lib/db/models/GMUser';
-import { testAiConnection } from '@/lib/ai/provider';
 
 describe('AI Config Server Actions', () => {
   beforeEach(() => {
@@ -49,7 +48,7 @@ describe('AI Config Server Actions', () => {
       expect(result.data).toEqual({ hasApiKey: false });
     });
 
-    it('已設定 aiConfig 時回傳 hasApiKey: true 及明文設定（不含 key）', async () => {
+    it('已設定 aiConfig 時回傳 hasApiKey: true 及設定（含 keyProvider fallback）', async () => {
       vi.mocked(getCurrentGMUserId).mockResolvedValueOnce('user1');
       vi.mocked(GMUser.findById).mockReturnValue({
         lean: vi.fn().mockResolvedValue({
@@ -70,18 +69,18 @@ describe('AI Config Server Actions', () => {
         provider: 'openai',
         baseUrl: 'https://api.openai.com/v1',
         model: 'gpt-4o',
+        keyProvider: 'openai',
       });
     });
   });
 
   describe('saveAiConfig', () => {
-    it('驗證測試失敗時不儲存', async () => {
+    it('驗證失敗（缺少欄位）時回傳錯誤', async () => {
       vi.mocked(getCurrentGMUserId).mockResolvedValueOnce('user1');
-      vi.mocked(testAiConnection).mockRejectedValueOnce(new Error('Invalid API key'));
 
       const result = await saveAiConfig({
         provider: 'openai',
-        apiKey: 'sk-invalid',
+        apiKey: '',
         baseUrl: 'https://api.openai.com/v1',
         model: 'gpt-4o',
       });
@@ -90,9 +89,8 @@ describe('AI Config Server Actions', () => {
       expect(GMUser.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
-    it('驗證通過時加密並儲存', async () => {
+    it('加密 API Key 並儲存設定', async () => {
       vi.mocked(getCurrentGMUserId).mockResolvedValueOnce('user1');
-      vi.mocked(testAiConnection).mockResolvedValueOnce(undefined);
       vi.mocked(GMUser.findByIdAndUpdate).mockResolvedValueOnce({});
 
       const result = await saveAiConfig({
