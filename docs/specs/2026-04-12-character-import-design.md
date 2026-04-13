@@ -1,7 +1,7 @@
 # AI 角色匯入功能設計規格
 
 > 日期：2026-04-12
-> 狀態：Draft
+> 狀態：Implemented
 > 範圍：MVP — 單角色匯入，OpenAI 相容 API
 
 ## 概述
@@ -13,10 +13,12 @@
 ### 包含
 
 - 貼上文字 / .docx 上傳匯入
-- AI 解析角色的所有敘述性 + 數值性欄位
+- AI 解析角色的所有敘述性 + 數值性欄位（段落索引法）
 - 預覽確認介面（欄位級微調）
 - GM 個人設定頁 AI 配置（Provider 選擇、API Key、Base URL、Model）
 - API Key Server-side DB 加密儲存
+- 匯入選項：包含隱藏資訊、允許 AI 補足欄位
+- 自訂提示功能（使用者可提供額外指示給 AI）
 
 ### 不包含
 
@@ -24,7 +26,6 @@
 - Anthropic API 支援（API 格式不相容，留待後續迭代）
 - 批次匯入多個角色
 - Google 文件直接連結匯入
-- Prompt 自訂功能
 
 ---
 
@@ -45,9 +46,12 @@ components/gm/                        ← UI 層
 lib/ai/                               ← AI 處理管線
   ├── provider.ts                      ← AI client 建立與呼叫
   ├── prompts/
-  │     └── character-import.ts        ← system prompt
+  │     └── character-import.ts        ← system prompt（段落索引法）
   ├── schemas/
-  │     └── character-import.ts        ← JSON schema + TypeScript type
+  │     ├── character-import.ts        ← 最終結果 schema
+  │     └── character-import-index.ts  ← AI 回傳索引 schema + OpenAI JSON schema
+  ├── processors/
+  │     └── paragraph-indexer.ts       ← 段落拆分、編號、索引組裝
   └── parsers/
         └── docx.ts                    ← .docx → 純文字
 
@@ -67,10 +71,11 @@ components/gm/game-edit-tabs.tsx       ← 修改：新增匯入分頁
 GM 個人設定頁
   │  Provider 選擇 + API Key + Base URL + Model
   │  ↓ (HTTPS POST)
-  Server Action: saveAiConfig
-  │  → 驗證測試呼叫（最小 prompt, maxTokens: 1）
+  Server Action: saveAiConfig（儲存 key）/ updateAiSettings（更新 provider/model）
   │  → AES-256-GCM 加密 API Key
   │  → 儲存至 MongoDB User.aiConfig
+  Server Action: testAiConfig（驗證連線）
+  │  → 最小 prompt 測試呼叫（maxTokens: 1）
   │
 角色匯入 Tab
   │  文字 / .docx
