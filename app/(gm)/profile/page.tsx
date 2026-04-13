@@ -2,7 +2,7 @@ import { getCurrentGMUser } from '@/app/actions/auth';
 import { PageLayout } from '@/components/gm/page-layout';
 import { AvatarUpload } from '@/components/gm/avatar-upload';
 import { redirect } from 'next/navigation';
-import { User, Mail, CalendarDays, Clock, Info, BookOpen } from 'lucide-react';
+import { User, Mail, CalendarDays, Clock, Info } from 'lucide-react';
 import { getAiConfig } from '@/app/actions/ai-config';
 import { AiSettingsForm } from '@/components/gm/ai-settings-form';
 
@@ -113,10 +113,6 @@ export default async function ProfilePage() {
           </p>
         </div>
 
-        {/* 底部裝飾 */}
-        <div className="mt-8 flex justify-center opacity-10">
-          <BookOpen className="h-12 w-12" />
-        </div>
       </div>
     </PageLayout>
   );

@@ -47,7 +47,7 @@ const AI_PROVIDERS = [
     id: 'gemini',
     label: 'Google Gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    defaultModel: 'gemini-3.1-flash-lite-preview',
+    defaultModel: 'gemini-3-flash-preview',
   },
   {
     id: 'custom',
@@ -67,8 +67,8 @@ const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
     { id: 'gpt-4o', label: 'GPT-4o' },
   ],
   gemini: [
-    { id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite（推薦）' },
-    { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
+    { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash（推薦）' },
+    { id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite' },
     { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro（付費方案）' },
     { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
     { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro（付費方案）' },
