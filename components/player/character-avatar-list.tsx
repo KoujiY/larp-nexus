@@ -97,9 +97,9 @@ export function CharacterAvatarList({
           containScroll: 'trimSnaps',
         }}
         setApi={setApi}
-        className="w-full"
+        className="w-full **:data-[slot=carousel-content]:overflow-visible"
       >
-        <CarouselContent className="-ml-2">
+        <CarouselContent className="-ml-2 py-2">
           {characters.map((char) => {
             const isActive = char.id === activeId;
             return (
