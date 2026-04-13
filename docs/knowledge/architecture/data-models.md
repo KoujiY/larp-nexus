@@ -33,6 +33,7 @@ AI 服務設定，首次設定前不存在。
 | baseUrl | string | API 端點 URL |
 | model | string | 模型名稱 |
 | encryptedApiKey | string | AES-256-GCM 加密的 API Key（格式：iv:encrypted:authTag） |
+| keyProvider | string? | API Key 驗證成功時記錄的 provider，用於前端顯示 provider 不符提示 |
 
 ## Key Model Files
 - `lib/db/models/GMUser.ts` — GMUser mongoose model（含 aiConfig 加密儲存）

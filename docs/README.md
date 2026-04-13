@@ -3,8 +3,8 @@
 ## 專案資訊
 
 - **專案名稱**：LARP Nexus
-- **版本**：v3.0
-- **更新日期**：2026-04-11（裝備系統、預設事件、E2E 測試完成）
+- **版本**：v4.0
+- **更新日期**：2026-04-13（AI 角色匯入功能）
 - **專案類型**：LARP GM/玩家輔助系統
 
 ---
@@ -39,6 +39,7 @@
 | GM/物品 | `knowledge/gm/items/` | 物品概念、效果、標籤、裝備系統 |
 | GM/技能 | `knowledge/gm/skills/` | 技能概念、效果、標籤 |
 | GM/任務 | `knowledge/gm/tasks/` | 任務管理、隱藏任務與自動揭露 |
+| GM/AI 匯入 | `knowledge/gm/ai-import.md` | AI 角色匯入、段落索引法、AI 設定 |
 | 玩家 | `knowledge/player/` | 角色卡視圖、物品使用、技能使用 |
 | 共用 | `knowledge/shared/` | 對抗流程、檢定機制、自動揭露、通知、WebSocket |
 | 架構 | `knowledge/architecture/` | 資料模型、API、部署、E2E 測試 |
@@ -93,6 +94,7 @@ larp-nexus/
 │   ├── auth/            # 認證（session、magic link）
 │   ├── contest/         # 對抗檢定系統
 │   ├── skill/           # 技能系統
+│   ├── ai/              # AI 角色匯入（provider、schema、prompt、段落處理器）
 │   ├── item/            # 物品系統（含裝備加成）
 │   ├── effects/         # 時效性效果系統
 │   ├── preset-event/    # 預設事件系統
@@ -249,6 +251,22 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ## 更新日誌
 
+### v4.0 (2026-04-13) - AI 角色匯入
+- **AI 角色匯入功能**
+  - 貼上文字或上傳 .docx 檔案，由 AI 自動解析角色資料
+  - 段落索引法：AI 只回傳段落編號，程式碼從原文複製，消除改寫問題
+  - 支援 OpenAI / Google Gemini / 自訂 OpenAI 相容 API
+  - 匯入選項：包含隱藏資訊、允許 AI 補足、自訂提示
+  - 預覽結果並微調後建立角色
+- **安全措施**
+  - API Key 以 AES-256-GCM 加密儲存，明文不回傳前端
+  - 自訂提示 server-side 驗證長度 + 清除 markdown heading / 控制字元（防止 prompt injection）
+  - .docx 上傳有 server-side 副檔名 + 檔案大小驗證
+- **AI 設定管理**
+  - 個人設定頁新增 AI 設定區塊
+  - 儲存與驗證分離（先儲存、再測試連線）
+  - Provider 切換時自動帶入預設 Base URL 與推薦模型
+
 ### v3.0 (2026-04-11) - 裝備系統、預設事件、E2E 測試
 - **裝備系統**
   - 道具可設為裝備類型，穿戴後提供常駐數值加成
@@ -400,4 +418,4 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 - 定期 Review 文件完整性
 
 **文件維護者**：SPEC AGENT
-**最後更新**：2026-04-11（v3.0 裝備系統、預設事件、E2E 測試）
+**最後更新**：2026-04-13（v4.0 AI 角色匯入）

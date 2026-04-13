@@ -1,7 +1,7 @@
 # API 規格文件
 
-## 版本：v1.9
-## 更新日期：2026-04-03（Phase D 重構同步：publicInfo BackgroundBlock 結構、PIN 4 位數字）
+## 版本：v2.0
+## 更新日期：2026-04-13（新增 AI 設定與角色匯入 Server Actions）
 
 ---
 
@@ -1548,6 +1548,148 @@ Array<{
   characterId?: string;
 }>
 ```
+
+---
+
+### 2.12 AI 設定 (app/actions/ai-config.ts)
+
+#### `getAiConfig()`
+
+取得當前使用者的 AI 設定（不含 API Key 明文）。
+
+**輸入**：無
+
+**回傳**
+```typescript
+{
+  hasApiKey: boolean;
+  provider?: string;    // openai / gemini / custom
+  baseUrl?: string;
+  model?: string;
+  keyProvider?: string; // key 儲存時的 provider，用於前端顯示 provider 不符提示
+}
+```
+
+**錯誤碼**
+| 錯誤碼 | 說明 |
+|--------|------|
+| UNAUTHORIZED | 未登入 |
+
+---
+
+#### `saveAiConfig(input: SaveAiConfigInput)`
+
+儲存 AI 設定（含 API Key），不驗證連線。API Key 以 AES-256-GCM 加密儲存。
+
+**輸入**
+```typescript
+{
+  provider: string;   // AI 服務提供商
+  apiKey: string;     // API Key（明文，server-side 加密後儲存）
+  baseUrl: string;    // API 端點 URL（需為合法 URL）
+  model: string;      // 模型名稱
+}
+```
+
+**錯誤碼**
+| 錯誤碼 | 說明 |
+|--------|------|
+| UNAUTHORIZED | 未登入 |
+| INVALID_INPUT | 輸入驗證失敗 |
+
+---
+
+#### `updateAiSettings(input)`
+
+更新 AI 設定（Provider / Base URL / Model），不變更 API Key。需已設定過 API Key。
+
+**輸入**
+```typescript
+{
+  provider: string;
+  baseUrl: string;
+  model: string;
+}
+```
+
+**錯誤碼**
+| 錯誤碼 | 說明 |
+|--------|------|
+| UNAUTHORIZED | 未登入 |
+| INVALID_INPUT | 未設定 API Key 或輸入驗證失敗 |
+
+---
+
+#### `testAiConfig()`
+
+使用已儲存的設定驗證 AI 連線是否正常。成功後記錄 `keyProvider`。
+
+**輸入**：無
+
+**錯誤碼**
+| 錯誤碼 | 說明 |
+|--------|------|
+| UNAUTHORIZED | 未登入 |
+| INVALID_INPUT | 尚未設定 AI 服務 / API Key 驗證失敗 / 額度不足 / 模型不存在 / 無法連線 |
+
+---
+
+#### `deleteAiConfig()`
+
+刪除 AI 設定（`$unset aiConfig`）。
+
+**輸入**：無
+
+**錯誤碼**
+| 錯誤碼 | 說明 |
+|--------|------|
+| UNAUTHORIZED | 未登入 |
+
+---
+
+### 2.13 AI 角色匯入 (app/actions/character-import.ts)
+
+#### `parseCharacterFromText(text, includeSecret?, allowAiFill?, customPrompt?)`
+
+從純文字解析角色資料。使用段落索引法，AI 只回傳段落編號，程式碼從原文複製。
+
+**輸入**
+| 參數 | 型別 | 預設值 | 說明 |
+|------|------|--------|------|
+| text | string | — | 角色資料文字（最多 50,000 字） |
+| includeSecret | boolean | false | 是否解析隱藏資訊 |
+| allowAiFill | boolean | false | 是否允許 AI 補足缺少欄位 |
+| customPrompt | string | '' | 自訂提示（最多 500 字，server-side 清除 markdown heading + 控制字元） |
+
+**回傳**：`CharacterImportResult`（見 `lib/ai/schemas/character-import.ts`）
+
+**錯誤碼**
+| 錯誤碼 | 說明 |
+|--------|------|
+| UNAUTHORIZED | 未登入 |
+| INVALID_INPUT | 文字為空 / 超過長度上限 / 自訂提示超過長度上限 / AI 未設定 / 解析失敗 |
+
+---
+
+#### `parseCharacterFromDocx(formData, includeSecret?, allowAiFill?, customPrompt?)`
+
+從 .docx 檔案解析角色資料。Server-side 驗證副檔名（`.docx`）和檔案大小（5MB）。
+
+**輸入**
+| 參數 | 型別 | 預設值 | 說明 |
+|------|------|--------|------|
+| formData | FormData | — | 包含 `file` 欄位的 FormData |
+| includeSecret | boolean | false | 是否解析隱藏資訊 |
+| allowAiFill | boolean | false | 是否允許 AI 補足缺少欄位 |
+| customPrompt | string | '' | 自訂提示（最多 500 字） |
+
+**回傳**：`CharacterImportResult`
+
+**錯誤碼**
+| 錯誤碼 | 說明 |
+|--------|------|
+| UNAUTHORIZED | 未登入 |
+| INVALID_INPUT | 無檔案 / 非 .docx / 檔案過大 / 自訂提示超過長度 / 內容為空 / 解析失敗 |
 
 ---
 
