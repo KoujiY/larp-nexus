@@ -5,9 +5,9 @@ import { Eye, Edit3, RotateCcw, Check, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  GM_LABEL_CLASS,
   GM_INPUT_CLASS,
   GM_SECTION_CARD_CLASS,
+  GM_SECTION_TITLE_CLASS,
   GM_CTA_BUTTON_CLASS,
   GM_CANCEL_BUTTON_CLASS,
 } from '@/lib/styles/gm-form';
@@ -46,13 +46,16 @@ export function CharacterImportPreview({
           <h3 className="text-lg font-bold">預覽解析結果</h3>
         </div>
         <p className="text-sm text-muted-foreground">
-          確認 AI 解析的內容，點擊編輯按鈕可微調各欄位。
+          確認 AI 解析的內容，部分欄位可點擊編輯按鈕微調。
         </p>
       </div>
 
       {/* 基本資訊 */}
       <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-4')}>
-        <h4 className={GM_LABEL_CLASS}>基本資訊</h4>
+        <h4 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          基本資訊
+        </h4>
 
         <PreviewField
           label="角色名稱"
@@ -106,12 +109,15 @@ export function CharacterImportPreview({
 
       {/* 背景故事 */}
       <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-3')}>
-        <h4 className={GM_LABEL_CLASS}>背景故事</h4>
+        <h4 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          背景故事
+        </h4>
         {editData.publicInfo.background.length === 0 ? (
           <p className="text-sm text-muted-foreground/50 italic">未偵測到</p>
         ) : (
           editData.publicInfo.background.map((block, i) => (
-            <div key={i} className={block.type === 'title' ? 'font-bold text-sm' : 'text-sm text-muted-foreground'}>
+            <div key={i} className={block.type === 'title' ? 'font-bold text-sm' : 'text-sm text-muted-foreground whitespace-pre-wrap'}>
               {block.content}
             </div>
           ))
@@ -120,7 +126,10 @@ export function CharacterImportPreview({
 
       {/* 性格 */}
       <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-3')}>
-        <h4 className={GM_LABEL_CLASS}>性格</h4>
+        <h4 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          性格
+        </h4>
         <p className="text-sm">
           {editData.publicInfo.personality || <span className="text-muted-foreground/50 italic">未偵測到</span>}
         </p>
@@ -128,7 +137,10 @@ export function CharacterImportPreview({
 
       {/* 關係 */}
       <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-3')}>
-        <h4 className={GM_LABEL_CLASS}>關係</h4>
+        <h4 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          人物關係
+        </h4>
         {editData.publicInfo.relationships.length === 0 ? (
           <p className="text-sm text-muted-foreground/50 italic">未偵測到</p>
         ) : (
@@ -145,7 +157,10 @@ export function CharacterImportPreview({
 
       {/* 隱藏資訊 */}
       <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-3')}>
-        <h4 className={GM_LABEL_CLASS}>隱藏資訊</h4>
+        <h4 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          隱藏資訊
+        </h4>
         {editData.secretInfo.secrets.length === 0 ? (
           <p className="text-sm text-muted-foreground/50 italic">未偵測到</p>
         ) : (
@@ -162,7 +177,10 @@ export function CharacterImportPreview({
 
       {/* 任務 */}
       <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-3')}>
-        <h4 className={GM_LABEL_CLASS}>任務</h4>
+        <h4 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          任務
+        </h4>
         {editData.tasks.length === 0 ? (
           <p className="text-sm text-muted-foreground/50 italic">未偵測到</p>
         ) : (
@@ -179,7 +197,10 @@ export function CharacterImportPreview({
 
       {/* 數值 */}
       <div className={cn(GM_SECTION_CARD_CLASS, 'space-y-3')}>
-        <h4 className={GM_LABEL_CLASS}>數值</h4>
+        <h4 className={GM_SECTION_TITLE_CLASS}>
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          數值
+        </h4>
         {editData.stats.length === 0 ? (
           <p className="text-sm text-muted-foreground/50 italic">未偵測到</p>
         ) : (

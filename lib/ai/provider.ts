@@ -2,12 +2,17 @@ import OpenAI from 'openai';
 import dbConnect from '@/lib/db/mongodb';
 import GMUser from '@/lib/db/models/GMUser';
 import { decrypt } from '@/lib/crypto';
-import { CHARACTER_IMPORT_SYSTEM_PROMPT } from '@/lib/ai/prompts/character-import';
+import { buildCharacterImportPrompt } from '@/lib/ai/prompts/character-import';
 import {
-  characterImportJsonSchema,
-  characterImportSchema,
-  type CharacterImportResult,
-} from '@/lib/ai/schemas/character-import';
+  characterImportIndexJsonSchema,
+  characterImportIndexSchema,
+} from '@/lib/ai/schemas/character-import-index';
+import type { CharacterImportResult } from '@/lib/ai/schemas/character-import';
+import {
+  splitIntoParagraphs,
+  formatForAi,
+  assembleResult,
+} from '@/lib/ai/processors/paragraph-indexer';
 
 /**
  * 從 DB 讀取使用者 AI 設定，解密 API Key，建立 OpenAI client
@@ -35,38 +40,56 @@ async function createClientForUser(
 }
 
 /**
- * 呼叫 AI 解析角色文字資料
+ * 呼叫 AI 解析角色文字資料（段落索引法）
  *
- * 使用 OpenAI SDK 的 chat.completions.create 搭配 json_schema response_format，
- * 取得 JSON 回應後以 Zod schema 驗證。
+ * 流程：
+ * 1. 將原文拆成帶編號的段落
+ * 2. AI 回傳段落索引（不複製原文）
+ * 3. 程式碼根據索引從原文組裝最終結果
  */
 export async function callAiForCharacterImport(
   userId: string,
-  text: string
+  text: string,
+  includeSecret: boolean,
+  allowAiFill: boolean,
+  customPrompt = ''
 ): Promise<CharacterImportResult> {
   const { client, model } = await createClientForUser(userId);
 
-  console.log('[AI] 開始請求 model:', model, '| 輸入字數:', text.length);
+  // Step 1: 前處理 — 拆段落、編號
+  const paragraphs = splitIntoParagraphs(text);
+  const numberedText = formatForAi(paragraphs);
+
+  console.log('[AI] 開始請求 model:', model, '| 段落數:', paragraphs.length, '| includeSecret:', includeSecret, '| allowAiFill:', allowAiFill);
   const startTime = Date.now();
+
+  // Step 2: 呼叫 AI — 回傳段落索引
+  const systemPrompt = buildCharacterImportPrompt(includeSecret, allowAiFill, customPrompt);
 
   const response = await client.chat.completions.create({
     model,
     messages: [
-      { role: 'system', content: CHARACTER_IMPORT_SYSTEM_PROMPT },
-      { role: 'user', content: text },
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: numberedText },
     ],
+    max_tokens: 65536,
     response_format: {
       type: 'json_schema',
       json_schema: {
-        name: 'character_import',
+        name: 'character_import_index',
         strict: true,
-        schema: characterImportJsonSchema,
+        schema: characterImportIndexJsonSchema,
       },
     },
   });
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log('[AI] 回應完成 |', elapsed, '秒 | tokens:', JSON.stringify(response.usage));
+  const finishReason = response.choices[0]?.finish_reason;
+  console.log('[AI] 回應完成 |', elapsed, '秒 | finish:', finishReason, '| tokens:', JSON.stringify(response.usage));
+
+  if (finishReason === 'length') {
+    throw new Error('AI 回應被截斷（輸出 token 不足），請縮短輸入內容後重試');
+  }
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
@@ -80,7 +103,13 @@ export async function callAiForCharacterImport(
     throw new Error('AI 回傳內容非有效 JSON，請稍後重試');
   }
 
-  return characterImportSchema.parse(parsed);
+  const indexResult = characterImportIndexSchema.parse(parsed);
+
+  // 印出 AI 分類思路供 debug
+  console.log('[AI] reasoning:\n', indexResult.reasoning);
+
+  // Step 3: 後處理 — 根據索引從原文組裝結果
+  return assembleResult(indexResult, paragraphs, allowAiFill);
 }
 
 /**

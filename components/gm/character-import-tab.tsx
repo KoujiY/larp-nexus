@@ -28,6 +28,10 @@ export function CharacterImportTab({ gameId, hasAiConfig, isActive, onDirtyChang
   const router = useRouter();
   const [stage, setStage] = useState<ImportStage>('input');
   const [lastText, setLastText] = useState('');
+  const [lastInputMode, setLastInputMode] = useState<'text' | 'docx'>('text');
+  const [includeSecret, setIncludeSecret] = useState(false);
+  const [allowAiFill, setAllowAiFill] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState('');
   const [parseResult, setParseResult] = useState<CharacterImportResult | null>(null);
 
   // Dirty state：有解析結果但尚未建立角色
@@ -82,9 +86,10 @@ export function CharacterImportTab({ gameId, hasAiConfig, isActive, onDirtyChang
 
   const handleSubmitText = async (text: string) => {
     setLastText(text);
+    setLastInputMode('text');
     setStage('parsing');
 
-    const result = await parseCharacterFromText(text);
+    const result = await parseCharacterFromText(text, includeSecret, allowAiFill, customPrompt.trim());
     if (result.success && result.data) {
       setParseResult(result.data);
       setStage('preview');
@@ -95,9 +100,10 @@ export function CharacterImportTab({ gameId, hasAiConfig, isActive, onDirtyChang
   };
 
   const handleSubmitDocx = async (formData: FormData) => {
+    setLastInputMode('docx');
     setStage('parsing');
 
-    const result = await parseCharacterFromDocx(formData);
+    const result = await parseCharacterFromDocx(formData, includeSecret, allowAiFill, customPrompt.trim());
     if (result.success && result.data) {
       setParseResult(result.data);
       setStage('preview');
@@ -216,6 +222,13 @@ export function CharacterImportTab({ gameId, hasAiConfig, isActive, onDirtyChang
       isParsing={false}
       hasAiConfig={hasAiConfig}
       initialText={lastText}
+      initialInputMode={lastInputMode}
+      includeSecret={includeSecret}
+      onIncludeSecretChange={setIncludeSecret}
+      allowAiFill={allowAiFill}
+      onAllowAiFillChange={setAllowAiFill}
+      customPrompt={customPrompt}
+      onCustomPromptChange={setCustomPrompt}
       onSubmitText={handleSubmitText}
       onSubmitDocx={handleSubmitDocx}
     />

@@ -11,9 +11,16 @@ const MAX_DOCX_SIZE = 5 * 1024 * 1024; // 5MB
 
 /**
  * 從純文字解析角色資料
+ * @param text - 角色資料文字
+ * @param includeSecret - 是否解析隱藏資訊（秘密 + 隱藏任務）
+ * @param allowAiFill - 是否允許 AI 補足缺少的欄位
+ * @param customPrompt - 使用者自訂提示
  */
 export async function parseCharacterFromText(
-  text: string
+  text: string,
+  includeSecret = false,
+  allowAiFill = false,
+  customPrompt = ''
 ): Promise<ApiResponse<CharacterImportResult>> {
   const userId = await getCurrentGMUserId();
   if (!userId) {
@@ -29,7 +36,7 @@ export async function parseCharacterFromText(
   }
 
   try {
-    const result = await callAiForCharacterImport(userId, text.trim());
+    const result = await callAiForCharacterImport(userId, text.trim(), includeSecret, allowAiFill, customPrompt);
     return { success: true, data: result };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -47,9 +54,16 @@ export async function parseCharacterFromText(
 
 /**
  * 從 .docx 檔案解析角色資料
+ * @param formData - 包含 file 欄位的 FormData
+ * @param includeSecret - 是否解析隱藏資訊（秘密 + 隱藏任務）
+ * @param allowAiFill - 是否允許 AI 補足缺少的欄位
+ * @param customPrompt - 使用者自訂提示
  */
 export async function parseCharacterFromDocx(
-  formData: FormData
+  formData: FormData,
+  includeSecret = false,
+  allowAiFill = false,
+  customPrompt = ''
 ): Promise<ApiResponse<CharacterImportResult>> {
   const userId = await getCurrentGMUserId();
   if (!userId) {
@@ -74,7 +88,7 @@ export async function parseCharacterFromDocx(
       return { success: false, error: 'INVALID_INPUT', message: '文件內容為空，請確認文件是否正確' };
     }
 
-    const result = await callAiForCharacterImport(userId, text.trim());
+    const result = await callAiForCharacterImport(userId, text.trim(), includeSecret, allowAiFill, customPrompt);
     return { success: true, data: result };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

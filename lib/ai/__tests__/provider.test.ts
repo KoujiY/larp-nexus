@@ -38,7 +38,7 @@ describe('callAiForCharacterImport', () => {
     } as never);
 
     await expect(
-      callAiForCharacterImport('user1', '角色文字')
+      callAiForCharacterImport('user1', '角色文字', false, false)
     ).rejects.toThrow('尚未設定 AI 服務');
   });
 
@@ -55,25 +55,38 @@ describe('callAiForCharacterImport', () => {
       }),
     } as never);
 
-    const mockResult = {
+    const mockIndexResult = {
+      reasoning: '[1] → name',
       name: '測試角色',
       description: '',
       slogan: null,
-      publicInfo: { background: [], personality: null, relationships: [] },
-      secretInfo: { secrets: [] },
+      backgroundSections: [],
+      personalityParagraphs: [],
+      relationships: [],
+      secrets: [],
       tasks: [],
       stats: [],
+      aiFilled: {
+        description: null,
+        slogan: null,
+        personality: null,
+        backgroundText: null,
+        relationships: [],
+        tasks: [],
+      },
     };
 
     mockCreate.mockResolvedValueOnce({
       choices: [{
+        finish_reason: 'stop',
         message: {
-          content: JSON.stringify(mockResult),
+          content: JSON.stringify(mockIndexResult),
         },
       }],
+      usage: { prompt_tokens: 100, completion_tokens: 50 },
     });
 
-    const result = await callAiForCharacterImport('user1', '角色名稱：測試角色');
+    const result = await callAiForCharacterImport('user1', '角色名稱：測試角色', false, false);
     expect(result.name).toBe('測試角色');
     expect(mockCreate).toHaveBeenCalledOnce();
   });
