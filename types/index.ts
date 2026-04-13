@@ -12,6 +12,13 @@ export interface GMUser {
   email: string;
   displayName: string;
   avatarUrl?: string;
+  aiConfig?: {
+    provider: string;
+    baseUrl: string;
+    model: string;
+    encryptedApiKey: string;
+    keyProvider: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

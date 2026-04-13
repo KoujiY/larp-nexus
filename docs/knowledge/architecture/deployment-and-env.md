@@ -38,6 +38,9 @@ RESEND_FROM_EMAIL=noreply@your-domain.com
 
 # Vercel Blob
 BLOB_READ_WRITE_TOKEN=
+
+# AI Character Import (Encryption key for API credentials)
+AI_ENCRYPTION_SECRET=<min 32 chars, generate with: openssl rand -base64 32>
 ```
 
 ### Local Development

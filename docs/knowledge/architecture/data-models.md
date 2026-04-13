@@ -12,7 +12,31 @@
 | `pending_events` | Offline event queue for reconnecting players |
 | `logs` | Operation audit log |
 
+## GMUser（GM 帳戶）
+
+基本欄位：
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| email | string | 帳戶信箱（唯一、lowercase） |
+| displayName | string | 顯示名稱（最多 50 字） |
+| avatarUrl | string (optional) | 頭像 URL |
+| aiConfig | object (optional) | AI 服務設定（見下表），首次設定前不存在 |
+
+### aiConfig（optional）
+
+AI 服務設定，首次設定前不存在。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| provider | string | AI 服務提供商（openai / gemini / custom） |
+| baseUrl | string | API 端點 URL |
+| model | string | 模型名稱 |
+| encryptedApiKey | string | AES-256-GCM 加密的 API Key（格式：iv:encrypted:authTag） |
+| keyProvider | string? | API Key 驗證成功時記錄的 provider，用於前端顯示 provider 不符提示 |
+
 ## Key Model Files
+- `lib/db/models/GMUser.ts` — GMUser mongoose model（含 aiConfig 加密儲存）
 - `lib/db/models/Character.ts` — Character mongoose model（Phase A 已重構，共用 `createBaseCharacterSchemaFields()` factory）
 - `lib/db/models/CharacterRuntime.ts` — CharacterRuntime mongoose model（與 Character.ts 共用 schema factory）
 - `lib/db/models/Game.ts` / `GameRuntime.ts` — Game mongoose model（`publicInfo.blocks: BackgroundBlock[]`）

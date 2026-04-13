@@ -2,7 +2,9 @@ import { getCurrentGMUser } from '@/app/actions/auth';
 import { PageLayout } from '@/components/gm/page-layout';
 import { AvatarUpload } from '@/components/gm/avatar-upload';
 import { redirect } from 'next/navigation';
-import { User, Mail, CalendarDays, Clock, Info, BookOpen } from 'lucide-react';
+import { User, Mail, CalendarDays, Clock, Info } from 'lucide-react';
+import { getAiConfig } from '@/app/actions/ai-config';
+import { AiSettingsForm } from '@/components/gm/ai-settings-form';
 
 // 此頁面完全是使用者私有資料（依登入 session 讀取 GM user），
 // 必須 opt out of static prerender。詳見 app/(gm)/games/page.tsx 的註解。
@@ -22,6 +24,11 @@ export default async function ProfilePage() {
   if (!gmUser) {
     redirect('/auth/login');
   }
+
+  const aiConfigResult = await getAiConfig();
+  const aiConfig = aiConfigResult.success && aiConfigResult.data
+    ? aiConfigResult.data
+    : { hasApiKey: false };
 
   const formatDate = (date: string | Date | undefined) => {
     if (!date) return '未知';
@@ -95,6 +102,9 @@ export default async function ProfilePage() {
           </div>
         </section>
 
+        {/* AI 設定 */}
+        <AiSettingsForm initialConfig={aiConfig} />
+
         {/* 提示卡片 */}
         <div className="bg-primary/10 border-l-[3px] border-primary px-5 py-4 rounded-r-lg flex items-start gap-3">
           <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -103,10 +113,6 @@ export default async function ProfilePage() {
           </p>
         </div>
 
-        {/* 底部裝飾 */}
-        <div className="mt-8 flex justify-center opacity-10">
-          <BookOpen className="h-12 w-12" />
-        </div>
       </div>
     </PageLayout>
   );

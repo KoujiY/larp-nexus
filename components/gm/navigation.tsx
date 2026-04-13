@@ -282,6 +282,7 @@ function CollapsedNavigation({ onToggle }: { onToggle: () => void }) {
                     href={item.href}
                     className={cn(
                       'flex items-center justify-center w-12 h-12 rounded-xl transition-all active:scale-95',
+                      'data-pending:animate-pulse data-pending:ring-2 data-pending:ring-primary/40',
                       isActive
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',

@@ -17,6 +17,7 @@ import { UserPlus, Lock } from 'lucide-react';
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
 import { PinField, type PinCheckStatus } from '@/components/gm/pin-field';
 import { cn } from '@/lib/utils';
+import { useGameEditTabContext } from '@/components/gm/game-edit-tabs';
 import {
   GM_LABEL_CLASS,
   GM_INPUT_CLASS,
@@ -49,6 +50,7 @@ export function CreateCharacterButton({ gameId, variant = 'button', isActive }: 
     pin: '',
   });
   const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>('idle');
+  const { switchToImportTab } = useGameEditTabContext();
 
   const handlePinStatusChange = useCallback((status: PinCheckStatus) => {
     setPinCheckStatus(status);
@@ -225,6 +227,23 @@ export function CreateCharacterButton({ gameId, variant = 'button', isActive }: 
                     onStatusChange={handlePinStatusChange}
                   />
                 )}
+              </div>
+
+              {/* AI 匯入引導 */}
+              <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
+                <p className="text-sm text-muted-foreground">
+                  有現成的角色資料？
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      switchToImportTab();
+                    }}
+                    className="text-primary font-bold ml-1 hover:underline cursor-pointer"
+                  >
+                    前往 AI 匯入
+                  </button>
+                </p>
               </div>
 
               {/* 全域錯誤 */}

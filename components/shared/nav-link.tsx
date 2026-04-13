@@ -42,9 +42,10 @@ export const NavLink = forwardRef<HTMLAnchorElement, NavLinkProps>(
       <Link
         ref={ref}
         href={href}
-        className={cn(className, showOverlay && 'relative')}
-        onClick={handleClick}
         {...rest}
+        className={cn(className, showOverlay && 'relative')}
+        data-pending={isPending || undefined}
+        onClick={handleClick}
       >
         {render ? render(isPending) : children}
         {isPending && showOverlay && (

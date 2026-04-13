@@ -10,6 +10,11 @@ import type { Item } from '@/types/character';
  * @returns 返回是否可以使用及原因
  */
 export function canUseItem(item: Item): { canUse: boolean; reason?: string } {
+  // 效果檢查：沒有效果的物品不可使用
+  if (!item.effects || item.effects.length === 0) {
+    return { canUse: false, reason: '無可用效果' };
+  }
+
   // 消耗品數量檢查
   if (item.type === 'consumable' && item.quantity <= 0) {
     return { canUse: false, reason: '數量不足' };
