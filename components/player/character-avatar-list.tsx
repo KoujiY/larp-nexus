@@ -97,7 +97,7 @@ export function CharacterAvatarList({
           containScroll: 'trimSnaps',
         }}
         setApi={setApi}
-        className="w-full **:data-[slot=carousel-content]:overflow-visible"
+        className="w-full **:data-[slot=carousel-content]:overflow-x-clip **:data-[slot=carousel-content]:overflow-y-visible"
       >
         <CarouselContent className="-ml-2 py-2">
           {characters.map((char) => {
