@@ -1,19 +1,22 @@
 /**
  * 共用效果執行器
  *
- * 提供三個 effect executor（item / skill / contest）共用的純函數與 DB 輔助函式：
- *   - computeStatChange()   — 純函數，計算數值變化（不含 DB / WebSocket 操作）
- *   - applyItemTransfer()   — 執行道具移除／偷竊的 DB 操作與 WebSocket 通知
- *
- * 各 executor 自行負責的差異邏輯：
- *   - log 記錄（action 名稱各不相同）
- *   - 最終 role.updated / character.affected 的 stats 通知時機
+ * 提供 item / skill / contest executor 共用的函數：
+ *   - computeStatChange()         — 純函數，計算數值變化
+ *   - applyItemTransfer()         — 執行道具移除／偷竊的 DB 操作與 WebSocket 通知
+ *   - resolveEffectTarget()       — 純函數，解析效果作用對象
+ *   - executeEffectBatch()        — 遍歷效果陣列、累積 stat 變更、處理 item/task 效果
+ *   - emitAffectedNotifications() — 套用累積器至 DB 並發送 WebSocket 通知
  */
 
 import { emitInventoryUpdated, emitCharacterAffected, emitRoleUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
-import { getCharacterData } from '@/lib/game/get-character-data';
+import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
+import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
+import { computeEffectiveStats } from '@/lib/utils/compute-effective-stats';
+import type { BaseEffect } from '@/types/character';
+import type { CharacterDocument } from '@/lib/db/models';
 
 // ─── 公開型別 ──────────────────────────────────────────────────────────────────
 
@@ -258,4 +261,378 @@ export async function applyItemTransfer(
     : `移除了 ${targetItem.name}`;
 
   return { message, pendingRevealReceiverId };
+}
+
+// ─── resolveEffectTarget — 純函數 ────────────────────────────────────────────
+
+/**
+ * 解析單一效果的作用對象
+ *
+ * @param targetType   效果的 targetType 設定（'self' | 'other' | 'any' | undefined）
+ * @param character    技能/道具使用者
+ * @param characterId  使用者的 baseline ID
+ * @param targetCharacter 已載入的目標角色（可為 null）
+ * @param targetCharacterId 目標角色 ID（可為 undefined）
+ * @returns 作用對象 document 與是否為跨角色
+ */
+export function resolveEffectTarget(
+  targetType: 'self' | 'other' | 'any' | undefined,
+  character: CharacterDocument,
+  characterId: string,
+  targetCharacter: CharacterDocument | null,
+  targetCharacterId?: string
+): { char: CharacterDocument; isOther: boolean } {
+  if (targetType === 'self') return { char: character, isOther: false };
+  if (targetCharacter && targetCharacterId && targetCharacterId !== characterId) {
+    return { char: targetCharacter, isOther: true };
+  }
+  return { char: character, isOther: false };
+}
+
+// ─── executeEffectBatch — 效果迴圈核心 ───────────────────────────────────────
+
+/** stat 變更追蹤項 */
+export interface StatUpdateEntry {
+  id: string;
+  name: string;
+  value: number;
+  maxValue?: number;
+  deltaValue?: number;
+  deltaMax?: number;
+}
+
+/** 跨角色數值變更項（用於 WebSocket 通知） */
+export interface CrossCharacterChange {
+  name: string;
+  deltaValue?: number;
+  deltaMax?: number;
+  newValue: number;
+  newMax?: number;
+}
+
+/** executeEffectBatch 參數 */
+export interface EffectBatchParams {
+  effects: BaseEffect[];
+  character: CharacterDocument;
+  targetCharacter: CharacterDocument | null;
+  targetCharacterId?: string;
+  sourceType: 'item' | 'skill';
+  sourceId: string;
+  sourceName: string;
+  sourceTags: string[];
+  checkType?: string;
+  targetItemId?: string;
+}
+
+/** executeEffectBatch 結果 */
+export interface EffectBatchResult {
+  effectMessages: string[];
+  selfStatSet: Record<string, unknown>;
+  targetStatSet: Record<string, unknown>;
+  selfStatUpdates: StatUpdateEntry[];
+  targetStatUpdatesList: StatUpdateEntry[];
+  crossCharacterChanges: CrossCharacterChange[];
+  hasSelfUpdates: boolean;
+  hasTargetUpdates: boolean;
+  pendingRevealReceiverId?: string;
+  /** item_take/item_steal 可能已重新載入 targetCharacter */
+  targetCharacter: CharacterDocument | null;
+}
+
+/**
+ * 遍歷效果陣列，累積 stat 變更，處理 item_take/item_steal/task_reveal/task_complete/custom
+ *
+ * 不執行 DB 寫入（累積器由呼叫端透過 emitAffectedNotifications 套用）
+ * 例外：item_take/item_steal 的 DB 操作委派至 applyItemTransfer（立即執行）
+ *      時效性效果的 createTemporaryEffectRecord 也立即執行
+ */
+export async function executeEffectBatch(params: EffectBatchParams): Promise<EffectBatchResult> {
+  const {
+    effects, character, sourceType, sourceId, sourceName,
+    sourceTags, checkType, targetItemId, targetCharacterId,
+  } = params;
+  let { targetCharacter } = params;
+
+  const characterId = getBaselineCharacterId(character);
+  const now = new Date();
+  let pendingRevealReceiverId: string | undefined;
+
+  const selfStatSet: Record<string, unknown> = {};
+  const targetStatSet: Record<string, unknown> = {};
+  const selfStatUpdates: StatUpdateEntry[] = [];
+  const targetStatUpdatesList: StatUpdateEntry[] = [];
+  const crossCharacterChanges: CrossCharacterChange[] = [];
+  const effectMessages: string[] = [];
+
+  for (const effect of effects) {
+    if (effect.type === 'stat_change' && effect.targetStat && typeof effect.value === 'number') {
+      const { char: effectTarget, isOther } = resolveEffectTarget(
+        effect.targetType, character, characterId, targetCharacter, targetCharacterId
+      );
+      const stats = effectTarget.stats || [];
+      const statIndex = stats.findIndex((s) => s.name === effect.targetStat);
+      if (statIndex === -1) continue;
+
+      const result = computeStatChange(
+        stats[statIndex],
+        effect.value,
+        effect.statChangeTarget ?? 'value',
+        effect.syncValue ?? false
+      );
+
+      const statSet = isOther ? targetStatSet : selfStatSet;
+      const statList = isOther ? targetStatUpdatesList : selfStatUpdates;
+
+      statSet[`stats.${statIndex}.value`] = result.newValue;
+      if (result.effectiveTarget === 'maxValue' && result.newMaxValue !== undefined) {
+        statSet[`stats.${statIndex}.maxValue`] = result.newMaxValue;
+      }
+      effectMessages.push(result.message);
+
+      statList.push({
+        id: stats[statIndex].id,
+        name: stats[statIndex].name,
+        value: result.newValue,
+        maxValue: result.newMaxValue,
+        deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+        deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+      });
+
+      if (isOther) {
+        crossCharacterChanges.push({
+          name: stats[statIndex].name,
+          deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+          deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+          newValue: result.newValue,
+          newMax: result.newMaxValue,
+        });
+      }
+
+      // 時效性效果
+      if (effect.duration && effect.duration > 0) {
+        await createTemporaryEffectRecord(
+          getBaselineCharacterId(effectTarget),
+          {
+            sourceType,
+            sourceId,
+            sourceCharacterId: characterId,
+            sourceCharacterName: character.name,
+            sourceName,
+          },
+          {
+            targetStat: effect.targetStat,
+            deltaValue: result.deltaValue !== 0 ? result.deltaValue : undefined,
+            deltaMax: result.deltaMax !== 0 ? result.deltaMax : undefined,
+            statChangeTarget: result.effectiveTarget,
+            syncValue: effect.syncValue,
+          },
+          effect.duration
+        );
+      }
+    } else if (effect.type === 'task_reveal' && effect.targetTaskId) {
+      const { char: effectTarget, isOther } = resolveEffectTarget(
+        effect.targetType, character, characterId, targetCharacter, targetCharacterId
+      );
+      const tasks = effectTarget.tasks || [];
+      const taskIndex = tasks.findIndex((t) => t.id === effect.targetTaskId);
+      if (taskIndex !== -1 && !tasks[taskIndex].isRevealed) {
+        const statSet = isOther ? targetStatSet : selfStatSet;
+        statSet[`tasks.${taskIndex}.isRevealed`] = true;
+        statSet[`tasks.${taskIndex}.revealedAt`] = now;
+        effectMessages.push(`揭露任務：${tasks[taskIndex].title}`);
+      }
+    } else if (effect.type === 'task_complete' && effect.targetTaskId) {
+      const { char: effectTarget, isOther } = resolveEffectTarget(
+        effect.targetType, character, characterId, targetCharacter, targetCharacterId
+      );
+      const tasks = effectTarget.tasks || [];
+      const taskIndex = tasks.findIndex((t) => t.id === effect.targetTaskId);
+      if (taskIndex !== -1 && tasks[taskIndex].status !== 'completed') {
+        const statSet = isOther ? targetStatSet : selfStatSet;
+        statSet[`tasks.${taskIndex}.status`] = 'completed';
+        statSet[`tasks.${taskIndex}.completedAt`] = now;
+        effectMessages.push(`完成任務：${tasks[taskIndex].title}`);
+      }
+    } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
+      if (checkType === 'contest' || checkType === 'random_contest') continue;
+      if (!targetItemId) {
+        effectMessages.push('目標角色沒有道具可互動');
+        continue;
+      }
+      if (!targetCharacterId) throw new Error('此效果需要選擇目標角色');
+
+      if (!targetCharacter) {
+        targetCharacter = await getCharacterData(targetCharacterId) as CharacterDocument;
+        if (targetCharacter.gameId.toString() !== character.gameId.toString()) {
+          throw new Error('目標角色不存在或不在同一劇本內');
+        }
+      }
+
+      const targetItems = targetCharacter.items || [];
+      const targetItem = targetItems.find((i) => i.id === targetItemId);
+      if (!targetItem) throw new Error('目標角色沒有此道具');
+
+      const hasStealthTag = sourceTags.includes('stealth');
+
+      const transferResult = await applyItemTransfer({
+        targetIdStr: targetCharacterId,
+        sourceIdStr: characterId,
+        targetItem,
+        effectType: effect.type,
+        notification: {
+          sourceCharacterId: characterId,
+          sourceCharacterName: character.name,
+          sourceType,
+          sourceName,
+          hasStealthTag,
+        },
+      });
+
+      effectMessages.push(transferResult.message);
+      if (transferResult.pendingRevealReceiverId) {
+        pendingRevealReceiverId = transferResult.pendingRevealReceiverId;
+      }
+    } else if (effect.type === 'custom' && effect.description) {
+      effectMessages.push(effect.description);
+    }
+  }
+
+  return {
+    effectMessages,
+    selfStatSet,
+    targetStatSet,
+    selfStatUpdates,
+    targetStatUpdatesList,
+    crossCharacterChanges,
+    hasSelfUpdates: Object.keys(selfStatSet).length > 0,
+    hasTargetUpdates: Object.keys(targetStatSet).length > 0,
+    pendingRevealReceiverId,
+    targetCharacter,
+  };
+}
+
+// ─── emitAffectedNotifications — DB 套用 + WebSocket 通知 ────────────────────
+
+/** emitAffectedNotifications 參數 */
+export interface AffectedNotificationsParams {
+  characterId: string;
+  character: CharacterDocument;
+  targetCharacterId?: string;
+  targetCharacter: CharacterDocument | null;
+  sourceType: 'item' | 'skill';
+  sourceName: string;
+  sourceTags: string[];
+  batchResult: EffectBatchResult;
+}
+
+/** emitAffectedNotifications 結果 */
+export interface AffectedNotificationsResult {
+  updatedCharacter: CharacterDocument;
+  updatedTarget?: CharacterDocument;
+}
+
+/**
+ * 套用 executeEffectBatch 的累積器至 DB，並發送 WebSocket 通知
+ *
+ * 處理：
+ *   1. $set selfStatSet / targetStatSet 至 DB
+ *   2. emitCharacterAffected（跨角色 stat_change 通知）
+ *   3. emitRoleUpdated（GM 端 silentSync）
+ *   4. 重新讀取最終角色狀態
+ */
+export async function emitAffectedNotifications(
+  params: AffectedNotificationsParams
+): Promise<AffectedNotificationsResult> {
+  const {
+    characterId, character, targetCharacterId, sourceType, sourceName, sourceTags,
+    batchResult,
+  } = params;
+  const {
+    selfStatSet, targetStatSet, crossCharacterChanges,
+    hasSelfUpdates, hasTargetUpdates,
+  } = batchResult;
+
+  const hasStealthTag = sourceTags.includes('stealth');
+
+  // §4: 套用 self / target 兩組累積器至 DB
+  if (hasSelfUpdates) {
+    await updateCharacterData(characterId, { $set: selfStatSet });
+  }
+
+  if (hasTargetUpdates && targetCharacterId) {
+    await updateCharacterData(targetCharacterId, { $set: targetStatSet });
+
+    if (crossCharacterChanges.length > 0) {
+      // 重新讀取目標角色的 DB 狀態作為通知/同步的依據
+      const updatedTargetDoc = await getCharacterData(targetCharacterId);
+      const targetObj = (updatedTargetDoc as unknown as { toObject?: () => Record<string, unknown> }).toObject
+        ? (updatedTargetDoc as unknown as { toObject: () => Record<string, unknown> }).toObject()
+        : JSON.parse(JSON.stringify(updatedTargetDoc));
+      const targetBaseStats = (targetObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
+
+      // character.affected 用於通知顯示，newValue/newMax 使用含裝備加成的 effective 值
+      const targetEffectiveStats = computeEffectiveStats(
+        targetObj.stats as Parameters<typeof computeEffectiveStats>[0],
+        targetObj.items as Parameters<typeof computeEffectiveStats>[1],
+      );
+      const effectiveCrossChanges = crossCharacterChanges.map((c) => {
+        const eff = targetEffectiveStats.find((s) => s.name === c.name);
+        return {
+          ...c,
+          newValue: eff?.value ?? c.newValue,
+          newMax: eff?.maxValue ?? c.newMax,
+        };
+      });
+
+      emitCharacterAffected(targetCharacterId, {
+        targetCharacterId,
+        sourceCharacterId: characterId,
+        sourceCharacterName: hasStealthTag ? '' : character.name,
+        sourceType,
+        sourceName,
+        sourceHasStealthTag: hasStealthTag,
+        effectType: 'stat_change',
+        changes: {
+          stats: effectiveCrossChanges.map((c) => ({
+            name: c.name, deltaValue: c.deltaValue,
+            deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
+          })),
+        },
+      }).catch((err) => console.error('[shared-effect-executor] emitCharacterAffected failed', err));
+
+      // role.updated 帶 DB base stats，讓 GM Console 的顯示層自行套用裝備加成
+      emitRoleUpdated(targetCharacterId, {
+        characterId: targetCharacterId,
+        silentSync: true,
+        updates: {
+          stats: targetBaseStats.map((s) => ({
+            id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,
+          })),
+        },
+      }).catch((err) => console.error('[shared-effect-executor] emitRoleUpdated failed', err));
+    }
+  }
+
+  if (hasSelfUpdates) {
+    const selfDoc = await getCharacterData(characterId);
+    const selfObj = (selfDoc as unknown as { toObject?: () => Record<string, unknown> }).toObject
+      ? (selfDoc as unknown as { toObject: () => Record<string, unknown> }).toObject()
+      : JSON.parse(JSON.stringify(selfDoc));
+    const selfBaseStats = (selfObj.stats ?? []) as Array<{ id: string; name: string; value: number; maxValue?: number }>;
+
+    emitRoleUpdated(characterId, {
+      characterId,
+      silentSync: true,
+      updates: {
+        stats: selfBaseStats.map((s) => ({
+          id: s.id, name: s.name, value: s.value, maxValue: s.maxValue,
+        })),
+      },
+    }).catch((err) => console.error('[shared-effect-executor] emitRoleUpdated failed', err));
+  }
+
+  const updatedCharacter = await getCharacterData(characterId);
+  const updatedTarget = targetCharacterId ? await getCharacterData(targetCharacterId) : undefined;
+
+  return { updatedCharacter, updatedTarget: updatedTarget || undefined };
 }
