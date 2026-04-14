@@ -4,7 +4,7 @@ import { withAction } from '@/lib/actions/action-wrapper';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
-import { handleSkillCheck } from '@/lib/skill/check-handler';
+import { handleAbilityCheck } from '@/lib/contest/check-handler';
 import { executeSkillEffects } from '@/lib/skill/skill-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
@@ -177,7 +177,7 @@ export async function useSkill(
     // 執行檢定
     let checkResultData;
     try {
-      checkResultData = await handleSkillCheck(skill, character, checkResult, targetCharacterId, targetItemId);
+      checkResultData = await handleAbilityCheck({ ability: skill, abilityType: 'skill', character, checkResult, targetCharacterId, targetItemId });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '檢定處理失敗';
       // 將錯誤轉換為適當的錯誤代碼
