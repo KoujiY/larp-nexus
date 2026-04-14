@@ -14,8 +14,6 @@
     "format:check": "prettier --check .",
     "test:connection": "tsx scripts/test-connection.ts",
     "test:sendmail": "tsx scripts/test-sendmail.ts",
-    "migrate:phase10": "tsx scripts/migrate-phase10.ts",
-    "migrate:phase-e": "tsx scripts/migrate-phase-e.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
