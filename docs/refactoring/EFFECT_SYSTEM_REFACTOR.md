@@ -19,8 +19,7 @@
 | `lib/item/item-effect-executor.ts` | 123 | Item 效果執行器（薄殼，Phase 2 後） |
 | `lib/skill/skill-effect-executor.ts` | 117 | Skill 效果執行器（薄殼，Phase 2 後） |
 | `lib/effects/shared-effect-executor.ts` | 638 | 共用效果執行器（Phase 2 完成後） |
-| `lib/item/check-handler.ts` | 76 | Item 檢定處理 |
-| `lib/skill/check-handler.ts` | 93 | Skill 檢定處理（含舊格式相容碼） |
+| `lib/contest/check-handler.ts` | 75 | 統一檢定處理（Phase 3 合併後） |
 | `types/character.ts` L221-237 | — | `ItemEffect` 型別定義 |
 | `types/character.ts` L304-322 | — | `SkillEffect` 型別定義 |
 
@@ -190,7 +189,7 @@ Phase 1 完成（`BaseEffect` 已就位）。
 
 ---
 
-## Phase 3：合併 Check Handler（風險：低中）
+## Phase 3：合併 Check Handler（風險：低中）✅ 已完成
 
 **目標**：統一 item/skill 的檢定處理邏輯。
 
@@ -198,47 +197,33 @@ Phase 1 完成（`BaseEffect` 已就位）。
 
 Phase 0-2 完成（舊格式碼已移除、型別已統一）。
 
-### 現狀
+### 實作摘要
 
-- `lib/item/check-handler.ts`（76 行）
-- `lib/skill/check-handler.ts`（93 行，含舊格式相容碼）
+將 `lib/item/check-handler.ts`（76 行）和 `lib/skill/check-handler.ts`（93 行）合併為統一的 `lib/contest/check-handler.ts`，提供 `handleAbilityCheck()` 函數。
 
-兩者差異：
-- skill 版多了 `checkThreshold` 舊格式處理（Phase 0 會移除）
-- 函數簽名略有不同（接受 `Item` vs `Skill`）
-
-### 目標
-
-```
-lib/contest/check-handler.ts ← 統一，接受通用參數
-```
-
-簽名（參考）：
+簽名：
 ```typescript
 export async function handleAbilityCheck(params: {
-  ability: Item | Skill;
+  ability: ItemType | SkillType;
   abilityType: 'item' | 'skill';
   character: CharacterDocument;
   targetCharacterId?: string;
-  targetItemId?: string;
   checkResult?: number;
-}): Promise<CheckHandlerResult>
+  targetItemId?: string;
+}): Promise<CheckResult>
 ```
 
-### 步驟
+以 `abilityType` 區分差異（錯誤訊息中的「道具」/「技能」標籤、`targetItemId` 傳遞）。
 
-1. 在 `lib/contest/` 下建立新的統一 `check-handler.ts`
-2. 將兩個舊 handler 的邏輯合併，以 `abilityType` 區分差異
-3. 更新 `lib/item/item-effect-executor.ts` 和 `lib/skill/skill-effect-executor.ts` 的 import
-4. 刪除 `lib/item/check-handler.ts` 和 `lib/skill/check-handler.ts`
-5. 更新知識庫 `docs/knowledge/` 中引用這兩個檔案的文件
+更新了 `app/actions/item-use.ts` 和 `app/actions/skill-use.ts` 的 import 與呼叫。
 
 ### 完成標準
 
-- `tsc --noEmit` 零錯誤
-- `vitest run` 全過
-- `lib/item/check-handler.ts` 和 `lib/skill/check-handler.ts` 不再存在
-- grep 舊路徑確認無殘留 import
+- ✅ `tsc --noEmit` 零新錯誤
+- ✅ `vitest run` 311 tests 全過
+- ✅ `eslint` 零錯誤
+- ✅ `lib/item/check-handler.ts` 和 `lib/skill/check-handler.ts` 不再存在
+- ✅ grep 舊路徑確認無殘留 import
 
 ---
 
