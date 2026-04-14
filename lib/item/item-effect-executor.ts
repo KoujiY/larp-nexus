@@ -20,11 +20,6 @@ import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effec
 import { computeEffectiveStats } from '@/lib/utils/compute-effective-stats';
 
 /**
- * 道具效果類型
- */
-type ItemEffect = NonNullable<ItemType['effects']>[number];
-
-/**
  * 執行道具效果的結果
  */
 export interface ItemEffectExecutionResult {
@@ -53,7 +48,7 @@ export async function executeItemEffects(
   await dbConnect();
 
   // 統一讀取效果列表（向後兼容已棄用的 effect 欄位）
-  const effects: ItemEffect[] = getItemEffects(item);
+  const effects = getItemEffects(item);
 
   if (effects.length === 0) {
     const updatedCharacter = await getCharacterData(getBaselineCharacterId(character));

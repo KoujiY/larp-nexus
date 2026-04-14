@@ -38,23 +38,12 @@ type AutoRevealCondition = {
   matchLogic?: string;
 };
 
-/** 道具效果（item） */
-type ItemEffect = {
-  type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
-  targetType?: EffectTargetType;
-  requiresTarget?: boolean;
-  targetStat?: string;
-  value?: number;
-  statChangeTarget?: StatChangeTarget;
-  syncValue?: boolean;
-  targetItemId?: string;
-  duration?: number;
-  description?: string;
-};
+/** 效果型別（與 BaseEffect 統一） */
+type EffectType = 'stat_change' | 'custom' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete';
 
-/** 技能效果（skill） */
-type SkillEffect = {
-  type: 'stat_change' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom';
+/** 道具/技能共用效果 */
+type Effect = {
+  type: EffectType;
   targetType?: EffectTargetType;
   requiresTarget?: boolean;
   targetStat?: string;
@@ -63,7 +52,7 @@ type SkillEffect = {
   syncValue?: boolean;
   targetItemId?: string;
   targetTaskId?: string;
-  targetCharacterId?: string;
+  duration?: number;
   description?: string;
 };
 
@@ -119,9 +108,9 @@ export type UpdateCharacterInput = {
     imageUrl?: string;
     type: 'consumable' | 'tool' | 'equipment';
     quantity: number;
-    effects?: ItemEffect[];
+    effects?: Effect[];
     /** @deprecated 使用 effects 陣列代替 */
-    effect?: ItemEffect;
+    effect?: Effect;
     tags?: string[];
     checkType?: CheckType;
     contestConfig?: ContestConfig;
@@ -148,6 +137,6 @@ export type UpdateCharacterInput = {
     usageCount?: number;
     cooldown?: number;
     lastUsedAt?: Date;
-    effects?: SkillEffect[];
+    effects?: Effect[];
   }>;
 };
