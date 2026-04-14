@@ -16,9 +16,9 @@
 
 | 檔案 | 行數 | 角色 |
 |------|------|------|
-| `lib/item/item-effect-executor.ts` | 326 | Item 效果執行器 |
-| `lib/skill/skill-effect-executor.ts` | 345 | Skill 效果執行器 |
-| `lib/effects/shared-effect-executor.ts` | 261 | 已有的共用抽象（部分） |
+| `lib/item/item-effect-executor.ts` | 123 | Item 效果執行器（薄殼，Phase 2 後） |
+| `lib/skill/skill-effect-executor.ts` | 117 | Skill 效果執行器（薄殼，Phase 2 後） |
+| `lib/effects/shared-effect-executor.ts` | 638 | 共用效果執行器（Phase 2 完成後） |
 | `lib/item/check-handler.ts` | 76 | Item 檢定處理 |
 | `lib/skill/check-handler.ts` | 93 | Skill 檢定處理（含舊格式相容碼） |
 | `types/character.ts` L221-237 | — | `ItemEffect` 型別定義 |
@@ -158,7 +158,7 @@ export type SkillEffect = BaseEffect;
 
 ---
 
-## Phase 2：提取 Executor 共用核心（風險：中高）
+## Phase 2：提取 Executor 共用核心（風險：中高）✅ 已完成
 
 **目標**：將 item/skill executor 的重複邏輯提取到 `shared-effect-executor.ts`。
 
@@ -166,70 +166,27 @@ export type SkillEffect = BaseEffect;
 
 Phase 1 完成（`BaseEffect` 已就位）。
 
-### 現有共用抽象（保留並擴充）
+### 實作摘要
 
-`lib/effects/shared-effect-executor.ts` 目前提供：
-- `computeStatChange()` — 純函數，計算數值變化
-- `applyItemTransfer()` — 執行道具移除/偷竊的 DB 操作
+`lib/effects/shared-effect-executor.ts` 新增三個共用函數：
 
-### 需要提取的函數（按順序）
+1. **`resolveEffectTarget()`** — 純函數，解析效果作用對象（self/other）
+2. **`executeEffectBatch()`** — 遍歷效果陣列、累積 stat 變更、處理所有效果類型（stat_change, custom, item_take, item_steal, task_reveal, task_complete）
+3. **`emitAffectedNotifications()`** — 套用累積器至 DB、發送 `emitCharacterAffected` + `emitRoleUpdated` WebSocket 通知
 
-#### Step 1：提取 `resolveEffectTarget()`
-
-- 來源：`item-effect-executor.ts` 和 `skill-effect-executor.ts` 中的目標解析邏輯
-- 目標：`shared-effect-executor.ts` 新增 export
-- 簽名：
-  ```typescript
-  export function resolveEffectTarget(
-    effect: BaseEffect,
-    selfCharacterId: string,
-    targetCharacterId?: string
-  ): { targetId: string; isSelf: boolean }
-  ```
-- 驗證：`vitest run`
-
-#### Step 2：提取 stat 累積器與效果迴圈
-
-- 來源：兩個 executor 的主迴圈中，遍歷 effects 陣列、累積 `selfStatSet` / `targetStatSet` 的邏輯
-- 目標：`shared-effect-executor.ts` 新增 `executeEffectBatch()`
-- 簽名（參考）：
-  ```typescript
-  export async function executeEffectBatch(params: {
-    effects: BaseEffect[];
-    character: CharacterDocument;
-    targetCharacterId?: string;
-    sourceType: 'item' | 'skill';
-    sourceId: string;
-    sourceName: string;
-    gameId: string;
-    checkPassed?: boolean;
-  }): Promise<EffectBatchResult>
-  ```
-- 注意：item 和 skill 在迴圈內的差異（例如 `task_reveal` / `task_complete` 是 skill 專屬）需要透過 `sourceType` 分支處理，或在呼叫端前置過濾
-- 驗證：`vitest run`
-
-#### Step 3：提取 WebSocket 通知序列
-
-- 來源：兩個 executor 結尾的 `emitCharacterAffected()` + `emitRoleUpdated()` 呼叫
-- 目標：`shared-effect-executor.ts` 新增 `emitAffectedNotifications()`
-- 驗證：`vitest run`
-
-#### Step 4：將原 executor 改為薄殼
-
-改寫 `item-effect-executor.ts` 和 `skill-effect-executor.ts`：
-- 移除已提取的邏輯
-- 改為呼叫 `shared-effect-executor.ts` 的共用函數
-- 僅保留各自的專屬邏輯（item: 數量扣減、裝備檢查；skill: task_reveal/task_complete 處理）
-- 目標：每個 executor 從 ~330 行降到 ~80-120 行
+原 executor 改為薄殼，僅保留：
+- **item-effect-executor.ts**（123 行）：`getItemEffects()` 向後兼容讀取 + `writeLog(action: 'item_use')`
+- **skill-effect-executor.ts**（117 行）：目標驗證 + `writeLog(action: 'skill_use')`
 
 ### 完成標準
 
-- `tsc --noEmit` 零錯誤
-- `vitest run` 全過
-- `item-effect-executor.ts` < 150 行
-- `skill-effect-executor.ts` < 150 行
-- `shared-effect-executor.ts` 包含所有共用邏輯
-- 兩個 executor 中不再有結構相同的程式碼區塊
+- ✅ `tsc --noEmit` 零新錯誤
+- ✅ `vitest run` 311 tests 全過
+- ✅ `eslint` 零錯誤
+- ✅ `item-effect-executor.ts` 123 行（< 150）
+- ✅ `skill-effect-executor.ts` 117 行（< 150）
+- ✅ `shared-effect-executor.ts` 包含所有共用邏輯（638 行）
+- ✅ 兩個 executor 中不再有結構相同的程式碼區塊
 
 ---
 

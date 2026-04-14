@@ -15,7 +15,7 @@ type SkillEffect = BaseEffect;
 - `other` → 下拉選單選到的對象（不含自己）
 - `any` → 下拉選單選到的對象（可含自己）
 
-**混合目標範例**：對抗成功後「扣對方 HP -15 + 補自己 HP +8」可以寫成單張卡片的兩個效果，一個 `targetType: 'other'`、一個 `targetType: 'self'`。Server 的 executor（`lib/skill/skill-effect-executor.ts`、`lib/contest/contest-effect-executor.ts`）會各自累積 self / target 更新並分別發送 `character.affected` / `role.updated`。
+**混合目標範例**：對抗成功後「扣對方 HP -15 + 補自己 HP +8」可以寫成單張卡片的兩個效果，一個 `targetType: 'other'`、一個 `targetType: 'self'`。Server 的 executor（`lib/effects/shared-effect-executor.ts` 的 `executeEffectBatch()`、`lib/contest/contest-effect-executor.ts`）會各自累積 self / target 更新並分別發送 `character.affected` / `role.updated`。
 
 ## Wizard 目標選擇規則
 GM 在 `ability-edit-wizard.tsx` 設計效果時有兩條硬性規則：
