@@ -211,20 +211,16 @@ export interface Task {
 }
 
 /**
- * Phase 4.5: 道具效果
+ * 共用效果基底型別
+ * 統一 Item 與 Skill 的效果結構，為 Effect System 重構 Phase 1
  */
-/**
- * Phase 4.5: 道具效果
- * Phase 6.5: 擴展跨角色效果（方案 A）
- * 重構：與 SkillEffect 統一結構，支援多個效果
- */
-export interface ItemEffect {
-  type: 'stat_change' | 'custom' | 'item_take' | 'item_steal'; // Phase 7: 添加 item_take 和 item_steal
-  
-  // Phase 6.5 方案 A: 目標設定
+export interface BaseEffect {
+  type: 'stat_change' | 'custom' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete';
+
+  // 目標設定
   targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
   requiresTarget?: boolean;                // 是否需要玩家選擇目標角色
-  
+
   targetStat?: string;
   value?: number;
   // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值
@@ -233,8 +229,15 @@ export interface ItemEffect {
   syncValue?: boolean;
   duration?: number;
   description?: string;
-  targetItemId?: string; // Phase 7: 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇）
+  targetItemId?: string;  // 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇）
+  targetTaskId?: string;  // 目標任務 ID（用於 task_reveal 和 task_complete）
 }
+
+/** 道具效果 — BaseEffect 的 type alias，保持下游相容 */
+export type ItemEffect = BaseEffect;
+
+/** 技能效果 — BaseEffect 的 type alias，保持下游相容 */
+export type SkillEffect = BaseEffect;
 
 /**
  * Phase 4.5: 道具系統（擴展版）
@@ -296,30 +299,7 @@ export interface Stat {
   maxValue?: number;
 }
 
-/**
- * Phase 5: 技能效果
- * Phase 6.5: 擴展跨角色效果（方案 A）
- * Phase 8: 添加 duration 欄位支援時效性效果
- */
-export interface SkillEffect {
-  type: 'stat_change' | 'item_take' | 'item_steal' |
-        'task_reveal' | 'task_complete' | 'custom';
-
-  // Phase 6.5 方案 A: 目標設定
-  targetType?: 'self' | 'other' | 'any';  // 目標對象類型（GM 設定）
-  requiresTarget?: boolean;                // 是否需要玩家選擇目標角色
-
-  targetStat?: string;
-  value?: number;
-  // 數值變化目標：'value' 修改目前值，'maxValue' 修改最大值（需要該數值有 maxValue）
-  statChangeTarget?: 'value' | 'maxValue';
-  // 當 statChangeTarget === 'maxValue' 時，是否同步修改目前值
-  syncValue?: boolean;
-  duration?: number; // Phase 8: 持續時間（秒），undefined/0 = 永久
-  targetItemId?: string;
-  targetTaskId?: string;
-  description?: string;
-}
+// SkillEffect 已統一至 BaseEffect（見上方 type alias）
 
 /**
  * Phase 5: 對抗檢定設定
