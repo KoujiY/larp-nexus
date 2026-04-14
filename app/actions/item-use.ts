@@ -7,7 +7,7 @@ import type { CharacterDocument } from '@/lib/db/models';
 import { emitItemTransferred, emitItemUsed, emitRoleUpdated } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import { isCharacterInContest } from '@/lib/contest-tracker';
-import { handleItemCheck } from '@/lib/item/check-handler';
+import { handleAbilityCheck } from '@/lib/contest/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
@@ -208,7 +208,7 @@ export async function useItem(
     // Phase 8: 執行檢定
     let checkResultData;
     try {
-      checkResultData = await handleItemCheck(item, character, checkResult, targetCharacterId);
+      checkResultData = await handleAbilityCheck({ ability: item, abilityType: 'item', character, checkResult, targetCharacterId });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '檢定處理失敗';
       // 將錯誤轉換為適當的錯誤代碼
