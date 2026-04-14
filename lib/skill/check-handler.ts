@@ -46,42 +46,21 @@ export async function handleSkillCheck(
     return await handleContestCheck(skill, 'skill', character, targetCharacterId, targetItemId);
   } else if (skill.checkType === 'random') {
     // 隨機檢定（由前端傳入結果）
-    // 處理舊資料格式：如果沒有 randomConfig，嘗試使用舊的 checkThreshold
-    if (!skill.randomConfig) {
-      // 檢查是否有舊格式的資料
-      const oldThreshold = (skill as { checkThreshold?: number }).checkThreshold;
-      const oldMaxValue = 100; // 舊格式預設上限為 100
-
-      if (oldThreshold !== undefined) {
-        // 使用舊格式的資料，但建議用戶更新
-        if (checkResult === undefined) {
-          throw new Error('需要檢定結果');
-        }
-        finalCheckResult = checkResult;
-        // 驗證檢定結果在有效範圍內（舊格式預設上限為 100）
-        if (checkResult < 1 || checkResult > oldMaxValue) {
-          throw new Error(`檢定結果必須在 1-${oldMaxValue} 之間`);
-        }
-        checkPassed = checkResult >= oldThreshold;
-      } else {
-        throw new Error('技能隨機檢定設定不完整。請在 GM 端重新編輯此技能，設定上限值和門檻值。');
-      }
-    } else if (!skill.randomConfig.maxValue || skill.randomConfig.threshold === undefined) {
+    if (!skill.randomConfig?.maxValue || skill.randomConfig.threshold === undefined) {
       throw new Error('技能隨機檢定設定不完整。請在 GM 端重新編輯此技能，確保設定了上限值和門檻值。');
-    } else {
-      // 正常的新格式
-      if (checkResult === undefined) {
-        throw new Error('需要檢定結果');
-      }
-
-      // 驗證檢定結果在有效範圍內
-      if (checkResult < 1 || checkResult > skill.randomConfig.maxValue) {
-        throw new Error(`檢定結果必須在 1-${skill.randomConfig.maxValue} 之間`);
-      }
-
-      finalCheckResult = checkResult;
-      checkPassed = checkResult >= skill.randomConfig.threshold;
     }
+
+    if (checkResult === undefined) {
+      throw new Error('需要檢定結果');
+    }
+
+    // 驗證檢定結果在有效範圍內
+    if (checkResult < 1 || checkResult > skill.randomConfig.maxValue) {
+      throw new Error(`檢定結果必須在 1-${skill.randomConfig.maxValue} 之間`);
+    }
+
+    finalCheckResult = checkResult;
+    checkPassed = checkResult >= skill.randomConfig.threshold;
   }
   // checkType === 'none' 時，checkPassed 保持為 true
 

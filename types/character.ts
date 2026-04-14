@@ -431,7 +431,6 @@ export interface CreateSkillInput {
   description: string;
   imageUrl?: string;
   checkType: 'none' | 'stat' | 'random';
-  checkThreshold?: number;
   relatedStat?: string;
   usageLimit?: number;
   cooldown?: number;
