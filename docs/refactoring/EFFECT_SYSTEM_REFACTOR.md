@@ -73,7 +73,7 @@
 
 ---
 
-## Phase 1：統一 Effect 型別定義（風險：中）
+## Phase 1：統一 Effect 型別定義（風險：中）✅ 已完成
 
 **目標**：將 `ItemEffect` 和 `SkillEffect` 統一為共用基底型別，為 Phase 2 鋪路。
 

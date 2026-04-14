@@ -2,22 +2,11 @@
 
 ## Effect Types
 ```typescript
-interface SkillEffect {
-  type: 'stat_change' | 'item_take' | 'item_steal' |
-        'task_reveal' | 'task_complete' | 'custom';
-  targetType?: 'self' | 'other' | 'any';  // Per-effect target
-  requiresTarget?: boolean;                // Derived: targetType !== 'self'
-  // stat_change:
-  targetStat?: string;
-  value?: number;
-  statChangeTarget?: 'value' | 'maxValue';
-  syncValue?: boolean;
-  duration?: number;        // Seconds; 0/undefined = permanent
-  // item operations:
-  targetItemId?: string;
-  // task operations:
-  targetTaskId?: string;
-}
+// types/character.ts — SkillEffect 為 BaseEffect 的 type alias
+type SkillEffect = BaseEffect;
+
+// BaseEffect 定義見 item-effects-and-tags.md 或 types/character.ts
+// 技能使用的 type: 'stat_change' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom'
 ```
 
 ## Target Dispatch (per-effect)

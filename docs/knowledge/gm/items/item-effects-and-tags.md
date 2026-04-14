@@ -2,8 +2,9 @@
 
 ## Effect Types
 ```typescript
-interface ItemEffect {
-  type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
+// types/character.ts — 共用基底型別
+interface BaseEffect {
+  type: 'stat_change' | 'custom' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete';
   targetType?: 'self' | 'other' | 'any';  // Per-effect target
   requiresTarget?: boolean;                // Derived: targetType !== 'self'
   // stat_change fields:
@@ -14,8 +15,15 @@ interface ItemEffect {
   duration?: number;         // Seconds; 0/undefined = permanent
   // item_take / item_steal:
   targetItemId?: string;     // Selected by player at execution time
+  // task_reveal / task_complete (skill only):
+  targetTaskId?: string;
+  description?: string;
 }
+type ItemEffect = BaseEffect;  // type alias
+type SkillEffect = BaseEffect; // type alias
 ```
+
+> 道具實際只使用 `stat_change | custom | item_take | item_steal` 四種 type。`task_reveal | task_complete` 為技能專屬，但型別層已統一為 `BaseEffect`。
 
 ## Target Dispatch (per-effect)
 每個效果獨立指定 `targetType`，執行時會分派到對應角色（與技能系統規則相同，見 [../skills/skill-effects-and-tags.md](../skills/skill-effects-and-tags.md)）：
