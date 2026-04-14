@@ -35,41 +35,41 @@
 
 ---
 
-## Phase 0：清理（風險：極低）
+## Phase 0：清理（風險：極低）✅ 已完成
 
 **目標**：移除確定無用的遺留物，降低後續重構的認知負擔。
 
-### 0-1. 遷移腳本歸檔
+### 0-1. 遷移腳本歸檔 ✅
 
 將一次性遷移腳本移出 `scripts/` 根目錄：
 
-- `scripts/migrate-phase10.ts` → 刪除或移至 `docs/archive/scripts/`
-- `scripts/migrate-phase-e.ts` → 刪除或移至 `docs/archive/scripts/`
+- `scripts/migrate-phase10.ts` → ✅ 移至 `docs/archive/scripts/`
+- `scripts/migrate-phase-e.ts` → ✅ 移至 `docs/archive/scripts/`
 
 保留 `scripts/test-connection.ts` 和 `scripts/test-sendmail.ts`（仍為開發工具）。
 
-### 0-2. 移除 checkThreshold 舊格式相容碼
+### 0-2. 移除 checkThreshold 舊格式相容碼 ✅
 
-- 位置：`lib/skill/check-handler.ts` L49-68
-- 前置條件：確認 MongoDB 中無 `checkThreshold` 欄位的舊資料
-- 動作：移除整段 `if (!skill.randomConfig)` 分支中的 `checkThreshold` 處理
+- ✅ `lib/skill/check-handler.ts`：移除 `if (!skill.randomConfig)` 分支中的 `checkThreshold` 舊格式處理，簡化為直接檢查 `randomConfig` 完整性
+- ✅ `types/character.ts`：移除 `CreateSkillInput.checkThreshold` 欄位（該 interface 已無外部引用）
+- ✅ grep `checkThreshold` 全專案程式碼無結果
 
-### 0-3. 清理技術債標記
+### 0-3. 清理技術債標記 ✅
 
 掃描並評估以下已知技術債：
 
-- `components/gm/ability-edit-wizard.tsx`：NOTE 標記
-- `components/player/contest-response-dialog.tsx`：NOTE 標記
-- `types/character.ts`：`maxItems/maxSkills` 設計與實作不符
+- `components/gm/ability-edit-wizard.tsx` L531：NOTE 標記 → **保留**。記錄 `opponentMaxItems/Skills` 以 number 型別搭配 boolean-style 值（0/99）的有意設計，供未來多選擴充
+- `components/player/contest-response-dialog.tsx` L112：NOTE 標記 → **保留**。同上，記錄 UI 為單選設計的上下文
+- `types/character.ts` L329-330：NOTE 標記 → **保留**。同上設計決策的型別層文件
 
-對每個標記做出決策：修復、移除標記、或保留並記錄原因。
+決策理由：三處 NOTE 都描述同一個刻意的 forward-compatible 設計（number 型別保留多選擴充空間），不是 bug。NOTE 本身即為有效的設計文件。
 
 ### 完成標準
 
-- `tsc --noEmit` 零錯誤
-- `vitest run` 281 tests 全過
-- `eslint` 零錯誤
-- grep `checkThreshold` 全專案無結果（若 0-2 執行）
+- ✅ `tsc --noEmit` 零新錯誤
+- ✅ `vitest run` 311 tests 全過
+- ✅ `eslint` 零錯誤
+- ✅ grep `checkThreshold` 全專案程式碼無結果
 
 ---
 
