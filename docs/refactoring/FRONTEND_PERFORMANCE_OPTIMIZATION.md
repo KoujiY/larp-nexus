@@ -262,14 +262,18 @@ lighthouse http://localhost:3000/games \
 
 ### 階段 2：動態切分重型依賴（核心）
 
-1. **`framer-motion` → dynamic（保留動畫，延遲載入）**
-   - `.impeccable.md:77` 與 CLAUDE.md 都明訂 Framer Motion 是優先動畫工具，**不替換為 CSS**
-   - 做法：`sticky-save-bar.tsx` 整個元件用 `dynamic(() => import('./sticky-save-bar'), { ssr: false })` 包裝
-   - 初始 bundle 不載入 framer-motion，只有當編輯表單有未儲存變更時才載入 save bar
+1. **`framer-motion` → 完全移除，改用 CSS transitions** ✅ 已完成
+   - 決策變更（2026-04-19）：經再度評估，framer-motion 在全專案只在 `sticky-save-bar.tsx` 使用一處，且該處僅做簡單 fade + slide 進退場，未使用 layout animations / gestures / orchestration 等殺手功能。CSS transition + Tailwind utilities 可做到 ≥90% 視覺相似度。
+   - 做法：`sticky-save-bar.tsx` 改為 always-mounted + `data-state="visible|hidden"` 切換，`transition-[transform,opacity] duration-300 ease-out`
+   - 副作用（好的）：DOM 不再 detach，`e2e/helpers/click-save-bar.ts` 的 TOCTOU 保護簡化為 Playwright 原生 locator click
+   - 同步更新的設計規格（移除 framer-motion 指定）：
+     - `.impeccable.md:45, 77`
+     - `.claude/CLAUDE.md:11, 222`
+     - `docs/specs/DESIGN.md:200`
    - **驗收重點**：
-     - save-bar 首次出現時仍需有 fade/slide 進場動畫（不可變瞬出）
-     - 未儲存狀態 → 出現動畫時間 200–350ms（符合規格）
-     - Edit 表單初次載入時，Network 應觀察到 framer-motion chunk **不在主 bundle**，只有觸發變更後才 fetch
+     - save-bar 首次出現仍有 fade/slide 進場（CSS transition 300ms ease-out）
+     - 退場 300ms，toast 在 400ms 後出現，時序與原先一致
+     - E2E `click-save-bar.ts` 測試通過（不需 AnimatePresence 相關 TOCTOU）
 
 2. **`mammoth` → 僅在 AI 匯入對話框開啟時 dynamic import**
    - 影響 `lib/ai/parsers/docx.ts` 的匯入點
@@ -311,7 +315,7 @@ lighthouse http://localhost:3000/games \
 ## 不做 / 非目標
 
 - **不更換 UI 框架**（保留 Tailwind 4 + shadcn/ui）
-- **不替換 framer-motion** 為其他動畫庫（除非階段 2 決定直接 CSS 化）
+- ~~不替換 framer-motion~~ → **已完全移除 framer-motion**（2026-04-19 決策修正，見階段 2-1）
 - **不重寫 88 個 client components**（只動玩家主入口相關的）
 - **不改 MongoDB / API 層效能**（本計畫純前端）
 - **不動 WebSocket / Pusher**（本計畫不涉及即時通訊效能）
@@ -350,7 +354,7 @@ lighthouse http://localhost:3000/games \
 | Q1 Lighthouse 目標 | ✅ 90 mobile / 85 desktop 合理 |
 | Q2 字型 | ✅ 使用 **Geist**（`.impeccable.md:43` 已指定，目前實作未載入，本計畫補上） |
 | Q3 先量測基準 | ✅ 接受階段 0 僅量測不改 code |
-| Q4 framer-motion | ✅ **不替換為 CSS**（違反 `.impeccable.md:77`），改為 dynamic import 保留動畫；驗收需檢查 save-bar 動畫未消失 |
+| Q4 framer-motion | ✅ 最初決議「dynamic 保留」；2026-04-19 再次評估後改為「**完全移除並以 CSS 取代**」，同步更新 `.impeccable.md`、CLAUDE.md、DESIGN.md。原因：僅 1 檔使用、未用殺手功能、CSS 視覺相似 ≥90% 且可省 38 KB gzip 永久 |
 | Q5 GM 範圍 | ✅ 分層處理：共用層 + 依賴切分做；深度 component 拆分不做（成本 5-7 人日，邊際效益低，風險高） |
 
 ---
