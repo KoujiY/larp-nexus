@@ -225,27 +225,40 @@ lighthouse http://localhost:3000/games \
 
 **侷限**：Lighthouse CI 目前只測靜態路由。動態路由（`/g/[gameId]`、`/c/[characterId]`、`/(gm)/games`）需完整 DB + seed data，等後續階段若有需要再擴充成 E2E-style harness。
 
-### 階段 1：低成本高回報（Quick Wins）
+### 階段 1：低成本高回報（Quick Wins）✅ 已完成
 
-1. **導入 `next/font` — 使用 Geist（設計規格指定）**
-   - `.impeccable.md:43` 已指定「繼續使用 Geist」，但 `app/layout.tsx` 目前**未載入任何字型**，實作與規格脫節
-   - 使用 `next/font/google` 載入 `Geist`（英文主字）與 `Geist_Mono`（等寬），中文回退依 CSS font stack（system-ui）
-   - 在 `app/layout.tsx` 設定 `<html className={geist.variable}>`，在 `globals.css` 或 Tailwind config 設 `--font-sans: var(--font-geist-sans)`
-   - 消除 FOUT 與部分 CLS，同時把「規格」落實到「實作」
+#### 已執行事項
 
-2. **啟用 `optimizePackageImports`**
-   ```ts
-   experimental: {
-     optimizePackageImports: ['lucide-react', 'date-fns', 'radix-ui'],
-   }
-   ```
+1. ✅ **導入 `next/font` — Geist + Geist_Mono**
+   - `app/layout.tsx` 以 `next/font/google` 載入，`display: 'swap'`，中文回退堆疊 PingFang TC / Noto Sans TC / Microsoft JhengHei
+   - `globals.css` 的 `@theme inline` 新增 `--font-sans` / `--font-mono` 映射
+   - `<body className="font-sans antialiased">` 套用
 
-3. **收束 radix-ui 安裝**
-   - 確認是用 meta `radix-ui` 還是散裝 `@radix-ui/react-*`，擇一
-   - 避免重複模組
+2. ✅ **啟用 `optimizePackageImports`**
+   - `next.config.ts` 加入 `experimental.optimizePackageImports`
+   - 涵蓋：`lucide-react`、`date-fns`、`radix-ui` 以及 11 個 `@radix-ui/react-*` 子套件
 
-4. **補 metadata**
-   - `viewport`、`themeColor`、`openGraph` 等
+3. ✅ **補強 metadata + viewport**
+   - `Metadata`：`title.template`、`applicationName`、`openGraph`、`robots`
+   - `Viewport`：`themeColor`（淺/深模式分別對應暖米白與深午夜藍）、`width: device-width`
+
+4. ⏸ **Radix 收束延後**：先看 `optimizePackageImports` 效果（見下方實測），實測證明已有 50% gzip 降幅，合併 3 個檔案的 meta→granular 邊際效益低，暫不執行以免無謂改動。
+
+#### 階段 1 實測（Before → After，pnpm analyze）
+
+| 項目 | Before | After | Δ | Δ % |
+|---|---|---|---|---|
+| `@radix-ui` gzip | 85,171 B | 42,363 B | **−42,808 B** | **−50.3%** |
+| `lucide-react` gzip | 24,336 B | 23,770 B | −566 B | −2.3% |
+| 共用 chunks 總 gzip | 490,597 B | 461,186 B | **−29,411 B** | **−6.0%** |
+| 共用 chunks 總 raw | 1,569,720 B | 1,460,266 B | −109,454 B | −7.0% |
+| 新增字型檔（woff2） | 0 | 115,288 B（6 檔） | +115,288 B | — |
+
+**解讀**：
+- `@radix-ui` 是最大贏家：50% gzip 降幅，實證 Next 16 barrel optimization 對 Radix 有效
+- `lucide-react` 已近 tree-shake 極限，不必再優化
+- 字型檔增量 115 KB 是**按需延遲載入**，不影響 initial bundle 的 parse/execute 成本；且 `display: swap` 確保不阻塞 LCP
+- 共用 JS gzip 淨減 29 KB，全站所有頁面受益
 
 ### 階段 2：動態切分重型依賴（核心）
 
@@ -344,8 +357,8 @@ lighthouse http://localhost:3000/games \
 
 ## 進度追蹤
 
-- [ ] 階段 0：基準量測
-- [ ] 階段 1：Quick Wins（字型、optimizePackageImports、metadata）
+- [x] 階段 0：基準量測（commits `8c996db`, `e2a8d40`, `066ed37`, `d9ac77e`）
+- [x] 階段 1：Quick Wins（字型、optimizePackageImports、metadata）— **−29 KB gzip shared**
 - [ ] 階段 2：Heavy deps dynamic import
 - [ ] 階段 3：玩家主入口拆分
 - [ ] 階段 4：Client/Server 邊界清理
