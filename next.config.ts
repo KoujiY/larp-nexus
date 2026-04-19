@@ -53,6 +53,27 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Barrel 檔案優化：Next 會為這些套件自動做 on-demand import，
+  // 降低 client bundle 的 tree-shake 殘留。Baseline 報告顯示 lucide-react
+  // 與 @radix-ui 是共用 chunks 的主要貢獻者，最受惠於此設定。
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'date-fns',
+      'radix-ui',
+      '@radix-ui/react-accordion',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-label',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-switch',
+      '@radix-ui/react-tabs',
+    ],
+  },
   // 條件式 spread：E2E=1 才注入 webpack key，production build 維持走 Turbopack
   ...(isE2E ? { webpack: e2eWebpackConfig } : {}),
 };
