@@ -1,0 +1,73 @@
+name: Bundle Analysis
+
+# 每個 PR 與 feature branch push 都跑 bundle analyzer 並把 HTML 報告上傳為 artifact。
+# 使用者可在 GitHub UI 下載 .next/analyze/client.html 手動審視 tree-map。
+# 不阻擋 merge：此 workflow 只是觀測工具，不是 gate。
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - 'claude/**'
+
+concurrency:
+  group: bundle-analysis-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run bundle analyzer
+        run: pnpm analyze
+        env:
+          # 避免 AI / 資料庫模組在 build 階段嘗試連線
+          OPENAI_API_KEY: dummy-ci-key
+          MONGODB_URI: mongodb://localhost:27017/dummy
+          SESSION_SECRET: ci-only-session-secret-do-not-use-32chars
+
+      - name: Upload analyzer HTML reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analyzer-${{ github.sha }}
+          path: |
+            .next/analyze/client.html
+            .next/analyze/edge.html
+            .next/analyze/nodejs.html
+          retention-days: 14
+
+      - name: Summarize client bundle sizes
+        run: |
+          echo "## Bundle Analysis Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          TOTAL_RAW=$(find .next/static/chunks -maxdepth 1 -name '*.js' -exec du -cb {} + | tail -1 | awk '{print $1}')
+          TOTAL_COUNT=$(find .next/static/chunks -maxdepth 1 -name '*.js' | wc -l)
+          echo "| Shared chunks (top-level *.js) | $TOTAL_RAW bytes raw / $TOTAL_COUNT files |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Top 10 largest shared chunks (raw bytes):**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find .next/static/chunks -maxdepth 1 -name '*.js' -exec ls -la {} \; | awk '{print $5, $NF}' | sort -rn | head -10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the \`bundle-analyzer-${{ github.sha }}\` artifact above to view the interactive tree-map." >> $GITHUB_STEP_SUMMARY
