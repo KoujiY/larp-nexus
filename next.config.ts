@@ -1,11 +1,20 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import nextBundleAnalyzer from "@next/bundle-analyzer";
 
 // 專案是 CommonJS（package.json 無 "type": "module"），避免使用 import.meta.url
 // 之類的 ESM-only 語法，改用 process.cwd() 取得專案根目錄。
 const projectRoot = process.cwd();
 
 const isE2E = process.env.E2E === '1';
+const isAnalyze = process.env.ANALYZE === '1';
+
+// ANALYZE=1 時啟用 bundle analyzer。需搭配 `next build --webpack` 使用，
+// 因為 analyzer 依賴 webpack plugin，與 Turbopack 不相容。
+const withBundleAnalyzer = nextBundleAnalyzer({
+  enabled: isAnalyze,
+  openAnalyzer: false,
+});
 
 // 只在 E2E=1 時才把 Pusher 模組 alias 到 stub 版本。
 // 重要：整個 `webpack` key 必須是條件式的——Next.js 16 預設走 Turbopack，
@@ -48,4 +57,4 @@ const nextConfig: NextConfig = {
   ...(isE2E ? { webpack: e2eWebpackConfig } : {}),
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
