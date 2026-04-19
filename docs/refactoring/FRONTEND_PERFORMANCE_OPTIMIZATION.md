@@ -203,6 +203,28 @@ lighthouse http://localhost:3000/games \
 
 **出口**：每個後續項目都必須回報「優化前 → 優化後」差值，以共用 chunk gzip 總量與路由 First Load JS 為主，Lighthouse 分數為輔。
 
+#### 深化 Baseline 報告
+
+詳細的 chunk-level 模組分析、heavy deps 分布、server-only 隔離驗證見 **`docs/refactoring/baseline-bundle-report.md`**。關鍵結論：
+
+- **Server-only 套件（mammoth/openai/mongoose/nodemailer/bcrypt/sharp）全部不在 client bundle** ✅
+- **階段 2 排序依實證修正**：framer-motion（-38KB）→ **pusher-js 延後（-18KB，新增）** → qrcode（-14KB）→ @dnd-kit 限縮 GM（-16KB，新增）→ react-easy-crop（-5.6KB）
+- **原計畫的 `mammoth dynamic` 移除**：已是 server-only，不在 client bundle
+- 階段 2 預估玩家 baseline 減 **75-90 KB gzip**（共用 chunks 體積約 15-20%）
+
+#### CI 自動化（GitHub Actions）
+
+本計畫同時導入兩個 workflow，每次 PR/push 自動執行：
+
+| Workflow | 位置 | 功能 |
+|---|---|---|
+| Bundle Analysis | `.github/workflows/bundle-analysis.yml` | 跑 `pnpm analyze`，上傳 client/edge/nodejs.html 為 artifact，在 GITHUB_STEP_SUMMARY 印出 top 10 chunks |
+| Lighthouse CI | `.github/workflows/lighthouse.yml` + `.github/lighthouserc.json` | 對靜態路由（`/`、`/auth/login`、`/auth/verify`）跑 Lighthouse 3 次取中位數，上傳到 temporary-public-storage |
+
+**不阻擋 merge**：兩個 workflow 都只發警告，不 fail PR（assertions 用 `"warn"` 而非 `"error"`），避免 CI 分數變動擋住正常開發。
+
+**侷限**：Lighthouse CI 目前只測靜態路由。動態路由（`/g/[gameId]`、`/c/[characterId]`、`/(gm)/games`）需完整 DB + seed data，等後續階段若有需要再擴充成 E2E-style harness。
+
 ### 階段 1：低成本高回報（Quick Wins）
 
 1. **導入 `next/font` — 使用 Geist（設計規格指定）**
