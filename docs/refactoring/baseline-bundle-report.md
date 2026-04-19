@@ -14,7 +14,7 @@
 | 套件 | Parsed | Gzip | Modules | Chunks | 評語 |
 |---|---|---|---|---|---|
 | `@radix-ui/*` | 221,538 B | 85,171 B | 66 | 8 | **最大頭**，UI primitives 不易 dynamic，但某些 dialog 仍可延後載入 |
-| `framer-motion` | 113,565 B | 38,019 B | 258 | 1 | 全部塞在 1 個 chunk；僅 `sticky-save-bar.tsx` 使用 → **dynamic 首選** |
+| ~~`framer-motion`~~ | ~~113,565 B~~ | ~~38,019 B~~ | ~~258~~ | ~~1~~ | **已於 2026-04-19 完全移除**，sticky-save-bar 改用 CSS transitions |
 | `pusher-js` | 60,331 B | 17,723 B | 3 | 3 | **在 baseline 就載入**，但玩家未解鎖前無實時需求 → 可延後 |
 | `@dnd-kit/*` | 45,798 B | 15,959 B | 4 | 1 | 只在 GM 拖拽排序用 → 可 dynamic |
 | `lucide-react` | 36,838 B | 24,336 B | 138 | 16 | Tree-shaking 已生效（138 modules vs 套件總 1000+），仍可再降 via `optimizePackageImports` |
