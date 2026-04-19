@@ -102,18 +102,106 @@ Top 5（行數）都是 client component，每個都會變成 hydration cost：
 
 ## 優化階段
 
-### 階段 0：建立量測基準（必做、阻斷後續）
+### 階段 0：建立量測基準（已完成）
 
-1. 加入 `@next/bundle-analyzer`，新增 `pnpm analyze` 腳本
-2. 本地跑 `next build` + Lighthouse（mobile profile）對以下路由取分數與 First Load JS：
-   - `/`（首頁）
-   - `/g/[gameId]`（玩家主入口，用 seed data）
-   - `/c/[characterId]`（角色卡，玩家第二入口）
-   - `/(gm)/dashboard`、`/(gm)/games`、`/(gm)/games/[id]`
-3. 把基準數字**填回本文件**當作對照組
-4. 截圖 bundle analyzer 的玩家與 GM chunk 分布
+#### 已完成事項
 
-**出口**：每個後續項目都必須回報「優化前 → 優化後」差值。
+1. ✅ 安裝 `@next/bundle-analyzer` devDependency
+2. ✅ `next.config.ts` 接入 analyzer（`ANALYZE=1` 時啟用）
+3. ✅ `package.json` 新增 `pnpm analyze` 腳本（含 `--webpack` 旗標，因 analyzer 依賴 webpack plugin）
+4. ✅ 跑過 webpack production build，產出 `.next/analyze/{client,edge,nodejs}.html` 三份分析報告
+5. ⏸ Lighthouse 實測分數：**本環境無 Chrome，需由使用者本機或 CI 執行**（指引見下方「Lighthouse 量測指引」）
+
+#### Bundle Baseline（Next 16.1.6 webpack build，2026-04-19）
+
+> Next 16 的 `next build` CLI 輸出**不再顯示** Size / First Load JS 欄位，下列數字由 `.next/static/chunks/` 檔案大小計算所得。
+
+**共用 Chunks（多路由共享的 baseline 上限）**：
+
+| 指標 | Raw | Gzip |
+|---|---|---|
+| 總量（27 個 top-level chunks） | 1,569,720 B（1.57 MB） | 490,597 B（490 KB） |
+
+Top 10 共用 chunks（raw / gzip）：
+
+| 檔名 | Raw | Gzip |
+|---|---|---|
+| `436e3d8c-*.js` | 198,492 | 62,485 |
+| `framework-*.js` | 189,703 | 59,725 |
+| `184-*.js` | 188,651 | 51,025 |
+| `main-*.js` | 134,266 | 39,109 |
+| `4446-*.js` | 121,815 | 40,530 |
+| `polyfills-*.js` | 112,594 | 39,473 |
+| `2056-*.js` | 111,361 | 31,629 |
+| `4259-*.js` | 71,954 | 25,465 |
+| `3767-*.js` | 66,120 | 19,401 |
+| `7889-*.js` | 63,205 | 18,758 |
+
+**路由專屬 Chunks（排除共用 baseline）**：
+
+| 路由 | Raw | Gzip | 備註 |
+|---|---|---|---|
+| `/games` (GM 劇本列表) | 250,489 | 64,950 | **GM 端最大** |
+| `/profile` (GM) | 11,962 | 4,335 | |
+| `/auth/login` | 8,306 | 3,487 | |
+| `/auth/verify` | 8,105 | 2,922 | |
+| `/` (home) | 3,319 | 1,200 | |
+| `/dashboard` (GM) | 236 | 188 | |
+| `/games/[gameId]` (GM 管理劇本) | 0 (inline) | 0 | 依賴共用，見下 |
+| `/games/[gameId]/characters/[id]` (GM) | 0 (inline) | 0 | 依賴共用 |
+| `/g/[gameId]` (玩家世界觀) | 0 (inline) | 0 | 依賴共用 |
+| `/c/[characterId]` (玩家角色卡) | 0 (inline) | 0 | 依賴共用 |
+
+> 備註：部分動態路由的專屬 chunks 被 Next.js 自動合併進共用 chunks（`(gm)/games/[gameId]` 目錄本身含 231 KB 但以共用形式載入）。要看真實 Route 級 First Load JS 請**開啟 `.next/analyze/client.html`**，tree-map 會顯示每個 chunk 實際內容。
+
+**Analyzer HTML 報告位置**：
+- `.next/analyze/client.html`（**重點**：客戶端 bundle）
+- `.next/analyze/edge.html`（edge runtime）
+- `.next/analyze/nodejs.html`（伺服器端，含 mongoose/nodemailer 等）
+
+#### Lighthouse 量測指引（請使用者本機執行）
+
+本環境無 Chrome，請在你本機依下列步驟建立 Lighthouse baseline：
+
+```bash
+# 1. 安裝 lighthouse（若尚未裝）
+pnpm add -g lighthouse
+
+# 2. 啟動 production server
+pnpm build && pnpm start
+# 或用已在 port 3000 的現有 dev server（但 dev 分數不準）
+
+# 3. 對玩家端跑 mobile profile（需 seed 好的 gameId / characterId）
+lighthouse http://localhost:3000/g/<gameId> \
+  --preset=perf --emulated-form-factor=mobile \
+  --output=json --output=html --output-path=./lighthouse-player-world-baseline
+
+lighthouse http://localhost:3000/c/<characterId> \
+  --preset=perf --emulated-form-factor=mobile \
+  --output=json --output=html --output-path=./lighthouse-player-card-baseline
+
+# 4. 對 GM 端跑 desktop profile
+lighthouse http://localhost:3000/dashboard \
+  --preset=perf --emulated-form-factor=desktop \
+  --output=json --output=html --output-path=./lighthouse-gm-dashboard-baseline
+
+lighthouse http://localhost:3000/games \
+  --preset=perf --emulated-form-factor=desktop \
+  --output=json --output=html --output-path=./lighthouse-gm-games-baseline
+```
+
+跑完後把四個指標（Performance / LCP / TBT / CLS）填入下方 **Baseline 分數表**。
+
+#### Baseline Lighthouse 分數表（待填）
+
+| 路由 | Form Factor | Performance | LCP | TBT | CLS |
+|---|---|---|---|---|---|
+| `/g/[gameId]` (玩家世界觀) | mobile | — | — | — | — |
+| `/c/[characterId]` (玩家角色卡) | mobile | — | — | — | — |
+| `/dashboard` (GM) | desktop | — | — | — | — |
+| `/games` (GM) | desktop | — | — | — | — |
+
+**出口**：每個後續項目都必須回報「優化前 → 優化後」差值，以共用 chunk gzip 總量與路由 First Load JS 為主，Lighthouse 分數為輔。
 
 ### 階段 1：低成本高回報（Quick Wins）
 
