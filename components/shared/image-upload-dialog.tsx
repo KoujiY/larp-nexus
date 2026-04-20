@@ -1,14 +1,38 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
-import Cropper from 'react-easy-crop';
-import type { Area } from 'react-easy-crop';
+import { useState, useRef, useCallback, type ComponentType } from 'react';
+import dynamic from 'next/dynamic';
+import type { Area, Point } from 'react-easy-crop';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
+
+// react-easy-crop 5.6 KB gzip 僅在使用者實際選了圖片、進入裁切 UI 時需要。
+// 用 next/dynamic 拆到獨立 chunk，ssr: false（瀏覽器 API 依賴）。
+//
+// 型別註記：next/dynamic 包裝後會遺失 class component 的 defaultProps 資訊，
+// 導致所有 prop 都被標成 required。此處列出實際用到的欄位即可。
+type CropperRuntimeProps = {
+  image: string;
+  crop: Point;
+  zoom: number;
+  aspect: number;
+  onCropChange: (location: Point) => void;
+  onZoomChange: (zoom: number) => void;
+  onCropComplete: (croppedArea: Area, croppedAreaPixels: Area) => void;
+};
+
+const Cropper = dynamic(() => import('react-easy-crop'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      載入裁切工具...
+    </div>
+  ),
+}) as ComponentType<CropperRuntimeProps>;
 import { cn } from '@/lib/utils';
 import { compressImage, IMAGE_PRESETS, type ImagePresetKey } from '@/lib/image/compress';
 import { getCroppedImage } from '@/lib/image/crop';

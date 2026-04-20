@@ -12,9 +12,19 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { updateCharacter } from '@/app/actions/character-update';
 import { useFormGuard } from '@/hooks/use-form-guard';
-import { BackgroundBlockEditor } from '@/components/gm/background-block-editor';
+
+// BackgroundBlockEditor 內含 @dnd-kit/*（16 KB gzip）僅在編輯背景時需要，
+// 改走 dynamic chunk。
+const BackgroundBlockEditor = dynamic(
+  () =>
+    import('@/components/gm/background-block-editor').then((m) => ({
+      default: m.BackgroundBlockEditor,
+    })),
+  { ssr: false },
+);
 import { CharacterAvatarList } from '@/components/player/character-avatar-list';
 import type { AvatarCharacter } from '@/components/player/character-avatar-list';
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
