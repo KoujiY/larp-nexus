@@ -89,9 +89,6 @@ export function RuntimeConsoleWsListener({
   useEffect(() => {
     if (characterIds.length === 0) return;
 
-    const pusher = getPusherClient();
-    if (!pusher) return;
-
     const handleEvent = (characterId: string) => (event: BaseEvent) => {
       const cb = callbackRef.current;
 
@@ -187,24 +184,36 @@ export function RuntimeConsoleWsListener({
       }
     };
 
-    // 訂閱所有角色頻道，只聽 stat 相關事件
-    const subscriptions = characterIds.map((id) => {
-      const channel = pusher.subscribe(`private-character-${id}`);
-      const handler = handleEvent(id);
+    let cancelled = false;
+    let unbind: (() => void) | undefined;
 
-      for (const eventType of STAT_EVENTS) {
-        channel.bind(eventType, handler);
-      }
+    void getPusherClient().then((pusher) => {
+      if (cancelled || !pusher) return;
 
-      return { channel, handler };
+      // 訂閱所有角色頻道，只聽 stat 相關事件
+      const subscriptions = characterIds.map((id) => {
+        const channel = pusher.subscribe(`private-character-${id}`);
+        const handler = handleEvent(id);
+
+        for (const eventType of STAT_EVENTS) {
+          channel.bind(eventType, handler);
+        }
+
+        return { channel, handler };
+      });
+
+      unbind = () => {
+        for (const { channel, handler } of subscriptions) {
+          for (const eventType of STAT_EVENTS) {
+            channel.unbind(eventType, handler);
+          }
+        }
+      };
     });
 
     return () => {
-      for (const { channel, handler } of subscriptions) {
-        for (const eventType of STAT_EVENTS) {
-          channel.unbind(eventType, handler);
-        }
-      }
+      cancelled = true;
+      unbind?.();
     };
   }, [characterIds]); // 只在角色 ID 變化時重新訂閱
 
