@@ -25,8 +25,17 @@ const BackgroundBlockEditor = dynamic(
     })),
   { ssr: false },
 );
-import { CharacterAvatarList } from '@/components/player/character-avatar-list';
 import type { AvatarCharacter } from '@/components/player/character-avatar-list';
+
+// CharacterAvatarList 內含 embla-carousel，此 sub-tab 非 GM 角色編輯預設分頁，
+// dynamic 拆到 async chunk 讓 /(gm)/games/[gameId]/characters/[id] 初始載入更輕。
+const CharacterAvatarList = dynamic(
+  () =>
+    import('@/components/player/character-avatar-list').then((m) => ({
+      default: m.CharacterAvatarList,
+    })),
+  { ssr: false },
+);
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
 import { GmEmptyState } from '@/components/gm/gm-empty-state';
 import {

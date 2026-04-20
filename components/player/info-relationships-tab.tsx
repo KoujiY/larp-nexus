@@ -8,9 +8,17 @@
  */
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import type { PublicInfo } from '@/types/character';
-import { CharacterAvatarList } from './character-avatar-list';
 import { CollapsibleSection } from './collapsible-section';
+
+// CharacterAvatarList 內含 embla-carousel（~7 KB gz），此 tab 非預設分頁，
+// 改 dynamic 讓 /c/[characterId] 玩家角色卡初始載入不攜帶 carousel。
+// 注意：`/g/[gameId]` 的 world-info-view 仍靜態載入（世界觀頁預設就顯示頭像列）。
+const CharacterAvatarList = dynamic(
+  () => import('./character-avatar-list').then((m) => ({ default: m.CharacterAvatarList })),
+  { ssr: false },
+);
 
 interface InfoRelationshipsTabProps {
   publicInfo: PublicInfo;

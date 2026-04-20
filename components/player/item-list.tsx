@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import type { Item, Skill } from '@/types/character';
 import { getTransferTargets, type TransferTargetCharacter } from '@/app/actions/public';
 import { useTargetSelection } from '@/hooks/use-target-selection';
@@ -20,9 +21,20 @@ import { toggleEquipment } from '@/app/actions/item-equip';
 import type { ItemListProps } from '@/types/item-list';
 import { recordItemView, showcaseItem } from '@/app/actions/item-showcase';
 import { ItemCard } from './item-card';
-import { ItemDetailDialog } from './item-detail-dialog';
-import { ItemSelectDialog } from './item-select-dialog';
-import { TargetItemSelectionDialog } from './target-item-selection-dialog';
+
+// 物品詳情 / 選物 / 目標選擇對話框僅在使用者互動時開啟，改 dynamic 延後載入。
+const ItemDetailDialog = dynamic(
+  () => import('./item-detail-dialog').then((m) => ({ default: m.ItemDetailDialog })),
+  { ssr: false },
+);
+const ItemSelectDialog = dynamic(
+  () => import('./item-select-dialog').then((m) => ({ default: m.ItemSelectDialog })),
+  { ssr: false },
+);
+const TargetItemSelectionDialog = dynamic(
+  () => import('./target-item-selection-dialog').then((m) => ({ default: m.TargetItemSelectionDialog })),
+  { ssr: false },
+);
 
 export function ItemList({ items, characterId, gameId, characterName, randomContestMaxValue = 100, isReadOnly = false, onUseItem, onTransferItem }: ItemListProps) {
   // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用、展示、轉移）

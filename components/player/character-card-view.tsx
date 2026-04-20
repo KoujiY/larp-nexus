@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { CharacterData } from '@/types/character';
 import { PinUnlock } from './pin-unlock';
@@ -17,19 +18,37 @@ import { useItem as consumeItemAction, transferItem as transferItemAction } from
 import { checkExpiredEffects } from '@/app/actions/temporary-effects';
 import { notify } from '@/lib/notify';
 import Image from 'next/image';
-import { ContestResponseDialog } from './contest-response-dialog';
-import { ContestWaitingDialog } from './contest-waiting-dialog';
-import { TargetItemSelectionDialog } from './target-item-selection-dialog';
-import { ItemShowcaseDialog } from './item-showcase-dialog';
 import type { ShowcasedItemInfo } from './item-showcase-dialog';
 import { useNotificationSystem } from '@/hooks/use-notification-system';
 import { useContestDialogManagement } from '@/hooks/use-contest-dialog-management';
 import { useGameEventHandler } from '@/hooks/use-game-event-handler';
 import { CharacterModeBanner } from './character-mode-banner';
 import { NotificationButton } from './notification-button';
-import { GameEndedDialog } from './game-ended-dialog';
 import { ThemeToggleButton } from './theme-toggle-button';
 import { BookOpen, BarChart3, CheckSquare, Package, Wand2, User, ShieldCheck } from 'lucide-react';
+
+// 對抗/目標/展示/結束等對話框僅在 GM 觸發事件或玩家主動操作時才出現，
+// 一律 next/dynamic 拆到 async chunk 讓玩家初始載入不必攜帶。
+const ContestResponseDialog = dynamic(
+  () => import('./contest-response-dialog').then((m) => ({ default: m.ContestResponseDialog })),
+  { ssr: false },
+);
+const ContestWaitingDialog = dynamic(
+  () => import('./contest-waiting-dialog').then((m) => ({ default: m.ContestWaitingDialog })),
+  { ssr: false },
+);
+const TargetItemSelectionDialog = dynamic(
+  () => import('./target-item-selection-dialog').then((m) => ({ default: m.TargetItemSelectionDialog })),
+  { ssr: false },
+);
+const ItemShowcaseDialog = dynamic(
+  () => import('./item-showcase-dialog').then((m) => ({ default: m.ItemShowcaseDialog })),
+  { ssr: false },
+);
+const GameEndedDialog = dynamic(
+  () => import('./game-ended-dialog').then((m) => ({ default: m.GameEndedDialog })),
+  { ssr: false },
+);
 
 interface CharacterCardViewProps {
   character: CharacterData;
