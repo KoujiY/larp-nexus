@@ -1,10 +1,12 @@
-import QRCode from 'qrcode';
-
 /**
  * 生成 QR Code 圖片 (Data URL)
+ *
+ * qrcode 套件透過 dynamic import 延後載入（原 14 KB gzip 進 eager bundle）。
+ * 僅在使用者實際點擊產 QR Code 按鈕時才 fetch chunk。
  */
 export async function generateQRCode(text: string): Promise<string> {
   try {
+    const { default: QRCode } = await import('qrcode');
     return await QRCode.toDataURL(text, {
       width: 300,
       margin: 2,
