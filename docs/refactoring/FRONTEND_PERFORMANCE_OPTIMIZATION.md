@@ -27,7 +27,7 @@
 | 共用層（font、analyzer、optimizePackageImports） | ✅ 做 | ✅ 做（一次作業，兩邊受益） |
 | Heavy deps dynamic import | ✅ 做 | ✅ 做（qrcode、mammoth） |
 | 主入口 component 拆分 | ✅ 做（`world-info-view`、`character-card-view`、`item-list`） | ❌ 不做（`ability-edit-wizard` 1215 行，風險/收益比不佳） |
-| Client/Server 邊界清理 | ✅ 做 | ❌ 不做 |
+| ~~Client/Server 邊界清理~~ | 可選後續 iteration（實測後移出主路徑） | — |
 
 **GM 端不做深度拆分的理由**：
 - GM 用桌面，Lighthouse desktop 分數本就優於 mobile，邊際效益遞減
@@ -298,10 +298,9 @@ lighthouse http://localhost:3000/games \
    - 確認 `<Image>` 是否都有 `sizes` / `priority` / `placeholder="blur"`
    - Hero 圖（角色頭像）加 `priority` 影響 LCP
 
-### 階段 4：Client / Server 邊界清理（低優先、高價值）
+### ~~階段 4：Client / Server 邊界清理~~（降級為後續可選 iteration）
 
-- 逐個檢視 88 個 client components，將不需要 client 的降級
-- 特別目標：玩家端純展示元件（`info-story-tab`、`info-relationships-tab`、`background-block-renderer`）
+執行 Phase 0-3 取得實測數據後，此階段已從主路徑移除。理由與建議見下方「後續可選 iteration（非主路徑）」一節。
 
 ### 階段 5：回歸驗證
 
@@ -371,8 +370,58 @@ lighthouse http://localhost:3000/games \
   - [x] 2-4 @dnd-kit dynamic（`BackgroundBlockEditor` next/dynamic 在 2 個 consumer）— 連同 phase 2-5 累計 **GM 路由 −22 KB gz**
   - [x] 2-5 react-easy-crop dynamic（Cropper 在 `image-upload-dialog` 內 next/dynamic）— `/profile` **−5.8 KB gz**
 - [x] 階段 3：玩家主入口拆分（見上）
-- [ ] 階段 4：Client/Server 邊界清理（可選，收益邊際）
-- [ ] 階段 5：回歸驗證與文件同步
+- [x] 階段 5：回歸驗證與文件同步 ✅
+
+### 階段 5 — 回歸驗證與文件同步
+
+**回歸檢查（2026-04-20）**
+- `pnpm type-check` — 0 errors
+- `pnpm lint` — 0 errors
+- `pnpm test` (vitest) — **311 tests pass across 28 files**
+
+**E2E 影響評估**
+- `e2e/helpers/click-save-bar.ts` 已同步（sticky-save-bar 改 CSS transitions 後 DOM 不再 detach，改用 Playwright 原生 `getByRole().click()`）
+- WebSocket 事件 E2E spec 預期不受 pusher-js lazy load 影響（E2E 走 `pusher-client.e2e.ts` 的 SSE stub，stub 也改為 `Promise<StubPusherClient | null>` 簽名同步）
+- 其餘 spec 無須改動：dynamic import 的 dialogs 在開啟時會先顯示 loading `null`，Playwright 的 auto-wait 會處理
+
+**知識庫同步**
+- `docs/knowledge/architecture/tech-stack.md`：動畫改為 CSS、pusher-js 註記 lazy load、新增「Performance tooling」段落指向本文件與 CI workflow
+- `docs/knowledge/player/character-card-view.md`：新增「Lazy-loaded UI」段落列出所有 dynamic dialogs 與 `CharacterAvatarList`；Real-time Updates 段補註 pusher 延後載入
+- `.impeccable.md` / `.claude/CLAUDE.md` / `docs/specs/DESIGN.md` 於 Phase 2-1 已同步 CSS-first 動畫政策
+
+### 總結：Baseline → 現況
+
+| 路由 | Baseline (Phase 0) | 現況 (Phase 5) | 變化 |
+|---|---|---|---|
+| `/c/[characterId]` (玩家角色卡) | 129,403 gz | **93,783 gz** | **−35,620 (−27.5%)** |
+| `/(gm)/games/[gameId]/characters/[id]` (GM 編輯) | 168,340 gz | **127,431 gz** | **−40,909 (−24.3%)** |
+| `/(gm)/games/[gameId]` (GM 管理劇本) | 152,194 gz | **120,998 gz** | **−31,196 (−20.5%)** |
+| `/(gm)/profile` (GM) | 77,454 gz | **71,629 gz** | **−5,825 (−7.5%)** |
+| `/(gm)/games` (GM 劇本列表) | 40,293 gz | 40,293 gz | ±0 |
+| `/(player)/g/[gameId]` (玩家世界觀) | 37,531 gz | 37,744 gz | +0.6%（noise） |
+
+**重點結論**
+- 玩家角色卡主入口 −27.5% First Load JS（baseline 129 KB → 94 KB gzip），滿足「最關鍵手機入口」目標
+- GM 編輯頁 −24.3%（desktop），GM 劇本管理 −20.5%
+- 所有改動透過靜態分析（tsc + lint）+ vitest 311 tests 驗證，無回歸
+- 動畫政策從「Framer Motion 優先」改為「CSS 優先」，省 38 KB gzip 永久
+- 建立 bundle analyzer + Lighthouse CI workflow，未來任何提交都自動回歸追蹤
+
+**Lighthouse 分數量測**
+本環境無 Chrome，實測交由 `.github/workflows/lighthouse.yml` 在 PR/push 自動執行。本計畫 CI workflow 對靜態路由（/、/auth/login、/auth/verify）跑 Lighthouse mobile + desktop 3 次取中位數。動態路由（需 DB + seed data）仍需使用者本機測試，指引於本文件「Lighthouse 量測指引」一節。
+
+### 後續可選 iteration（非主路徑）
+
+原計畫曾列「階段 4：Client/Server 邊界清理」，但執行 Phase 0-3 取得實測數據後發現：
+
+- 玩家 `/c/` 剩餘 eager 94 KB gz，其中 ~40 KB 是 framework overhead（sonner / tailwind-merge / @radix-ui 系列 / @floating-ui / react-dom runtime），**無法透過降級 `'use client'` 消除**
+- 剩餘 ~54 KB 分散在 58 個 player component 中，平均每個 ~1 KB gz；即便挑 10 個降級，估計收益 5-15 KB gz
+- 每個 `'use client'` 降級都需逐個確認沒有 hook / state / event handler；誤降級會產生 runtime hydration mismatch，tsc / lint 無法預警
+- 風險/收益比低於 Phase 1-3 數倍
+
+**重新定位**：原計畫把此項與 Phase 1-3 並列是規劃瑕疵 —— Phase 1-3 是可度量、低風險的具體改動，而 Phase 4 從一開始就是「**可能可以** + **需要逐個驗證**」的推測項，不該跟已驗證的行動混在同一追蹤清單。
+
+**建議**：除非 Phase 5 驗收後 Lighthouse 分數仍未達 90 (mobile) / 85 (desktop)，否則**不執行** Phase 4。若要執行，採每次僅降級 1-2 個組件 + 跑完 E2E + 個別 commit 的節奏，避免一次性大量風險。
 
 ### 階段 3 實測
 
