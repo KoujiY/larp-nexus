@@ -363,15 +363,36 @@ lighthouse http://localhost:3000/games \
 
 - [x] 階段 0：基準量測（commits `8c996db`, `e2a8d40`, `066ed37`, `d9ac77e`）
 - [x] 階段 1：Quick Wins（字型、optimizePackageImports、metadata）— **shared chunks gzip −29 KB (−6.0%)**
+- [x] 階段 3：玩家主入口拆分 ✅ — **/c/[characterId] 從 129 → 94 KB gz (−27.5%)**，詳見下方「階段 3 實測」
 - 階段 2：Heavy deps dynamic import ✅
   - [x] 2-1 framer-motion **完全移除**（CSS 取代）— shared chunks gzip **−37 KB vs phase 1 (−8.1%)**，累計 **−67 KB vs baseline (−13.6%)**
   - [x] 2-2 pusher-js lazy load — pusher-js **17.7 KB gz 從 eager 搬到 async chunk**（每條使用 WebSocket 的路由 First Load JS 少此量）
   - [x] 2-3 qrcode dynamic import — GM 路由 `/games/[gameId]` 與 `/games/[gameId]/characters/[id]` 各 **−9 KB gz**
   - [x] 2-4 @dnd-kit dynamic（`BackgroundBlockEditor` next/dynamic 在 2 個 consumer）— 連同 phase 2-5 累計 **GM 路由 −22 KB gz**
   - [x] 2-5 react-easy-crop dynamic（Cropper 在 `image-upload-dialog` 內 next/dynamic）— `/profile` **−5.8 KB gz**
-- [ ] 階段 3：玩家主入口拆分
-- [ ] 階段 4：Client/Server 邊界清理
+- [x] 階段 3：玩家主入口拆分（見上）
+- [ ] 階段 4：Client/Server 邊界清理（可選，收益邊際）
 - [ ] 階段 5：回歸驗證與文件同步
+
+### 階段 3 實測
+
+改動檔案：6 個
+- `components/player/character-card-view.tsx`：5 個對話框（ContestResponse、ContestWaiting、TargetItemSelection、ItemShowcase、GameEnded）轉 `next/dynamic`
+- `components/player/skill-list.tsx`：2 個對話框（SkillDetail、TargetItemSelection）
+- `components/player/item-list.tsx`：3 個對話框（ItemDetail、ItemSelect、TargetItemSelection）
+- `components/player/info-relationships-tab.tsx`：`CharacterAvatarList` 轉 dynamic（帶走 embla-carousel）
+- `components/gm/background-story-tab.tsx`：`CharacterAvatarList` 也轉 dynamic（GM 角色編輯頁受益）
+
+### 階段 3 Before/After 每路由 First Load JS（gzip）
+
+| 路由 | Phase 2 完成 | Phase 3 完成 | Δ |
+|---|---|---|---|
+| `/c/[characterId]` (玩家角色卡) | 129,407 | 93,783 | **−35,624 (−27.5%)** |
+| `/(player)/g/[gameId]` (玩家世界觀) | 37,531 | 37,744 | +213 (noise) |
+| `/(gm)/games/[gameId]/characters/[id]` (GM) | 136,993 | 127,431 | −9,562 (−7.0%) |
+| `/(gm)/games/[gameId]` (GM) | 120,849 | 120,998 | +149 (noise) |
+
+玩家世界觀頁 (`/g/[gameId]`) 幾乎無變動 —— 世界觀頁預設就顯示 CharacterAvatarList，不適合 dynamic；其他 dialogs 也只在 /c/ 用，不影響此路由。
 
 ## 關鍵路由 Eager First Load JS（post phase 2 全部完成）
 
