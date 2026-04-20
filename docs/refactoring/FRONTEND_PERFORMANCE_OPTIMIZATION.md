@@ -363,17 +363,30 @@ lighthouse http://localhost:3000/games \
 
 - [x] 階段 0：基準量測（commits `8c996db`, `e2a8d40`, `066ed37`, `d9ac77e`）
 - [x] 階段 1：Quick Wins（字型、optimizePackageImports、metadata）— **shared chunks gzip −29 KB (−6.0%)**
-- 階段 2：Heavy deps dynamic import
+- 階段 2：Heavy deps dynamic import ✅
   - [x] 2-1 framer-motion **完全移除**（CSS 取代）— shared chunks gzip **−37 KB vs phase 1 (−8.1%)**，累計 **−67 KB vs baseline (−13.6%)**
   - [x] 2-2 pusher-js lazy load — pusher-js **17.7 KB gz 從 eager 搬到 async chunk**（每條使用 WebSocket 的路由 First Load JS 少此量）
-  - [ ] 2-3 qrcode dynamic import（僅 GM 點擊 QR 按鈕時才載入）
-  - [ ] 2-4 @dnd-kit 限縮 GM 拖拽路由
-  - [ ] 2-5 react-easy-crop dynamic（編輯頭像 dialog 開啟才載入）
+  - [x] 2-3 qrcode dynamic import — GM 路由 `/games/[gameId]` 與 `/games/[gameId]/characters/[id]` 各 **−9 KB gz**
+  - [x] 2-4 @dnd-kit dynamic（`BackgroundBlockEditor` next/dynamic 在 2 個 consumer）— 連同 phase 2-5 累計 **GM 路由 −22 KB gz**
+  - [x] 2-5 react-easy-crop dynamic（Cropper 在 `image-upload-dialog` 內 next/dynamic）— `/profile` **−5.8 KB gz**
 - [ ] 階段 3：玩家主入口拆分
 - [ ] 階段 4：Client/Server 邊界清理
 - [ ] 階段 5：回歸驗證與文件同步
 
-## 關鍵路由 Eager First Load JS（post phase 2-2 baseline）
+## 關鍵路由 Eager First Load JS（post phase 2 全部完成）
+
+| 路由 | Phase 2-2 gz | Phase 2 完成 gz | Δ |
+|---|---|---|---|
+| `/c/[characterId]` (玩家角色卡) | 129,403 | 129,407 | +4 (noise) |
+| `/(gm)/games/[gameId]/characters/[id]` (GM 編輯) | 168,340 | 136,993 | **−31,347 (−18.6%)** |
+| `/(gm)/games/[gameId]` (GM 管理劇本) | 152,194 | 120,849 | **−31,345 (−20.6%)** |
+| `/(gm)/profile` (GM) | 77,454 | 71,629 | **−5,825 (−7.5%)** |
+| `/(gm)/games` (GM 劇本列表) | 40,293 | 40,293 | 0 |
+| `/(player)/g/[gameId]` (玩家世界觀) | 37,531 | 37,531 | 0 |
+
+**玩家端仍未受惠** — Phase 3 才會處理玩家主入口（`/c/[characterId]` 129 KB gz 是下個目標）。
+
+## 歷史：Phase 0→2 各路由 Eager First Load JS（post phase 2-2 baseline）
 
 量測方式：`.next/analyze/client.html` 的 `isInitialByEntrypoint` 非空 chunks 總和。
 
