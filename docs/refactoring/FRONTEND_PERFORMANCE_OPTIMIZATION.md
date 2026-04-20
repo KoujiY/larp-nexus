@@ -362,8 +362,34 @@ lighthouse http://localhost:3000/games \
 ## 進度追蹤
 
 - [x] 階段 0：基準量測（commits `8c996db`, `e2a8d40`, `066ed37`, `d9ac77e`）
-- [x] 階段 1：Quick Wins（字型、optimizePackageImports、metadata）— **−29 KB gzip shared**
-- [ ] 階段 2：Heavy deps dynamic import
+- [x] 階段 1：Quick Wins（字型、optimizePackageImports、metadata）— **shared chunks gzip −29 KB (−6.0%)**
+- 階段 2：Heavy deps dynamic import
+  - [x] 2-1 framer-motion **完全移除**（CSS 取代）— shared chunks gzip **−37 KB vs phase 1 (−8.1%)**，累計 **−67 KB vs baseline (−13.6%)**
+  - [x] 2-2 pusher-js lazy load — pusher-js **17.7 KB gz 從 eager 搬到 async chunk**（每條使用 WebSocket 的路由 First Load JS 少此量）
+  - [ ] 2-3 qrcode dynamic import（僅 GM 點擊 QR 按鈕時才載入）
+  - [ ] 2-4 @dnd-kit 限縮 GM 拖拽路由
+  - [ ] 2-5 react-easy-crop dynamic（編輯頭像 dialog 開啟才載入）
 - [ ] 階段 3：玩家主入口拆分
 - [ ] 階段 4：Client/Server 邊界清理
 - [ ] 階段 5：回歸驗證與文件同步
+
+## 關鍵路由 Eager First Load JS（post phase 2-2 baseline）
+
+量測方式：`.next/analyze/client.html` 的 `isInitialByEntrypoint` 非空 chunks 總和。
+
+| 路由 | Parsed | Gzip |
+|---|---|---|
+| `/c/[characterId]` (玩家角色卡) | 432,569 | 129,403 |
+| `/(gm)/games/[gameId]/characters/[characterId]` (GM 編輯角色) | 533,328 | 168,340 |
+| `/(gm)/games/[gameId]` (GM 管理劇本) | 482,811 | 152,194 |
+| `/(gm)/profile` | 239,902 | 77,454 |
+| `/(gm)/games` (GM 劇本列表) | 125,166 | 40,293 |
+| `/(player)/g/[gameId]` (玩家世界觀) | 114,982 | 37,531 |
+| `/(player)/g/layout` (玩家布局) | 36,938 | 10,920 |
+| `/c/layout` (玩家角色卡布局) | 36,938 | 10,920 |
+| `/auth/login` | 74,426 | 22,938 |
+| `/auth/verify` | 74,225 | 22,352 |
+| `main-app` (shared by app/router) | 391,131 | 115,261 |
+| `main` (shared by pages/router) | 327,430 | 100,504 |
+
+Phase 3 的優化目標：`/c/[characterId]` 129 KB gz 與 `/(player)/g/[gameId]` 37 KB gz 兩個玩家入口，特別是前者。
