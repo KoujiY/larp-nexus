@@ -227,7 +227,7 @@ export async function handleAbilityCheck(params: {
 
 ---
 
-## Phase 4：Player 元件整理（風險：中，需 IDE 驗證）
+## Phase 4：Player 元件整理（風險：中，需 IDE 驗證）✅ 已完成
 
 **目標**：拆分巨型元件、減少 item-list 與 skill-list 的 UI 層重複。
 
@@ -237,32 +237,35 @@ export async function handleAbilityCheck(params: {
 
 Phase 2 完成後做更自然（底層已統一），但也可獨立進行。
 
-### 4-1. 拆分 `item-list.tsx`（742 行）
+### 4-1. 拆分 `item-list.tsx`（742 行 → 612 行）✅
 
-將以下邏輯提取為子元件：
-- 目標選擇 UI → `item-target-selector.tsx`
-- 轉移確認 dialog → `item-transfer-confirm.tsx`
-- 單個 item 卡片 → `item-card.tsx`
+原計畫提到拆出 `item-target-selector.tsx`、`item-transfer-confirm.tsx`、`item-card.tsx`，但這些子元件在先前的開發迭代中已獨立拆出（`ItemCard`、`ItemDetailDialog`、`ItemSelectDialog`、`TargetItemSelectionDialog`）。
 
-### 4-2. 拆分 `skill-list.tsx`（498 行）
+實際瓶頸是狀態管理和事件處理器堆積（而非 JSX 膨脹），因此改為提取 custom hooks：
 
-同上模式，並與 item-list 共用目標選擇邏輯（`useTargetSelection` hook 已存在）。
+- **`hooks/use-item-transfer.ts`**（119 行）：封裝轉移對話框狀態（targets 載入、選擇、送出）與兩條轉移路徑（快捷路徑 + fallback dialog）
+- **`hooks/use-item-showcase.ts`**（122 行）：封裝展示對話框狀態與兩條展示路徑（同上模式）
 
-### 4-3. 評估 Contest Hooks 合併
+### 4-2. `skill-list.tsx`（498 行）— 維持現狀 ✅
 
-三個高度相關的 hook：
-- `use-contest-state.ts`（282 行）
-- `use-contest-state-restore.ts`（269 行）
-- `use-contest-dialog-state.ts`（263 行）
+分析結論：498 行已有 `SkillCard`、`SkillDetailDialog`、`TargetItemSelectionDialog` 三個子元件拆出。不像 item-list 有轉移/展示兩大獨立功能可抽取，skill-list 只有「使用技能」一條主線（已由 `useSkillUsage` hook 管理）。剩餘狀態為 contest 管理和 target selection，均已在共用 hooks 中。無需進一步拆分。
 
-需先深入分析三者的責任邊界，再決定是否合併。不強制合併——如果各自職責明確，保持分離也可以。
+### 4-3. Contest Hooks 評估 — 保持分離 ✅
+
+三個 hook 經深入分析後確認各有清晰的單一職責：
+
+- `use-contest-state.ts`（282 行）— pending contests 的 CRUD + localStorage 持久化
+- `use-contest-dialog-state.ts`（263 行）— dialog 顯示狀態 + 跨分頁/跨實例事件同步
+- `use-contest-state-restore.ts`（269 行）— 頁面重載後的狀態恢復 + server query 補償
+
+合併會產生 800+ 行的超大 hook，違反「200-400 行典型，800 行上限」原則，且三者的變更頻率和依賴關係不同，保持分離是正確決策。
 
 ### 完成標準
 
-- `tsc --noEmit` 零錯誤
-- `vitest run` 全過
-- 視覺驗證：道具列表、技能列表、對抗流程的完整 UI 行為不變
-- 所有拆出的子元件 < 200 行
+- ✅ `tsc --noEmit` 零錯誤
+- ✅ `vitest run` 311 tests 全過
+- ⏳ 視覺驗證：道具列表、技能列表、對抗流程的完整 UI 行為不變（待使用者 E2E 確認）
+- ✅ 所有拆出的 hook < 200 行（`use-item-transfer.ts` 119 行、`use-item-showcase.ts` 122 行）
 
 ---
 
