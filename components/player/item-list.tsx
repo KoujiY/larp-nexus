@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Item, Skill } from '@/types/character';
 import { getTransferTargets, type TransferTargetCharacter } from '@/app/actions/public';
 import { useTargetSelection } from '@/hooks/use-target-selection';
+import { useItemTransfer } from '@/hooks/use-item-transfer';
+import { useItemShowcase } from '@/hooks/use-item-showcase';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import type { BaseEvent } from '@/types/event';
 import type { SkillContestEvent } from '@/types/event';
@@ -18,7 +20,7 @@ import { canUseItem as canUseItemBase, getCooldownRemaining } from '@/lib/utils/
 import { getItemEffects, hasItemEffects } from '@/lib/item/get-item-effects';
 import { toggleEquipment } from '@/app/actions/item-equip';
 import type { ItemListProps } from '@/types/item-list';
-import { recordItemView, showcaseItem } from '@/app/actions/item-showcase';
+import { recordItemView } from '@/app/actions/item-showcase';
 import { ItemCard } from './item-card';
 import { ItemDetailDialog } from './item-detail-dialog';
 import { ItemSelectDialog } from './item-select-dialog';
@@ -50,21 +52,10 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
   // Phase 3: 使用統一的 Dialog 狀態管理
   const { dialogState, clearDialogState, isDialogForSource } = useContestDialogState(characterId);
   
-  // 轉移相關狀態
-  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
-  const [transferTargets, setTransferTargets] = useState<TransferTargetCharacter[]>([]);
-  const [selectedTargetId, setSelectedTargetId] = useState<string>('');
-  const [isLoadingTargets, setIsLoadingTargets] = useState(false);
-  const [isTransferring, setIsTransferring] = useState(false);
-  const [transferItem, setTransferItem] = useState<Item | null>(null); // 用於轉移對話框的道具引用
+  // 轉移相關狀態（由 useItemTransfer hook 管理）
+  // onTransferComplete 在 hook 宣告後定義（需要 setCheckResult）
 
-  // Phase 7.7: 展示相關狀態
-  const [isShowcaseSelectOpen, setIsShowcaseSelectOpen] = useState(false);
-  const [showcaseTargets, setShowcaseTargets] = useState<TransferTargetCharacter[]>([]);
-  const [selectedShowcaseTargetId, setSelectedShowcaseTargetId] = useState<string>('');
-  const [isLoadingShowcaseTargets, setIsLoadingShowcaseTargets] = useState(false);
-  const [isShowcasing, setIsShowcasing] = useState(false);
-  const [itemToShowcase, setItemToShowcase] = useState<Item | null>(null);
+  // Phase 7.7: 展示相關狀態（由 useItemShowcase hook 管理）
 
   // 裝備切換狀態
   const [isTogglingEquipment, setIsTogglingEquipment] = useState(false);
@@ -336,6 +327,33 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     dialogState,
   });
 
+  // Phase 4（Effect System）: 使用 useItemTransfer Hook 管理轉移邏輯
+  const handleTransferComplete = useCallback(() => {
+    setSelectedItem(null);
+    setCheckResult(undefined);
+    setSelectedUseTargetId(undefined);
+    setIsTargetConfirmed(false);
+    setSelectedTargetItemId('');
+  }, [setSelectedUseTargetId, setIsTargetConfirmed, setSelectedTargetItemId, setCheckResult]);
+
+  const transfer = useItemTransfer({
+    characterId,
+    gameId,
+    selectedItem,
+    selectedUseTargetId,
+    onTransferItem,
+    onTransferComplete: handleTransferComplete,
+  });
+
+  // Phase 4（Effect System）: 使用 useItemShowcase Hook 管理展示邏輯
+  const showcase = useItemShowcase({
+    characterId,
+    gameId,
+    selectedItem,
+    selectedUseTargetId,
+    onShowcaseComplete: handleTransferComplete, // 清理邏輯與轉移相同
+  });
+
   // Phase 8: 當選擇目標角色時，檢查是否需要載入目標道具清單
   // 注意：對抗檢定時，不需要載入目標道具清單
   useEffect(() => {
@@ -448,126 +466,6 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     );
   }
 
-  // 開啟轉移 Dialog（若已選目標則直接轉移，否則開啟 ItemSelectDialog）
-  const handleOpenTransfer = async () => {
-    if (!selectedItem || !gameId || !characterId) return;
-    if (!selectedItem.isTransferable) return;
-
-    // 若下拉選單已選目標，直接執行轉移
-    if (selectedUseTargetId && onTransferItem) {
-      const itemRef = selectedItem;
-      const targetId = selectedUseTargetId;
-      setIsTransferring(true);
-      try {
-        await onTransferItem(itemRef.id, targetId);
-        setSelectedItem(null);
-        setCheckResult(undefined);
-  
-        setSelectedUseTargetId(undefined);
-        setIsTargetConfirmed(false);
-        setSelectedTargetItemId('');
-      } catch (error) {
-        console.error('轉移道具錯誤:', error);
-      } finally {
-        setIsTransferring(false);
-      }
-      return;
-    }
-
-    // Fallback：開啟 ItemSelectDialog
-    setTransferItem(selectedItem);
-    setIsLoadingTargets(true);
-    setIsTransferDialogOpen(true);
-    try {
-      const result = await getTransferTargets(gameId, characterId);
-      if (result.success && result.data) {
-        setTransferTargets(result.data);
-      } else {
-        setTransferTargets([]);
-      }
-    } finally {
-      setIsLoadingTargets(false);
-    }
-  };
-
-  // 執行轉移
-  const handleTransfer = async () => {
-    if (!transferItem || !selectedTargetId || !onTransferItem) return;
-
-    setIsTransferring(true);
-    try {
-      // onTransferItem 內部會處理成功/失敗的 toast 和 router.refresh()
-      await onTransferItem(transferItem.id, selectedTargetId);
-      // 轉移完成後關閉轉移對話框
-      setIsTransferDialogOpen(false);
-      setTransferItem(null);
-      setSelectedTargetId('');
-      // 關閉道具詳情 dialog（因為道具可能已經被轉移，詳情 dialog 應該關閉）
-      // 先清除 selectedItem，確保 dialog 關閉
-      setSelectedItem(null);
-      setCheckResult(undefined);
-
-      setSelectedUseTargetId(undefined);
-      setIsTargetConfirmed(false);
-      setSelectedTargetItemId('');
-      // Phase 3.3: targetItems 由 hook 管理，不需要手動清除
-      // router.refresh() 會在 handleTransferItem 中執行，會重新載入頁面資料
-    } catch (error) {
-      console.error('轉移道具錯誤:', error);
-      // 發生錯誤時關閉轉移對話框，但保留道具詳情 dialog
-      setIsTransferDialogOpen(false);
-      setSelectedTargetId('');
-    } finally {
-      setIsTransferring(false);
-    }
-  };
-
-  // Phase 7.7: 開啟展示選擇 Dialog
-  const handleOpenShowcase = async () => {
-    if (!selectedItem || !gameId || !characterId) return;
-
-    // 若已有選定目標，直接展示，無需開啟 ItemSelectDialog
-    if (selectedUseTargetId) {
-      const itemRef = selectedItem;
-      const targetId = selectedUseTargetId;
-      setIsShowcasing(true);
-      try {
-        const result = await showcaseItem(characterId, itemRef.id, targetId);
-        if (!result.success) {
-          notify.error(result.message || '展示失敗');
-        }
-        setSelectedItem(null);
-        setCheckResult(undefined);
-  
-        setSelectedUseTargetId(undefined);
-        setIsTargetConfirmed(false);
-        setSelectedTargetItemId('');
-      } catch (error) {
-        console.error('展示道具錯誤:', error);
-        notify.error('展示失敗');
-      } finally {
-        setIsShowcasing(false);
-      }
-      return;
-    }
-
-    // Fallback: 開啟 ItemSelectDialog
-    setItemToShowcase(selectedItem);
-    setIsLoadingShowcaseTargets(true);
-    setIsShowcaseSelectOpen(true);
-
-    try {
-      const result = await getTransferTargets(gameId, characterId);
-      if (result.success && result.data) {
-        setShowcaseTargets(result.data);
-      } else {
-        setShowcaseTargets([]);
-      }
-    } finally {
-      setIsLoadingShowcaseTargets(false);
-    }
-  };
-
   // 裝備切換
   const handleToggleEquipment = async () => {
     if (!selectedItem || selectedItem.type !== 'equipment') return;
@@ -587,26 +485,6 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
     }
   };
 
-  // Phase 7.7: 執行展示
-  const handleShowcase = async () => {
-    if (!itemToShowcase || !selectedShowcaseTargetId) return;
-
-    setIsShowcasing(true);
-    try {
-      const result = await showcaseItem(characterId, itemToShowcase.id, selectedShowcaseTargetId);
-      if (!result.success) {
-        notify.error(result.message || '展示失敗');
-      }
-      setIsShowcaseSelectOpen(false);
-      setItemToShowcase(null);
-      setSelectedShowcaseTargetId('');
-    } catch (error) {
-      console.error('展示道具錯誤:', error);
-      notify.error('展示失敗');
-    } finally {
-      setIsShowcasing(false);
-    }
-  };
 
   return (
     <>
@@ -662,15 +540,15 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
         requiresTarget={requiresTarget}
         isContestInProgress={isContestInProgress}
         handleUseItem={handleUseItem}
-        handleOpenShowcase={handleOpenShowcase}
-        handleOpenTransfer={handleOpenTransfer}
+        handleOpenShowcase={showcase.handleOpen}
+        handleOpenTransfer={transfer.handleOpen}
         isReadOnly={isReadOnly}
         canUseItem={canUseItem}
         showUseButton={selectedItem ? (hasItemEffects(selectedItem) || !!onUseItem) : false}
         showShowcaseButton={!!(gameId && characterId)}
         showTransferButton={!!(onTransferItem && gameId && characterId)}
-        isShowcasing={isShowcasing}
-        isTransferring={isTransferring}
+        isShowcasing={showcase.isShowcasing}
+        isTransferring={transfer.isTransferring}
         sharedTargets={sharedTargets}
         isLoadingSharedTargets={isLoadingSharedTargets}
         characterId={characterId}
@@ -701,39 +579,31 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       {/* 轉移選擇 Dialog */}
       <ItemSelectDialog
         mode="transfer"
-        open={isTransferDialogOpen}
-        onOpenChange={setIsTransferDialogOpen}
-        item={transferItem}
-        isLoadingTargets={isLoadingTargets}
-        targets={transferTargets}
-        selectedTargetId={selectedTargetId}
-        onTargetChange={setSelectedTargetId}
-        isSubmitting={isTransferring}
-        onSubmit={handleTransfer}
-        onCancel={() => {
-          setIsTransferDialogOpen(false);
-          setTransferItem(null);
-          setSelectedTargetId('');
-        }}
+        open={transfer.isOpen}
+        onOpenChange={transfer.setIsOpen}
+        item={transfer.transferItem}
+        isLoadingTargets={transfer.isLoadingTargets}
+        targets={transfer.targets}
+        selectedTargetId={transfer.selectedTargetId}
+        onTargetChange={transfer.setSelectedTargetId}
+        isSubmitting={transfer.isTransferring}
+        onSubmit={transfer.handleTransfer}
+        onCancel={transfer.handleCancel}
       />
 
       {/* 展示選擇 Dialog */}
       <ItemSelectDialog
         mode="showcase"
-        open={isShowcaseSelectOpen}
-        onOpenChange={setIsShowcaseSelectOpen}
-        item={itemToShowcase}
-        isLoadingTargets={isLoadingShowcaseTargets}
-        targets={showcaseTargets}
-        selectedTargetId={selectedShowcaseTargetId}
-        onTargetChange={setSelectedShowcaseTargetId}
-        isSubmitting={isShowcasing}
-        onSubmit={handleShowcase}
-        onCancel={() => {
-          setIsShowcaseSelectOpen(false);
-          setItemToShowcase(null);
-          setSelectedShowcaseTargetId('');
-        }}
+        open={showcase.isOpen}
+        onOpenChange={showcase.setIsOpen}
+        item={showcase.itemToShowcase}
+        isLoadingTargets={showcase.isLoadingTargets}
+        targets={showcase.targets}
+        selectedTargetId={showcase.selectedTargetId}
+        onTargetChange={showcase.setSelectedTargetId}
+        isSubmitting={showcase.isShowcasing}
+        onSubmit={showcase.handleShowcase}
+        onCancel={showcase.handleCancel}
       />
 
     </>
