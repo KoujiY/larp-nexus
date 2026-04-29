@@ -1,0 +1,67 @@
+name: Lighthouse CI
+
+# 在 PR 上跑 Lighthouse 分數量測，以 mobile/desktop form factor 對靜態路由建立基準。
+# 不測需 DB 的動態路由（/g/[gameId]、/c/[characterId] 等）：那些需完整 E2E-style 資料 seed，
+# 目前由本地開發者自行測試（見 FRONTEND_PERFORMANCE_OPTIMIZATION.md 的 Lighthouse 指引）。
+#
+# 本 workflow 不阻擋 merge：分數回饋由 @lhci/cli 張貼到 PR summary，趨勢追蹤用 temporaryPublicStorage。
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - 'claude/**'
+
+concurrency:
+  group: lighthouse-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build production bundle
+        run: pnpm build
+        env:
+          MONGODB_URI: mongodb://localhost:27017/dummy
+          SESSION_SECRET: ci-only-session-secret-do-not-use-32chars
+          OPENAI_API_KEY: dummy
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: ./.github/lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+        env:
+          MONGODB_URI: mongodb://localhost:27017/dummy
+          SESSION_SECRET: ci-only-session-secret-do-not-use-32chars
+          OPENAI_API_KEY: dummy
+
+      - name: Summarize Lighthouse scores
+        if: always()
+        run: |
+          echo "## Lighthouse Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Scores for static routes (/, /auth/login, /auth/verify)." >> $GITHUB_STEP_SUMMARY
+          echo "Dynamic routes (/g, /c, /games/*) require local testing with seeded data." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Reports uploaded to temporary public storage — see links in the Lighthouse step log above." >> $GITHUB_STEP_SUMMARY

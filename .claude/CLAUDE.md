@@ -8,7 +8,7 @@
 ### 技術棧
 - **Frontend**: Next.js 16+ + React 19+ + TypeScript
 - **State Management**: React Hooks + WebSocket (Pusher)
-- **UI**: Tailwind CSS 4+ + shadcn/ui + Framer Motion
+- **UI**: Tailwind CSS 4+ + shadcn/ui（動畫以 CSS transitions / keyframes 為主，未安裝動畫庫）
 - **Database**: MongoDB Atlas (透過 Mongoose)
 - **Real-time**: Pusher WebSocket
 - **Testing**: Vitest
@@ -219,5 +219,5 @@ docs/knowledge/
 ### 技術約束
 - Tailwind CSS 4（oklch 色彩空間）
 - shadcn/ui 組件（可改 token，不換 Radix primitive）
-- Framer Motion 製作轉場動畫
+- 轉場動畫使用 CSS（Tailwind `transition-*` utilities 或 `@keyframes`）；需要 spring 物理或 layout animations 時再評估動畫庫
 - 玩家端手機優先 RWD，GM 端桌面優先 RWD

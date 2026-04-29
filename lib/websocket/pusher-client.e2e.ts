@@ -96,8 +96,13 @@ function getOrCreateChannel(channelName: string): StubChannel {
 
 let cachedInstance: StubPusherClient | null = null;
 
-export function getPusherClient(): StubPusherClient | null {
-  if (typeof window === 'undefined') return null;
+/**
+ * 回傳 Promise 以符合 `pusher-client.ts` 的簽名（pusher-js 改為 lazy load 後
+ * `getPusherClient` 變為 async）。此 stub 不需真的 dynamic import，直接同步
+ * resolve 即可。
+ */
+export function getPusherClient(): Promise<StubPusherClient | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
   ensureSseConnected();
 
   if (!cachedInstance) {
@@ -116,5 +121,5 @@ export function getPusherClient(): StubPusherClient | null {
       },
     };
   }
-  return cachedInstance;
+  return Promise.resolve(cachedInstance);
 }

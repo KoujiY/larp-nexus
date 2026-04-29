@@ -39,6 +39,12 @@ Character card connects to Pusher WebSocket on mount:
 - Channel: `private-character-{characterId}` + `private-game-{gameId}`
 - Receives: stat changes, item changes, skill changes, revealed secrets, revealed tasks, notifications, game state changes
 - Hook: `hooks/use-character-websocket-handler.ts`
+- **Loading**：`pusher-js` 透過 `getPusherClient()` 的 dynamic `import()` 延後載入，`useEffect` 內 `await` 並以 `cancelled` 旗標保護 cleanup 先於 resolve 的情形
+
+## Lazy-loaded UI
+以下子元件改以 `next/dynamic` 在使用者互動時才下載對應 chunk（減少玩家角色卡首次載入）：
+- Dialogs: `ContestResponseDialog` / `ContestWaitingDialog` / `ItemDetailDialog` / `ItemSelectDialog` / `SkillDetailDialog` / `TargetItemSelectionDialog` / `ItemShowcaseDialog` / `GameEndedDialog`
+- 人物關係分頁的 `CharacterAvatarList`（非預設分頁，帶走 `embla-carousel`）
 
 ## Related
 - [item-usage.md](./item-usage.md)

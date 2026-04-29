@@ -1,11 +1,12 @@
 {
   "name": "larp-nexus",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "next dev",
     "build": "cross-env NODE_ENV=production next build",
+    "analyze": "cross-env ANALYZE=1 NODE_ENV=production next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -45,7 +46,6 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^12.23.24",
     "iron-session": "^8.0.4",
     "lucide-react": "^0.555.0",
     "mammoth": "^1.12.0",
@@ -68,6 +68,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.4",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",

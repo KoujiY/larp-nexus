@@ -197,7 +197,7 @@ box-shadow: 暖色調小陰影（非冷灰）
 | 錯誤 shake（±4px × 3）| 300ms | ease-in-out |
 | 進度條填充 | 500ms | ease-out |
 
-實作工具：**Framer Motion**（已安裝）。優先使用 `motion.div` + `AnimatePresence`，不使用純 CSS `@keyframes`。
+實作工具：**CSS transitions + keyframes**（Tailwind 4 utilities，如 `transition-[transform,opacity] duration-300 ease-out`）。複雜 orchestration（`staggerChildren`）、layout transitions 或 gesture 驅動動畫才評估引入動畫庫；目前專案無此需求，已於 2026-04-19 移除 framer-motion。
 
 ### 按鈕互動
 

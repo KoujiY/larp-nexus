@@ -6,6 +6,14 @@ import path from "node:path";
 const projectRoot = process.cwd();
 
 const isE2E = process.env.E2E === '1';
+const isAnalyze = process.env.ANALYZE === '1';
+
+// ANALYZE=1 時才載入 bundle analyzer（devDependency，production prune 後不存在）。
+// 需搭配 `next build --webpack` 使用，analyzer 依賴 webpack plugin，與 Turbopack 不相容。
+const withBundleAnalyzer: (config: NextConfig) => NextConfig = isAnalyze
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  ? require('@next/bundle-analyzer')({ enabled: true, openAnalyzer: false })
+  : (config) => config;
 
 // 只在 E2E=1 時才把 Pusher 模組 alias 到 stub 版本。
 // 重要：整個 `webpack` key 必須是條件式的——Next.js 16 預設走 Turbopack，
@@ -44,8 +52,29 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Barrel 檔案優化：Next 會為這些套件自動做 on-demand import，
+  // 降低 client bundle 的 tree-shake 殘留。Baseline 報告顯示 lucide-react
+  // 與 @radix-ui 是共用 chunks 的主要貢獻者，最受惠於此設定。
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'date-fns',
+      'radix-ui',
+      '@radix-ui/react-accordion',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-label',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-switch',
+      '@radix-ui/react-tabs',
+    ],
+  },
   // 條件式 spread：E2E=1 才注入 webpack key，production build 維持走 Turbopack
   ...(isE2E ? { webpack: e2eWebpackConfig } : {}),
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

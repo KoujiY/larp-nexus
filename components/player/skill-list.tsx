@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Zap } from 'lucide-react';
 import type { Skill, Item, SkillEffect } from '@/types/character';
 import { useTargetSelection } from '@/hooks/use-target-selection';
@@ -17,7 +18,11 @@ import { canUseSkill, getCooldownRemaining } from '@/lib/utils/skill-validators'
 import type { SkillListProps } from '@/types/skill-list';
 import { SkillCard } from './skill-card';
 import { SkillDetailDialog } from './skill-detail-dialog';
-import { TargetItemSelectionDialog } from './target-item-selection-dialog';
+
+const TargetItemSelectionDialog = dynamic(
+  () => import('./target-item-selection-dialog').then((m) => ({ default: m.TargetItemSelectionDialog })),
+  { ssr: false },
+);
 
 export function SkillList({ skills, characterId, gameId, characterName, stats = [], randomContestMaxValue = 100, isReadOnly = false }: SkillListProps) {
   // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用技能）
