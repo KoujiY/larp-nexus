@@ -17,12 +17,8 @@ import { useContestableItemUsage } from '@/hooks/use-contestable-item-usage';
 import { canUseSkill, getCooldownRemaining } from '@/lib/utils/skill-validators';
 import type { SkillListProps } from '@/types/skill-list';
 import { SkillCard } from './skill-card';
+import { SkillDetailDialog } from './skill-detail-dialog';
 
-// 技能詳情與目標選擇 dialog 僅在玩家點技能時出現，改 dynamic 延後載入。
-const SkillDetailDialog = dynamic(
-  () => import('./skill-detail-dialog').then((m) => ({ default: m.SkillDetailDialog })),
-  { ssr: false },
-);
 const TargetItemSelectionDialog = dynamic(
   () => import('./target-item-selection-dialog').then((m) => ({ default: m.TargetItemSelectionDialog })),
   { ssr: false },

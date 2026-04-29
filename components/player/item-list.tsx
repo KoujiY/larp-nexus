@@ -23,12 +23,8 @@ import { toggleEquipment } from '@/app/actions/item-equip';
 import type { ItemListProps } from '@/types/item-list';
 import { recordItemView } from '@/app/actions/item-showcase';
 import { ItemCard } from './item-card';
+import { ItemDetailDialog } from './item-detail-dialog';
 
-// 物品詳情 / 選物 / 目標選擇對話框僅在使用者互動時開啟，改 dynamic 延後載入。
-const ItemDetailDialog = dynamic(
-  () => import('./item-detail-dialog').then((m) => ({ default: m.ItemDetailDialog })),
-  { ssr: false },
-);
 const ItemSelectDialog = dynamic(
   () => import('./item-select-dialog').then((m) => ({ default: m.ItemSelectDialog })),
   { ssr: false },
