@@ -91,23 +91,24 @@ export function useCharacterWebSocket(characterId: string, onEvent?: EventHandle
 
       const channel = pusher.subscribe(channelName);
 
-      channel.bind('pusher:subscription_error', (error: unknown) => {
+      const handleSubError = (error: unknown) => {
         console.error('[useCharacterWebSocket] 頻道訂閱失敗', {
           characterId,
           channelName,
           error: error instanceof Error ? error.message : String(error),
         });
-      });
+      };
+      channel.bind('pusher:subscription_error', handleSubError);
 
       CHARACTER_EVENT_TYPES.forEach((eventType) => {
         channel.bind(eventType, handle);
       });
 
       unbind = () => {
+        channel.unbind('pusher:subscription_error', handleSubError);
         CHARACTER_EVENT_TYPES.forEach((eventType) => {
           channel.unbind(eventType, handle);
         });
-        // 注意：不要調用 pusher.unsubscribe，因為其他組件可能還在訂閱同一個頻道
       };
     });
 
@@ -161,11 +162,21 @@ export function useGameWebSocket(gameId: string, onEvent?: EventHandler) {
 
       const channel = pusher.subscribe(channelName);
 
+      const handleSubError = (error: unknown) => {
+        console.error('[useGameWebSocket] 頻道訂閱失敗', {
+          gameId,
+          channelName,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      };
+      channel.bind('pusher:subscription_error', handleSubError);
+
       GAME_EVENT_TYPES.forEach((eventType) => {
         channel.bind(eventType, handle);
       });
 
       unbind = () => {
+        channel.unbind('pusher:subscription_error', handleSubError);
         GAME_EVENT_TYPES.forEach((eventType) => {
           channel.unbind(eventType, handle);
         });

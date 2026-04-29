@@ -33,7 +33,7 @@ export function getPusherClient(): Promise<PusherClient | null> {
     return Promise.resolve(null);
   }
 
-  loadPromise = import('pusher-js')
+  const thisLoad = import('pusher-js')
     .then((mod) => {
       const Pusher = mod.default;
       cachedClient = new Pusher(key, {
@@ -45,10 +45,12 @@ export function getPusherClient(): Promise<PusherClient | null> {
     })
     .catch((err) => {
       console.error('[pusher] 載入 pusher-js 失敗', err);
-      // 重置 promise，讓下一次呼叫可以重試
-      loadPromise = null;
       return null;
+    })
+    .finally(() => {
+      if (loadPromise === thisLoad) loadPromise = null;
     });
 
-  return loadPromise;
+  loadPromise = thisLoad;
+  return thisLoad;
 }

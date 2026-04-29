@@ -53,8 +53,14 @@ function generateBlockId(): string {
   return `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function toBlocksWithId(blocks: BackgroundBlock[]): BlockWithId[] {
-  return blocks.map((b) => ({ ...b, _id: generateBlockId() }));
+function toBlocksWithId(
+  blocks: BackgroundBlock[],
+  existing?: BlockWithId[],
+): BlockWithId[] {
+  return blocks.map((b, i) => ({
+    ...b,
+    _id: existing?.[i]?._id ?? generateBlockId(),
+  }));
 }
 
 function fromBlocksWithId(blocks: BlockWithId[]): BackgroundBlock[] {
@@ -201,6 +207,12 @@ export function BackgroundBlockEditor({
   const [blocks, setBlocks] = useState<BlockWithId[]>(() =>
     toBlocksWithId(value),
   );
+  const [prevValue, setPrevValue] = useState(value);
+
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setBlocks((prev) => toBlocksWithId(value, prev));
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
