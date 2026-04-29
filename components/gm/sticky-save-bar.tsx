@@ -60,6 +60,7 @@ export function StickySaveBar({
   onDiscardAll,
 }: StickySaveBarProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [snapshot, setSnapshot] = useState({ summaryText: '', detailText: '' });
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Unmount 時清除殘留 timer
@@ -87,13 +88,12 @@ export function StickySaveBar({
     }, TRANSITION_MS + 100);
   }, [dirtyTabCount, dirtyTabKeys, onSaveAll]);
 
-  /** 組裝摘要文字 */
-  const summaryText = `${dirtyTabCount} 個分頁有未儲存的變更 (${dirtyTabKeys
+  /** 組裝即時文字（hasDirty 為 false 時值無意義） */
+  const liveSummary = `${dirtyTabCount} 個分頁有未儲存的變更 (${dirtyTabKeys
     .map((key) => TAB_LABELS[key])
     .join('、')})`;
 
-  /** 組裝詳細統計 */
-  const detailParts = dirtyTabKeys.map((key) => {
+  const liveDetailParts = dirtyTabKeys.map((key) => {
     const info = dirtyState[key];
     const parts: string[] = [];
     if (info.added > 0) parts.push(`新增 ${info.added}`);
@@ -102,27 +102,34 @@ export function StickySaveBar({
     const detail = parts.length > 0 ? parts.join(', ') : '已修改';
     return `${TAB_LABELS[key]}: ${detail}`;
   });
-  const detailText = detailParts.join(' | ');
+  const liveDetail = liveDetailParts.join(' | ');
+
+  if (hasDirty && (snapshot.summaryText !== liveSummary || snapshot.detailText !== liveDetail)) {
+    setSnapshot({ summaryText: liveSummary, detailText: liveDetail });
+  }
+
+  const summaryText = hasDirty ? liveSummary : snapshot.summaryText;
+  const detailText = hasDirty ? liveDetail : snapshot.detailText;
 
   return (
     <>
       {/* 外層負責 fixed 定位與 x 置中；內層負責 y 滑入/淡入動畫 */}
       <div
-        className="fixed bottom-8 left-1/2 z-50 w-full max-w-4xl -translate-x-1/2 px-3 sm:px-6 md:pl-32"
-        role="region"
-        aria-label="儲存列"
-        aria-hidden={!hasDirty}
+        className="pointer-events-none fixed bottom-8 left-1/2 z-50 w-full max-w-4xl -translate-x-1/2 px-3 sm:px-6 md:pl-32"
       >
         <div
           data-state={hasDirty ? 'visible' : 'hidden'}
+          role="region"
+          aria-label="儲存列"
+          aria-hidden={!hasDirty}
           className={cn(
-            'transition-[transform,opacity] duration-300 ease-out will-change-transform',
-            'data-[state=visible]:translate-y-0 data-[state=visible]:opacity-100 data-[state=visible]:pointer-events-auto',
-            'data-[state=hidden]:translate-y-24 data-[state=hidden]:opacity-0 data-[state=hidden]:pointer-events-none',
+            'transition-[translate,opacity] duration-300 will-change-[translate,opacity]',
+            'data-[state=visible]:ease-out data-[state=visible]:translate-y-0 data-[state=visible]:opacity-100 data-[state=visible]:pointer-events-auto',
+            'data-[state=hidden]:ease-in data-[state=hidden]:translate-y-24 data-[state=hidden]:opacity-0 data-[state=hidden]:pointer-events-none',
           )}
         >
           <div className={cn(
-            'rounded-2xl shadow-2xl backdrop-blur-xl',
+            'rounded-2xl shadow-2xl',
             // 淺色：深底白字
             'bg-[oklch(0.15_0.02_260)] text-white',
             // 暗色：亮底深字
