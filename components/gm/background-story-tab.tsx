@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { updateCharacter } from '@/app/actions/character-update';
 import { useFormGuard } from '@/hooks/use-form-guard';
+import type { AvatarCharacter } from '@/components/player/character-avatar-list';
 
 // BackgroundBlockEditor 內含 @dnd-kit/*（16 KB gzip）僅在編輯背景時需要，
 // 改走 dynamic chunk。
@@ -25,17 +26,7 @@ const BackgroundBlockEditor = dynamic(
     })),
   { ssr: false },
 );
-import type { AvatarCharacter } from '@/components/player/character-avatar-list';
 
-// CharacterAvatarList 內含 embla-carousel，此 sub-tab 非 GM 角色編輯預設分頁，
-// dynamic 拆到 async chunk 讓 /(gm)/games/[gameId]/characters/[id] 初始載入更輕。
-const CharacterAvatarList = dynamic(
-  () =>
-    import('@/components/player/character-avatar-list').then((m) => ({
-      default: m.CharacterAvatarList,
-    })),
-  { ssr: false },
-);
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
 import { GmEmptyState } from '@/components/gm/gm-empty-state';
 import {
@@ -59,6 +50,16 @@ import { toast } from 'sonner';
 import type { CharacterData, BackgroundBlock, Relationship } from '@/types/character';
 import type { GameCharacterSummary } from '@/components/gm/character-edit-tabs';
 import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
+
+// CharacterAvatarList 內含 embla-carousel，此 sub-tab 非 GM 角色編輯預設分頁，
+// dynamic 拆到 async chunk 讓 /(gm)/games/[gameId]/characters/[id] 初始載入更輕。
+const CharacterAvatarList = dynamic(
+  () =>
+    import('@/components/player/character-avatar-list').then((m) => ({
+      default: m.CharacterAvatarList,
+    })),
+  { ssr: false },
+);
 
 interface BackgroundStoryTabProps {
   character: CharacterData;

@@ -8,16 +8,6 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { ImageUploadDialog } from '@/components/shared/image-upload-dialog';
-
-// BackgroundBlockEditor 內含 @dnd-kit/*（16 KB gzip）僅在編輯公開資訊時需要，
-// 改走 dynamic chunk。
-const BackgroundBlockEditor = dynamic(
-  () =>
-    import('@/components/gm/background-block-editor').then((m) => ({
-      default: m.BackgroundBlockEditor,
-    })),
-  { ssr: false },
-);
 import { ImagePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -28,6 +18,16 @@ import {
   GM_SECTION_TITLE_CLASS,
   GM_SECTION_CARD_CLASS,
 } from '@/lib/styles/gm-form';
+
+// BackgroundBlockEditor 內含 @dnd-kit/*（16 KB gzip）僅在編輯公開資訊時需要，
+// 改走 dynamic chunk。
+const BackgroundBlockEditor = dynamic(
+  () =>
+    import('@/components/gm/background-block-editor').then((m) => ({
+      default: m.BackgroundBlockEditor,
+    })),
+  { ssr: false },
+);
 import type { GameData } from '@/types/game';
 import type { BackgroundBlock } from '@/types/character';
 

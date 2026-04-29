@@ -9,6 +9,19 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { compressImage, IMAGE_PRESETS, type ImagePresetKey } from '@/lib/image/compress';
+import { getCroppedImage } from '@/lib/image/crop';
+import {
+  GM_LABEL_CLASS,
+  GM_DIALOG_CONTENT_CLASS,
+  GM_DIALOG_HEADER_CLASS,
+  GM_DIALOG_TITLE_CLASS,
+  GM_DIALOG_BODY_CLASS,
+  GM_DIALOG_FOOTER_CLASS,
+  GM_CANCEL_BUTTON_CLASS,
+  GM_CTA_BUTTON_CLASS,
+} from '@/lib/styles/gm-form';
 
 // react-easy-crop 5.6 KB gzip 僅在使用者實際選了圖片、進入裁切 UI 時需要。
 // 用 next/dynamic 拆到獨立 chunk，ssr: false（瀏覽器 API 依賴）。
@@ -33,19 +46,6 @@ const Cropper = dynamic(() => import('react-easy-crop'), {
     </div>
   ),
 }) as ComponentType<CropperRuntimeProps>;
-import { cn } from '@/lib/utils';
-import { compressImage, IMAGE_PRESETS, type ImagePresetKey } from '@/lib/image/compress';
-import { getCroppedImage } from '@/lib/image/crop';
-import {
-  GM_LABEL_CLASS,
-  GM_DIALOG_CONTENT_CLASS,
-  GM_DIALOG_HEADER_CLASS,
-  GM_DIALOG_TITLE_CLASS,
-  GM_DIALOG_BODY_CLASS,
-  GM_DIALOG_FOOTER_CLASS,
-  GM_CANCEL_BUTTON_CLASS,
-  GM_CTA_BUTTON_CLASS,
-} from '@/lib/styles/gm-form';
 
 /** 壓縮前的原圖大小上限（10MB），避免瀏覽器處理超大檔案時卡頓 */
 const MAX_RAW_FILE_SIZE = 10 * 1024 * 1024;
