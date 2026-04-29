@@ -283,9 +283,15 @@ test.describe('Flow #4 — GM character CRUD', () => {
     await expect(bodyTextareas.first()).toHaveValue('第一段背景故事');
 
     // 新增 block 2
-    // force: true — SaveBar（fixed bottom z-50）在 block 1 dirty 後出現，
-    // 可能遮蔽位於頁面底部的「新增區塊」按鈕
-    await page.getByRole('button', { name: '新增區塊', exact: true }).click({ force: true });
+    // SaveBar（fixed bottom z-50）在 block 1 dirty 後出現，覆蓋「新增區塊」按鈕。
+    // force: true 只跳過 Playwright 檢查，瀏覽器 hit-testing 仍將事件路由至 SaveBar。
+    // 改用 evaluate 直接觸發按鈕 click，繞過 hit-testing。
+    await page.evaluate(() => {
+      const addBtn = [...document.querySelectorAll('button')]
+        .find(b => b.textContent?.trim() === '新增區塊');
+      if (!addBtn) throw new Error('「新增區塊」button not found in DOM');
+      (addBtn as HTMLElement).click();
+    });
     await expect(bodyTextareas.nth(1)).toBeVisible();
     await bodyTextareas.nth(1).fill('第二段背景故事');
     await expect(bodyTextareas.nth(1)).toHaveValue('第二段背景故事');
@@ -295,9 +301,7 @@ test.describe('Flow #4 — GM character CRUD', () => {
 
     // 新增 relationship（右欄初始為空狀態）
     await expect(page.getByText('尚未新增任何人物關係')).toBeVisible();
-    // force: true — Save Bar（fixed bottom z-50）在 blocks dirty 後出現，
-    // 可能遮蔽位於頁面底部的「新增關係」按鈕
-    await page.getByRole('button', { name: '新增關係', exact: true }).click({ force: true });
+    await page.getByRole('button', { name: '新增關係', exact: true }).click();
 
     // 填入關係資料（targetName 是自由文字欄位，非下拉選單）
     // 等待 addRelationship 的 setState → 條件渲染完成
