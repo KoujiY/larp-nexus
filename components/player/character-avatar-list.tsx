@@ -64,14 +64,15 @@ export function CharacterAvatarList({
     };
   }, [api]);
 
-  /** 選取角色時自動滾動到該位置 */
+  /** 初始化時滾動到已選角色（僅首次掛載） */
   useEffect(() => {
     if (!api || !activeId) return;
     const index = characters.findIndex((c) => c.id === activeId);
     if (index >= 0) {
-      api.scrollTo(index);
+      api.scrollTo(index, true);
     }
-  }, [api, activeId, characters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
 
   const scrollPrev = useCallback(() => api?.scrollPrev(), [api]);
   const scrollNext = useCallback(() => api?.scrollNext(), [api]);
