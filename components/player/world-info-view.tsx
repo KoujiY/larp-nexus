@@ -131,7 +131,7 @@ export function WorldInfoView({ game }: WorldInfoViewProps) {
                         </h4>
                       </div>
                       {activeChar.description && (
-                        <p className="text-muted-foreground text-base leading-relaxed font-light">
+                        <p className="text-muted-foreground text-base leading-relaxed font-light whitespace-pre-line">
                           {activeChar.description}
                         </p>
                       )}
