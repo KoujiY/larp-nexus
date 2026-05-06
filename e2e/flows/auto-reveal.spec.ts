@@ -104,9 +104,10 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       await pageB.goto(`/c/${charB._id}`);
       await expect(pageB.getByRole('heading', { name: '盜賊' })).toBeVisible();
 
-      // 設定 WS 監聽（secret.revealed）
+      // 設定 WS 監聽（secret.revealed — filter by secretId 避免並行測試干擾）
       const wsRevealPromise = waitForWebSocketEvent(pageB, {
         event: 'secret.revealed',
+        filter: { path: 'payload.secretId', value: 'secret-treasure' },
       });
 
       // Player A 載入 + 切換到物品 tab
@@ -241,6 +242,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     // 使用較長 timeout 因為 GM UI 操作（navigate + dialog + save）需要 ~20s
     const wsTaskPromise = waitForWebSocketEvent(playerPage, {
       event: 'task.revealed',
+      filter: { path: 'payload.taskId', value: 'task-reclaim' },
       timeout: 45000,
     });
 
@@ -385,9 +387,10 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       await pageB.goto(`/c/${charB._id}`);
       await expect(pageB.getByRole('heading', { name: '學徒' })).toBeVisible();
 
-      // 設定 WS 監聽（task.revealed）
+      // 設定 WS 監聽（task.revealed — filter by taskId 避免並行測試干擾）
       const wsTaskPromise = waitForWebSocketEvent(pageB, {
         event: 'task.revealed',
+        filter: { path: 'payload.taskId', value: 'task-train' },
         timeout: 30000,
       });
 

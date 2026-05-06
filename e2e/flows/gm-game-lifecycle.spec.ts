@@ -13,11 +13,12 @@
  * 參照規格：docs/refactoring/E2E_FLOW_3_GAME_LIFECYCLE.md
  */
 
-import { test, expect } from '../fixtures';
+import { test, expect, testGameCode } from '../fixtures';
 import { waitForToast } from '../helpers/wait-for-toast';
 
 test.describe('Flow #3 — GM game lifecycle', () => {
-  test('#3.1 create game + validation', async ({ page, seed, asGm, dbQuery }) => {
+  test('#3.1 create game + validation', async ({ page, seed, asGm, dbQuery }, testInfo) => {
+    const wi = testInfo.parallelIndex;
     // ── Seed：GM user only（空 DB 起點）──
     const gm = await seed.gmUser();
     await asGm({ gmUserId: gm._id });
@@ -61,7 +62,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await expect(page.getByRole('tab', { name: '劇本資訊' })).toBeVisible();
 
     // ── Phase 5：DB 驗證 ──
-    const games = await dbQuery('games');
+    const games = await dbQuery('games', { gameCode: autoGameCode });
     expect(games.length).toBe(1);
     const game = games[0];
     expect(game.name).toBe('E2E 測試劇本 #3.1');
@@ -93,14 +94,15 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await expect(dialog2).toBeVisible();
 
     // ── Phase 7：負面 — gameCode 已被佔用 ──
-    // 先 seed 另一個 GM 佔用 'EXIST1'
-    const otherGm = await seed.gmUser({ email: 'other@test.com', displayName: 'Other GM' });
-    await seed.game({ gmUserId: otherGm._id, name: '佔位劇本', gameCode: 'EXIST1' });
+    // 先 seed 另一個 GM 佔用某個 code
+    const occupiedCode = testGameCode(wi);
+    const otherGm = await seed.gmUser({ displayName: 'Other GM' });
+    await seed.game({ gmUserId: otherGm._id, name: '佔位劇本', gameCode: occupiedCode });
 
     // 在當前 Dialog 中清空 gameCode 並輸入已佔用的
     const codeInput2 = dialog2.getByPlaceholder('ABC123');
     await codeInput2.clear();
-    await codeInput2.fill('EXIST1');
+    await codeInput2.fill(occupiedCode);
 
     // 等防抖 500ms + 即時檢查回 unavailable
     await expect(dialog2.getByText('此代碼已被其他劇本使用，請換一個')).toBeVisible({ timeout: 5000 });
@@ -109,16 +111,21 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     await expect(dialog2.getByRole('button', { name: '建立劇本' })).toBeDisabled();
   });
 
-  test('#3.2 game code change + uniqueness', async ({ page, seed, asGm, dbQuery }) => {
+  test('#3.2 game code change + uniqueness', async ({ page, seed, asGm, dbQuery }, testInfo) => {
+    const wi = testInfo.parallelIndex;
+    const origCode = testGameCode(wi);
+    const takenCode = testGameCode(wi);
+    const newCode = testGameCode(wi);
+
     // ── Seed：GM + Game A（目標）+ Game B（佔用 code）──
     const gm = await seed.gmUser();
-    const gameA = await seed.game({ gmUserId: gm._id, name: '目標劇本', gameCode: 'ORIG01' });
-    await seed.game({ gmUserId: gm._id, name: '佔位劇本', gameCode: 'TAKEN1' });
+    const gameA = await seed.game({ gmUserId: gm._id, name: '目標劇本', gameCode: origCode });
+    await seed.game({ gmUserId: gm._id, name: '佔位劇本', gameCode: takenCode });
     await asGm({ gmUserId: gm._id });
 
     // ── Phase 1：進入劇本編輯頁 → 看到目前 code ──
     await page.goto(`/games/${gameA._id}`);
-    await expect(page.locator('main').getByText('ORIG01')).toBeVisible();
+    await expect(page.locator('main').getByText(origCode)).toBeVisible();
 
     // ── Phase 2：開啟編輯 Dialog → 變更成功 ──
     await page.getByRole('button', { name: '編輯遊戲代碼' }).click();
@@ -129,7 +136,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     // 清空並輸入新 code
     const codeInput = dialog.getByPlaceholder('ABC123');
     await codeInput.clear();
-    await codeInput.fill('NEWCD1');
+    await codeInput.fill(newCode);
 
     // 等防抖 500ms + 即時檢查回 available
     await expect(dialog.getByText('此代碼可以使用')).toBeVisible({ timeout: 5000 });
@@ -140,12 +147,12 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     // Dialog 關閉 + UI 更新
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
     // Header 的 GameCodeSection 顯示新 code（等 router.refresh）
-    await expect(page.getByText('NEWCD1')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('ORIG01')).not.toBeVisible();
+    await expect(page.getByText(newCode)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(origCode)).not.toBeVisible();
 
     // DB 驗證
     const games = await dbQuery('games', { _id: gameA._id });
-    expect(games[0].gameCode).toBe('NEWCD1');
+    expect(games[0].gameCode).toBe(newCode);
 
     // ── Phase 3：負面 — 新 code 已被佔用 ──
     await page.getByRole('button', { name: '編輯遊戲代碼' }).click();
@@ -154,7 +161,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
 
     const codeInput2 = dialog2.getByPlaceholder('ABC123');
     await codeInput2.clear();
-    await codeInput2.fill('TAKEN1');
+    await codeInput2.fill(takenCode);
 
     // 等防抖 + 即時檢查回 unavailable
     await expect(dialog2.getByText('此代碼已被使用')).toBeVisible({ timeout: 5000 });
@@ -170,10 +177,10 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     const dialog3 = page.getByRole('dialog');
     await expect(dialog3).toBeVisible();
 
-    // Input 應為當前 DB 值 'NEWCD1'（不是上次輸入的 'TAKEN1'）
-    await expect(dialog3.getByPlaceholder('ABC123')).toHaveValue('NEWCD1');
+    // Input 應為當前 DB 值（不是上次輸入的 takenCode）
+    await expect(dialog3.getByPlaceholder('ABC123')).toHaveValue(newCode);
     // 狀態應為 idle（未變更）
-    await expect(dialog3.getByText('當前代碼：NEWCD1')).toBeVisible();
+    await expect(dialog3.getByText(`當前代碼：${newCode}`)).toBeVisible();
     // 確認更新按鈕 disabled（code 未變更）
     await expect(dialog3.getByRole('button', { name: '確認更新' })).toBeDisabled();
   });
@@ -183,14 +190,16 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     seed,
     asGm,
     dbQuery,
-  }) => {
+  }, testInfo) => {
+    const wi = testInfo.parallelIndex;
+
     // ── Seed：GM + Game（基礎欄位） ──
     const gm = await seed.gmUser();
     const game = await seed.game({
       gmUserId: gm._id,
       name: '舊名稱',
       description: '',
-      gameCode: 'EDIT01',
+      gameCode: testGameCode(wi),
     });
     await asGm({ gmUserId: gm._id });
 
@@ -360,13 +369,15 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     seed,
     asGm,
     dbQuery,
-  }) => {
+  }, testInfo) => {
+    const wi = testInfo.parallelIndex;
+
     // ── Seed：GM + Game（無預設事件） ──
     const gm = await seed.gmUser();
     const game = await seed.game({
       gmUserId: gm._id,
       name: '預設事件測試',
-      gameCode: 'EVNT01',
+      gameCode: testGameCode(wi),
     });
     await asGm({ gmUserId: gm._id });
 
@@ -493,13 +504,15 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     seed,
     asGm,
     dbQuery,
-  }) => {
+  }, testInfo) => {
+    const wi = testInfo.parallelIndex;
+
     // ── Seed：GM + Game（含角色、預設事件、世界觀 blocks） ──
     const gm = await seed.gmUser();
     const game = await seed.game({
       gmUserId: gm._id,
       name: '生命週期測試',
-      gameCode: 'LIFE01',
+      gameCode: testGameCode(wi),
       publicInfo: {
         blocks: [
           { type: 'title', content: '章節一' },
@@ -632,16 +645,18 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     seed,
     asGm,
     dbQuery,
-  }) => {
+  }, testInfo) => {
+    const wi = testInfo.parallelIndex;
+
     // ── Seed：Target GM + Game A（含子資料）+ Other GM + Game B（隔離對照） ──
-    const targetGm = await seed.gmUser({ email: 'target@test.com', displayName: 'Target GM' });
-    const otherGm = await seed.gmUser({ email: 'other@test.com', displayName: 'Other GM' });
+    const targetGm = await seed.gmUser({ displayName: 'Target GM' });
+    const otherGm = await seed.gmUser({ displayName: 'Other GM' });
 
     // Target GM 的 Game A
     const gameA = await seed.game({
       gmUserId: targetGm._id,
       name: '待刪劇本',
-      gameCode: 'DELA01',
+      gameCode: testGameCode(wi),
     });
     const charA1 = await seed.character({ gameId: gameA._id, name: '角色 A1' });
     const _charA2 = await seed.character({ gameId: gameA._id, name: '角色 A2' });
@@ -668,7 +683,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
       refId: gameA._id,
       gmUserId: targetGm._id,
       name: '待刪劇本',
-      gameCode: 'DELA01',
+      gameCode: testGameCode(wi),
     });
     await seed.characterRuntime({
       refId: charA1._id,
@@ -680,7 +695,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     const gameB = await seed.game({
       gmUserId: otherGm._id,
       name: '隔離劇本',
-      gameCode: 'ISOL01',
+      gameCode: testGameCode(wi),
     });
     const charB1 = await seed.character({ gameId: gameB._id, name: '角色 B1' });
 
@@ -704,7 +719,7 @@ test.describe('Flow #3 — GM game lifecycle', () => {
     // ══════════════════════════════════════
     // 執行刪除
     // ══════════════════════════════════════
-    await asGm({ gmUserId: targetGm._id, email: 'target@test.com' });
+    await asGm({ gmUserId: targetGm._id });
     await page.goto(`/games/${gameA._id}`);
     await expect(page.getByRole('heading', { level: 1, name: '待刪劇本' })).toBeVisible();
 

@@ -9,7 +9,7 @@
  * @see docs/refactoring/E2E_FLOW_11_PREVIEW_MODE_BASELINE.md
  */
 
-import { test, expect } from '../fixtures';
+import { test, expect, testGameCode } from '../fixtures';
 
 // ─── 共用 Seed Helper ──────────────────────────────────────
 
@@ -20,13 +20,14 @@ import { test, expect } from '../fixtures';
  * Baseline: HP=100, 1 item(劍), 1 skill(usageCount=0), 1 secret, 1 task
  * Runtime:  HP=60,  2 items(劍+藥水), 1 skill(usageCount=2), 2 secrets, 2 tasks
  */
-async function seedPreviewData(seed: Parameters<Parameters<typeof test>[2]>[0]['seed']) {
+async function seedPreviewData(seed: Parameters<Parameters<typeof test>[2]>[0]['seed'], parallelIndex: number) {
+  const gameCode = testGameCode(parallelIndex);
   const gm = await seed.gmUser();
   const game = await seed.game({
     gmUserId: gm._id,
     name: '預覽模式測試',
     isActive: true,
-    gameCode: 'PREV11',
+    gameCode,
   });
 
   // Baseline character（hasPinLock 是 readOnly 的前提 — 規則 24）
@@ -91,7 +92,7 @@ async function seedPreviewData(seed: Parameters<Parameters<typeof test>[2]>[0]['
     isActive: true,
   });
 
-  return { gmUserId: gm._id, gameId: game._id, characterId: character._id };
+  return { gmUserId: gm._id, gameId: game._id, characterId: character._id, gameCode };
 }
 
 // ─── Tests ──────────────────────────────────────────────────
@@ -104,8 +105,8 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
     seed,
     asPlayer,
     dbQuery,
-  }) => {
-    const { characterId } = await seedPreviewData(seed);
+  }, testInfo) => {
+    const { characterId } = await seedPreviewData(seed, testInfo.parallelIndex);
 
     // readOnly: true → 只設 localStorage unlocked，不設 fullAccess
     await asPlayer({ characterId, readOnly: true });
@@ -171,8 +172,8 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
     page,
     seed,
     asPlayer,
-  }) => {
-    const { characterId } = await seedPreviewData(seed);
+  }, testInfo) => {
+    const { characterId, gameCode } = await seedPreviewData(seed, testInfo.parallelIndex);
 
     await asPlayer({ characterId, readOnly: true });
     await page.goto(`/c/${characterId}`);
@@ -197,7 +198,7 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
     // 輸入 PIN + Game Code
     await pinInput.fill('1234');
     const gameCodeInput = page.getByLabel('遊戲代碼輸入').first();
-    await gameCodeInput.fill('PREV11');
+    await gameCodeInput.fill(gameCode);
 
     // 提交（有 Game Code 時按鈕文字為「進入完整互動模式」）
     await page.getByRole('button', { name: '進入完整互動模式' }).click();
@@ -249,8 +250,8 @@ test.describe('Flow #11 — Preview Mode Baseline', () => {
     page,
     seed,
     asPlayer,
-  }) => {
-    const { characterId } = await seedPreviewData(seed);
+  }, testInfo) => {
+    const { characterId } = await seedPreviewData(seed, testInfo.parallelIndex);
 
     await asPlayer({ characterId, readOnly: true });
     await page.goto(`/c/${characterId}`);
