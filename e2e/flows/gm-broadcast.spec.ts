@@ -322,7 +322,7 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     });
     const charA = await seed.character({ gameId, name: '入侵者' });
     await seed.characterRuntime({ refId: charA._id, gameId, name: '入侵者' });
-    await seed.gameRuntime({ refId: gameId, gmUserId: (await seed.gmUser({ email: 'other@test.com' }))._id });
+    await seed.gameRuntime({ refId: gameId, gmUserId: (await seed.gmUser())._id });
 
     // 僅設定 Player session，不設定 GM session
     await asPlayer({ characterId: charA._id });
@@ -337,14 +337,14 @@ test.describe('Flow #8 — GM Broadcast & Character Message', () => {
     expect(page.url()).toContain('/auth/login');
 
     // ── Phase C — DB 反向驗證 ──
-    // 確保沒有任何 broadcast 或 character_message 被寫入
-    const logs = await dbQuery('logs', { action: 'broadcast' });
+    // 確保此 game 沒有任何 broadcast 或 character_message 被寫入
+    const logs = await dbQuery('logs', { action: 'broadcast', gameId });
     expect(logs.length).toBe(0);
 
-    const charMsgLogs = await dbQuery('logs', { action: 'character_message' });
+    const charMsgLogs = await dbQuery('logs', { action: 'character_message', gameId });
     expect(charMsgLogs.length).toBe(0);
 
-    const allPendingEvents = await dbQuery('pending_events', {});
-    expect(allPendingEvents.length).toBe(0);
+    const gamePendingEvents = await dbQuery('pending_events', { targetGameId: gameId });
+    expect(gamePendingEvents.length).toBe(0);
   });
 });

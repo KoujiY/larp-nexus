@@ -12,12 +12,11 @@ import { defineConfig, devices } from '@playwright/test';
  * - Node runtime 需要 `E2E=1` 才能啟用 pusher stub alias 與 `/api/test/*` routes
  */
 export default defineConfig({
-  testDir: './e2e',
   testMatch: /.*\.spec\.ts$/,
-  fullyParallel: false, // 測試共享同一個 in-memory DB，避免競態
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  workers: 1,
+  workers: process.env.CI ? 2 : 4,
   reporter: process.env.CI ? 'github' : 'list',
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
@@ -28,7 +27,14 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'smoke',
+      testDir: './e2e/smoke',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'flows',
+      testDir: './e2e/flows',
+      dependencies: ['smoke'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],

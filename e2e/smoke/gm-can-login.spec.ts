@@ -23,11 +23,8 @@ test.describe('Flow #1 — GM login → game list', () => {
     await page.waitForURL(/\/auth\/login/);
 
     // ── Phase 2：seed GM user + test-login ──
-    const gm = await seed.gmUser({
-      email: 'gm1@test.com',
-      displayName: 'Test GM 1',
-    });
-    await asGm({ gmUserId: gm._id, email: 'gm1@test.com' });
+    const gm = await seed.gmUser({ displayName: 'Test GM 1' });
+    await asGm({ gmUserId: gm._id });
 
     // ── Phase 3：進入空狀態劇本列表 ──
     await page.goto('/games');
@@ -104,23 +101,19 @@ test.describe('Flow #1 — GM login → game list', () => {
     dbQuery,
   }) => {
     // Seed 2 個 GM，各自有一個 Game
-    const gmA = await seed.gmUser({
-      email: 'gm-a@test.com',
-      displayName: 'GM A',
-    });
-    const gmB = await seed.gmUser({
-      email: 'gm-b@test.com',
-      displayName: 'GM B',
-    });
+    const gmA = await seed.gmUser({ displayName: 'GM A' });
+    const gmB = await seed.gmUser({ displayName: 'GM B' });
     await seed.game({ gmUserId: gmA._id, name: 'GM A 的劇本' });
     await seed.game({ gmUserId: gmB._id, name: 'GM B 的劇本' });
 
-    // DB 驗證：確認兩個 game 都存在
-    const allGames = await dbQuery('games');
-    expect(allGames.length).toBe(2);
+    // DB 驗證：確認兩個 GM 各自的 game 都存在
+    const gamesA = await dbQuery('games', { gmUserId: gmA._id });
+    const gamesB = await dbQuery('games', { gmUserId: gmB._id });
+    expect(gamesA.length).toBe(1);
+    expect(gamesB.length).toBe(1);
 
     // 以 GM A 身份登入
-    await asGm({ gmUserId: gmA._id, email: 'gm-a@test.com' });
+    await asGm({ gmUserId: gmA._id });
     await page.goto('/games');
 
     // 只看到自己的劇本（用 heading role 驗證隔離）

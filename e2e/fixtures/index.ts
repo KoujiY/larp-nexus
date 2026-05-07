@@ -114,13 +114,41 @@ interface E2EFixtures {
   asGmAndPlayer: (options: AsGmAndPlayerOptions) => Promise<GmAndPlayerPages>;
 }
 
-// ─── Auto-incrementing gameCode ──────────────────
+// ─── Worker-scoped gameCode helpers ─────────────────
 
-let gameCodeCounter = 0;
+const WORKER_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const RANDOM_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-function nextGameCode(): string {
-  gameCodeCounter += 1;
-  return `E2E${String(gameCodeCounter).padStart(3, '0')}`;
+/**
+ * 取得 worker 的單字元前綴（0-9, A-Z），用於 gameCode 隔離。
+ * gameCode 受 /^[A-Z0-9]{6}$/ 限制，故只能用 1 字元 prefix + 5 字元 suffix。
+ */
+export function workerChar(parallelIndex: number): string {
+  return WORKER_CHARS[parallelIndex] ?? '0';
+}
+
+function randomSuffix(): string {
+  let result = '';
+  for (let i = 0; i < 5; i++) {
+    result += RANDOM_CHARS[Math.floor(Math.random() * RANDOM_CHARS.length)];
+  }
+  return result;
+}
+
+/**
+ * 產生 worker-scoped 的隨機 gameCode（6 字元）。
+ * 格式：`<workerChar><5-char random>`，例：`0KX9B2`、`1M3QAT`
+ * 使用隨機而非計數器，避免 worker restart（retry）時碰撞。
+ */
+function nextGameCode(parallelIndex: number): string {
+  return `${workerChar(parallelIndex)}${randomSuffix()}`;
+}
+
+/**
+ * 產生 worker-scoped 的隨機 gameCode — 供 spec 中需要命名 gameCode 的場景使用。
+ */
+export function testGameCode(parallelIndex: number): string {
+  return `${workerChar(parallelIndex)}${randomSuffix()}`;
 }
 
 // ─── Seed helper: call /api/test/seed ────────────
@@ -144,25 +172,22 @@ async function callSeed(
 // ─── Fixtures ────────────────────────────────────
 
 export const test = base.extend<E2EFixtures>({
-  // auto fixture：每個 test 前清空 DB
+  // auto fixture：no-op。DB 不清空 — 靠 worker-scoped gameCode prefix 實現資料隔離。
+  // contest-tracker / event-bus 的 entries 以 gameId 為 key，跨 test 不干擾。
   resetDb: [
-    async ({ request }, use) => {
-      const response = await request.post('/api/test/reset');
-      if (!response.ok()) {
-        throw new Error(`Reset failed (${response.status()}): ${await response.text()}`);
-      }
-      gameCodeCounter = 0; // 重設 gameCode counter
+    async ({}, use) => {
       await use();
     },
     { auto: true },
   ],
 
-  // seed builder
-  seed: async ({ request }, use) => {
+  // seed builder（使用 testInfo.parallelIndex 產生 worker-scoped gameCode）
+  seed: async ({ request }, use, testInfo) => {
+    const wi = testInfo.parallelIndex;
     const builder: SeedBuilder = {
       async gmUser(overrides = {}) {
         const data = {
-          email: 'e2e-gm@test.com',
+          email: `e2e-gm-${randomSuffix().toLowerCase()}@test.com`,
           displayName: 'E2E GM',
           ...overrides,
         };
@@ -174,7 +199,7 @@ export const test = base.extend<E2EFixtures>({
         const data = {
           gmUserId,
           name: 'E2E Game',
-          gameCode: nextGameCode(),
+          gameCode: nextGameCode(wi),
           ...rest,
         };
         const result = await callSeed(request, 'games', data);
@@ -210,7 +235,7 @@ export const test = base.extend<E2EFixtures>({
           gmUserId,
           type: 'runtime',
           name: 'E2E Game',
-          gameCode: nextGameCode(),
+          gameCode: nextGameCode(wi),
           ...rest,
         };
         return callSeed(request, 'gameRuntimes', data);
