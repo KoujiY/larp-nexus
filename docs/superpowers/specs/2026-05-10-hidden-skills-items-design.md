@@ -418,18 +418,42 @@ emitItemHidden(characterId, payload)
 
 ### 需修改的檔案（預估）
 
-| 類別 | 檔案 |
-|------|------|
-| 型別定義 | `types/character.ts` |
-| DB Schema | `lib/db/schemas/shared-schemas.ts` |
-| 自動揭露引擎 | `lib/reveal/auto-reveal-evaluator.ts` |
-| 事件發射 | `lib/reveal/reveal-event-emitter.ts` |
-| 預設事件執行 | `lib/preset-event/execute-preset-event.ts` |
-| 玩家端資料過濾 | 角色資料 API / Server Action |
-| 物品選取過濾 | `app/actions/select-target-item.ts` |
-| GM 編輯精靈 | `components/gm/ability-edit-wizard.tsx` |
-| GM 控制台 | GM 角色詳情面板的技能/物品區塊 |
-| 預設事件編輯器 | `components/gm/preset-event-action-editor.tsx` |
-| 觸發點 | 技能使用入口、`item-use.ts`、`contest-effect-executor.ts` |
-| WebSocket 事件定義 | WebSocket 事件常數/型別 |
-| 知識庫 | `docs/knowledge/gm/skills/`、`docs/knowledge/gm/items/`、`docs/knowledge/shared/auto-reveal-system.md`、`docs/knowledge/gm/game/preset-events.md` |
+| 類別 | 檔案 | 操作 |
+|------|------|------|
+| 型別定義 | `types/character.ts` | 修改：新增 `VisibilityCondition`、擴充 `Skill`/`Item`/`RevealResult` |
+| DB Schema | `lib/db/schemas/shared-schemas.ts` | 修改：`createSkillsSchemaField()`、`createItemsSchemaField()` 新增欄位 |
+| 自動揭露引擎 | `lib/reveal/auto-reveal-evaluator.ts` | 修改：擴充 `isConditionMet`、新增 skills/items 評估層、context 參數重構 |
+| 事件發射 | `lib/reveal/reveal-event-emitter.ts` | 修改：新增 `emitSkillRevealed`/`emitSkillHidden`/`emitItemRevealed`/`emitItemHidden` |
+| 預設事件執行 | `lib/preset-event/execute-preset-event.ts` | 修改：新增 `reveal_skill`/`hide_skill`/`reveal_item`/`hide_item` 動作處理 |
+| 玩家端資料過濾 | 角色資料 API / Server Action | 修改：回傳前過濾 `isHidden` 技能/物品，剔除 `isHidden` 欄位 |
+| 物品選取過濾 | `app/actions/select-target-item.ts` | 修改：`item_steal`/`item_take` 選取清單過濾 |
+| GM 編輯精靈 | `components/gm/ability-edit-wizard.tsx` | 修改：Step 1 新增隱藏開關 + 條件編輯器 |
+| GM 控制台 | GM 角色詳情面板的技能/物品區塊 | 修改：新增隱藏 badge + 手動切換按鈕 |
+| 預設事件編輯器 | `components/gm/preset-event-action-editor.tsx` | 修改：新增四種動作類型的 UI |
+| 觸發點 | 技能使用入口、`item-use.ts`、`contest-effect-executor.ts` | 修改：帶入 `usedSkillIds`/`usedItemIds` context |
+| WebSocket 事件定義 | WebSocket 事件常數/型別 | 修改：新增 4 個事件類型 |
+| 知識庫 | `docs/knowledge/gm/skills/`、`docs/knowledge/gm/items/`、`docs/knowledge/shared/auto-reveal-system.md`、`docs/knowledge/gm/game/preset-events.md` | 修改：同步更新文件 |
+
+### 需新增的檔案（預估）
+
+| 類別 | 檔案 | 說明 |
+|------|------|------|
+| 單元測試 | `lib/reveal/__tests__/visibility-toggle.test.ts` | 隱藏/揭露 DB 更新與事件發射 |
+| E2E 測試 | `e2e/flows/hidden-skills-items.spec.ts` | GM 設定→玩家不可見→手動切換→自動觸發全流程 |
+
+### 需擴充的測試檔案
+
+| 檔案 | 擴充內容 |
+|------|---------|
+| `lib/reveal/__tests__/auto-reveal-evaluator.test.ts` | 新條件類型、連鎖觸發、同層連鎖限一輪 |
+| `e2e/flows/preset-event-runtime.spec.ts` | `reveal_skill`/`hide_skill`/`reveal_item`/`hide_item` 動作 |
+
+### 需回歸確認的既有測試
+
+| 檔案 | 確認重點 |
+|------|---------|
+| `e2e/flows/auto-reveal.spec.ts` | 現有自動揭露流程不受影響 |
+| `e2e/flows/gm-ability-wizard.spec.ts` | 技能/物品建立流程不受影響 |
+| `e2e/flows/item-operations.spec.ts` | 物品使用/展示/轉移不受影響 |
+| `e2e/flows/player-use-skill.spec.ts` | 技能使用不受影響 |
+| `e2e/flows/item-transfer-effects.spec.ts` | 偷取/移除效果不受影響 |
