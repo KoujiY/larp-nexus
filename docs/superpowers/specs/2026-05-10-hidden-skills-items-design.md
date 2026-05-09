@@ -276,39 +276,132 @@ emitItemHidden(characterId, payload)
 
 ---
 
-## 6. 測試策略與邊界案例
+## 6. 測試策略
 
-### 6.1 自動觸發引擎測試
+### 6.1 單元測試（Vitest）
 
-| 場景 | 預期行為 |
+放置位置比照現有慣例 `lib/*/__tests__/*.test.ts`。
+
+#### 6.1.1 `lib/reveal/__tests__/auto-reveal-evaluator.test.ts`（擴充現有）
+
+擴充現有測試檔案，新增以下測試群組：
+
+**isConditionMet — 新條件類型**：
+
+| 場景 | 預期 |
+|------|------|
+| `skill_used` + AND，全部 skillIds 命中 | true |
+| `skill_used` + AND，部分 skillIds 命中 | false |
+| `skill_used` + OR，任一 skillId 命中 | true |
+| `item_used` + AND/OR 邏輯 | 同上對稱 |
+| `skills_revealed`，所有指定技能已可見 | true |
+| `items_revealed`，部分指定物品已可見（AND） | false |
+| 空 skillIds / itemIds 陣列 | false |
+
+**evaluateSkillItemConditions — 可見性切換**：
+
+| 場景 | 預期 |
+|------|------|
+| 隱藏技能 + 條件滿足 + action=reveal | 回傳 reveal 結果 |
+| 可見物品 + 條件滿足 + action=hide | 回傳 hide 結果 |
+| 已可見技能 + action=reveal | 忽略（no-op） |
+| 已隱藏物品 + action=hide | 忽略（no-op） |
+
+**連鎖觸發**：
+
+| 場景 | 預期 |
+|------|------|
+| secret 揭露 → 觸發隱藏技能揭露（`secrets_revealed`） | 三層連鎖正常觸發 |
+| 技能 A 揭露 → 觸發技能 B 揭露（`skills_revealed`） | 同層連鎖一輪 |
+| 技能 A → B → C | 技能 C 不觸發（同層限一輪） |
+| 揭露和隱藏條件同時滿足 | 以條件陣列順序執行，後者覆蓋前者 |
+
+#### 6.1.2 `lib/reveal/__tests__/visibility-toggle.test.ts`（新增）
+
+獨立測試隱藏/揭露的 DB 更新與事件發射邏輯：
+
+| 場景 | 預期 |
+|------|------|
+| 隱藏技能 → `isHidden: true`, `hiddenAt` 更新 | DB 正確寫入 |
+| 揭露物品 → `isHidden: false`, `hiddenAt` 更新 | DB 正確寫入 |
+| 隱藏 equipped 裝備 | 自動卸除（`equipped: false`），移除 statBoosts |
+| 揭露/隱藏後發射正確 WebSocket 事件 | 事件 payload 符合規格 |
+
+#### 6.1.3 `lib/preset-event/__tests__/execute-preset-event.test.ts`（擴充或新增）
+
+| 場景 | 預期 |
+|------|------|
+| `reveal_skill` 動作 | 目標角色技能 `isHidden` → false + 通知 |
+| `hide_skill` 動作 | 目標角色技能 `isHidden` → true + 通知 |
+| `reveal_item` / `hide_item` 動作 | 同上對稱 |
+| 目標技能/物品不存在 | 回傳 `skipped` 狀態 |
+| 執行後觸發連鎖評估 | 連鎖結果正確 |
+
+#### 6.1.4 玩家端資料過濾測試
+
+| 場景 | 預期 |
+|------|------|
+| 角色有 3 技能（1 隱藏） | 玩家端 API 只回傳 2 個技能 |
+| 對方有 5 物品（2 隱藏），`item_steal` 選取 | 選取清單只有 3 個物品 |
+| 回傳資料中無 `isHidden` 欄位 | 欄位被剔除，不洩露 |
+
+### 6.2 E2E 測試（Playwright）
+
+放置位置比照現有慣例 `e2e/flows/*.spec.ts`。
+
+#### 6.2.1 `e2e/flows/hidden-skills-items.spec.ts`（新增）
+
+**GM Baseline 設定流程**：
+
+| 步驟 | 驗證 |
+|------|------|
+| GM 建立角色卡，新增技能並勾選隱藏 | 編輯精靈正確儲存 `isHidden: true` |
+| GM 為隱藏技能設定 `visibilityConditions` | 條件編輯器 UI 操作正常、儲存正確 |
+| GM 新增物品並設定隱藏 + 觸發條件 | 同上 |
+
+**玩家端不可見**：
+
+| 步驟 | 驗證 |
+|------|------|
+| 開始遊戲後，玩家登入 | 技能清單不顯示隱藏技能 |
+| 玩家端物品清單 | 不顯示隱藏物品 |
+
+**GM 手動切換**：
+
+| 步驟 | 驗證 |
+|------|------|
+| GM 在控制台點擊揭露按鈕 | 技能變為可見 |
+| 玩家端即時更新 | 技能出現在清單中 + 收到通知 |
+| GM 再次點擊隱藏按鈕 | 技能消失 + 玩家收到消失通知 |
+
+**自動觸發流程**：
+
+| 步驟 | 驗證 |
+|------|------|
+| 玩家使用技能 A（設定為觸發條件） | 隱藏技能 B 自動揭露 + 通知 |
+| 對方對玩家使用技能（被動觸發） | 玩家的隱藏物品自動揭露 + 通知 |
+
+#### 6.2.2 `e2e/flows/preset-event-runtime.spec.ts`（擴充現有）
+
+| 步驟 | 驗證 |
+|------|------|
+| GM 建立含 `reveal_skill` 動作的預設事件 | 事件儲存正確 |
+| GM 執行預設事件 | 目標角色技能揭露 + 玩家收到通知 |
+| GM 建立含 `hide_item` 動作的預設事件並執行 | 物品隱藏 + 通知 |
+
+#### 6.2.3 既有 E2E 回歸確認
+
+以下既有 spec 需確認不因新欄位（`isHidden` 預設 `false`）而 break：
+
+| 檔案 | 確認重點 |
 |------|---------|
-| 使用技能 A → 揭露自己的隱藏技能 B | `skill_used` 條件，action=reveal |
-| 使用技能 A → 隱藏自己的可見物品 C | `skill_used` 條件，action=hide |
-| 別人對我使用技能 A → 揭露我的隱藏物品 D | 被動觸發，`skill_used` 條件 |
-| 隱藏資訊揭露 → 連鎖揭露隱藏技能 | `secrets_revealed` 條件，三層連鎖 |
-| 技能 A 揭露 → 連鎖揭露技能 B | `skills_revealed` 條件，同層連鎖 |
-| 技能 A 揭露 → 技能 B 揭露 → 不再觸發技能 C | 同層連鎖限一輪 |
-| AND 邏輯，部分滿足 | 不觸發 |
-| OR 邏輯，滿足其一 | 觸發 |
+| `e2e/flows/auto-reveal.spec.ts` | 現有自動揭露流程不受影響 |
+| `e2e/flows/gm-ability-wizard.spec.ts` | 技能/物品建立流程不受影響 |
+| `e2e/flows/item-operations.spec.ts` | 物品使用/展示/轉移不受影響 |
+| `e2e/flows/player-use-skill.spec.ts` | 技能使用不受影響 |
+| `e2e/flows/item-transfer-effects.spec.ts` | 偷取/移除效果不受影響 |
 
-### 6.2 玩家端過濾測試
-
-| 場景 | 預期行為 |
-|------|---------|
-| 角色有 3 技能（1 隱藏） | 玩家端只收到 2 個技能 |
-| 對方有 5 物品（2 隱藏），使用 `item_steal` | 選取清單只顯示 3 個物品 |
-| 隱藏物品的 `isHidden` 欄位 | 不出現在玩家端回傳資料中 |
-
-### 6.3 GM 操作測試
-
-| 場景 | 預期行為 |
-|------|---------|
-| GM 手動揭露 | `isHidden` → false，發送 Revealed 事件 |
-| GM 手動隱藏 | `isHidden` → true，發送 Hidden 事件 |
-| 預設事件 `reveal_skill` | 技能揭露 + 通知 + 連鎖評估 |
-| 預設事件 `hide_item` | 物品隱藏 + 通知 + 連鎖評估 |
-
-### 6.4 邊界案例
+### 6.3 邊界案例
 
 | 案例 | 處理方式 |
 |------|---------|
