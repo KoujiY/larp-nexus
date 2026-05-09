@@ -39,6 +39,11 @@ const CHARACTER_EVENT_TYPES = [
   'item.showcased',
   // Phase 8: 時效性效果過期
   'effect.expired',
+  // 隱藏技能/物品事件
+  'skill.revealed',
+  'skill.hidden',
+  'item.revealed',
+  'item.hidden',
   // 裝備切換（玩家端裝備/卸除 → GM 端需同步數值與道具卡）
   'equipment.toggled',
 ] as const;
