@@ -15,7 +15,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ChevronDown, Pencil, Trash2, Undo2, Clock, Upload } from 'lucide-react';
+import { ChevronDown, Pencil, Trash2, Undo2, Clock, Upload, EyeOff, Eye } from 'lucide-react';
 import { uploadAbilityImage } from '@/app/actions/characters';
 import { ImageUploadDialog } from '@/components/shared/image-upload-dialog';
 import { cn } from '@/lib/utils';
@@ -57,6 +57,8 @@ interface AbilityCardProps {
   onRemove: () => void;
   /** 復原按鈕事件 */
   onRestore?: () => void;
+  /** 切換可見性（隱藏 / 揭露）事件，僅 gameIsActive 時顯示 */
+  onToggleVisibility?: () => void;
   /** 是否禁用操作 */
   disabled?: boolean;
 }
@@ -73,6 +75,7 @@ export function AbilityCard({
   onEdit,
   onRemove,
   onRestore,
+  onToggleVisibility,
   disabled,
 }: AbilityCardProps) {
   const router = useRouter();
@@ -149,6 +152,7 @@ export function AbilityCard({
         'transition-all border border-border/10',
         // 狀態樣式（對齊 StatCard）
         isDeleted && 'opacity-60 bg-muted/30',
+        ability.isHidden && !isDeleted && 'opacity-70',
         !isDeleted && 'hover:shadow-md',
         status === 'new' && !isDeleted && 'border-primary/20',
         status === 'modified' && !isDeleted && 'bg-primary/5 border-primary/20',
@@ -201,6 +205,12 @@ export function AbilityCard({
                 裝備中
               </span>
             )}
+            {/* 隱藏中標記 */}
+            {ability.isHidden && !isDeleted && (
+              <span className={cn(GM_STATUS_BADGE_BASE, 'bg-muted text-muted-foreground/70 border border-border/20')}>
+                隱藏中
+              </span>
+            )}
           </div>
 
           {/* 操作按鈕（常時可見） */}
@@ -223,6 +233,15 @@ export function AbilityCard({
                     label="上傳圖片"
                     size="sm"
                     onClick={(e) => { e.stopPropagation(); setUploadOpen(true); }}
+                    disabled={disabled}
+                  />
+                )}
+                {gameIsActive && (
+                  <IconActionButton
+                    icon={ability.isHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    label={ability.isHidden ? '揭露' : '隱藏'}
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(); }}
                     disabled={disabled}
                   />
                 )}

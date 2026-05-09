@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { toggleVisibility } from '@/app/actions/toggle-visibility';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { AbilityCard } from '@/components/gm/ability-card';
@@ -272,6 +273,15 @@ export function ItemsEditForm({ characterId, initialItems, stats, gameIsActive =
                 onEdit={() => handleEditItem(baseItem)}
                 onRemove={() => handleSoftDelete(baseItem.id)}
                 onRestore={() => handleRestore(baseItem.id)}
+                onToggleVisibility={gameIsActive ? async () => {
+                  const result = await toggleVisibility(characterId, 'item', baseItem.id);
+                  if (result.success) {
+                    toast.success(result.message);
+                    router.refresh();
+                  } else {
+                    toast.error(result.message || '操作失敗');
+                  }
+                } : undefined}
                 disabled={isLoading}
               />
             );

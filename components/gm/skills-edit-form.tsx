@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { toggleVisibility } from '@/app/actions/toggle-visibility';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { AbilityCard } from '@/components/gm/ability-card';
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
@@ -193,6 +194,15 @@ export function SkillsEditForm({ characterId, initialSkills, stats, gameIsActive
               onEdit={() => handleEditSkill(skill)}
               onRemove={() => handleSoftDelete(skill.id)}
               onRestore={() => handleRestore(skill.id)}
+              onToggleVisibility={gameIsActive ? async () => {
+                const result = await toggleVisibility(characterId, 'skill', skill.id);
+                if (result.success) {
+                  toast.success(result.message);
+                  router.refresh();
+                } else {
+                  toast.error(result.message || '操作失敗');
+                }
+              } : undefined}
               disabled={isLoading}
             />
           ))}
