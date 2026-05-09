@@ -420,6 +420,10 @@ export async function useItem(
       console.error('Failed to emit item.used event', error);
     });
 
+    // 隱藏技能/物品：物品使用後觸發自動揭露評估
+    executeAutoReveal(characterId, { type: 'item_used', itemIds: [item.id] })
+      .catch((error) => console.error('[item-use] Failed to execute auto-reveal for item_used', error));
+
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';
     if (checkPassed) {

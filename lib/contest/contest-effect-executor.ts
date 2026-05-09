@@ -17,6 +17,7 @@ import { getItemEffects } from '@/lib/item/get-item-effects';
 import { writeLog } from '@/lib/logs/write-log';
 import type { SkillType, ItemType } from '@/lib/db/types/character-types';
 import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effect-executor';
+import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 
 /**
  * 技能或道具的效果類型
@@ -329,6 +330,14 @@ export async function executeContestEffects(
       targetItemId: targetItemId || undefined,
     },
   });
+
+  // 隱藏技能/物品：對被影響方觸發自動揭露（被動觸發）
+  const passiveTriggerId = contestResult === 'attacker_wins' ? defenderIdStr : attackerIdStr;
+  const passiveTrigger = actualSourceType === 'skill'
+    ? ({ type: 'skill_used' as const, skillIds: [actualSource.id] })
+    : ({ type: 'item_used' as const, itemIds: [actualSource.id] });
+  executeAutoReveal(passiveTriggerId, passiveTrigger)
+    .catch((error) => console.error('[contest-effect] Failed to execute auto-reveal for passive trigger', error));
 
   return {
     effectsApplied,
