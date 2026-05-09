@@ -21,6 +21,7 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
       usageCount: skill.usageCount || 0,
       cooldown: skill.cooldown,
       lastUsedAt: skill.lastUsedAt,
+      isHidden: skill.isHidden,
       effects: (skill.effects || [])
         .filter((effect): effect is NonNullable<typeof effect> => Boolean(effect && effect.type))
         .map((effect) => ({
@@ -128,6 +129,7 @@ export function cleanItemData(items: MongoItem[] | undefined): MongoItem[] {
         // 裝備系統
         equipped: item.equipped,
         statBoosts: item.statBoosts,
+        isHidden: item.isHidden,
       };
     });
 }

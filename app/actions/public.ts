@@ -74,6 +74,14 @@ export async function getPublicCharacter(
     // Phase 5: 清理技能的 _id
     const cleanSkills = cleanSkillData(character.skills);
 
+    // 隱藏技能/物品：過濾隱藏項目 + 剔除隱藏相關欄位
+    const visibleItems = cleanItems
+      .filter((i) => !i.isHidden)
+      .map(({ isHidden: _isHidden, ...rest }) => rest);
+    const visibleSkills = cleanSkills
+      .filter((s) => !s.isHidden)
+      .map(({ isHidden: _isHidden, ...rest }) => rest);
+
     // Phase 7.6: 獲取劇本的 randomContestMaxValue 和 isActive
     const game = await Game.findById(character.gameId).select('randomContestMaxValue isActive gameCode').lean();
     const randomContestMaxValue = game?.randomContestMaxValue || 100;
@@ -132,8 +140,8 @@ export async function getPublicCharacter(
 
         baselineData = {
           stats: cleanStatData(bl.stats) as unknown as CharacterBaselineSnapshot['stats'],
-          items: cleanItemData(bl.items) as unknown as CharacterBaselineSnapshot['items'],
-          skills: cleanSkillData(bl.skills) as unknown as CharacterBaselineSnapshot['skills'],
+          items: cleanItemData(bl.items).filter((i) => !i.isHidden).map(({ isHidden: _isHidden, ...rest }) => rest) as unknown as CharacterBaselineSnapshot['items'],
+          skills: cleanSkillData(bl.skills).filter((s) => !s.isHidden).map(({ isHidden: _isHidden, ...rest }) => rest) as unknown as CharacterBaselineSnapshot['skills'],
           tasks: blVisibleTasks as unknown as CharacterBaselineSnapshot['tasks'],
           secretInfo: blSecrets.length > 0
             ? { secrets: blSecrets as unknown as NonNullable<CharacterBaselineSnapshot['secretInfo']>['secrets'] }
@@ -161,9 +169,9 @@ export async function getPublicCharacter(
           ? { secrets: revealedSecrets }
           : undefined,
         tasks: visibleTasks,
-        items: cleanItems,
+        items: visibleItems,
         stats: cleanStats,
-        skills: cleanSkills,
+        skills: visibleSkills,
         isGameActive: game?.isActive ?? false, // Phase 10: 遊戲是否進行中
         gameCode: game?.isActive ? game.gameCode : undefined, // Phase 11.5: Runtime Banner 用
         randomContestMaxValue, // Phase 7.6: 隨機對抗檢定上限值
@@ -312,7 +320,7 @@ export async function getTargetCharacterItems(
     const character = await getCharacterData(targetCharacterId);
 
     const items = character.items || [];
-    const cleanItems = cleanItemData(items);
+    const cleanItems = cleanItemData(items).filter((i) => !i.isHidden);
 
     return {
       success: true,
