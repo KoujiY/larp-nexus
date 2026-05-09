@@ -26,6 +26,10 @@ const ACTION_TYPE_OPTIONS: { value: PresetEventActionType; label: string }[] = [
   { value: 'stat_change', label: '數值變更' },
   { value: 'reveal_secret', label: '揭露隱藏資訊' },
   { value: 'reveal_task', label: '揭露隱藏任務' },
+  { value: 'reveal_skill', label: '揭露技能' },
+  { value: 'hide_skill', label: '隱藏技能' },
+  { value: 'reveal_item', label: '揭露道具' },
+  { value: 'hide_item', label: '隱藏道具' },
 ];
 
 interface PresetEventActionEditorProps {
@@ -65,6 +69,10 @@ export function PresetEventActionEditor({
         break;
       case 'reveal_secret':
       case 'reveal_task':
+      case 'reveal_skill':
+      case 'hide_skill':
+      case 'reveal_item':
+      case 'hide_item':
         onChange({ ...base, revealCharacterId: characters[0]?.id || '', revealTargetId: '' });
         break;
     }
@@ -101,6 +109,18 @@ export function PresetEventActionEditor({
       )}
       {action.type === 'reveal_task' && (
         <RevealTaskFields action={action} characters={characters} onChange={update} />
+      )}
+      {action.type === 'reveal_skill' && (
+        <RevealSkillFields action={action} characters={characters} onChange={update} />
+      )}
+      {action.type === 'hide_skill' && (
+        <HideSkillFields action={action} characters={characters} onChange={update} />
+      )}
+      {action.type === 'reveal_item' && (
+        <RevealItemFields action={action} characters={characters} onChange={update} />
+      )}
+      {action.type === 'hide_item' && (
+        <HideItemFields action={action} characters={characters} onChange={update} />
       )}
     </div>
   );
@@ -467,6 +487,254 @@ function RevealTaskFields({
         ) : (
           <p className="text-xs text-muted-foreground/70">
             {selectedChar ? '此角色沒有未揭露的隱藏任務' : '請先選擇角色'}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** 揭露隱藏技能欄位 */
+function RevealSkillFields({
+  action,
+  characters,
+  onChange,
+}: {
+  action: PresetEventAction;
+  characters: CharacterData[];
+  onChange: (partial: Partial<PresetEventAction>) => void;
+}) {
+  const selectedChar = characters.find((c) => c.id === action.revealCharacterId);
+  const skills = selectedChar?.skills || [];
+  const hiddenSkills = skills.filter((s) => s.isHidden);
+
+  return (
+    <>
+      <div>
+        <label className={GM_LABEL_CLASS}>目標角色</label>
+        <Select
+          value={action.revealCharacterId || ''}
+          onValueChange={(v) => onChange({ revealCharacterId: v, revealTargetId: '' })}
+        >
+          <SelectTrigger className={GM_SELECT_CLASS}>
+            <SelectValue placeholder="選擇角色" />
+          </SelectTrigger>
+          <SelectContent>
+            {characters.map((char) => (
+              <SelectItem key={char.id} value={char.id}>
+                {char.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className={GM_LABEL_CLASS}>隱藏技能</label>
+        {hiddenSkills.length > 0 ? (
+          <Select
+            value={action.revealTargetId || ''}
+            onValueChange={(v) => onChange({ revealTargetId: v })}
+          >
+            <SelectTrigger className={GM_SELECT_CLASS}>
+              <SelectValue placeholder="選擇要揭露的技能" />
+            </SelectTrigger>
+            <SelectContent>
+              {hiddenSkills.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-xs text-muted-foreground/70">
+            {selectedChar ? '此角色沒有隱藏技能' : '請先選擇角色'}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** 隱藏技能欄位 */
+function HideSkillFields({
+  action,
+  characters,
+  onChange,
+}: {
+  action: PresetEventAction;
+  characters: CharacterData[];
+  onChange: (partial: Partial<PresetEventAction>) => void;
+}) {
+  const selectedChar = characters.find((c) => c.id === action.revealCharacterId);
+  const skills = selectedChar?.skills || [];
+  const visibleSkills = skills.filter((s) => !s.isHidden);
+
+  return (
+    <>
+      <div>
+        <label className={GM_LABEL_CLASS}>目標角色</label>
+        <Select
+          value={action.revealCharacterId || ''}
+          onValueChange={(v) => onChange({ revealCharacterId: v, revealTargetId: '' })}
+        >
+          <SelectTrigger className={GM_SELECT_CLASS}>
+            <SelectValue placeholder="選擇角色" />
+          </SelectTrigger>
+          <SelectContent>
+            {characters.map((char) => (
+              <SelectItem key={char.id} value={char.id}>
+                {char.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className={GM_LABEL_CLASS}>可見技能</label>
+        {visibleSkills.length > 0 ? (
+          <Select
+            value={action.revealTargetId || ''}
+            onValueChange={(v) => onChange({ revealTargetId: v })}
+          >
+            <SelectTrigger className={GM_SELECT_CLASS}>
+              <SelectValue placeholder="選擇要隱藏的技能" />
+            </SelectTrigger>
+            <SelectContent>
+              {visibleSkills.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-xs text-muted-foreground/70">
+            {selectedChar ? '此角色沒有可見的技能' : '請先選擇角色'}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** 揭露隱藏道具欄位 */
+function RevealItemFields({
+  action,
+  characters,
+  onChange,
+}: {
+  action: PresetEventAction;
+  characters: CharacterData[];
+  onChange: (partial: Partial<PresetEventAction>) => void;
+}) {
+  const selectedChar = characters.find((c) => c.id === action.revealCharacterId);
+  const items = selectedChar?.items || [];
+  const hiddenItems = items.filter((i) => i.isHidden);
+
+  return (
+    <>
+      <div>
+        <label className={GM_LABEL_CLASS}>目標角色</label>
+        <Select
+          value={action.revealCharacterId || ''}
+          onValueChange={(v) => onChange({ revealCharacterId: v, revealTargetId: '' })}
+        >
+          <SelectTrigger className={GM_SELECT_CLASS}>
+            <SelectValue placeholder="選擇角色" />
+          </SelectTrigger>
+          <SelectContent>
+            {characters.map((char) => (
+              <SelectItem key={char.id} value={char.id}>
+                {char.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className={GM_LABEL_CLASS}>隱藏道具</label>
+        {hiddenItems.length > 0 ? (
+          <Select
+            value={action.revealTargetId || ''}
+            onValueChange={(v) => onChange({ revealTargetId: v })}
+          >
+            <SelectTrigger className={GM_SELECT_CLASS}>
+              <SelectValue placeholder="選擇要揭露的道具" />
+            </SelectTrigger>
+            <SelectContent>
+              {hiddenItems.map((i) => (
+                <SelectItem key={i.id} value={i.id}>
+                  {i.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-xs text-muted-foreground/70">
+            {selectedChar ? '此角色沒有隱藏道具' : '請先選擇角色'}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** 隱藏道具欄位 */
+function HideItemFields({
+  action,
+  characters,
+  onChange,
+}: {
+  action: PresetEventAction;
+  characters: CharacterData[];
+  onChange: (partial: Partial<PresetEventAction>) => void;
+}) {
+  const selectedChar = characters.find((c) => c.id === action.revealCharacterId);
+  const items = selectedChar?.items || [];
+  const visibleItems = items.filter((i) => !i.isHidden);
+
+  return (
+    <>
+      <div>
+        <label className={GM_LABEL_CLASS}>目標角色</label>
+        <Select
+          value={action.revealCharacterId || ''}
+          onValueChange={(v) => onChange({ revealCharacterId: v, revealTargetId: '' })}
+        >
+          <SelectTrigger className={GM_SELECT_CLASS}>
+            <SelectValue placeholder="選擇角色" />
+          </SelectTrigger>
+          <SelectContent>
+            {characters.map((char) => (
+              <SelectItem key={char.id} value={char.id}>
+                {char.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className={GM_LABEL_CLASS}>可見道具</label>
+        {visibleItems.length > 0 ? (
+          <Select
+            value={action.revealTargetId || ''}
+            onValueChange={(v) => onChange({ revealTargetId: v })}
+          >
+            <SelectTrigger className={GM_SELECT_CLASS}>
+              <SelectValue placeholder="選擇要隱藏的道具" />
+            </SelectTrigger>
+            <SelectContent>
+              {visibleItems.map((i) => (
+                <SelectItem key={i.id} value={i.id}>
+                  {i.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-xs text-muted-foreground/70">
+            {selectedChar ? '此角色沒有可見的道具' : '請先選擇角色'}
           </p>
         )}
       </div>
