@@ -884,4 +884,149 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     expect(baselineCopy).toBeTruthy();
   });
 
+  // ─── #9.7 reveal_skill + hide_item — preset event skill/item visibility ───
+  test('#9.7 reveal_skill + hide_item — preset event skill/item visibility', async ({
+    seed,
+    asGmAndPlayer,
+    dbQuery,
+  }) => {
+    test.setTimeout(60000);
+
+    // ── Seed：active game + 角色（隱藏技能 + 可見物品） ──
+    const { gmUserId, gameId } = await seed.gmWithGame({
+      gameOverrides: { isActive: true },
+    });
+    const charA = await seed.character({
+      gameId,
+      name: '探索者',
+      skills: [{
+        id: 'skill-reveal-me',
+        name: '古老秘術',
+        description: '被預設事件揭露的技能',
+        checkType: 'none',
+        usageCount: 0,
+        usageLimit: 0,
+        cooldown: 0,
+        tags: [],
+        isHidden: true,
+      }],
+      items: [{
+        id: 'item-hide-me',
+        name: '神秘卷軸',
+        description: '被預設事件隱藏的物品',
+        type: 'tool',
+        quantity: 1,
+        isHidden: false,
+      }],
+    });
+    await seed.characterRuntime({
+      refId: charA._id,
+      gameId,
+      name: '探索者',
+      skills: [{
+        id: 'skill-reveal-me',
+        name: '古老秘術',
+        description: '被預設事件揭露的技能',
+        checkType: 'none',
+        usageCount: 0,
+        usageLimit: 0,
+        cooldown: 0,
+        tags: [],
+        isHidden: true,
+      }],
+      items: [{
+        id: 'item-hide-me',
+        name: '神秘卷軸',
+        description: '被預設事件隱藏的物品',
+        type: 'tool',
+        quantity: 1,
+        isHidden: false,
+      }],
+    });
+    await seed.gameRuntime({
+      refId: gameId,
+      gmUserId,
+      presetEvents: [{
+        id: 'pe-visibility',
+        name: '神秘儀式',
+        showName: true,
+        actions: [
+          {
+            id: 'act-reveal-skill',
+            type: 'reveal_skill',
+            revealCharacterId: charA._id,
+            revealTargetId: 'skill-reveal-me',
+          },
+          {
+            id: 'act-hide-item',
+            type: 'hide_item',
+            revealCharacterId: charA._id,
+            revealTargetId: 'item-hide-me',
+          },
+        ],
+        executionCount: 0,
+      }],
+    });
+
+    // ── Dual context ──
+    const { gmPage, playerPage } = await asGmAndPlayer({
+      gmUserId,
+      characterId: charA._id,
+    });
+
+    // Player 先載入頁面（規則 30）
+    await playerPage.goto(`/c/${charA._id}`);
+    await playerPage.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
+
+    // GM 進入控制台
+    await gmPage.goto(`/games/${gameId}`);
+    await gmPage.getByRole('tab', { name: '控制台' }).click();
+
+    // ── WS listeners：監聽 skill.revealed 和 item.hidden ──
+    const wsSkillPromise = waitForWebSocketEvent(playerPage, {
+      event: 'skill.revealed',
+      channel: `private-character-${charA._id}`,
+    });
+    const wsItemPromise = waitForWebSocketEvent(playerPage, {
+      event: 'item.hidden',
+      channel: `private-character-${charA._id}`,
+    });
+
+    // ── 執行神秘儀式事件 ──
+    await executePresetEvent(gmPage, '神秘儀式');
+    await waitForToast(gmPage, '已執行');
+
+    // ── WS 驗證 ──
+    const skillEvent = await wsSkillPromise as Record<string, unknown>;
+    const skillPayload = skillEvent.payload as Record<string, unknown>;
+    expect(skillPayload.skillId).toBe('skill-reveal-me');
+    expect(skillPayload.skillName).toBe('古老秘術');
+    expect(skillPayload.revealType).toBe('preset_event');
+
+    const itemEvent = await wsItemPromise as Record<string, unknown>;
+    const itemPayload = itemEvent.payload as Record<string, unknown>;
+    expect(itemPayload.itemId).toBe('item-hide-me');
+    expect(itemPayload.itemName).toBe('神秘卷軸');
+    expect(itemPayload.hideType).toBe('preset_event');
+
+    // ── DB 驗證：CharacterRuntime skill isHidden false、item isHidden true ──
+    const charRuntimes = await dbQuery('character_runtime', { refId: charA._id });
+    const charRuntime = charRuntimes[0] as Record<string, unknown>;
+
+    const skills = charRuntime.skills as Array<Record<string, unknown>>;
+    const skill = skills.find(s => s.id === 'skill-reveal-me');
+    expect(skill!.isHidden).toBe(false);
+
+    const items = charRuntime.items as Array<Record<string, unknown>>;
+    const item = items.find(i => i.id === 'item-hide-me');
+    expect(item!.isHidden).toBe(true);
+
+    // ── DB 驗證：executionCount 遞增 ──
+    const gameRuntimes = await dbQuery('game_runtime', { refId: gameId });
+    const gameRuntime = gameRuntimes.find((r: Record<string, unknown>) => r.type === 'runtime') as Record<string, unknown>;
+    const presetEvents = gameRuntime.presetEvents as Array<Record<string, unknown>>;
+    const visibilityEvent = presetEvents.find(e => e.id === 'pe-visibility');
+    expect(visibilityEvent!.executionCount).toBe(1);
+  });
+
 });
