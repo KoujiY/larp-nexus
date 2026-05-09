@@ -98,7 +98,11 @@ export type PresetEventActionType =
   | 'broadcast'
   | 'stat_change'
   | 'reveal_secret'
-  | 'reveal_task';
+  | 'reveal_task'
+  | 'reveal_skill'
+  | 'hide_skill'
+  | 'reveal_item'
+  | 'hide_item';
 
 /** 預設事件動作目標：全體角色或指定角色 ID 陣列 */
 export type ActionTarget = 'all' | string[];

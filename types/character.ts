@@ -124,6 +124,37 @@ export interface AutoRevealCondition {
 }
 
 /**
+ * 技能/物品可見性觸發動作
+ */
+export type VisibilityAction = 'reveal' | 'hide';
+
+/**
+ * 技能/物品可見性觸發條件類型
+ * 包含原有 AutoRevealConditionType 的條件 + 新增的 skill/item 條件
+ */
+export type VisibilityConditionType =
+  | 'items_viewed'
+  | 'items_acquired'
+  | 'secrets_revealed'
+  | 'skill_used'
+  | 'item_used'
+  | 'skills_revealed'
+  | 'items_revealed';
+
+/**
+ * 技能/物品可見性觸發條件
+ * 每個條件自帶 action 決定觸發後是揭露還是隱藏
+ */
+export interface VisibilityCondition {
+  action: VisibilityAction;
+  type: VisibilityConditionType;
+  itemIds?: string[];
+  secretIds?: string[];
+  skillIds?: string[];
+  matchLogic?: 'and' | 'or';
+}
+
+/**
  * Phase 7.7: 角色已檢視的道具記錄
  * 用於追蹤「檢視過某幾樣道具」(items_viewed) 揭露條件
  *
@@ -276,6 +307,10 @@ export interface Item {
   // 裝備系統（僅 type === 'equipment'）
   equipped?: boolean;
   statBoosts?: StatBoost[];
+  // 隱藏物品系統
+  isHidden?: boolean;
+  hiddenAt?: Date;
+  visibilityConditions?: VisibilityCondition[];
 }
 
 /**
@@ -344,6 +379,10 @@ export interface Skill {
   lastUsedAt?: Date;
   // 效果定義（可多個）
   effects?: SkillEffect[];
+  // 隱藏技能系統
+  isHidden?: boolean;
+  hiddenAt?: Date;
+  visibilityConditions?: VisibilityCondition[];
 }
 
 export interface CreateCharacterInput {

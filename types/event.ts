@@ -248,6 +248,58 @@ export interface TaskRevealedEvent extends BaseEvent<{
 }
 
 /**
+ * 隱藏技能揭露事件
+ */
+export interface SkillRevealedEvent extends BaseEvent<{
+  characterId: string;
+  skillId: string;
+  skillName: string;
+  revealType: 'auto' | 'manual' | 'preset_event';
+  triggerReason?: string;
+}> {
+  type: 'skill.revealed';
+}
+
+/**
+ * 技能隱藏事件
+ */
+export interface SkillHiddenEvent extends BaseEvent<{
+  characterId: string;
+  skillId: string;
+  skillName: string;
+  hideType: 'auto' | 'manual' | 'preset_event';
+  triggerReason?: string;
+}> {
+  type: 'skill.hidden';
+}
+
+/**
+ * 隱藏物品揭露事件
+ */
+export interface ItemRevealedEvent extends BaseEvent<{
+  characterId: string;
+  itemId: string;
+  itemName: string;
+  revealType: 'auto' | 'manual' | 'preset_event';
+  triggerReason?: string;
+}> {
+  type: 'item.revealed';
+}
+
+/**
+ * 物品隱藏事件
+ */
+export interface ItemHiddenEvent extends BaseEvent<{
+  characterId: string;
+  itemId: string;
+  itemName: string;
+  hideType: 'auto' | 'manual' | 'preset_event';
+  triggerReason?: string;
+}> {
+  type: 'item.hidden';
+}
+
+/**
  * Phase 7.7: 道具展示事件
  */
 export interface ItemShowcasedEvent extends BaseEvent<{
@@ -403,5 +455,9 @@ export type WebSocketEvent =
   | EffectExpiredEvent       // Phase 8
   | EquipmentToggledEvent
   | GameStartedEvent         // Phase 10.7
-  | GameEndedEvent;          // Phase 10.7
+  | GameEndedEvent           // Phase 10.7
+  | SkillRevealedEvent       // Hidden skills/items
+  | SkillHiddenEvent         // Hidden skills/items
+  | ItemRevealedEvent        // Hidden skills/items
+  | ItemHiddenEvent;         // Hidden skills/items
 
