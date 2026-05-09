@@ -8,4 +8,8 @@ export {
   emitSecretRevealed,
   emitTaskRevealed,
   emitItemShowcased,
+  emitSkillRevealed,
+  emitSkillHidden,
+  emitItemRevealed,
+  emitItemHidden,
 } from '@/lib/websocket/events';
