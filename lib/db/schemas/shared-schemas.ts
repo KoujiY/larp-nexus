@@ -152,6 +152,25 @@ function createItemsSchemaField() {
           target: { type: String, enum: ['value', 'maxValue', 'both'], default: 'value' },
         },
       ],
+      // 隱藏物品系統
+      isHidden: { type: Boolean, default: false },
+      hiddenAt: { type: Date },
+      visibilityConditions: [{
+        _id: false,
+        action: { type: String, enum: ['reveal', 'hide'], required: true },
+        type: {
+          type: String,
+          enum: [
+            'items_viewed', 'items_acquired', 'secrets_revealed',
+            'skill_used', 'item_used', 'skills_revealed', 'items_revealed',
+          ],
+          required: true,
+        },
+        itemIds: [String],
+        secretIds: [String],
+        skillIds: [String],
+        matchLogic: { type: String, enum: ['and', 'or'], default: 'and' },
+      }],
     },
   ];
 }
@@ -225,6 +244,25 @@ function createSkillsSchemaField() {
           description: String,
         },
       ],
+      // 隱藏技能系統
+      isHidden: { type: Boolean, default: false },
+      hiddenAt: { type: Date },
+      visibilityConditions: [{
+        _id: false,
+        action: { type: String, enum: ['reveal', 'hide'], required: true },
+        type: {
+          type: String,
+          enum: [
+            'items_viewed', 'items_acquired', 'secrets_revealed',
+            'skill_used', 'item_used', 'skills_revealed', 'items_revealed',
+          ],
+          required: true,
+        },
+        itemIds: [String],
+        secretIds: [String],
+        skillIds: [String],
+        matchLogic: { type: String, enum: ['and', 'or'], default: 'and' },
+      }],
     },
   ];
 }
