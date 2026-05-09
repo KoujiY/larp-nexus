@@ -39,6 +39,28 @@ interface Skill {
 | Unique effect types | `task_reveal`, `task_complete` | — |
 | After uses exhausted | Unusable but remains | Unusable but remains |
 
+## 隱藏技能 (Hidden Skills)
+
+技能支援可見性系統，讓 GM 控制玩家是否能看到某個技能。
+
+### 欄位
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `isHidden` | boolean | `true` 時玩家端看不到此技能 |
+| `hiddenAt` | Date (optional) | 最後一次可見性狀態變更的時間戳 |
+| `visibilityConditions` | `VisibilityCondition[]` (optional) | 自動揭露/隱藏條件（見下方） |
+
+### GM 操作
+- **AbilityEditWizard**（Baseline 編輯器）：提供隱藏開關與 `visibilityConditions` 編輯器
+- **Runtime 控制台**：技能卡片上有可見性切換按鈕
+- **Server Action**：`toggleVisibility(characterId, 'skill', targetId)` — GM 手動切換
+
+### visibilityConditions
+與隱藏資訊 / 任務不同，技能的可見性可**雙向切換**（揭露 ↔ 隱藏），且可觸發多次。支援的 condition type 詳見 [../../shared/auto-reveal-system.md](../../shared/auto-reveal-system.md)。
+
+### 伺服器端過濾
+隱藏技能在玩家端 API 回應中被過濾，玩家無法感知其存在。
+
 ## GM UI
 - **⚡ 技能管理 tab**: Add/edit/remove skills
 - Component: `components/gm/skills-edit-form.tsx`

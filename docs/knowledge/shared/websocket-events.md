@@ -29,6 +29,10 @@
 |-------|-------------|
 | `skill.used` | Skill use result (attacker notification) |
 | `skill.contest` | Contest flow events (subType: request/result/effect) |
+| `skill.revealed` | 技能被揭露（玩家端收到，用於通知與狀態更新） |
+| `skill.hidden` | 技能被隱藏（玩家端收到，用於通知與狀態更新） |
+| `item.revealed` | 物品被揭露（玩家端收到，用於通知與狀態更新） |
+| `item.hidden` | 物品被隱藏（玩家端收到，用於通知與狀態更新） |
 
 ### Game Events
 | Event | Description |

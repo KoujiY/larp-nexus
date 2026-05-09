@@ -44,3 +44,43 @@ A hidden info reveal can trigger another reveal:
 2. You opened your own item detail dialog (self-view)
 
 Matching uses item ID directly. GM should include all relevant item IDs (including same-name items from different characters) when setting conditions.
+
+## 技能 / 物品可見性評估（第三層）
+
+隱藏技能與隱藏物品使用與隱藏資訊 / 任務相同的自動揭露框架，但有以下差異：
+
+### 支援的 Condition Types（擴充）
+```typescript
+type AutoRevealConditionType =
+  | 'none'
+  | 'items_viewed'
+  | 'items_acquired'
+  | 'secrets_revealed'
+  | 'skill_used'        // 使用了指定技能（新增）
+  | 'item_used'         // 使用了指定物品（新增）
+  | 'skills_revealed'   // 指定技能已揭露（新增）
+  | 'items_revealed'    // 指定物品已揭露（新增）
+```
+
+### ConditionContext
+```typescript
+interface ConditionContext {
+  usedSkillId?: string;   // 觸發點為技能使用時填入
+  usedItemId?: string;    // 觸發點為物品使用時填入
+}
+```
+
+### 雙向切換
+技能 / 物品可見性可**雙向**切換（不像隱藏資訊 / 任務僅能揭露），同一技能 / 物品可被條件反覆觸發。
+
+### Same-layer Chain（同層鏈式評估）
+`skills_revealed` / `items_revealed` 條件觸發時，系統執行**第二輪評估**（limited to one round），讓被揭露的技能 / 物品有機會連鎖觸發同層其他項目的條件。
+
+### 觸發點（Trigger Points）
+| 觸發位置 | Context |
+|---------|---------|
+| `app/actions/skill-use.ts` — 技能使用後 | `{ usedSkillId }` |
+| `app/actions/item-use.ts` — 物品使用後 | `{ usedItemId }` |
+| `lib/contest/contest-effect-executor.ts` — 對抗效果套用後（防禦方被動） | 無 context |
+| `app/actions/character-update.ts` — 角色數值/物品更新後 | 無 context |
+| `app/actions/item-showcase.ts` — 物品展示後 | 無 context |

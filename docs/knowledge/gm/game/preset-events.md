@@ -32,6 +32,10 @@ interface PresetEventRuntime extends PresetEvent {
 | `stat_change` | 數值變更 | `'all'` 或 `string[]`（characterIds） |
 | `reveal_secret` | 揭露隱藏資訊 | 單一 characterId + secretId |
 | `reveal_task` | 揭露隱藏任務 | 單一 characterId + taskId |
+| `reveal_skill` | 揭露隱藏技能 | 單一 characterId + skillId |
+| `hide_skill` | 隱藏技能 | 單一 characterId + skillId |
+| `reveal_item` | 揭露隱藏物品 | 單一 characterId + itemId |
+| `hide_item` | 隱藏物品 | 單一 characterId + itemId |
 
 ### stat_change 欄位（對齊 Item/Skill Effect）
 | 欄位 | 說明 |
