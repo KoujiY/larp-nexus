@@ -5,18 +5,24 @@
  * 並在條件達成時執行揭露操作（更新 DB + 發送事件）。
  *
  * 連鎖邏輯：先處理隱藏資訊 → 再處理隱藏目標（含 secrets_revealed 條件）
+ *          → 最後處理技能/物品可見性（含 same-layer chain，限一輪）
  * 使用迴圈而非遞迴，限制為 2 層（隱藏目標揭露不會再觸發其他揭露）
  */
 import Character from '@/lib/db/models/Character';
 import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import type { CharacterRuntimeDocument } from '@/lib/db/models/CharacterRuntime';
-import type { AutoRevealCondition } from '@/types/character';
-import { emitSecretRevealed, emitTaskRevealed } from './reveal-event-emitter';
+import type { AutoRevealCondition, VisibilityCondition } from '@/types/character';
+import {
+  emitSecretRevealed, emitTaskRevealed,
+  emitSkillRevealed, emitSkillHidden,
+  emitItemRevealed, emitItemHidden,
+} from './reveal-event-emitter';
 
 /** 單次揭露結果 */
 export interface RevealResult {
-  type: 'secret' | 'task';
+  type: 'secret' | 'task' | 'skill' | 'item';
+  action: 'reveal' | 'hide';
   id: string;
   title: string;
   triggerReason: string;
@@ -27,7 +33,13 @@ export type RevealTrigger =
   | { type: 'items_viewed'; itemIds: string[] }
   | { type: 'items_acquired' }
   | { type: 'secret_revealed' }
-  | { type: 'manual_reveal' };
+  | { type: 'skill_used'; skillIds: string[] }
+  | { type: 'item_used'; itemIds: string[] }
+  | { type: 'skill_visibility_changed' }
+  | { type: 'item_visibility_changed' }
+  | { type: 'manual_reveal' }
+  | { type: 'manual_hide' }
+  | { type: 'preset_event' };
 
 /** 隱藏資訊結構（從 CharacterDocument 簡化） */
 interface SecretEntry {
@@ -56,19 +68,57 @@ interface TaskEntry {
   };
 }
 
+/** 技能結構（從 CharacterDocument 簡化） */
+interface SkillEntry {
+  id: string;
+  name: string;
+  isHidden?: boolean;
+  visibilityConditions?: Array<{
+    action: string;
+    type: string;
+    itemIds?: string[];
+    secretIds?: string[];
+    skillIds?: string[];
+    matchLogic?: string;
+  }>;
+}
+
+/** 物品結構（從 CharacterDocument 簡化） */
+interface ItemEntry {
+  id: string;
+  name: string;
+  isHidden?: boolean;
+  equipped?: boolean;
+  visibilityConditions?: Array<{
+    action: string;
+    type: string;
+    itemIds?: string[];
+    secretIds?: string[];
+    skillIds?: string[];
+    matchLogic?: string;
+  }>;
+}
+
+/** 條件評估上下文 */
+interface ConditionContext {
+  viewedItemIds: Set<string>;
+  ownedItemIds: Set<string>;
+  revealedSecretIds: Set<string>;
+  usedSkillIds: Set<string>;
+  usedItemIds: Set<string>;
+  revealedSkillIds: Set<string>;
+  revealedItemIds: Set<string>;
+}
+
 /**
  * 檢查單一條件是否滿足
  * @param condition - 自動揭露條件設定
- * @param viewedItemIds - 角色已檢視的道具 ID 集合
- * @param ownedItemIds - 角色背包中的道具 ID 集合
- * @param revealedSecretIds - 角色已揭露的隱藏資訊 ID 集合
+ * @param context - 條件評估上下文
  * @returns 是否滿足條件
  */
 function isConditionMet(
-  condition: AutoRevealCondition,
-  viewedItemIds: Set<string>,
-  ownedItemIds: Set<string>,
-  revealedSecretIds: Set<string>
+  condition: AutoRevealCondition | VisibilityCondition,
+  context: ConditionContext
 ): boolean {
   if (condition.type === 'none') return false;
 
@@ -78,9 +128,9 @@ function isConditionMet(
 
     const matchLogic = condition.matchLogic ?? 'and';
     if (matchLogic === 'and') {
-      return targetIds.every((id) => viewedItemIds.has(id));
+      return targetIds.every((id) => context.viewedItemIds.has(id));
     } else {
-      return targetIds.some((id) => viewedItemIds.has(id));
+      return targetIds.some((id) => context.viewedItemIds.has(id));
     }
   }
 
@@ -90,9 +140,9 @@ function isConditionMet(
 
     const matchLogic = condition.matchLogic ?? 'and';
     if (matchLogic === 'and') {
-      return targetIds.every((id) => ownedItemIds.has(id));
+      return targetIds.every((id) => context.ownedItemIds.has(id));
     } else {
-      return targetIds.some((id) => ownedItemIds.has(id));
+      return targetIds.some((id) => context.ownedItemIds.has(id));
     }
   }
 
@@ -102,9 +152,61 @@ function isConditionMet(
 
     const matchLogic = condition.matchLogic ?? 'and';
     if (matchLogic === 'and') {
-      return targetIds.every((id) => revealedSecretIds.has(id));
+      return targetIds.every((id) => context.revealedSecretIds.has(id));
     } else {
-      return targetIds.some((id) => revealedSecretIds.has(id));
+      return targetIds.some((id) => context.revealedSecretIds.has(id));
+    }
+  }
+
+  if (condition.type === 'skill_used') {
+    const vc = condition as VisibilityCondition;
+    const targetIds = vc.skillIds ?? [];
+    if (targetIds.length === 0) return false;
+
+    const matchLogic = vc.matchLogic ?? 'and';
+    if (matchLogic === 'and') {
+      return targetIds.every((id) => context.usedSkillIds.has(id));
+    } else {
+      return targetIds.some((id) => context.usedSkillIds.has(id));
+    }
+  }
+
+  if (condition.type === 'item_used') {
+    const vc = condition as VisibilityCondition;
+    const targetIds = vc.itemIds ?? [];
+    if (targetIds.length === 0) return false;
+
+    const matchLogic = vc.matchLogic ?? 'and';
+    if (matchLogic === 'and') {
+      return targetIds.every((id) => context.usedItemIds.has(id));
+    } else {
+      return targetIds.some((id) => context.usedItemIds.has(id));
+    }
+  }
+
+  if (condition.type === 'skills_revealed') {
+    const vc = condition as VisibilityCondition;
+    const targetIds = vc.skillIds ?? [];
+    if (targetIds.length === 0) return false;
+
+    const matchLogic = vc.matchLogic ?? 'and';
+    if (matchLogic === 'and') {
+      return targetIds.every((id) => context.revealedSkillIds.has(id));
+    } else {
+      return targetIds.some((id) => context.revealedSkillIds.has(id));
+    }
+  }
+
+  if (condition.type === 'items_revealed') {
+    const vc = condition as VisibilityCondition;
+    const targetIds = vc.itemIds ?? [];
+    if (targetIds.length === 0) return false;
+
+    const matchLogic = vc.matchLogic ?? 'and';
+    if (matchLogic === 'and') {
+      return targetIds.every((id) => context.revealedItemIds.has(id));
+    } else {
+      return targetIds.some((id) => context.revealedItemIds.has(id));
     }
   }
 
@@ -127,6 +229,30 @@ function toAutoRevealCondition(
 }
 
 /**
+ * 將 visibilityConditions 的原始物件轉為 VisibilityCondition
+ */
+function toVisibilityCondition(
+  raw: {
+    action: string;
+    type: string;
+    itemIds?: string[];
+    secretIds?: string[];
+    skillIds?: string[];
+    matchLogic?: string;
+  }
+): VisibilityCondition | null {
+  if (!raw) return null;
+  return {
+    action: raw.action as VisibilityCondition['action'],
+    type: raw.type as VisibilityCondition['type'],
+    itemIds: raw.itemIds,
+    secretIds: raw.secretIds,
+    skillIds: raw.skillIds,
+    matchLogic: raw.matchLogic as VisibilityCondition['matchLogic'],
+  };
+}
+
+/**
  * 評估隱藏資訊的揭露條件
  * @returns 需要揭露的隱藏資訊列表
  */
@@ -136,8 +262,15 @@ function evaluateSecretConditions(
   ownedItemIds: Set<string>
 ): RevealResult[] {
   const results: RevealResult[] = [];
-  // secrets_revealed 不適用於隱藏資訊，傳入空集合
-  const emptySecretIds = new Set<string>();
+  const context: ConditionContext = {
+    viewedItemIds,
+    ownedItemIds,
+    revealedSecretIds: new Set<string>(),
+    usedSkillIds: new Set<string>(),
+    usedItemIds: new Set<string>(),
+    revealedSkillIds: new Set<string>(),
+    revealedItemIds: new Set<string>(),
+  };
 
   for (const secret of secrets) {
     // 跳過已揭露的
@@ -146,10 +279,11 @@ function evaluateSecretConditions(
     const condition = toAutoRevealCondition(secret.autoRevealCondition);
     if (!condition) continue;
 
-    if (isConditionMet(condition, viewedItemIds, ownedItemIds, emptySecretIds)) {
+    if (isConditionMet(condition, context)) {
       const triggerReason = buildTriggerReason(condition);
       results.push({
         type: 'secret',
+        action: 'reveal',
         id: secret.id,
         title: secret.title,
         triggerReason,
@@ -172,6 +306,15 @@ function evaluateTaskConditions(
   revealedSecretIds: Set<string>
 ): RevealResult[] {
   const results: RevealResult[] = [];
+  const context: ConditionContext = {
+    viewedItemIds,
+    ownedItemIds,
+    revealedSecretIds,
+    usedSkillIds: new Set<string>(),
+    usedItemIds: new Set<string>(),
+    revealedSkillIds: new Set<string>(),
+    revealedItemIds: new Set<string>(),
+  };
 
   for (const task of tasks) {
     // 跳過非隱藏目標或已揭露的
@@ -180,10 +323,11 @@ function evaluateTaskConditions(
     const condition = toAutoRevealCondition(task.autoRevealCondition);
     if (!condition) continue;
 
-    if (isConditionMet(condition, viewedItemIds, ownedItemIds, revealedSecretIds)) {
+    if (isConditionMet(condition, context)) {
       const triggerReason = buildTriggerReason(condition);
       results.push({
         type: 'task',
+        action: 'reveal',
         id: task.id,
         title: task.title,
         triggerReason,
@@ -195,9 +339,66 @@ function evaluateTaskConditions(
 }
 
 /**
+ * 評估技能與物品的可見性條件
+ * @returns 需要揭露/隱藏的技能與物品列表
+ */
+function evaluateSkillItemConditions(
+  skills: SkillEntry[],
+  items: ItemEntry[],
+  context: ConditionContext,
+): RevealResult[] {
+  const results: RevealResult[] = [];
+
+  for (const skill of skills) {
+    if (!skill.visibilityConditions?.length) continue;
+    for (const vc of skill.visibilityConditions) {
+      const condition = toVisibilityCondition(vc);
+      if (!condition) continue;
+      // no-op guards: reveal on already-visible = skip, hide on already-hidden = skip
+      if (condition.action === 'reveal' && !skill.isHidden) continue;
+      if (condition.action === 'hide' && skill.isHidden) continue;
+
+      if (isConditionMet(condition, context)) {
+        results.push({
+          type: 'skill',
+          action: condition.action,
+          id: skill.id,
+          title: skill.name,
+          triggerReason: buildTriggerReason(condition),
+        });
+        break;
+      }
+    }
+  }
+
+  for (const item of items) {
+    if (!item.visibilityConditions?.length) continue;
+    for (const vc of item.visibilityConditions) {
+      const condition = toVisibilityCondition(vc);
+      if (!condition) continue;
+      if (condition.action === 'reveal' && !item.isHidden) continue;
+      if (condition.action === 'hide' && item.isHidden) continue;
+
+      if (isConditionMet(condition, context)) {
+        results.push({
+          type: 'item',
+          action: condition.action,
+          id: item.id,
+          title: item.name,
+          triggerReason: buildTriggerReason(condition),
+        });
+        break;
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
  * 建構觸發原因描述
  */
-function buildTriggerReason(condition: AutoRevealCondition): string {
+function buildTriggerReason(condition: AutoRevealCondition | VisibilityCondition): string {
   switch (condition.type) {
     case 'items_viewed':
       return '滿足道具檢視條件';
@@ -205,6 +406,14 @@ function buildTriggerReason(condition: AutoRevealCondition): string {
       return '滿足道具取得條件';
     case 'secrets_revealed':
       return '滿足隱藏資訊揭露條件';
+    case 'skill_used':
+      return '滿足技能使用條件';
+    case 'item_used':
+      return '滿足道具使用條件';
+    case 'skills_revealed':
+      return '滿足技能揭露條件';
+    case 'items_revealed':
+      return '滿足道具揭露條件';
     default:
       return '自動揭露';
   }
@@ -219,8 +428,9 @@ function buildTriggerReason(condition: AutoRevealCondition): string {
  * 3. 評估所有未揭露的隱藏資訊 → 揭露符合條件的
  * 4. 更新 revealedSecretIds（加入剛揭露的）
  * 5. 評估所有未揭露的隱藏目標 → 揭露符合條件的（含連鎖）
- * 6. 批量更新 DB
- * 7. 批量發送揭露事件
+ * 6. 評估技能/物品可見性條件（含 same-layer chain，限一輪）
+ * 7. 批量更新 DB
+ * 8. 批量發送揭露事件
  *
  * @param characterId - 要檢查的角色 ID
  * @param trigger - 觸發來源（用於日誌）
@@ -266,14 +476,14 @@ export async function executeAutoReveal(
   }));
 
   const viewedItems = character.viewedItems ?? [];
-  const items = character.items ?? [];
+  const rawItems = character.items ?? [];
 
   // 2. 建立查找集合
   const viewedItemIds = new Set<string>(
     viewedItems.map((v: { itemId: string }) => v.itemId)
   );
   const ownedItemIds = new Set<string>(
-    items.map((i: { id: string }) => i.id)
+    rawItems.map((i: { id: string }) => i.id)
   );
   const revealedSecretIds = new Set(
     secrets.filter((s) => s.isRevealed).map((s) => s.id)
@@ -299,12 +509,91 @@ export async function executeAutoReveal(
     revealedSecretIds
   );
 
-  const allResults = [...secretResults, ...taskResults];
+  // 6. 評估技能/物品可見性條件
+  const usedSkillIds = new Set<string>(
+    trigger.type === 'skill_used' ? trigger.skillIds : []
+  );
+  const usedItemIds = new Set<string>(
+    trigger.type === 'item_used' ? trigger.itemIds : []
+  );
+
+  const skillEntries: SkillEntry[] = (character.skills ?? []).map((s: {
+    id: string; name: string; isHidden?: boolean;
+    visibilityConditions?: SkillEntry['visibilityConditions'];
+  }) => ({
+    id: s.id,
+    name: s.name,
+    isHidden: s.isHidden,
+    visibilityConditions: s.visibilityConditions,
+  }));
+
+  const itemEntries: ItemEntry[] = rawItems.map((i: {
+    id: string; name: string; isHidden?: boolean; equipped?: boolean;
+    visibilityConditions?: ItemEntry['visibilityConditions'];
+  }) => ({
+    id: i.id,
+    name: i.name,
+    isHidden: i.isHidden,
+    equipped: i.equipped,
+    visibilityConditions: i.visibilityConditions,
+  }));
+
+  // 建立已揭露的技能/物品 ID 集合（目前可見的）
+  const revealedSkillIds = new Set<string>(
+    skillEntries.filter((s) => !s.isHidden).map((s) => s.id)
+  );
+  const revealedItemIds = new Set<string>(
+    itemEntries.filter((i) => !i.isHidden).map((i) => i.id)
+  );
+
+  const skillItemContext: ConditionContext = {
+    viewedItemIds,
+    ownedItemIds,
+    revealedSecretIds,
+    usedSkillIds,
+    usedItemIds,
+    revealedSkillIds,
+    revealedItemIds,
+  };
+
+  // 第一輪：直接條件觸發
+  const firstPassResults = evaluateSkillItemConditions(
+    skillEntries, itemEntries, skillItemContext
+  );
+
+  // 建構第二輪 context（immutable：不修改原始 context）
+  const updatedRevealedSkillIds = new Set(skillItemContext.revealedSkillIds);
+  const updatedRevealedItemIds = new Set(skillItemContext.revealedItemIds);
+  for (const r of firstPassResults) {
+    if (r.type === 'skill') {
+      if (r.action === 'reveal') updatedRevealedSkillIds.add(r.id);
+      if (r.action === 'hide') updatedRevealedSkillIds.delete(r.id);
+    }
+    if (r.type === 'item') {
+      if (r.action === 'reveal') updatedRevealedItemIds.add(r.id);
+      if (r.action === 'hide') updatedRevealedItemIds.delete(r.id);
+    }
+  }
+  const secondPassContext: ConditionContext = {
+    ...skillItemContext,
+    revealedSkillIds: updatedRevealedSkillIds,
+    revealedItemIds: updatedRevealedItemIds,
+  };
+
+  // 第二輪：same-layer chain（skills_revealed / items_revealed）
+  const firstPassKeys = new Set(firstPassResults.map((r) => `${r.type}:${r.id}:${r.action}`));
+  const secondPassResults = evaluateSkillItemConditions(
+    skillEntries, itemEntries, secondPassContext
+  ).filter((r) => !firstPassKeys.has(`${r.type}:${r.id}:${r.action}`));
+
+  const skillItemResults = [...firstPassResults, ...secondPassResults];
+
+  const allResults = [...secretResults, ...taskResults, ...skillItemResults];
 
   // 如果沒有任何揭露，直接返回
   if (allResults.length === 0) return [];
 
-  // 6. 批量更新 DB — 使用原始陣列的索引
+  // 7. 批量更新 DB — 使用原始陣列的索引
   const now = new Date();
   const updateOps: Record<string, unknown> = {};
 
@@ -330,12 +619,43 @@ export async function executeAutoReveal(
     }
   }
 
+  const rawSkills = character.skills ?? [];
+  const rawItemsForUpdate = character.items ?? [];
+  for (const result of skillItemResults) {
+    if (result.type === 'skill') {
+      const idx = rawSkills.findIndex(
+        (s: { id: string }) => s.id === result.id
+      );
+      if (idx !== -1) {
+        const isHiding = result.action === 'hide';
+        updateOps[`skills.${idx}.isHidden`] = isHiding;
+        updateOps[`skills.${idx}.hiddenAt`] = isHiding ? now : null;
+      }
+    } else if (result.type === 'item') {
+      const idx = rawItemsForUpdate.findIndex(
+        (i: { id: string }) => i.id === result.id
+      );
+      if (idx !== -1) {
+        const isHiding = result.action === 'hide';
+        updateOps[`items.${idx}.isHidden`] = isHiding;
+        updateOps[`items.${idx}.hiddenAt`] = isHiding ? now : null;
+        // 隱藏裝備中的物品時，同時取消裝備
+        if (isHiding) {
+          const entry = itemEntries.find((i) => i.id === result.id);
+          if (entry?.equipped) {
+            updateOps[`items.${idx}.equipped`] = false;
+          }
+        }
+      }
+    }
+  }
+
   if (Object.keys(updateOps).length > 0) {
     // Phase 11: 使用正確的 Model（Baseline 或 Runtime）更新
     await UpdateModel.findByIdAndUpdate(documentId, { $set: updateOps });
   }
 
-  // 7. 批量發送揭露事件
+  // 8. 批量發送揭露事件
   const characterIdStr = characterId.toString();
   for (const result of allResults) {
     if (result.type === 'secret') {
@@ -348,7 +668,7 @@ export async function executeAutoReveal(
       }).catch((error) =>
         console.error('[auto-reveal] Failed to emit secret.revealed', error)
       );
-    } else {
+    } else if (result.type === 'task') {
       emitTaskRevealed(characterIdStr, {
         characterId: characterIdStr,
         taskId: result.id,
@@ -358,11 +678,56 @@ export async function executeAutoReveal(
       }).catch((error) =>
         console.error('[auto-reveal] Failed to emit task.revealed', error)
       );
+    } else if (result.type === 'skill') {
+      if (result.action === 'reveal') {
+        emitSkillRevealed(characterIdStr, {
+          characterId: characterIdStr,
+          skillId: result.id,
+          skillName: result.title,
+          revealType: 'auto',
+          triggerReason: result.triggerReason,
+        }).catch((error) =>
+          console.error('[auto-reveal] Failed to emit skill.revealed', error)
+        );
+      } else {
+        emitSkillHidden(characterIdStr, {
+          characterId: characterIdStr,
+          skillId: result.id,
+          skillName: result.title,
+          hideType: 'auto',
+          triggerReason: result.triggerReason,
+        }).catch((error) =>
+          console.error('[auto-reveal] Failed to emit skill.hidden', error)
+        );
+      }
+    } else if (result.type === 'item') {
+      if (result.action === 'reveal') {
+        emitItemRevealed(characterIdStr, {
+          characterId: characterIdStr,
+          itemId: result.id,
+          itemName: result.title,
+          revealType: 'auto',
+          triggerReason: result.triggerReason,
+        }).catch((error) =>
+          console.error('[auto-reveal] Failed to emit item.revealed', error)
+        );
+      } else {
+        emitItemHidden(characterIdStr, {
+          characterId: characterIdStr,
+          itemId: result.id,
+          itemName: result.title,
+          hideType: 'auto',
+          triggerReason: result.triggerReason,
+        }).catch((error) =>
+          console.error('[auto-reveal] Failed to emit item.hidden', error)
+        );
+      }
     }
   }
 
+  const skillItemCount = skillItemResults.length;
   console.info(
-    `[auto-reveal] Character ${characterIdStr}: revealed ${secretResults.length} secrets, ${taskResults.length} tasks (trigger: ${trigger.type})`
+    `[auto-reveal] Character ${characterIdStr}: revealed ${secretResults.length} secrets, ${taskResults.length} tasks, ${skillItemCount} skill/item changes (trigger: ${trigger.type})`
   );
 
   return allResults;
