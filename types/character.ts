@@ -98,7 +98,11 @@ export type AutoRevealConditionType =
   | 'none'                    // 無其他自動揭露條件
   | 'items_viewed'            // 檢視過某幾樣道具（展示/自行檢視，支援 AND/OR 邏輯）
   | 'items_acquired'          // 取得了某幾樣道具（支援 AND/OR 邏輯）
-  | 'secrets_revealed';       // 某幾樣隱藏資訊已揭露（僅隱藏目標可用）
+  | 'secrets_revealed'        // 某幾樣隱藏資訊已揭露（僅隱藏目標可用）
+  | 'skills_revealed'         // 某幾樣隱藏技能被揭露時（同層連鎖）
+  | 'items_revealed'          // 某幾樣隱藏物品被揭露時（同層連鎖）
+  | 'skill_used'              // 某技能被使用時
+  | 'item_used';              // 某物品被使用時
 
 /**
  * Phase 7.7: 自動揭露條件設定
@@ -106,13 +110,15 @@ export type AutoRevealConditionType =
 export interface AutoRevealCondition {
   type: AutoRevealConditionType;
   /**
-   * 條件引用的道具 ID 列表（items_viewed 和 items_acquired 使用）
+   * 條件引用的道具 ID 列表
+   * items_viewed / items_acquired / items_revealed / item_used 使用
    * 此處的 ID 直接對應角色背包中的道具 ID，由 GM 在設定時選擇
-   * items_viewed 和 items_acquired 的匹配邏輯完全一致，僅資料來源不同
    */
   itemIds?: string[];
   /** 條件引用的隱藏資訊 ID 列表（僅 secrets_revealed 使用） */
   secretIds?: string[];
+  /** 條件引用的技能 ID 列表（skills_revealed / skill_used 使用） */
+  skillIds?: string[];
   /**
    * 匹配邏輯（items_viewed 和 items_acquired 使用）
    * - 'and'：所有條件都要滿足（預設）
@@ -123,36 +129,6 @@ export interface AutoRevealCondition {
   matchLogic?: 'and' | 'or';
 }
 
-/**
- * 技能/物品可見性觸發動作
- */
-export type VisibilityAction = 'reveal' | 'hide';
-
-/**
- * 技能/物品可見性觸發條件類型
- * 包含原有 AutoRevealConditionType 的條件 + 新增的 skill/item 條件
- */
-export type VisibilityConditionType =
-  | 'items_viewed'
-  | 'items_acquired'
-  | 'secrets_revealed'
-  | 'skill_used'
-  | 'item_used'
-  | 'skills_revealed'
-  | 'items_revealed';
-
-/**
- * 技能/物品可見性觸發條件
- * 每個條件自帶 action 決定觸發後是揭露還是隱藏
- */
-export interface VisibilityCondition {
-  action: VisibilityAction;
-  type: VisibilityConditionType;
-  itemIds?: string[];
-  secretIds?: string[];
-  skillIds?: string[];
-  matchLogic?: 'and' | 'or';
-}
 
 /**
  * Phase 7.7: 角色已檢視的道具記錄
@@ -310,7 +286,7 @@ export interface Item {
   // 隱藏物品系統
   isHidden?: boolean;
   hiddenAt?: Date;
-  visibilityConditions?: VisibilityCondition[];
+  autoRevealCondition?: AutoRevealCondition;
 }
 
 /**
@@ -382,7 +358,7 @@ export interface Skill {
   // 隱藏技能系統
   isHidden?: boolean;
   hiddenAt?: Date;
-  visibilityConditions?: VisibilityCondition[];
+  autoRevealCondition?: AutoRevealCondition;
 }
 
 export interface CreateCharacterInput {
