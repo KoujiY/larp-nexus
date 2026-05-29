@@ -21,11 +21,12 @@ export const autoRevealConditionSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed'],
+      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used'],
       default: 'none',
     },
     itemIds: [{ type: String }],
     secretIds: [{ type: String }],
+    skillIds: [{ type: String }],
     matchLogic: {
       type: String,
       enum: ['and', 'or'],
@@ -155,22 +156,7 @@ function createItemsSchemaField() {
       // 隱藏物品系統
       isHidden: { type: Boolean, default: false },
       hiddenAt: { type: Date },
-      visibilityConditions: [{
-        _id: false,
-        action: { type: String, enum: ['reveal', 'hide'], required: true },
-        type: {
-          type: String,
-          enum: [
-            'items_viewed', 'items_acquired', 'secrets_revealed',
-            'skill_used', 'item_used', 'skills_revealed', 'items_revealed',
-          ],
-          required: true,
-        },
-        itemIds: [String],
-        secretIds: [String],
-        skillIds: [String],
-        matchLogic: { type: String, enum: ['and', 'or'], default: 'and' },
-      }],
+      autoRevealCondition: { type: autoRevealConditionSchema, default: undefined },
     },
   ];
 }
@@ -247,22 +233,7 @@ function createSkillsSchemaField() {
       // 隱藏技能系統
       isHidden: { type: Boolean, default: false },
       hiddenAt: { type: Date },
-      visibilityConditions: [{
-        _id: false,
-        action: { type: String, enum: ['reveal', 'hide'], required: true },
-        type: {
-          type: String,
-          enum: [
-            'items_viewed', 'items_acquired', 'secrets_revealed',
-            'skill_used', 'item_used', 'skills_revealed', 'items_revealed',
-          ],
-          required: true,
-        },
-        itemIds: [String],
-        secretIds: [String],
-        skillIds: [String],
-        matchLogic: { type: String, enum: ['and', 'or'], default: 'and' },
-      }],
+      autoRevealCondition: { type: autoRevealConditionSchema, default: undefined },
     },
   ];
 }

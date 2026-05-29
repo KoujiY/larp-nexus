@@ -8,7 +8,7 @@
  * 其他檔案中重複定義同名介面。
  */
 
-import type { AutoRevealCondition, VisibilityCondition } from '@/types/character';
+import type { AutoRevealCondition } from '@/types/character';
 
 export interface MongoSecret {
   id: string;
@@ -82,7 +82,7 @@ export interface MongoItem {
   statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
   isHidden?: boolean;
   hiddenAt?: Date;
-  visibilityConditions?: VisibilityCondition[];
+  autoRevealCondition?: AutoRevealCondition;
   _id?: unknown;
 }
 
@@ -134,6 +134,6 @@ export interface MongoSkill {
   effects?: MongoSkillEffect[];
   isHidden?: boolean;
   hiddenAt?: Date;
-  visibilityConditions?: VisibilityCondition[];
+  autoRevealCondition?: AutoRevealCondition;
   _id?: unknown;
 }
