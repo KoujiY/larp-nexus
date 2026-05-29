@@ -103,8 +103,9 @@ test.describe('Flow #11 — Hidden Skills / Items', () => {
     await nav.getByRole('button', { name: '技能' }).click();
 
     // 隱藏技能不可見，可見技能可見
-    await expect(playerPage.getByText('火球術')).toBeVisible();
-    await expect(playerPage.getByText('暗黑魔法')).not.toBeVisible();
+    // 用 heading role 精準定位技能名稱，避免與描述文字（如「可見的火球術」）的子字串衝突
+    await expect(playerPage.getByRole('heading', { name: '火球術' })).toBeVisible();
+    await expect(playerPage.getByRole('heading', { name: '暗黑魔法' })).not.toBeVisible();
 
     // ── DB 驗證：characterRuntime 中技能 isHidden 為 true ──
     const charRuntimes = await dbQuery('character_runtime', { refId: charA._id });

@@ -553,9 +553,10 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       await pageB.goto(`/c/${charB._id}`);
       await expect(pageB.getByRole('heading', { name: '守衛' })).toBeVisible();
 
-      // 設定 WS 監聽（只有 OR 秘密會揭露）
+      // 設定 WS 監聽（只有 OR 秘密會揭露）— filter by secretId 避免並行測試的 secret.revealed 干擾
       const wsRevealPromise = waitForWebSocketEvent(pageB, {
         event: 'secret.revealed',
+        filter: { path: 'payload.secretId', value: 'secret-or' },
         timeout: 30000,
       });
 
