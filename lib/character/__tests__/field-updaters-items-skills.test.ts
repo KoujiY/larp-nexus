@@ -119,6 +119,20 @@ describe('updateCharacterItems', () => {
     const result = items[0] as unknown as Record<string, unknown>
     expect(result.isHidden).toBeUndefined()
   })
+
+  // 回歸測試：防止 Baseline 儲存路徑（field-updater 白名單）再次丟棄自動揭露條件欄位。
+  it('preserves autoRevealCondition for items', () => {
+    const cond = { type: 'items_viewed' as const, itemIds: ['it-2'], matchLogic: 'or' as const }
+    const { items } = updateCharacterItems([{ ...baseItem(), autoRevealCondition: cond }])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.autoRevealCondition).toEqual(cond)
+  })
+
+  it('does not set autoRevealCondition when input omits it', () => {
+    const { items } = updateCharacterItems([baseItem()])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.autoRevealCondition).toBeUndefined()
+  })
 })
 
 // ─── updateCharacterSkills ───────────────────────────────────────────────────
@@ -227,5 +241,17 @@ describe('updateCharacterSkills', () => {
   it('does not set isHidden when input omits it', () => {
     const [s] = updateCharacterSkills([baseSkill()]) as unknown as Record<string, unknown>[]
     expect(s.isHidden).toBeUndefined()
+  })
+
+  // 回歸測試：防止 Baseline 儲存路徑（field-updater 白名單）再次丟棄自動揭露條件欄位。
+  it('preserves autoRevealCondition for skills', () => {
+    const cond = { type: 'skills_revealed' as const, skillIds: ['sk-2'], matchLogic: 'and' as const }
+    const [s] = updateCharacterSkills([{ ...baseSkill(), autoRevealCondition: cond }]) as unknown as Record<string, unknown>[]
+    expect(s.autoRevealCondition).toEqual(cond)
+  })
+
+  it('does not set autoRevealCondition when input omits it', () => {
+    const [s] = updateCharacterSkills([baseSkill()]) as unknown as Record<string, unknown>[]
+    expect(s.autoRevealCondition).toBeUndefined()
   })
 })

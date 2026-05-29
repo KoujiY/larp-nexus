@@ -29,6 +29,8 @@ export function updateCharacterSkills(skills: MongoSkill[]): MongoSkill[] {
     // 隱藏技能系統：保留 GM 在 Baseline 設定的隱藏狀態與時間戳
     if (skill.isHidden !== undefined) skillData.isHidden = skill.isHidden;
     if (skill.hiddenAt !== undefined) skillData.hiddenAt = skill.hiddenAt;
+    // 自動揭露條件：保留 GM 在 Baseline 設定的條件
+    if (skill.autoRevealCondition !== undefined) skillData.autoRevealCondition = skill.autoRevealCondition;
 
     skillData.effects = (skill.effects || [])
       .filter((e) => e && e.type)

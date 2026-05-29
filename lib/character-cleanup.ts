@@ -23,6 +23,7 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
       lastUsedAt: skill.lastUsedAt,
       isHidden: skill.isHidden,
       hiddenAt: skill.hiddenAt,
+      autoRevealCondition: skill.autoRevealCondition,
       effects: (skill.effects || [])
         .filter((effect): effect is NonNullable<typeof effect> => Boolean(effect && effect.type))
         .map((effect) => ({
@@ -132,6 +133,7 @@ export function cleanItemData(items: MongoItem[] | undefined): MongoItem[] {
         statBoosts: item.statBoosts,
         isHidden: item.isHidden,
         hiddenAt: item.hiddenAt,
+        autoRevealCondition: item.autoRevealCondition,
       };
     });
 }

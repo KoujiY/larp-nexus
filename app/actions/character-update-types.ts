@@ -30,12 +30,24 @@ type RandomConfig = {
   threshold: number;
 };
 
+/** 自動揭露條件類型（與 types/character.ts 的 AutoRevealConditionType 保持一致） */
+type AutoRevealConditionType =
+  | 'none'
+  | 'items_viewed'
+  | 'items_acquired'
+  | 'secrets_revealed'
+  | 'skills_revealed'
+  | 'items_revealed'
+  | 'skill_used'
+  | 'item_used';
+
 /** 自動揭露條件 */
 type AutoRevealCondition = {
-  type: string;
+  type: AutoRevealConditionType;
   itemIds?: string[];
   secretIds?: string[];
-  matchLogic?: string;
+  skillIds?: string[];
+  matchLogic?: 'and' | 'or';
 };
 
 /** 效果型別（與 BaseEffect 統一） */
@@ -125,6 +137,7 @@ export type UpdateCharacterInput = {
     statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
     isHidden?: boolean;
     hiddenAt?: Date;
+    autoRevealCondition?: AutoRevealCondition;
   }>;
   skills?: Array<{
     id: string;
@@ -142,5 +155,6 @@ export type UpdateCharacterInput = {
     effects?: Effect[];
     isHidden?: boolean;
     hiddenAt?: Date;
+    autoRevealCondition?: AutoRevealCondition;
   }>;
 };

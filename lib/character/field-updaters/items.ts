@@ -102,6 +102,8 @@ export function updateCharacterItems(
     // 隱藏物品系統：保留 GM 在 Baseline 設定的隱藏狀態與時間戳
     if (item.isHidden !== undefined) itemData.isHidden = item.isHidden;
     if (item.hiddenAt !== undefined) itemData.hiddenAt = item.hiddenAt;
+    // 自動揭露條件：保留 GM 在 Baseline 設定的條件
+    if (item.autoRevealCondition !== undefined) itemData.autoRevealCondition = item.autoRevealCondition;
 
     // 裝備系統欄位
     if (item.equipped !== undefined) itemData.equipped = item.equipped;
