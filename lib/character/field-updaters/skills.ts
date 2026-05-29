@@ -26,6 +26,9 @@ export function updateCharacterSkills(skills: MongoSkill[]): MongoSkill[] {
     if (skill.usageLimit !== undefined) skillData.usageLimit = skill.usageLimit;
     if (skill.cooldown !== undefined) skillData.cooldown = skill.cooldown;
     if (skill.lastUsedAt !== undefined) skillData.lastUsedAt = skill.lastUsedAt;
+    // 隱藏技能系統：保留 GM 在 Baseline 設定的隱藏狀態與時間戳
+    if (skill.isHidden !== undefined) skillData.isHidden = skill.isHidden;
+    if (skill.hiddenAt !== undefined) skillData.hiddenAt = skill.hiddenAt;
 
     skillData.effects = (skill.effects || [])
       .filter((e) => e && e.type)

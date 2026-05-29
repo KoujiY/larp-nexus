@@ -123,6 +123,8 @@ export type UpdateCharacterInput = {
     acquiredAt: Date;
     equipped?: boolean;
     statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
+    isHidden?: boolean;
+    hiddenAt?: Date;
   }>;
   skills?: Array<{
     id: string;
@@ -138,5 +140,7 @@ export type UpdateCharacterInput = {
     cooldown?: number;
     lastUsedAt?: Date;
     effects?: Effect[];
+    isHidden?: boolean;
+    hiddenAt?: Date;
   }>;
 };
