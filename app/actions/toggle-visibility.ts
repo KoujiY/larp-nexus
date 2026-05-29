@@ -66,8 +66,8 @@ export async function toggleVisibility(
           revealType: 'manual',
         }).catch((err) => console.error('[toggle-visibility] emit error', err));
 
-        // 揭露後觸發鏈式自動揭露
-        executeAutoReveal(characterId, { type: 'skill_used' as const, skillIds: [skill.id] })
+        // 揭露後觸發鏈式自動揭露（用 visibility_changed 純訊號，避免誤觸 skill_used 使用型條件）
+        executeAutoReveal(characterId, { type: 'skill_visibility_changed' as const })
           .catch((err) => console.error('[toggle-visibility] auto-reveal error', err));
       }
 
@@ -118,7 +118,8 @@ export async function toggleVisibility(
         revealType: 'manual',
       }).catch((err) => console.error('[toggle-visibility] emit error', err));
 
-      executeAutoReveal(characterId, { type: 'item_used' as const, itemIds: [item.id] })
+      // 揭露後觸發鏈式自動揭露（用 visibility_changed 純訊號，避免誤觸 item_used 使用型條件）
+      executeAutoReveal(characterId, { type: 'item_visibility_changed' as const })
         .catch((err) => console.error('[toggle-visibility] auto-reveal error', err));
     }
 
