@@ -30,6 +30,8 @@ visibilityConditions?: VisibilityCondition[];    // 自動觸發條件陣列
 
 ### 1.2 VisibilityCondition 型別
 
+> ⚠️ 已於 2026-05-30 重做：VisibilityCondition 已移除，技能/物品改用統一的單一 reveal-only AutoRevealCondition。詳見 docs/superpowers/plans/2026-05-29-unify-visibility-conditions.md
+
 ```typescript
 type VisibilityAction = 'reveal' | 'hide';
 

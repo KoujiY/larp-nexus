@@ -74,18 +74,25 @@ AI 服務設定，首次設定前不存在。
 |------|------|------|
 | `isHidden` | boolean | 預設 `false`；`true` 時玩家端不可見 |
 | `hiddenAt` | Date (optional) | 最後一次可見性狀態變更的時間戳 |
-| `visibilityConditions` | `VisibilityCondition[]` (optional) | 自動揭露 / 隱藏條件列表 |
+| `autoRevealCondition` | `AutoRevealCondition` (optional) | 自動揭露條件（reveal-only，與隱藏資訊 / 任務共用同一型別） |
 
 ```typescript
-interface VisibilityCondition {
-  type: 'none' | 'items_viewed' | 'items_acquired' | 'secrets_revealed'
-      | 'skill_used' | 'item_used' | 'skills_revealed' | 'items_revealed';
-  itemIds?: string[];
-  secretIds?: string[];
-  skillIds?: string[];
+type AutoRevealConditionType =
+  | 'none'
+  | 'items_viewed'
+  | 'items_acquired'
+  | 'secrets_revealed'
+  | 'skills_revealed'
+  | 'items_revealed'
+  | 'skill_used'
+  | 'item_used';
+
+interface AutoRevealCondition {
+  type: AutoRevealConditionType;
+  itemIds?: string[];      // items_viewed / items_acquired / item_used / items_revealed
+  secretIds?: string[];    // secrets_revealed
+  skillIds?: string[];     // skills_revealed / skill_used
   matchLogic?: 'and' | 'or';
-  /** reveal（預設）或 hide — 條件滿足時執行的動作 */
-  action?: 'reveal' | 'hide';
 }
 ```
 
