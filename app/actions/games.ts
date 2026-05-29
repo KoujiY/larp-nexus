@@ -518,6 +518,90 @@ export async function getGameItems(
 }
 
 /**
+ * 取得劇本中所有角色的所有技能列表
+ * GM 端使用，用於自動揭露條件的技能選擇器
+ */
+export interface GameSkillInfo {
+  characterId: string;
+  characterName: string;
+  skillId: string;
+  skillName: string;
+}
+
+export async function getGameSkills(
+  gameId: string
+): Promise<ApiResponse<GameSkillInfo[]>> {
+  try {
+    const gmUserId = await getCurrentGMUserId();
+    if (!gmUserId) {
+      return {
+        success: false,
+        error: 'UNAUTHORIZED',
+        message: '請先登入',
+      };
+    }
+
+    await dbConnect();
+
+    // 驗證劇本屬於當前 GM
+    const game = await Game.findOne({ _id: gameId, gmUserId }).lean();
+    if (!game) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: '找不到此劇本',
+      };
+    }
+
+    // 取得該劇本所有角色及其技能（遊戲進行中讀 Runtime）
+    const baselineCharacters = await Character.find({ gameId })
+      .select('_id name skills')
+      .lean();
+
+    // 遊戲進行中時，用 Runtime 資料覆蓋
+    let runtimeMap: Map<string, { name: string; skills: typeof baselineCharacters[number]['skills'] }> | null = null;
+    if (game.isActive) {
+      const runtimeCharacters = await CharacterRuntime.find({ gameId, type: 'runtime' })
+        .select('refId name skills')
+        .lean();
+      runtimeMap = new Map(
+        runtimeCharacters.map((rc) => [
+          rc.refId.toString(),
+          { name: rc.name, skills: rc.skills },
+        ])
+      );
+    }
+
+    const skills: GameSkillInfo[] = [];
+    for (const baseline of baselineCharacters) {
+      const runtime = runtimeMap?.get(baseline._id.toString());
+      const charName = runtime?.name ?? baseline.name;
+      const charSkills = runtime?.skills ?? baseline.skills ?? [];
+      for (const skill of charSkills) {
+        skills.push({
+          characterId: baseline._id.toString(),
+          characterName: charName,
+          skillId: skill.id,
+          skillName: skill.name,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: skills,
+    };
+  } catch (error) {
+    console.error('Error fetching game skills:', error);
+    return {
+      success: false,
+      error: 'FETCH_FAILED',
+      message: '無法取得劇本技能列表',
+    };
+  }
+}
+
+/**
  * Phase 10: 更新劇本的 Game Code
  *
  * @param gameId - 劇本 ID
