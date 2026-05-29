@@ -42,6 +42,8 @@ export type RevealTrigger =
   | { type: 'preset_event' };
 
 /** 隱藏資訊結構（從 CharacterDocument 簡化） */
+// 註：autoRevealCondition 用寬鬆內聯型別（type: string）以接受 Mongoose lean
+// 原始物件；toAutoRevealCondition 會驗證 type 並收斂為 AutoRevealCondition。
 interface SecretEntry {
   id: string;
   title: string;
@@ -50,6 +52,7 @@ interface SecretEntry {
     type: string;
     itemIds?: string[];
     secretIds?: string[];
+    skillIds?: string[];
     matchLogic?: string;
   };
 }
@@ -64,6 +67,7 @@ interface TaskEntry {
     type: string;
     itemIds?: string[];
     secretIds?: string[];
+    skillIds?: string[];
     matchLogic?: string;
   };
 }

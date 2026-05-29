@@ -71,7 +71,7 @@ export function SkillsEditForm({ characterId, gameId, initialSkills, stats, secr
   useEffect(() => {
     getGameItems(gameId).then((result) => {
       if (result.success && result.data) setAvailableItems(result.data);
-    }).catch((error) => { console.error('Failed to load game skills:', error); });
+    }).catch((error) => { console.error('Failed to load game items:', error); });
     getGameSkills(gameId).then((result) => {
       if (result.success && result.data) setAvailableSkills(result.data);
     }).catch((error) => { console.error('Failed to load game skills:', error); });
