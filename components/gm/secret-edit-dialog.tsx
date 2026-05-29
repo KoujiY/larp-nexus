@@ -191,7 +191,7 @@ export function SecretEditDialog({
               }))
             }
             availableItems={availableItems}
-            allowSecretsCondition={false}
+            allowedTypes={['items_viewed', 'items_acquired']}
             disabled={disabled}
           />
 

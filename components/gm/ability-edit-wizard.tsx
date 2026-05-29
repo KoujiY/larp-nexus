@@ -55,13 +55,14 @@ import {
   Settings2,
   Info,
   Check,
-  EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateCheckConfig, type CheckType } from '@/lib/utils/check-config-validators';
 import { normalizeCheckConfig } from '@/lib/utils/check-config-normalizers';
 import { getItemEffects } from '@/lib/item/get-item-effects';
-import type { Item, Skill, ItemEffect, SkillEffect, Stat, StatBoost, ContestConfig, VisibilityCondition, VisibilityConditionType } from '@/types/character';
+import type { Item, Skill, ItemEffect, SkillEffect, Stat, StatBoost, ContestConfig, AutoRevealCondition } from '@/types/character';
+import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
+import type { GameItemInfo, GameSkillInfo } from '@/app/actions/games';
 import { cn } from '@/lib/utils';
 import {
   GM_LABEL_CLASS,
@@ -83,6 +84,9 @@ type AbilityEditWizardProps = {
   stats: Stat[];
   randomContestMaxValue?: number;
   onSave: (data: Item | Skill) => void;
+  availableItems: GameItemInfo[];
+  availableSkills: GameSkillInfo[];
+  availableSecrets?: { id: string; title: string }[];
 };
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -113,17 +117,6 @@ const EFFECT_TYPE_LABELS: Record<string, string> = {
   task_complete: '完成任務',
 };
 
-/** 可見性條件類型選項 */
-const VISIBILITY_CONDITION_TYPE_OPTIONS: Array<{ value: VisibilityConditionType; label: string }> = [
-  { value: 'items_viewed', label: '檢視過某幾樣物品' },
-  { value: 'items_acquired', label: '取得了某幾樣物品' },
-  { value: 'secrets_revealed', label: '某隱藏資訊已揭露' },
-  { value: 'skill_used', label: '某技能被使用' },
-  { value: 'item_used', label: '某物品被使用' },
-  { value: 'skills_revealed', label: '某隱藏技能被揭露' },
-  { value: 'items_revealed', label: '某隱藏物品被揭露' },
-];
-
 /** 不可變合併 ContestConfig */
 function mergeContestConfig(
   existing: ContestConfig | undefined,
@@ -148,6 +141,9 @@ export function AbilityEditWizard({
   stats,
   randomContestMaxValue = 100,
   onSave,
+  availableItems,
+  availableSkills,
+  availableSecrets,
 }: AbilityEditWizardProps) {
   const [data, setData] = useState<Item | Skill>(initialData);
   const [currentStep, setCurrentStep] = useState(0);
@@ -463,156 +459,16 @@ export function AbilityEditWizard({
         </div>
 
         {/* 自動顯隱條件編輯器 */}
-        {(() => {
-          const conditions = data.visibilityConditions ?? [];
-
-          const handleAddVisibilityCondition = () => {
-            updateData({
-              visibilityConditions: [...conditions, { action: 'reveal', type: 'skill_used', skillIds: [], matchLogic: 'and' }],
-            });
-          };
-
-          const handleUpdateVisibilityCondition = (index: number, patch: Partial<VisibilityCondition>) => {
-            const updated = conditions.map((c, i) => i === index ? { ...c, ...patch } : c);
-            updateData({ visibilityConditions: updated });
-          };
-
-          const handleRemoveVisibilityCondition = (index: number) => {
-            updateData({ visibilityConditions: conditions.filter((_, i) => i !== index) });
-          };
-
-          /** 根據條件類型決定應顯示哪個 ID 欄位 */
-          const getIdField = (condType: VisibilityConditionType): 'skillIds' | 'itemIds' | 'secretIds' => {
-            if (condType === 'skill_used' || condType === 'skills_revealed') return 'skillIds';
-            if (condType === 'secrets_revealed') return 'secretIds';
-            return 'itemIds';
-          };
-
-          return (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-bold text-foreground">自動顯隱條件</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAddVisibilityCondition}
-                  className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />新增條件
-                </button>
-              </div>
-
-              {conditions.length === 0 && (
-                <p className="text-xs text-muted-foreground/60 font-medium px-1">
-                  尚未設定條件。新增條件後，系統會在條件滿足時自動揭露或隱藏此{isItemMode ? '物品' : '技能'}。
-                </p>
-              )}
-
-              {conditions.map((cond, index) => {
-                const idField = getIdField(cond.type);
-                const currentIds: string[] = cond[idField] ?? [];
-
-                return (
-                  <div key={index} className="p-4 bg-muted rounded-xl border border-border/10 space-y-4">
-                    {/* Row 1: action + type + delete */}
-                    <div className="flex items-end gap-3">
-                      <div className="space-y-1.5 shrink-0 w-28">
-                        <label className={cn(LABEL_CLASS, 'text-xs')}>觸發動作</label>
-                        <Select
-                          value={cond.action}
-                          onValueChange={(v: VisibilityCondition['action']) =>
-                            handleUpdateVisibilityCondition(index, { action: v })
-                          }
-                        >
-                          <SelectTrigger className={cn(SELECT_CLASS, 'h-9 text-xs')}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="reveal">揭露</SelectItem>
-                            <SelectItem value="hide">隱藏</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1.5 flex-1">
-                        <label className={cn(LABEL_CLASS, 'text-xs')}>條件類型</label>
-                        <Select
-                          value={cond.type}
-                          onValueChange={(v: VisibilityConditionType) => {
-                            const newIdField = getIdField(v);
-                            const resetPatch: Partial<VisibilityCondition> = {
-                              type: v,
-                              itemIds: undefined,
-                              secretIds: undefined,
-                              skillIds: undefined,
-                            };
-                            // 保留空陣列給新的 idField
-                            resetPatch[newIdField] = [];
-                            handleUpdateVisibilityCondition(index, resetPatch);
-                          }}
-                        >
-                          <SelectTrigger className={cn(SELECT_CLASS, 'h-9 text-xs')}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {VISIBILITY_CONDITION_TYPE_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveVisibilityCondition(index)}
-                        className="p-1.5 text-muted-foreground/50 hover:text-destructive rounded transition-colors cursor-pointer shrink-0 mb-0.5"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {/* Row 2: ID 輸入 */}
-                    <div className="space-y-1.5">
-                      <label className={cn(LABEL_CLASS, 'text-xs')}>
-                        {idField === 'skillIds' ? '技能 ID（逗號分隔）' : idField === 'secretIds' ? '隱藏資訊 ID（逗號分隔）' : '物品 ID（逗號分隔）'}
-                      </label>
-                      <Input
-                        value={currentIds.join(', ')}
-                        onChange={(e) => {
-                          const ids = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
-                          handleUpdateVisibilityCondition(index, { [idField]: ids });
-                        }}
-                        placeholder="輸入 ID，以逗號分隔..."
-                        className={cn(INPUT_CLASS, 'h-9 text-xs')}
-                      />
-                    </div>
-
-                    {/* Row 3: matchLogic toggle */}
-                    <div className="flex items-center gap-2">
-                      <span className={cn(LABEL_CLASS, 'text-xs shrink-0')}>符合邏輯</span>
-                      <div className="flex p-0.5 bg-background rounded-lg border border-border/20">
-                        {(['and', 'or'] as const).map((logic) => {
-                          const selected = (cond.matchLogic ?? 'and') === logic;
-                          return (
-                            <button
-                              key={logic}
-                              type="button"
-                              onClick={() => handleUpdateVisibilityCondition(index, { matchLogic: logic })}
-                              className={cn(
-                                'px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer',
-                                selected ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                              )}
-                            >
-                              {logic === 'and' ? '全部符合 (AND)' : '滿足其一 (OR)'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+        {data.isHidden && (
+          <AutoRevealConditionEditor
+            condition={data.autoRevealCondition}
+            onChange={(autoRevealCondition: AutoRevealCondition | undefined) => updateData({ autoRevealCondition })}
+            availableItems={availableItems}
+            availableSkills={availableSkills}
+            availableSecrets={availableSecrets}
+            allowedTypes={['items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used']}
+          />
+        )}
       </div>
     );
   };

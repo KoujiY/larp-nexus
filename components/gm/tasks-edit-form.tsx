@@ -335,7 +335,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
                     })}
                     availableItems={availableItems}
                     availableSecrets={secrets}
-                    allowSecretsCondition={true}
+                    allowedTypes={['items_viewed', 'items_acquired', 'secrets_revealed']}
                   />
                 </>
               )}
