@@ -49,8 +49,8 @@ const CONDITION_TYPE_OPTIONS: Array<{
   { value: 'secrets_revealed', label: '某幾樣隱藏資訊已揭露' },
   { value: 'skills_revealed', label: '某幾樣隱藏技能已揭露' },
   { value: 'items_revealed', label: '某幾樣隱藏物品已揭露' },
-  { value: 'skill_used', label: '某幾樣技能被使用' },
-  { value: 'item_used', label: '某幾樣物品被使用' },
+  { value: 'skill_used', label: '被使用了某幾樣技能' },
+  { value: 'item_used', label: '被使用了某幾樣物品' },
 ];
 
 /** 需要物品選擇器的條件類型 */
@@ -276,7 +276,10 @@ export function AutoRevealConditionEditor({
 
   return (
     <div className="space-y-3 p-3 rounded-lg border bg-muted/20">
-      <Label className="text-sm font-medium">自動揭露條件</Label>
+      <div>
+        <Label className="text-sm font-medium">自動揭露條件</Label>
+        <p className="text-xs text-muted-foreground mt-0.5">以「此角色」為主體判定（例：此角色取得了某物品、此角色被使用了某技能時揭露）</p>
+      </div>
 
       {/* 條件類型選擇 */}
       <Select
