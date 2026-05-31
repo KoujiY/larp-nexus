@@ -16,8 +16,10 @@ type AutoRevealConditionType =
   | 'secrets_revealed' // Specific hidden info entries were already revealed
   | 'skills_revealed'  // Specific hidden skills were revealed
   | 'items_revealed'   // Specific hidden items were revealed
-  | 'skill_used'       // A specific skill was used
-  | 'item_used'        // A specific item was used
+  | 'skill_used'       // 主動：此角色「使用了」某技能（施術者）
+  | 'item_used'        // 主動：此角色「使用了」某物品
+  | 'skill_targeted'   // 被動：此角色「被使用了」某技能（目標）
+  | 'item_targeted'    // 被動：此角色「被使用了」某物品
 ```
 
 ## Condition Structure
@@ -59,12 +61,20 @@ Matching uses item ID directly. GM should include all relevant item IDs (includi
 ## 條件主體（subject）
 所有條件都以「**設定此條件的角色**」為主體判定（GM 端編輯器標示「以此角色為主體」）。例如某隱藏物品設 `items_acquired` 條件，意指「**此物品的擁有者**取得了指定物品時揭露」。`skill_used` / `item_used` 的 UI 文案為被動語態「被使用了某幾樣技能 / 物品」。
 
-## skill_used / item_used 觸發說明
-- `skill_used` / `item_used`：指定技能 / 物品被使用時揭露隱藏技能 / 物品，由技能使用、物品使用、對抗流程等觸發點注入 context。
-- **評估對象依觸發路徑而異（已知語意不一致，目前為刻意保留）**：
-  - 一般技能 / 物品使用（`skill-use.ts` / `item-use.ts`）：在**使用者本人**身上評估（語意：「我使用了 X」）。
-  - 對抗（`contest-effect-executor.ts`）：在**對抗敗方**身上評估（語意：「我被 X 擊敗」）。
-- GM 手動切換可見性（Runtime 控制台）會發出 `skill_visibility_changed` / `item_visibility_changed` 事件作為鏈式觸發信號，**不使用** `skill_used` / `item_used` 事件，避免手動揭露誤觸使用型條件。
+## 使用型條件：主動 vs 被動（skill_used / item_used / skill_targeted / item_targeted）
+使用型條件明確區分「**我使用了**」與「**我被使用了**」兩個方向：
+- `skill_used` / `item_used`（**主動**）：在**使用者本人**身上評估，由 `skill-use.ts` / `item-use.ts` 對施術者觸發。
+- `skill_targeted` / `item_targeted`（**被動**）：在**目標**身上評估，由 `skill-use.ts` / `item-use.ts` 對 `目標 ?? 施術者` 觸發。
+
+觸發矩陣（A 對某對象使用技能 S）：
+| 情境 | 觸發 |
+|------|------|
+| A 對 B 使用 | A 的 `skill_used:[S]`、B 的 `skill_targeted:[S]` |
+| A 對 A 使用（或無目標自我技能）| A 的 `skill_used:[S]` **與** `skill_targeted:[S]` 同時觸發 |
+
+對抗（`contest-effect-executor.ts`）：`actualSource` 的**擁有者**（sourceOwner，依勝負可能為攻或守方）觸發**主動**、其**對手**觸發**被動**——依 source 歸屬判定，與固定攻守方無關。
+
+GM 手動切換可見性（Runtime 控制台）發出 `skill_visibility_changed` / `item_visibility_changed` 作為鏈式觸發信號，**不使用**使用型事件，避免手動揭露誤觸。
 
 ## skills_revealed / items_revealed 選擇器限制
 - 比對池為「目前可見（`isHidden === false`）的技能 / 物品」。
