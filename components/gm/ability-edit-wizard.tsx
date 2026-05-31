@@ -467,6 +467,7 @@ export function AbilityEditWizard({
             availableSkills={availableSkills}
             availableSecrets={availableSecrets}
             allowedTypes={['items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used']}
+            excludeId={data.id}
           />
         )}
       </div>

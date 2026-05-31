@@ -34,6 +34,8 @@ interface AutoRevealConditionEditorProps {
   availableSecrets?: SecretOption[];
   /** 可選用的條件類型（不含 none；none 由元件自動提供） */
   allowedTypes: AutoRevealConditionType[];
+  /** 正在編輯的項目自身 ID，從選擇器排除以避免自我參照（例：技能 X 的條件不該選 X 自己）*/
+  excludeId?: string;
   /** 是否停用 */
   disabled?: boolean;
 }
@@ -77,6 +79,7 @@ export function AutoRevealConditionEditor({
   availableSkills = [],
   availableSecrets,
   allowedTypes,
+  excludeId,
   disabled = false,
 }: AutoRevealConditionEditorProps) {
   // 物品選擇器暫存狀態
@@ -102,12 +105,13 @@ export function AutoRevealConditionEditor({
 
   // items_revealed / skills_revealed 只對「隱藏」項目有意義（揭露才會進入比對池），
   // 故這兩種類型的選擇器僅列隱藏項目；其餘類型（viewed/acquired/used）列全部。
-  const itemPool = currentType === 'items_revealed'
+  // 同時排除「正在編輯的項目自身」（excludeId），避免自我參照（X 的條件選到 X）
+  const itemPool = (currentType === 'items_revealed'
     ? availableItems.filter((i) => i.isHidden)
-    : availableItems;
-  const skillPool = currentType === 'skills_revealed'
+    : availableItems).filter((i) => i.itemId !== excludeId);
+  const skillPool = (currentType === 'skills_revealed'
     ? availableSkills.filter((s) => s.isHidden)
-    : availableSkills;
+    : availableSkills).filter((s) => s.skillId !== excludeId);
 
   /** 處理條件類型變更 */
   const handleTypeChange = (type: AutoRevealConditionType) => {
