@@ -442,6 +442,8 @@ export interface GameItemInfo {
   characterName: string;
   itemId: string;
   itemName: string;
+  /** 是否為隱藏物品（items_revealed 條件選擇器僅列隱藏項目）*/
+  isHidden: boolean;
 }
 
 export async function getGameItems(
@@ -499,6 +501,7 @@ export async function getGameItems(
           characterName: charName,
           itemId: item.id,
           itemName: item.name,
+          isHidden: item.isHidden ?? false,
         });
       }
     }
@@ -526,6 +529,8 @@ export interface GameSkillInfo {
   characterName: string;
   skillId: string;
   skillName: string;
+  /** 是否為隱藏技能（skills_revealed 條件選擇器僅列隱藏項目）*/
+  isHidden: boolean;
 }
 
 export async function getGameSkills(
@@ -583,6 +588,7 @@ export async function getGameSkills(
           characterName: charName,
           skillId: skill.id,
           skillName: skill.name,
+          isHidden: skill.isHidden ?? false,
         });
       }
     }

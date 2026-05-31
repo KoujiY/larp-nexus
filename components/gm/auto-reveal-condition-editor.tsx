@@ -100,6 +100,15 @@ export function AutoRevealConditionEditor({
   const isSkillsCondition = SKILL_TYPES.includes(currentType);
   const isSecretsCondition = currentType === 'secrets_revealed';
 
+  // items_revealed / skills_revealed 只對「隱藏」項目有意義（揭露才會進入比對池），
+  // 故這兩種類型的選擇器僅列隱藏項目；其餘類型（viewed/acquired/used）列全部。
+  const itemPool = currentType === 'items_revealed'
+    ? availableItems.filter((i) => i.isHidden)
+    : availableItems;
+  const skillPool = currentType === 'skills_revealed'
+    ? availableSkills.filter((s) => s.isHidden)
+    : availableSkills;
+
   /** 處理條件類型變更 */
   const handleTypeChange = (type: AutoRevealConditionType) => {
     if (type === 'none') {
@@ -155,7 +164,7 @@ export function AutoRevealConditionEditor({
   // 物品：第一層選擇器用的角色清單（有未選中道具的角色）
   const itemCharacters = Array.from(
     new Map(
-      availableItems
+      itemPool
         .filter((item) => !currentItemIds.includes(item.itemId))
         .map((item) => [item.characterId, item.characterName])
     ).entries()
@@ -163,7 +172,7 @@ export function AutoRevealConditionEditor({
 
   // 物品：第二層選擇器用的道具清單（選定角色且未選中的道具）
   const itemsForSelectedChar = selectedCharForItem
-    ? availableItems.filter(
+    ? itemPool.filter(
         (item) =>
           item.characterId === selectedCharForItem &&
           !currentItemIds.includes(item.itemId)
@@ -204,7 +213,7 @@ export function AutoRevealConditionEditor({
   // 技能：第一層選擇器用的角色清單（有未選中技能的角色）
   const skillCharacters = Array.from(
     new Map(
-      availableSkills
+      skillPool
         .filter((skill) => !currentSkillIds.includes(skill.skillId))
         .map((skill) => [skill.characterId, skill.characterName])
     ).entries()
@@ -212,7 +221,7 @@ export function AutoRevealConditionEditor({
 
   // 技能：第二層選擇器用的技能清單（選定角色且未選中的技能）
   const skillsForSelectedChar = selectedCharForSkill
-    ? availableSkills.filter(
+    ? skillPool.filter(
         (skill) =>
           skill.characterId === selectedCharForSkill &&
           !currentSkillIds.includes(skill.skillId)
