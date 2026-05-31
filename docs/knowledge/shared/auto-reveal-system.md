@@ -56,6 +56,16 @@ A secret/task reveal can trigger another secret/task reveal:
 
 Matching uses item ID directly. GM should include all relevant item IDs (including same-name items from different characters) when setting conditions.
 
+## 條件主體（subject）
+所有條件都以「**設定此條件的角色**」為主體判定（GM 端編輯器標示「以此角色為主體」）。例如某隱藏物品設 `items_acquired` 條件，意指「**此物品的擁有者**取得了指定物品時揭露」。`skill_used` / `item_used` 的 UI 文案為被動語態「被使用了某幾樣技能 / 物品」。
+
 ## skill_used / item_used 觸發說明
 - `skill_used` / `item_used`：指定技能 / 物品被使用時揭露隱藏技能 / 物品，由技能使用、物品使用、對抗流程等觸發點注入 context。
-- GM 手動切換可見性（Runtime 控制台）會發出 `skill_visibility_changed` / `item_visibility_changed` 事件作為鏈式觸發信號，**不使用** `skill_used` / `item_used` 事件。
+- **評估對象依觸發路徑而異（已知語意不一致，目前為刻意保留）**：
+  - 一般技能 / 物品使用（`skill-use.ts` / `item-use.ts`）：在**使用者本人**身上評估（語意：「我使用了 X」）。
+  - 對抗（`contest-effect-executor.ts`）：在**對抗敗方**身上評估（語意：「我被 X 擊敗」）。
+- GM 手動切換可見性（Runtime 控制台）會發出 `skill_visibility_changed` / `item_visibility_changed` 事件作為鏈式觸發信號，**不使用** `skill_used` / `item_used` 事件，避免手動揭露誤觸使用型條件。
+
+## skills_revealed / items_revealed 選擇器限制
+- 比對池為「目前可見（`isHidden === false`）的技能 / 物品」。
+- GM 編輯器的選擇器對這兩種條件類型**僅列出隱藏項目**（`GameItemInfo` / `GameSkillInfo` 帶 `isHidden`），避免選到本來就可見的項目導致條件永遠立即成立。
