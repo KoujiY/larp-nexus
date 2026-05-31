@@ -35,6 +35,8 @@ export type RevealTrigger =
   | { type: 'secret_revealed' }
   | { type: 'skill_used'; skillIds: string[] }
   | { type: 'item_used'; itemIds: string[] }
+  | { type: 'skill_targeted'; skillIds: string[] }
+  | { type: 'item_targeted'; itemIds: string[] }
   | { type: 'skill_visibility_changed' }
   | { type: 'item_visibility_changed' }
   | { type: 'manual_reveal' }
@@ -96,6 +98,8 @@ interface ConditionContext {
   revealedSecretIds: Set<string>;
   usedSkillIds: Set<string>;
   usedItemIds: Set<string>;
+  targetedSkillIds: Set<string>;
+  targetedItemIds: Set<string>;
   revealedSkillIds: Set<string>;
   revealedItemIds: Set<string>;
 }
@@ -124,6 +128,8 @@ function isConditionMet(
     case 'items_revealed': return match(condition.itemIds, context.revealedItemIds);
     case 'skill_used': return match(condition.skillIds, context.usedSkillIds);
     case 'item_used': return match(condition.itemIds, context.usedItemIds);
+    case 'skill_targeted': return match(condition.skillIds, context.targetedSkillIds);
+    case 'item_targeted': return match(condition.itemIds, context.targetedItemIds);
     case 'none':
     default: return false;
   }
@@ -135,6 +141,7 @@ function isConditionMet(
 const VALID_CONDITION_TYPES: ReadonlySet<AutoRevealCondition['type']> = new Set([
   'items_viewed', 'items_acquired', 'secrets_revealed',
   'skills_revealed', 'items_revealed', 'skill_used', 'item_used',
+  'skill_targeted', 'item_targeted',
 ]);
 
 function toAutoRevealCondition(
@@ -175,6 +182,8 @@ function evaluateSecretConditions(
     revealedSecretIds: new Set<string>(),
     usedSkillIds: new Set<string>(),
     usedItemIds: new Set<string>(),
+    targetedSkillIds: new Set<string>(),
+    targetedItemIds: new Set<string>(),
     revealedSkillIds: new Set<string>(),
     revealedItemIds: new Set<string>(),
   };
@@ -219,6 +228,8 @@ function evaluateTaskConditions(
     revealedSecretIds,
     usedSkillIds: new Set<string>(),
     usedItemIds: new Set<string>(),
+    targetedSkillIds: new Set<string>(),
+    targetedItemIds: new Set<string>(),
     revealedSkillIds: new Set<string>(),
     revealedItemIds: new Set<string>(),
   };
@@ -292,6 +303,10 @@ function buildTriggerReason(condition: AutoRevealCondition): string {
       return '滿足技能使用條件';
     case 'item_used':
       return '滿足道具使用條件';
+    case 'skill_targeted':
+      return '滿足技能被使用條件';
+    case 'item_targeted':
+      return '滿足道具被使用條件';
     case 'skills_revealed':
       return '滿足技能揭露條件';
     case 'items_revealed':
@@ -398,6 +413,12 @@ export async function executeAutoReveal(
   const usedItemIds = new Set<string>(
     trigger.type === 'item_used' ? trigger.itemIds : []
   );
+  const targetedSkillIds = new Set<string>(
+    trigger.type === 'skill_targeted' ? trigger.skillIds : []
+  );
+  const targetedItemIds = new Set<string>(
+    trigger.type === 'item_targeted' ? trigger.itemIds : []
+  );
 
   const skillEntries: SkillEntry[] = (character.skills ?? []).map((s: {
     id: string; name: string; isHidden?: boolean;
@@ -434,6 +455,8 @@ export async function executeAutoReveal(
     revealedSecretIds,
     usedSkillIds,
     usedItemIds,
+    targetedSkillIds,
+    targetedItemIds,
     revealedSkillIds,
     revealedItemIds,
   };

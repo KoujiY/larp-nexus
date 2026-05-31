@@ -51,8 +51,10 @@ const CONDITION_TYPE_OPTIONS: Array<{
   { value: 'secrets_revealed', label: '某幾樣隱藏資訊已揭露' },
   { value: 'skills_revealed', label: '某幾樣隱藏技能已揭露' },
   { value: 'items_revealed', label: '某幾樣隱藏物品已揭露' },
-  { value: 'skill_used', label: '被使用了某幾樣技能' },
-  { value: 'item_used', label: '被使用了某幾樣物品' },
+  { value: 'skill_used', label: '使用了某幾樣技能' },
+  { value: 'item_used', label: '使用了某幾樣物品' },
+  { value: 'skill_targeted', label: '被使用了某幾樣技能' },
+  { value: 'item_targeted', label: '被使用了某幾樣物品' },
 ];
 
 /** 需要物品選擇器的條件類型 */
@@ -61,10 +63,11 @@ const ITEM_TYPES: AutoRevealConditionType[] = [
   'items_acquired',
   'items_revealed',
   'item_used',
+  'item_targeted',
 ];
 
 /** 需要技能選擇器的條件類型 */
-const SKILL_TYPES: AutoRevealConditionType[] = ['skills_revealed', 'skill_used'];
+const SKILL_TYPES: AutoRevealConditionType[] = ['skills_revealed', 'skill_used', 'skill_targeted'];
 
 /**
  * 自動揭露條件編輯器

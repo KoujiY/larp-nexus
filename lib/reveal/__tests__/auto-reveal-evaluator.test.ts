@@ -382,7 +382,89 @@ describe('executeAutoReveal', () => {
       expect(result).toEqual([])
     })
 
-    // 9. items_acquired 觸發揭露隱藏物品
+    // 9. skill_targeted 觸發揭露隱藏技能（被動條件，目標方視角）
+    it('reveals hidden skill on skill_targeted trigger', async () => {
+      const character = makeCharacter({
+        skills: [{
+          id: 'sk1', name: 'Passive Skill', isHidden: true,
+          autoRevealCondition: {
+            type: 'skill_targeted', skillIds: ['sk-source'],
+          },
+        }],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+      vi.mocked(Character.findByIdAndUpdate).mockResolvedValue(null)
+
+      const result = await executeAutoReveal('char-id', {
+        type: 'skill_targeted', skillIds: ['sk-source'],
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({ type: 'skill', action: 'reveal', id: 'sk1' })
+    })
+
+    // 10. item_targeted 觸發揭露隱藏物品（被動條件，目標方視角）
+    it('reveals hidden item on item_targeted trigger', async () => {
+      const character = makeCharacter({
+        items: [{
+          id: 'it1', name: 'Passive Item', isHidden: true,
+          autoRevealCondition: {
+            type: 'item_targeted', itemIds: ['it-source'],
+          },
+        }],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+      vi.mocked(Character.findByIdAndUpdate).mockResolvedValue(null)
+
+      const result = await executeAutoReveal('char-id', {
+        type: 'item_targeted', itemIds: ['it-source'],
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({ type: 'item', action: 'reveal', id: 'it1' })
+    })
+
+    // 11. 主動條件不被被動觸發滿足（active/passive 集合獨立）
+    it('skill_used condition is NOT satisfied by skill_targeted trigger', async () => {
+      const character = makeCharacter({
+        skills: [{
+          id: 'sk1', name: 'Active Only Skill', isHidden: true,
+          autoRevealCondition: {
+            type: 'skill_used', skillIds: ['sk-source'],
+          },
+        }],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+
+      // 傳入被動觸發，不應滿足主動條件
+      const result = await executeAutoReveal('char-id', {
+        type: 'skill_targeted', skillIds: ['sk-source'],
+      })
+
+      expect(result).toEqual([])
+    })
+
+    // 12. 被動條件不被主動觸發滿足（active/passive 集合獨立）
+    it('skill_targeted condition is NOT satisfied by skill_used trigger', async () => {
+      const character = makeCharacter({
+        skills: [{
+          id: 'sk1', name: 'Passive Only Skill', isHidden: true,
+          autoRevealCondition: {
+            type: 'skill_targeted', skillIds: ['sk-source'],
+          },
+        }],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+
+      // 傳入主動觸發，不應滿足被動條件
+      const result = await executeAutoReveal('char-id', {
+        type: 'skill_used', skillIds: ['sk-source'],
+      })
+
+      expect(result).toEqual([])
+    })
+
+    // 13. items_acquired 觸發揭露隱藏物品
     it('reveals hidden item by items_acquired', async () => {
       const character = makeCharacter({
         items: [

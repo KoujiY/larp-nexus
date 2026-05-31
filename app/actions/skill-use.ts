@@ -375,9 +375,14 @@ export async function useSkill(
       console.error('Failed to emit skill.used event', error);
     });
 
-    // 隱藏技能/物品：技能使用後觸發自動揭露評估
+    // 隱藏技能/物品：技能使用後觸發自動揭露評估（主動：施放方）
     executeAutoReveal(characterId, { type: 'skill_used', skillIds: [skill.id] })
       .catch((error) => console.error('[skill-use] Failed to execute auto-reveal for skill_used', error));
+
+    // 被動觸發：技能被使用在目標身上（無目標時視為對自己使用）
+    const skillTargetId = targetCharacterId ?? characterId;
+    executeAutoReveal(skillTargetId, { type: 'skill_targeted', skillIds: [skill.id] })
+      .catch((error) => console.error('[skill-use] Failed to execute auto-reveal for skill_targeted', error));
 
     // Phase 7.7: 技能使用通知發送完成後，觸發自動揭露評估（items_acquired）
     // 延遲到此處執行，確保揭露通知不會搶先於技能結果通知送達客戶端

@@ -101,8 +101,10 @@ export type AutoRevealConditionType =
   | 'secrets_revealed'        // 某幾樣隱藏資訊已揭露（僅隱藏目標可用）
   | 'skills_revealed'         // 某幾樣隱藏技能被揭露時（同層連鎖）
   | 'items_revealed'          // 某幾樣隱藏物品被揭露時（同層連鎖）
-  | 'skill_used'              // 某技能被使用時
-  | 'item_used';              // 某物品被使用時
+  | 'skill_used'              // 主動：使用了某技能（施放方觸發）
+  | 'item_used'               // 主動：使用了某物品（施放方觸發）
+  | 'skill_targeted'          // 被動：被使用了某技能（目標方觸發）
+  | 'item_targeted';          // 被動：被使用了某物品（目標方觸發）
 
 /**
  * Phase 7.7: 自動揭露條件設定

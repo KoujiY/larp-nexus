@@ -39,7 +39,9 @@ type AutoRevealConditionType =
   | 'skills_revealed'
   | 'items_revealed'
   | 'skill_used'
-  | 'item_used';
+  | 'item_used'
+  | 'skill_targeted'
+  | 'item_targeted';
 
 /** 自動揭露條件 */
 type AutoRevealCondition = {

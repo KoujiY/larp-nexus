@@ -21,7 +21,7 @@ export const autoRevealConditionSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used'],
+      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used', 'skill_targeted', 'item_targeted'],
       default: 'none',
     },
     itemIds: [{ type: String }],

@@ -331,13 +331,18 @@ export async function executeContestEffects(
     },
   });
 
-  // 隱藏技能/物品：對被影響方觸發自動揭露（被動觸發）
-  const passiveTriggerId = contestResult === 'attacker_wins' ? defenderIdStr : attackerIdStr;
-  const passiveTrigger = actualSourceType === 'skill'
+  // 隱藏技能/物品自動揭露：actualSource 的擁有者（sourceOwner，依勝負可能為攻或守）
+  // = 主動使用；其對手（opponent）= 被動被使用。以 source 的歸屬判定，而非固定攻/守。
+  const activeTrigger = actualSourceType === 'skill'
     ? ({ type: 'skill_used' as const, skillIds: [actualSource.id] })
     : ({ type: 'item_used' as const, itemIds: [actualSource.id] });
-  executeAutoReveal(passiveTriggerId, passiveTrigger)
-    .catch((error) => console.error('[contest-effect] Failed to execute auto-reveal for passive trigger', error));
+  const passiveTrigger = actualSourceType === 'skill'
+    ? ({ type: 'skill_targeted' as const, skillIds: [actualSource.id] })
+    : ({ type: 'item_targeted' as const, itemIds: [actualSource.id] });
+  executeAutoReveal(sourceOwnerIdStr, activeTrigger)
+    .catch((error) => console.error('[contest-effect] auto-reveal active trigger failed', error));
+  executeAutoReveal(opponentIdStr, passiveTrigger)
+    .catch((error) => console.error('[contest-effect] auto-reveal passive trigger failed', error));
 
   return {
     effectsApplied,
