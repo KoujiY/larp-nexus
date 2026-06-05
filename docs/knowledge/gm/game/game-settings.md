@@ -49,6 +49,8 @@ The game's public info is accessible at `/g/[gameId]` — a public page all play
 
 世界觀頁面同時顯示同劇本的角色列表（名稱、描述、頭像），由 `GamePublicCharacter` 型別定義。
 
+**角色列表過濾（Feature 2）**：被 GM 標記 `hiddenFromWorld=true` 的角色**不會**出現在此列表。過濾發生在 `getPublicGame` 的 DB 查詢層（`Character.find({ gameId, hiddenFromWorld: { $ne: true } })`），讀取 Baseline，因此此旗標應於開場前設定。被隱藏的角色本身仍正常運作（可登入、可被技能/物品指定為目標）。GM 於角色編輯「基本設定」分頁切換，詳見 [basic-info.md](../character/basic-info.md)。
+
 ## randomContestMaxValue
 - Sets the upper bound for `random_contest` check type
 - Applies to all characters in the game
