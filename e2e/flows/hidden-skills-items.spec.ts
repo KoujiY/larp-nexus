@@ -695,4 +695,131 @@ test.describe('Flow #11 — Hidden Skills / Items', () => {
     expect(skillB!.isHidden).toBe(false);
   });
 
+  // ─── #11.7 skill_targeted 被動：A 對 B 使用技能 → B 的隱藏物品自動揭露 ───
+  test('#11.7 skill_targeted — using a skill ON another character auto-reveals the target\'s hidden item', async ({
+    browser,
+    seed,
+    dbQuery,
+  }) => {
+    test.setTimeout(60000);
+
+    // ── Seed ──
+    const gm = await seed.gmUser();
+    const game = await seed.game({
+      gmUserId: gm._id,
+      name: '被動條件測試（skill_targeted）',
+      isActive: true,
+    });
+    const gameId = game._id;
+
+    // 角色 A（術士）：有一個作用於他人的技能「詛咒」（checkType none，效果 targetType other）
+    const skillCurse = {
+      id: 'skill-curse',
+      name: '詛咒',
+      description: '對目標造成傷害',
+      checkType: 'none' as const,
+      usageCount: 0,
+      usageLimit: 0,
+      cooldown: 0,
+      tags: [],
+      effects: [{ type: 'stat_change', targetType: 'other', targetStat: '生命值', value: -10 }],
+    };
+    const charA = await seed.character({
+      gameId,
+      name: '術士',
+      skills: [skillCurse],
+    });
+
+    // 角色 B（受術者）：有生命值 stat + 隱藏物品，條件為「被使用了技能 詛咒」
+    const wardItem = {
+      id: 'item-ward',
+      name: '護符',
+      description: '隱藏物品',
+      type: 'tool' as const,
+      quantity: 1,
+      isTransferable: false,
+      isHidden: true,
+      autoRevealCondition: {
+        type: 'skill_targeted' as const,
+        skillIds: ['skill-curse'],
+        matchLogic: 'and' as const,
+      },
+    };
+    const charB = await seed.character({
+      gameId,
+      name: '受術者',
+      stats: [{ id: 'stat-hp', name: '生命值', value: 50, maxValue: 100 }],
+      items: [wardItem],
+    });
+
+    // Runtime 層（baseline + runtime 都要 seed）
+    await seed.characterRuntime({
+      refId: charA._id,
+      gameId,
+      name: '術士',
+      skills: [skillCurse],
+    });
+    await seed.characterRuntime({
+      refId: charB._id,
+      gameId,
+      name: '受術者',
+      stats: [{ id: 'stat-hp', name: '生命值', value: 50, maxValue: 100 }],
+      items: [wardItem],
+    });
+    await seed.gameRuntime({ refId: gameId, gmUserId: gm._id });
+
+    // ── 雙 Player context（A 使用技能、B 監聽自身揭露）──
+    const { pageA, pageB, ctxA, ctxB } = await setupDualPlayerContext(
+      browser, charA._id, charB._id,
+    );
+
+    try {
+      // Player B 先載入頁面（準備接收 WS 事件）
+      await pageB.goto(`/c/${charB._id}`);
+      await expect(pageB.getByRole('heading', { name: '受術者' })).toBeVisible();
+
+      // 設定 WS 監聽（B 自身的隱藏物品被動揭露，filter by itemId）
+      const wsRevealPromise = waitForWebSocketEvent(pageB, {
+        event: 'item.revealed',
+        filter: { path: 'payload.itemId', value: 'item-ward' },
+        timeout: 30000,
+      });
+
+      // Player A 載入 + 切換到技能 tab
+      await pageA.goto(`/c/${charA._id}`);
+      await expect(pageA.getByRole('heading', { name: '術士' })).toBeVisible();
+      const navA = pageA.getByRole('navigation');
+      await navA.getByRole('button', { name: '技能' }).click();
+
+      // 開啟技能 → 選擇目標 B（targetType other 會出現目標下拉）→ 使用
+      await pageA.getByText('詛咒').first().click();
+      const skillDialog = pageA.getByRole('dialog', { name: '詛咒' });
+      await expect(skillDialog).toBeVisible();
+
+      const targetSelect = skillDialog.locator('[role="combobox"]');
+      await expect(targetSelect).toBeVisible({ timeout: 10000 });
+      await targetSelect.click();
+      await pageA.getByRole('option', { name: '受術者' }).click();
+
+      await skillDialog.getByRole('button', { name: '使用技能' }).click();
+
+      // ── 驗證 WS 事件（B 的 item.revealed，revealType=auto）──
+      const revealEvent = await wsRevealPromise as Record<string, unknown>;
+      const payload = revealEvent.payload as Record<string, unknown>;
+      expect(payload.itemId).toBe('item-ward');
+      expect(payload.revealType).toBe('auto');
+
+      // ── DB 驗證：B 的隱藏物品 isHidden 已變為 false（被動條件觸發）──
+      const charRuntimes = await dbQuery('character_runtime', { refId: charB._id });
+      const runtimeB = charRuntimes[0] as Record<string, unknown>;
+      const items = runtimeB.items as Array<Record<string, unknown>>;
+      const ward = items.find(i => i.id === 'item-ward');
+      expect(ward!.isHidden).toBe(false);
+
+    } finally {
+      await ctxA.close();
+      await ctxB.close();
+    }
+  });
+
 });
