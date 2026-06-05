@@ -9,6 +9,7 @@
  */
 
 import { Schema } from 'mongoose';
+import { AUTO_REVEAL_CONDITION_TYPES } from '@/types/character';
 
 /**
  * Phase 7.7: 自動揭露條件子文檔 Schema
@@ -21,7 +22,7 @@ export const autoRevealConditionSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used', 'skill_targeted', 'item_targeted'],
+      enum: [...AUTO_REVEAL_CONDITION_TYPES],
       default: 'none',
     },
     itemIds: [{ type: String }],

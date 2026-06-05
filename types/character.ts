@@ -94,17 +94,26 @@ export interface Relationship {
 /**
  * Phase 7.7: 自動揭露條件類型
  */
-export type AutoRevealConditionType =
-  | 'none'                    // 無其他自動揭露條件
-  | 'items_viewed'            // 檢視過某幾樣道具（展示/自行檢視，支援 AND/OR 邏輯）
-  | 'items_acquired'          // 取得了某幾樣道具（支援 AND/OR 邏輯）
-  | 'secrets_revealed'        // 某幾樣隱藏資訊已揭露（僅隱藏目標可用）
-  | 'skills_revealed'         // 某幾樣隱藏技能被揭露時（同層連鎖）
-  | 'items_revealed'          // 某幾樣隱藏物品被揭露時（同層連鎖）
-  | 'skill_used'              // 主動：使用了某技能（施放方觸發）
-  | 'item_used'               // 主動：使用了某物品（施放方觸發）
-  | 'skill_targeted'          // 被動：被使用了某技能（目標方觸發）
-  | 'item_targeted';          // 被動：被使用了某物品（目標方觸發）
+/**
+ * 自動揭露條件類型 — 單一真相來源（SSOT）
+ *
+ * 新增條件類型只需改這個陣列；型別、Mongoose enum、引擎驗證集合、
+ * 動作輸入型別都從此推導，漏接處在編譯期被擋下。
+ */
+export const AUTO_REVEAL_CONDITION_TYPES = [
+  'none',              // 無其他自動揭露條件
+  'items_viewed',      // 檢視過某幾樣物品（展示/自行檢視，支援 AND/OR 邏輯）
+  'items_acquired',    // 取得了某幾樣物品（支援 AND/OR 邏輯）
+  'secrets_revealed',  // 某幾樣隱藏資訊已揭露（僅隱藏目標可用）
+  'skills_revealed',   // 某幾樣隱藏技能被揭露時（同層連鎖）
+  'items_revealed',    // 某幾樣隱藏物品被揭露時（同層連鎖）
+  'skill_used',        // 主動：使用了某技能（施放方觸發）
+  'item_used',         // 主動：使用了某物品（施放方觸發）
+  'skill_targeted',    // 被動：被使用了某技能（目標方觸發）
+  'item_targeted',     // 被動：被使用了某物品（目標方觸發）
+] as const;
+
+export type AutoRevealConditionType = typeof AUTO_REVEAL_CONDITION_TYPES[number];
 
 /**
  * Phase 7.7: 自動揭露條件設定

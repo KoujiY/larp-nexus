@@ -12,7 +12,7 @@ import Character from '@/lib/db/models/Character';
 import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import type { CharacterRuntimeDocument } from '@/lib/db/models/CharacterRuntime';
-import type { AutoRevealCondition } from '@/types/character';
+import { AUTO_REVEAL_CONDITION_TYPES, type AutoRevealCondition } from '@/types/character';
 import {
   emitSecretRevealed, emitTaskRevealed,
   emitSkillRevealed, emitSkillHidden,
@@ -138,11 +138,10 @@ function isConditionMet(
 /**
  * 將 Mongoose 子文檔的 autoRevealCondition 原始物件轉為 AutoRevealCondition
  */
-const VALID_CONDITION_TYPES: ReadonlySet<AutoRevealCondition['type']> = new Set([
-  'items_viewed', 'items_acquired', 'secrets_revealed',
-  'skills_revealed', 'items_revealed', 'skill_used', 'item_used',
-  'skill_targeted', 'item_targeted',
-]);
+// 從 SSOT 推導：所有條件類型（排除 'none'，因為 'none' 視為「無條件」）
+const VALID_CONDITION_TYPES: ReadonlySet<AutoRevealCondition['type']> = new Set(
+  AUTO_REVEAL_CONDITION_TYPES.filter((t) => t !== 'none'),
+);
 
 function toAutoRevealCondition(
   raw: {

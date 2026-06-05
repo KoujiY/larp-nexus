@@ -4,6 +4,8 @@
  * 從 character-update.ts 抽取，避免 667 行內聯型別定義。
  */
 
+import type { AutoRevealCondition } from '@/types/character';
+
 /** 效果目標類型 */
 type EffectTargetType = 'self' | 'other' | 'any';
 
@@ -28,28 +30,6 @@ type ContestConfig = {
 type RandomConfig = {
   maxValue: number;
   threshold: number;
-};
-
-/** 自動揭露條件類型（與 types/character.ts 的 AutoRevealConditionType 保持一致） */
-type AutoRevealConditionType =
-  | 'none'
-  | 'items_viewed'
-  | 'items_acquired'
-  | 'secrets_revealed'
-  | 'skills_revealed'
-  | 'items_revealed'
-  | 'skill_used'
-  | 'item_used'
-  | 'skill_targeted'
-  | 'item_targeted';
-
-/** 自動揭露條件 */
-type AutoRevealCondition = {
-  type: AutoRevealConditionType;
-  itemIds?: string[];
-  secretIds?: string[];
-  skillIds?: string[];
-  matchLogic?: 'and' | 'or';
 };
 
 /** 效果型別（與 BaseEffect 統一） */
