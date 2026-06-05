@@ -133,6 +133,46 @@ describe('updateCharacterItems', () => {
     const result = items[0] as unknown as Record<string, unknown>
     expect(result.autoRevealCondition).toBeUndefined()
   })
+
+  // Feature 3 回歸測試：白名單儲存路徑須保留並 sanitize usageConditions
+  // （此白名單曾是「條件存了卻讀不到」bug 的根源）。
+  it('preserves and normalizes usageConditions for items', () => {
+    const item: MongoItem = {
+      ...baseItem(),
+      usageConditions: [
+        { type: 'stat', statName: 'MP', value: 10, consume: true },
+        { type: 'item', itemName: '炸彈', quantity: 2, consume: false },
+      ],
+    }
+    const { items } = updateCharacterItems([item])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.usageConditions).toEqual([
+      { type: 'stat', statName: 'MP', value: 10, consume: true },
+      { type: 'item', itemName: '炸彈', quantity: 2, consume: false },
+    ])
+  })
+
+  it('drops invalid usageConditions (empty name / non-positive amount)', () => {
+    const item: MongoItem = {
+      ...baseItem(),
+      usageConditions: [
+        { type: 'stat', statName: '', value: 10, consume: true },       // 空名稱 → 丟棄
+        { type: 'stat', statName: 'MP', value: 0, consume: true },      // 數量 0 → 丟棄
+        { type: 'item', itemName: '炸彈', quantity: 1, consume: true },  // 有效
+      ],
+    }
+    const { items } = updateCharacterItems([item])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.usageConditions).toEqual([
+      { type: 'item', itemName: '炸彈', quantity: 1, consume: true },
+    ])
+  })
+
+  it('does not set usageConditions when input omits it', () => {
+    const { items } = updateCharacterItems([baseItem()])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.usageConditions).toBeUndefined()
+  })
 })
 
 // ─── updateCharacterSkills ───────────────────────────────────────────────────
@@ -253,5 +293,25 @@ describe('updateCharacterSkills', () => {
   it('does not set autoRevealCondition when input omits it', () => {
     const [s] = updateCharacterSkills([baseSkill()]) as unknown as Record<string, unknown>[]
     expect(s.autoRevealCondition).toBeUndefined()
+  })
+
+  // Feature 3 回歸測試：技能白名單儲存路徑須保留並 sanitize usageConditions
+  it('preserves and normalizes usageConditions for skills', () => {
+    const skill: MongoSkill = {
+      ...baseSkill(),
+      usageConditions: [
+        { type: 'stat', statName: 'MP', value: 5, consume: true },
+        { type: 'item', itemName: '', quantity: 1, consume: true }, // 空名稱 → 丟棄
+      ],
+    }
+    const [s] = updateCharacterSkills([skill]) as unknown as Record<string, unknown>[]
+    expect(s.usageConditions).toEqual([
+      { type: 'stat', statName: 'MP', value: 5, consume: true },
+    ])
+  })
+
+  it('does not set usageConditions when input omits it (skill)', () => {
+    const [s] = updateCharacterSkills([baseSkill()]) as unknown as Record<string, unknown>[]
+    expect(s.usageConditions).toBeUndefined()
   })
 })

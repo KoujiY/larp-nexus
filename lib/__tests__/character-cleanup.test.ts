@@ -50,6 +50,45 @@ const baseSecret = () => ({
   isRevealed: false,
 })
 
+// ─── Feature 3: usageConditions 保留（回歸測試）────────────────────────────────
+// 白名單式 clean 函數曾漏掉 usageConditions，導致存入 DB 的條件在讀回時被剝除，
+// 表現為「GM 存了卻看不到」+「玩家端 validator 拿不到條件」。
+
+describe('cleanSkillData / cleanItemData — usageConditions 保留', () => {
+  it('cleanSkillData 保留 usageConditions', () => {
+    const skill = {
+      ...baseSkill(),
+      usageConditions: [
+        { type: 'stat' as const, statName: 'MP', value: 10, consume: true },
+      ],
+    }
+    const [result] = cleanSkillData([skill])
+    expect(result.usageConditions).toEqual([
+      { type: 'stat', statName: 'MP', value: 10, consume: true },
+    ])
+  })
+
+  it('cleanItemData 保留 usageConditions', () => {
+    const item = {
+      ...baseItem(),
+      usageConditions: [
+        { type: 'item' as const, itemName: '魔力結晶', quantity: 2, consume: false },
+      ],
+    }
+    const [result] = cleanItemData([item])
+    expect(result.usageConditions).toEqual([
+      { type: 'item', itemName: '魔力結晶', quantity: 2, consume: false },
+    ])
+  })
+
+  it('無 usageConditions 時為 undefined（不報錯）', () => {
+    const [skill] = cleanSkillData([baseSkill()])
+    const [item] = cleanItemData([baseItem()])
+    expect(skill.usageConditions).toBeUndefined()
+    expect(item.usageConditions).toBeUndefined()
+  })
+})
+
 // ─── cleanStatData ────────────────────────────────────────────────────────────
 
 describe('cleanStatData', () => {
