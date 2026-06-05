@@ -70,14 +70,18 @@ export function assembleResult(
   allowAiFill: boolean
 ): CharacterImportResult {
   // ─── Background ───
+  // 來源每一（非空）行 = 一個獨立 body 區塊，讓區塊間距拉開行距，
+  // 而非將整個區段的段落合併成單一擁擠的 body 區塊。
   const backgroundFromParagraphs = indexResult.backgroundSections.flatMap((section) => {
     const blocks: CharacterImportResult['publicInfo']['background'] = [];
     if (section.title) {
       blocks.push({ type: 'title', content: section.title });
     }
-    const bodyContent = getParagraphContent(paragraphs, section.paragraphs);
-    if (bodyContent) {
-      blocks.push({ type: 'body', content: bodyContent });
+    for (const idx of section.paragraphs) {
+      const content = getParagraphContent(paragraphs, [idx]);
+      if (content) {
+        blocks.push({ type: 'body', content });
+      }
     }
     return blocks;
   });
