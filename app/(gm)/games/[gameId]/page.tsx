@@ -104,7 +104,7 @@ export default async function GamePage({ params }: GamePageProps) {
             <GmEmptyState
               icon={<Users className="h-10 w-10" />}
               title="尚未建立任何角色"
-              description="開始為你的劇本建立角色吧，每個角色都可以擁有獨立的背景故事、道具與技能。"
+              description="開始為你的劇本建立角色吧，每個角色都可以擁有獨立的背景故事、物品與技能。"
             >
               <CreateCharacterButton gameId={game.id} variant="empty-state" isActive={game.isActive} />
             </GmEmptyState>
