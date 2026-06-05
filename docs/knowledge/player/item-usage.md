@@ -26,6 +26,15 @@
 | Transfer | `isTransferable=true`；full access mode |
 | Showcase | Full access mode (shows item to another character) |
 
+## 使用條件 (Usage Conditions, Feature 3)
+
+物品/技能可由 GM 設定**使用前置條件**（數值門檻/成本、持有物品）。玩家端行為：
+
+- **未滿足**：詳情對話框可正常開啟（顯示條件與效果），但「使用」按鈕停用、顯示「未滿足使用條件」。卡片仍可點開。
+- **顯示**：詳情中「使用條件」區塊位於「效果」與「檢定資訊」之間，以寫法直覺表達 —— 消耗型 `10MP`／`炸彈 ×1`，門檻型 `MP ≥ 10`／`炸彈`（無「消耗」標籤）。
+- **成本扣除**：`consume=true` 的條件在「提交使用」時扣除（對抗類為發起對抗當下；隨機/一般檢定即使失敗仍扣）。物品成本扣到 0 時整個條目移除（同偷竊/移除效果）。
+- 機制與資料結構詳見 [../gm/items/item-concepts.md](../gm/items/item-concepts.md#使用條件-usage-conditions-feature-3)。
+
 ## Consumable Rules
 - After `usageCount >= usageLimit`: item becomes **unusable** but remains in inventory
 - Item card is still tappable (can transfer), only 使用按鈕 is disabled

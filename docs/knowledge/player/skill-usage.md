@@ -22,6 +22,9 @@ Same pattern as item usage. See [item-usage.md](./item-usage.md) for check type 
 - Skills always have `checkType` (required)
 - Skills can affect tasks directly
 
+## 使用條件 (Usage Conditions, Feature 3)
+技能與物品共用使用條件機制（門檻/成本、停用按鈕、提交即扣、顯示寫法）。詳見 [item-usage.md](./item-usage.md#使用條件-usage-conditions-feature-3)。
+
 ## Related
 - [../shared/contest/contest-flow.md](../shared/contest/contest-flow.md)
 - [../gm/skills/skill-effects-and-tags.md](../gm/skills/skill-effects-and-tags.md)

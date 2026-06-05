@@ -290,6 +290,8 @@ export interface Item {
   usageCount?: number;
   cooldown?: number;
   lastUsedAt?: Date;
+  // Feature 3: 使用條件（前置條件，多條件 AND）
+  usageConditions?: UsageCondition[];
   // 流通性
   isTransferable: boolean;
   acquiredAt: Date;
@@ -346,6 +348,21 @@ export interface RandomConfig {
 }
 
 /**
+ * Feature 3: 技能/物品使用條件（前置條件，多條件為 AND）
+ *
+ * - `stat`：要求角色某數值 ≥ value；`consume=true` 時使用成功提交後扣除 value（成本型）
+ * - `item`：要求角色持有「某名稱」物品總數 ≥ quantity；`consume=true` 時提交後扣除 quantity
+ *
+ * 物品依「名稱」而非 id 比對：同名物品可能有多個不同 id 的條目（轉移合併、GM 分開建立），
+ * 依名稱加總才符合「我有沒有炸彈」的直覺；扣除時跨同名條目貪婪扣減。
+ *
+ * `consume=false` 為純門檻（只檢查不扣除）。
+ */
+export type UsageCondition =
+  | { type: 'stat'; statName: string; value: number; consume: boolean }
+  | { type: 'item'; itemName: string; quantity: number; consume: boolean };
+
+/**
  * Phase 5: 技能系統
  */
 export interface Skill {
@@ -366,6 +383,8 @@ export interface Skill {
   usageCount?: number;
   cooldown?: number;
   lastUsedAt?: Date;
+  // Feature 3: 使用條件（前置條件，多條件 AND）
+  usageConditions?: UsageCondition[];
   // 效果定義（可多個）
   effects?: SkillEffect[];
   // 隱藏技能系統

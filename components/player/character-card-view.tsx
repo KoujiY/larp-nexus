@@ -159,11 +159,13 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
       clearDialogState();
       clearAllPendingContests();
       notify.warning('已中斷對抗檢定');
+      // Feature 3: 中斷後刷新，讓發起時已扣除的成本（MP/物品）即時反映
+      router.refresh();
     } else {
       notify.error(result.message || '中斷失敗');
       throw new Error(result.message);
     }
-  }, [currentContestId, contestDialog.dialogState?.contestId, character.id, clearDefenderContest, clearDialogState, clearAllPendingContests]);
+  }, [currentContestId, contestDialog.dialogState?.contestId, character.id, clearDefenderContest, clearDialogState, clearAllPendingContests, router]);
 
   // 最終解鎖狀態：localStorage 或手動解鎖
   const isUnlocked = isStorageUnlocked || isManuallyUnlocked;
@@ -483,6 +485,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
               characterId={character.id}
               gameId={character.gameId}
               characterName={character.name}
+              stats={displayStats}
               randomContestMaxValue={character.randomContestMaxValue}
               onUseItem={handleUseItem}
               onTransferItem={handleTransferItem}
@@ -497,6 +500,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
               gameId={character.gameId}
               characterName={character.name}
               stats={displayStats}
+              items={displayItems}
               randomContestMaxValue={character.randomContestMaxValue}
               isReadOnly={isReadOnly} // Phase 10.5.4: 預覽模式禁用互動
             />

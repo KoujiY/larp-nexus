@@ -15,6 +15,7 @@ import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4:
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import { buildEquipmentBoostUpdates } from '@/lib/item/apply-equipment-boosts';
+import { checkUsageConditions, buildConsumeUpdate } from '@/lib/character/usage-condition'; // Feature 3
 import type { ApiResponse } from '@/types/api';
 import type { Stat, StatBoost } from '@/types/character';
 
@@ -152,6 +153,44 @@ export async function useItem(
       }
     }
 
+    // Feature 3: 使用條件檢查（server 端強制驗證，不信任前端禁用）
+    const conditionResult = checkUsageConditions(item.usageConditions, {
+      stats: (character.stats || []).map((s) => ({ name: s.name, value: s.value })),
+      items: (character.items || []).map((i) => ({ id: i.id, quantity: i.quantity, name: i.name })),
+    });
+    if (!conditionResult.satisfied) {
+      return {
+        success: false,
+        error: 'CONDITION_NOT_MET',
+        message: conditionResult.reason || '不符合使用條件',
+      };
+    }
+    // 提交使用時要扣除的成本（consume=true 的條件）。$inc 在效果套用之後執行以正確疊加。
+    // 傳入物品快照供「同名物品」跨條目規劃扣減。
+    const consumeUpdate = buildConsumeUpdate(
+      item.usageConditions,
+      (character.stats || []).map((s) => ({ id: s.id, name: s.name })),
+      (character.items || []).map((i) => ({ id: i.id, name: i.name, quantity: i.quantity })),
+    );
+    const applyConsume = async () => {
+      if (!consumeUpdate) return;
+      // stats 與部分扣減的物品（$inc）
+      if (Object.keys(consumeUpdate.inc).length > 0) {
+        await updateCharacterData(
+          characterId,
+          { $inc: consumeUpdate.inc },
+          { arrayFilters: consumeUpdate.arrayFilters },
+        );
+      }
+      // 完全耗盡的成本物品 → 移除整個條目（與偷竊/移除效果一致）。
+      // 與 $inc 分開兩次寫入，避免 $inc 與 $pull 同時操作 items 路徑的衝突。
+      if (consumeUpdate.pullItemIds.length > 0) {
+        await updateCharacterData(characterId, {
+          $pull: { items: { id: { $in: consumeUpdate.pullItemIds } } },
+        });
+      }
+    };
+
     // Phase 8: 驗證目標角色（如果需要）
     // §4: 由 effects 陣列整體推導 targetType（Wizard mutex 規則保證 other / any 不並存）
     //   - 有任一效果 targetType = 'other' 或 'any' → 需要選擇目標角色
@@ -273,6 +312,8 @@ export async function useItem(
           [`items.${itemIndex}.usageCount`]: (item.usageCount || 0) + 1,
         },
       });
+      // Feature 3: 提交即扣成本（對抗類：發起對抗時扣）
+      await applyConsume();
 
       // 獲取目標角色名稱（用於返回訊息）
       const targetCharacterName = targetCharacter?.name || '目標角色';
@@ -308,6 +349,8 @@ export async function useItem(
       if (Object.keys(earlyUsageUpdates).length > 0) {
         await updateCharacterData(characterId, { $set: earlyUsageUpdates });
       }
+      // Feature 3: 提交即扣成本（偷竊/移除延遲結算前先扣）
+      await applyConsume();
 
       const targetCharacterName = targetCharacter?.name || '目標角色';
       return {
@@ -396,6 +439,8 @@ export async function useItem(
       // Phase 10.4: 使用統一的寫入函數（自動判斷 Baseline/Runtime）
       await updateCharacterData(characterId, { $set: usageUpdates });
     }
+    // Feature 3: 提交即扣成本（$inc 在效果套用之後執行，正確疊加；檢定失敗仍扣）
+    await applyConsume();
     revalidatePath(`/c/${characterId}`);
 
     // 若跨角色，重新驗證目標角色路徑

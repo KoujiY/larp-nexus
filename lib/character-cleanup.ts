@@ -21,6 +21,8 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
       usageCount: skill.usageCount || 0,
       cooldown: skill.cooldown,
       lastUsedAt: skill.lastUsedAt,
+      // Feature 3: 保留使用條件（GM 讀回 + 玩家端 validator 皆需要）
+      usageConditions: skill.usageConditions,
       isHidden: skill.isHidden,
       hiddenAt: skill.hiddenAt,
       autoRevealCondition: skill.autoRevealCondition,
@@ -126,6 +128,8 @@ export function cleanItemData(items: MongoItem[] | undefined): MongoItem[] {
         usageCount: item.usageCount || 0,
         cooldown: item.cooldown,
         lastUsedAt: item.lastUsedAt,
+        // Feature 3: 保留使用條件（GM 讀回 + 玩家端 validator 皆需要）
+        usageConditions: item.usageConditions,
         isTransferable: item.isTransferable,
         acquiredAt: item.acquiredAt,
         // 裝備系統

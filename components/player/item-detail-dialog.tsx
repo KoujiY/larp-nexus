@@ -27,6 +27,7 @@ import { getItemEffects, hasItemEffects } from '@/lib/item/get-item-effects';
 import { EffectDisplay } from './effect-display';
 
 import { CheckInfoDisplay } from './check-info-display';
+import { UsageConditionsDisplay } from './usage-conditions-display';
 
 export interface ItemDetailDialogProps {
   /** 當前選中的道具；null 表示 Bottom Sheet 關閉 */
@@ -298,6 +299,9 @@ export function ItemDetailDialog({
               ))}
             </div>
           )}
+
+          {/* Feature 3: 使用條件（置於效果與檢定資訊之間） */}
+          <UsageConditionsDisplay conditions={selectedItem.usageConditions} />
 
           {/* 檢定資訊（非 equipment 類型） */}
           {selectedItem.type !== 'equipment' && selectedItem.checkType && selectedItem.checkType !== 'none' && (

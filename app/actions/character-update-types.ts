@@ -4,7 +4,7 @@
  * 從 character-update.ts 抽取，避免 667 行內聯型別定義。
  */
 
-import type { AutoRevealCondition } from '@/types/character';
+import type { AutoRevealCondition, UsageCondition } from '@/types/character';
 
 /** 效果目標類型 */
 type EffectTargetType = 'self' | 'other' | 'any';
@@ -115,6 +115,7 @@ export type UpdateCharacterInput = {
     usageCount?: number;
     cooldown?: number;
     lastUsedAt?: Date;
+    usageConditions?: UsageCondition[];
     isTransferable: boolean;
     acquiredAt: Date;
     equipped?: boolean;
@@ -136,6 +137,7 @@ export type UpdateCharacterInput = {
     usageCount?: number;
     cooldown?: number;
     lastUsedAt?: Date;
+    usageConditions?: UsageCondition[];
     effects?: Effect[];
     isHidden?: boolean;
     hiddenAt?: Date;
