@@ -9,6 +9,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import type { PublicInfo } from '@/types/character';
 import { CollapsibleSection } from './collapsible-section';
 
@@ -35,9 +36,11 @@ export function InfoRelationshipsTab({ publicInfo }: InfoRelationshipsTabProps) 
     : undefined;
 
   // 將 relationships 映射為 AvatarCharacter 格式
+  // imageUrl 由 getPublicCharacter 依 targetName 比對劇本角色填入（與 GM 端一致）
   const avatarCharacters = relationships.map((rel, index) => ({
     id: String(index),
     name: rel.targetName,
+    imageUrl: rel.imageUrl,
   }));
 
   return (
@@ -63,11 +66,21 @@ export function InfoRelationshipsTab({ publicInfo }: InfoRelationshipsTabProps) 
           {activeRelation && (
             <div className="bg-surface-base p-6 rounded-xl border border-primary/5 shadow-xl">
               <div className="flex items-start gap-4">
-                {/* 首字母頭像佔位 */}
+                {/* 頭像：有比對到劇本角色圖片則顯示圖片，否則首字母佔位 */}
                 <div className="w-16 h-16 rounded-full overflow-hidden shrink-0 border border-primary/15 bg-card flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary/60 select-none">
-                    {activeRelation.targetName.charAt(0).toUpperCase()}
-                  </span>
+                  {activeRelation.imageUrl ? (
+                    <Image
+                      src={activeRelation.imageUrl}
+                      alt={activeRelation.targetName}
+                      width={64}
+                      height={64}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl font-bold text-primary/60 select-none">
+                      {activeRelation.targetName.charAt(0).toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <div className="min-w-0">
                   <h5 className="text-lg font-bold text-foreground mb-2">

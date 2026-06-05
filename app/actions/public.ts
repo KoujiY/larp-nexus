@@ -150,6 +150,27 @@ export async function getPublicCharacter(
       }
     }
 
+    // 人物關係頭像：依 targetName 比對劇本角色的圖片（與 GM 端 background-story-tab 一致）。
+    // 僅為「本角色關係實際引用到的名字」附圖，不外洩完整角色清單；imageUrl 不持久化。
+    let publicInfoForResponse = character.publicInfo;
+    const rels: Array<{ targetName: string; description: string }> | undefined =
+      character.publicInfo?.relationships;
+    if (Array.isArray(rels) && rels.length > 0) {
+      const gameChars = await Character.find({ gameId: character.gameId })
+        .select('name imageUrl')
+        .lean();
+      const imageByName = new Map<string, string | undefined>(
+        gameChars.map((c) => [c.name as string, c.imageUrl as string | undefined]),
+      );
+      publicInfoForResponse = {
+        ...character.publicInfo,
+        relationships: rels.map((rel) => ({
+          ...rel,
+          imageUrl: imageByName.get(rel.targetName) || undefined,
+        })),
+      };
+    }
+
     return {
       success: true,
       data: {
@@ -163,7 +184,7 @@ export async function getPublicCharacter(
         slogan: character.slogan || undefined,
         imageUrl: character.imageUrl,
         hasPinLock: character.hasPinLock,
-        publicInfo: character.publicInfo,
+        publicInfo: publicInfoForResponse,
         // 只有已揭露的秘密才會回傳給玩家
         secretInfo: revealedSecrets.length > 0
           ? { secrets: revealedSecrets }
