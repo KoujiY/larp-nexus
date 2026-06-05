@@ -109,24 +109,28 @@ export function AutoRevealConditionEditor({
   const isSkillsCondition = SKILL_TYPES.includes(currentType);
   const isSecretsCondition = currentType === 'secrets_revealed';
 
-  // 選擇器來源池依條件類型而定（主體 = 正在編輯的角色 ownerCharacterId）：
+  // 選擇器來源池依條件類型決定範圍（主體 = 正在編輯的角色 ownerCharacterId）：
   // - 主動「使用了」（item_used / skill_used）：只能用自己的 → 僅列本角色的項目
   // - 被動「被使用了」/ 檢視 / 取得（targeted / viewed / acquired）：別人可作用於我 → 列全部
-  // - 同層連鎖（items_revealed / skills_revealed）：僅列隱藏項目，並排除自身（避免自我參照）
+  // - 同層連鎖（items_revealed / skills_revealed）：僅列隱藏項目
+  // 範圍決定後，一律排除「正在編輯的項目自身」（excludeId）—— 自我參照在任何條件
+  // 都無意義（使用自己=死設定、取得自己=立即成立、被自己揭露=遞迴），故統一排除。
   const ownItems = availableItems.filter((i) => i.characterId === ownerCharacterId);
   const ownSkills = availableSkills.filter((s) => s.characterId === ownerCharacterId);
-  const itemPool =
+  const itemPool = (
     currentType === 'items_revealed'
-      ? availableItems.filter((i) => i.isHidden && i.itemId !== excludeId)
+      ? availableItems.filter((i) => i.isHidden)
       : currentType === 'item_used'
         ? ownItems
-        : availableItems;
-  const skillPool =
+        : availableItems
+  ).filter((i) => i.itemId !== excludeId);
+  const skillPool = (
     currentType === 'skills_revealed'
-      ? availableSkills.filter((s) => s.isHidden && s.skillId !== excludeId)
+      ? availableSkills.filter((s) => s.isHidden)
       : currentType === 'skill_used'
         ? ownSkills
-        : availableSkills;
+        : availableSkills
+  ).filter((s) => s.skillId !== excludeId);
 
   /** 處理條件類型變更 */
   const handleTypeChange = (type: AutoRevealConditionType) => {
