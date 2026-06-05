@@ -265,6 +265,7 @@ export function CharacterEditTabs({
           <BasicSettingsTab
             character={character}
             gameId={gameId}
+            gameIsActive={gameIsActive}
             onDirtyChange={(dirty) =>
               registerDirty('basic', {
                 isDirty: dirty,

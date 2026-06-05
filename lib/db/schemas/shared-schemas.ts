@@ -288,6 +288,8 @@ export function createBaseCharacterSchemaFields() {
     imageUrl: { type: String },
     hasPinLock: { type: Boolean, default: false },
     pin: { type: String },
+    // Feature 2: 標記後該角色不顯示於玩家世界觀頁面的角色列表（角色本身仍正常運作）
+    hiddenFromWorld: { type: Boolean, default: false },
     // Phase 3: 公開資訊
     publicInfo: {
       background: { type: Schema.Types.Mixed, default: [] },

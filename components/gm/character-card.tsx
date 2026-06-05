@@ -5,9 +5,10 @@ import { DeleteCharacterButton } from './delete-character-button';
 import { UploadCharacterImageButton } from './upload-character-image-button';
 import { GenerateQRCodeButton } from './generate-qrcode-button';
 import { ViewPinButton } from './view-pin-button';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { NavLink } from '@/components/shared/nav-link';
-import { User } from 'lucide-react';
+import { User, EyeOff } from 'lucide-react';
 import Image from 'next/image';
 
 interface CharacterCardProps {
@@ -44,9 +45,20 @@ export function CharacterCard({ character, gameId, isActive }: CharacterCardProp
       <div className="px-4 py-3">
         {/* 名稱 + 日期 */}
         <div className="mb-2">
-          <h3 className="text-base font-extrabold text-foreground line-clamp-1">
-            {character.name}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-foreground line-clamp-1">
+              {character.name}
+            </h3>
+            {character.hiddenFromWorld && (
+              <Badge
+                variant="secondary"
+                className="shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+              >
+                <EyeOff className="h-3 w-3" />
+                隱藏
+              </Badge>
+            )}
+          </div>
           <p className="text-[9px] text-muted-foreground/50 tracking-widest mt-0.5">
             EST. {new Date(character.createdAt).toLocaleDateString('sv-SE')}
           </p>

@@ -184,6 +184,7 @@ export async function updateCharacter(
         slogan: updatedCharacter.slogan || undefined,
         imageUrl: updatedCharacter.imageUrl,
         hasPinLock: updatedCharacter.hasPinLock,
+        hiddenFromWorld: updatedCharacter.hiddenFromWorld === true,
         publicInfo: serializePublicInfo(updatedCharacter.publicInfo),
         secretInfo: cleanSecretInfo,
         tasks: cleanTasks,
@@ -230,6 +231,7 @@ function buildUpdateData(
   if (data.slogan !== undefined) updateData.slogan = data.slogan;
   if (data.hasPinLock !== undefined) updateData.hasPinLock = data.hasPinLock;
   if (data.pin !== undefined) updateData.pin = data.pin;
+  if (data.hiddenFromWorld !== undefined) updateData.hiddenFromWorld = data.hiddenFromWorld;
 
   // publicInfo
   if (data.publicInfo !== undefined) {
