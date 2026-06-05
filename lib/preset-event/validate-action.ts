@@ -103,6 +103,56 @@ export function validatePresetAction(
       return { valid: true };
     }
 
+    case 'reveal_skill':
+    case 'hide_skill': {
+      if (!action.revealCharacterId) {
+        return { valid: false, reason: '未指定目標角色' };
+      }
+      const char = charMap.get(action.revealCharacterId);
+      if (!char) {
+        return { valid: false, reason: '目標角色已不存在' };
+      }
+      if (!action.revealTargetId) {
+        return { valid: false, reason: '未指定技能' };
+      }
+      const skill = (char.skills || []).find((s) => s.id === action.revealTargetId);
+      if (!skill) {
+        return { valid: false, reason: '目標技能已不存在' };
+      }
+      if (action.type === 'reveal_skill' && skill.isHidden !== true) {
+        return { valid: false, reason: '目標技能已可見' };
+      }
+      if (action.type === 'hide_skill' && skill.isHidden === true) {
+        return { valid: false, reason: '目標技能已隱藏' };
+      }
+      return { valid: true };
+    }
+
+    case 'reveal_item':
+    case 'hide_item': {
+      if (!action.revealCharacterId) {
+        return { valid: false, reason: '未指定目標角色' };
+      }
+      const char = charMap.get(action.revealCharacterId);
+      if (!char) {
+        return { valid: false, reason: '目標角色已不存在' };
+      }
+      if (!action.revealTargetId) {
+        return { valid: false, reason: '未指定物品' };
+      }
+      const item = (char.items || []).find((i) => i.id === action.revealTargetId);
+      if (!item) {
+        return { valid: false, reason: '目標物品已不存在' };
+      }
+      if (action.type === 'reveal_item' && item.isHidden !== true) {
+        return { valid: false, reason: '目標物品已可見' };
+      }
+      if (action.type === 'hide_item' && item.isHidden === true) {
+        return { valid: false, reason: '目標物品已隱藏' };
+      }
+      return { valid: true };
+    }
+
     default:
       return { valid: false, reason: `不支援的動作類型: ${action.type}` };
   }

@@ -13,7 +13,7 @@ import type { PresetEvent, PresetEventInput, PresetEventRuntime } from '@/types/
 
 const actionSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(['broadcast', 'stat_change', 'reveal_secret', 'reveal_task']),
+  type: z.enum(['broadcast', 'stat_change', 'reveal_secret', 'reveal_task', 'reveal_skill', 'hide_skill', 'reveal_item', 'hide_item']),
   // broadcast
   broadcastTargets: z.union([z.literal('all'), z.array(z.string())]).optional(),
   broadcastTitle: z.string().max(100).optional(),
