@@ -7,6 +7,19 @@ Players receive in-app notifications when events happen to their character (skil
 - **TTL**: 24 hours — notifications expire automatically
 - **Limit**: 50 notifications per character — oldest removed when limit exceeded
 - Hook: `hooks/use-notification-system.ts`
+- **Storage**: 玩家通知存於各自瀏覽器 **localStorage**（`character-{id}-notifs`），**不入 DB**。
+
+## Stat 變化通知格式（delta-only）
+數值變化通知一律以**變化量**呈現，不顯示絕對值：
+- `role.updated` 映射器（`lib/utils/event-mappers/role-events.ts`）只在有 delta 時產生通知；無 delta = 無實質變化 = 不通知（不再以絕對值 fallback，避免撞上限時誤報無關數值）。
+- **撞上限仍提示**：全體/預設事件改數值時，若實際 delta 因 clamp 為 0（例如 MP+1 但 MP 已滿），通知改用「設定的變化量」（仍顯示「MP +1」），由 `resolveNotifyDelta`（`lib/utils/format-stat-delta.ts`）決定。數值同步另由 `router.refresh` 自 DB 讀取，不受通知 delta 影響。
+
+## 一鍵清除通知顯示
+GM 可於 Runtime 控制台「歷史紀錄」面板按「清除顯示」一鍵清空前端顯示（**不刪除任何 DB 資料**）：
+- **玩家端**：廣播 `notifications.cleared`（遊戲頻道），各玩家 client 呼叫 `clearNotifications()` 清空 localStorage 通知面板。
+- **GM 端**：以 localStorage **水位線**（`gm-eventlog-{gameId}-clearedBefore`）過濾顯示，隱藏清除點之前的歷史紀錄；DB `Log` collection 完整保留，刷新後仍維持清空。
+- Server action：`app/actions/clear-notifications.ts`（限該遊戲 GM；對 DB 零寫入）。
+- 限制：純即時訊號，不寫 pending events，故離線玩家重連後不會被補清。
 
 ## Notification Triggers
 | Event | Recipient |

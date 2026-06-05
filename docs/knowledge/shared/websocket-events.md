@@ -41,6 +41,7 @@
 | `role.message` | Private message to one character |
 | `game.started` | Game became active |
 | `game.ended` | Game ended |
+| `notifications.cleared` | GM 一鍵清除：全體玩家清空前端通知面板（純前端，不刪 DB；不寫 pending events） |
 
 ## Base Event Structure
 ```typescript
