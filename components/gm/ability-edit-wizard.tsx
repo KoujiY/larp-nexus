@@ -152,6 +152,10 @@ export function AbilityEditWizard({
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedEffectIndex, setSelectedEffectIndex] = useState(0);
   const [showNameError, setShowNameError] = useState(false);
+  const [cooldownUnit, setCooldownUnit] = useState<'sec' | 'min'>(() => {
+    const cd = 'cooldown' in initialData ? (initialData.cooldown ?? 0) : 0;
+    return cd > 0 && cd % 60 === 0 ? 'min' : 'sec';
+  });
   const nameFieldRef = useRef<HTMLDivElement>(null);
 
   // Reset state when dialog opens with new initialData
@@ -689,11 +693,34 @@ export function AbilityEditWizard({
           </div>
           <div className="flex items-center gap-3">
             <Input
-              type="number" min={0} value={cooldown ?? 0}
-              onChange={(e) => updateData({ cooldown: parseInt(e.target.value) || 0 })}
+              type="number" min={0}
+              value={cooldownUnit === 'min' ? Math.round((cooldown ?? 0) / 60) : (cooldown ?? 0)}
+              onChange={(e) => {
+                const v = parseInt(e.target.value) || 0;
+                updateData({ cooldown: cooldownUnit === 'min' ? v * 60 : v });
+              }}
               className={step3Input}
             />
-            <span className="text-xs font-extrabold text-muted-foreground bg-muted px-3 py-2 rounded-lg border border-border/50 shrink-0">分鐘</span>
+            <div className="flex shrink-0 rounded-lg border border-border/50 overflow-hidden">
+              <button
+                type="button"
+                className={`px-3 py-2 text-xs font-extrabold transition-colors ${cooldownUnit === 'sec' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                onClick={() => {
+                  if (cooldownUnit !== 'sec') {
+                    setCooldownUnit('sec');
+                  }
+                }}
+              >秒</button>
+              <button
+                type="button"
+                className={`px-3 py-2 text-xs font-extrabold transition-colors ${cooldownUnit === 'min' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                onClick={() => {
+                  if (cooldownUnit !== 'min') {
+                    setCooldownUnit('min');
+                  }
+                }}
+              >分</button>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground font-medium">兩次使用之間必須等待的時間間隔。設為 0 表示無冷卻。</p>
         </div>
