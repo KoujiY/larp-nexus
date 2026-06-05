@@ -28,8 +28,8 @@ const ACTION_TYPE_OPTIONS: { value: PresetEventActionType; label: string }[] = [
   { value: 'reveal_task', label: '揭露隱藏任務' },
   { value: 'reveal_skill', label: '揭露技能' },
   { value: 'hide_skill', label: '隱藏技能' },
-  { value: 'reveal_item', label: '揭露道具' },
-  { value: 'hide_item', label: '隱藏道具' },
+  { value: 'reveal_item', label: '揭露物品' },
+  { value: 'hide_item', label: '隱藏物品' },
 ];
 
 interface PresetEventActionEditorProps {
@@ -618,7 +618,7 @@ function HideSkillFields({
   );
 }
 
-/** 揭露隱藏道具欄位 */
+/** 揭露隱藏物品欄位 */
 function RevealItemFields({
   action,
   characters,
@@ -653,14 +653,14 @@ function RevealItemFields({
         </Select>
       </div>
       <div>
-        <label className={GM_LABEL_CLASS}>隱藏道具</label>
+        <label className={GM_LABEL_CLASS}>隱藏物品</label>
         {hiddenItems.length > 0 ? (
           <Select
             value={action.revealTargetId || ''}
             onValueChange={(v) => onChange({ revealTargetId: v })}
           >
             <SelectTrigger className={GM_SELECT_CLASS}>
-              <SelectValue placeholder="選擇要揭露的道具" />
+              <SelectValue placeholder="選擇要揭露的物品" />
             </SelectTrigger>
             <SelectContent>
               {hiddenItems.map((i) => (
@@ -672,7 +672,7 @@ function RevealItemFields({
           </Select>
         ) : (
           <p className="text-xs text-muted-foreground/70">
-            {selectedChar ? '此角色沒有隱藏道具' : '請先選擇角色'}
+            {selectedChar ? '此角色沒有隱藏物品' : '請先選擇角色'}
           </p>
         )}
       </div>
@@ -680,7 +680,7 @@ function RevealItemFields({
   );
 }
 
-/** 隱藏道具欄位 */
+/** 隱藏物品欄位 */
 function HideItemFields({
   action,
   characters,
@@ -715,14 +715,14 @@ function HideItemFields({
         </Select>
       </div>
       <div>
-        <label className={GM_LABEL_CLASS}>可見道具</label>
+        <label className={GM_LABEL_CLASS}>可見物品</label>
         {visibleItems.length > 0 ? (
           <Select
             value={action.revealTargetId || ''}
             onValueChange={(v) => onChange({ revealTargetId: v })}
           >
             <SelectTrigger className={GM_SELECT_CLASS}>
-              <SelectValue placeholder="選擇要隱藏的道具" />
+              <SelectValue placeholder="選擇要隱藏的物品" />
             </SelectTrigger>
             <SelectContent>
               {visibleItems.map((i) => (
@@ -734,7 +734,7 @@ function HideItemFields({
           </Select>
         ) : (
           <p className="text-xs text-muted-foreground/70">
-            {selectedChar ? '此角色沒有可見的道具' : '請先選擇角色'}
+            {selectedChar ? '此角色沒有可見的物品' : '請先選擇角色'}
           </p>
         )}
       </div>

@@ -349,7 +349,7 @@ function getActionSummary(action: PresetEventAction, charMap: Map<string, Charac
     case 'hide_item': {
       const char = action.revealCharacterId ? charMap.get(action.revealCharacterId) : undefined;
       const item = char?.items?.find((i) => i.id === action.revealTargetId);
-      return item?.name ?? (action.type === 'reveal_item' ? '揭露道具' : '隱藏道具');
+      return item?.name ?? (action.type === 'reveal_item' ? '揭露物品' : '隱藏物品');
     }
     default:
       return action.type;
