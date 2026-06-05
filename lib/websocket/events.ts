@@ -18,6 +18,7 @@ import type {
   EquipmentToggledEvent,
   GameStartedEvent,
   GameEndedEvent,
+  NotificationsClearedEvent,
   SkillRevealedEvent,
   SkillHiddenEvent,
   ItemRevealedEvent,
@@ -144,6 +145,20 @@ export async function emitGameBroadcast(gameId: string, payload: GameBroadcastEv
     trigger(`private-game-${gameId}`, 'game.broadcast', payloadWithId),
     writePendingGameEvent(gameId, 'game.broadcast', payloadWithId as Record<string, unknown>),
   ]);
+}
+
+/**
+ * 推送「一鍵清除通知」事件到遊戲頻道（全體玩家清空前端通知面板）
+ *
+ * 純前端清除訊號：僅即時推送，刻意不寫入 pending events —— 離線玩家無需
+ * 補清（其本地通知本就受 TTL 約束），且 pending 補送語意是「補加通知」，
+ * 與「清除」相反。不刪除任何 DB 資料。
+ */
+export async function emitNotificationsCleared(
+  gameId: string,
+  payload: NotificationsClearedEvent['payload'],
+) {
+  await trigger(`private-game-${gameId}`, 'notifications.cleared', payload);
 }
 
 /** 推送「任務狀態更新」事件到角色頻道，同時寫入 pending events */

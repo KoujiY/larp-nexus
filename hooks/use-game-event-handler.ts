@@ -41,6 +41,8 @@ type Params = {
   onItemShowcased: (fromName: string, item: ShowcasedItemInfo) => void;
   /** 遊戲結束時的回調（顯示 GameEndedDialog） */
   onGameEnded: () => void;
+  /** GM 一鍵清除通知時的回調（清空本地通知面板） */
+  onClearNotifications: () => void;
 };
 
 /**
@@ -52,6 +54,7 @@ export function useGameEventHandler({
   contestDialog,
   onItemShowcased,
   onGameEnded,
+  onClearNotifications,
 }: Params) {
   const router = useRouter();
 
@@ -163,6 +166,9 @@ export function useGameEventHandler({
     } else if (event.type === 'game.started') {
       // 遊戲開始時靜默刷新（更新 isGameActive 和 baselineData）
       router.refresh();
+    } else if (event.type === 'notifications.cleared') {
+      // GM 一鍵清除：清空本地通知面板（純前端，不影響任何 DB 資料）
+      onClearNotifications();
     } else if (event.type === 'game.reset' || event.type === 'game.ended') {
       addNotification([{
         id: `evt-${event.timestamp}`,

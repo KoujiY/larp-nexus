@@ -385,6 +385,23 @@ export interface GameEndedEvent extends BaseEvent<{
 }
 
 /**
+ * 一鍵清除通知事件（遊戲頻道）
+ *
+ * GM 在控制台按下「清除顯示」時推送至遊戲頻道，
+ * 各玩家 client 收到後清空本地通知面板（localStorage）。
+ * 純前端清除訊號 —— 不刪除任何 DB 資料（玩家通知本就不入庫，
+ * GM 歷史紀錄 Log collection 亦完整保留）。
+ */
+export interface NotificationsClearedEvent extends BaseEvent<{
+  /** 遊戲 ID */
+  gameId: string;
+  /** 清除動作時間戳（毫秒） */
+  clearedAt: number;
+}> {
+  type: 'notifications.cleared';
+}
+
+/**
  * 裝備切換事件
  *
  * 玩家裝備或卸除 equipment 類型道具時推送，
@@ -454,6 +471,7 @@ export type WebSocketEvent =
   | ItemShowcasedEvent       // Phase 7.7
   | EffectExpiredEvent       // Phase 8
   | EquipmentToggledEvent
+  | NotificationsClearedEvent // 一鍵清除前端通知
   | GameStartedEvent         // Phase 10.7
   | GameEndedEvent           // Phase 10.7
   | SkillRevealedEvent       // Hidden skills/items
