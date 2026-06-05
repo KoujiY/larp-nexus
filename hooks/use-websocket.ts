@@ -48,7 +48,7 @@ const CHARACTER_EVENT_TYPES = [
   'equipment.toggled',
 ] as const;
 
-const GAME_EVENT_TYPES = ['game.broadcast', 'game.started', 'game.reset', 'game.ended'] as const;
+const GAME_EVENT_TYPES = ['game.broadcast', 'game.started', 'game.reset', 'game.ended', 'notifications.cleared'] as const;
 
 /**
  * 訂閱角色專屬 Pusher 頻道（`private-character-{id}`）

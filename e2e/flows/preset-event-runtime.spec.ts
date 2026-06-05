@@ -1029,4 +1029,82 @@ test.describe('Flow #9 — Preset Event Runtime Execution', () => {
     expect(visibilityEvent!.executionCount).toBe(1);
   });
 
+  // ─── #9.8 stat_change 撞上限 → role.updated 仍帶「設定變化量」 ───
+  test('#9.8 capped stat_change still emits configured delta in role.updated', async ({
+    seed,
+    asGmAndPlayer,
+    dbQuery,
+  }) => {
+    // ── Seed：MP 已滿（50/50）的角色 + MP+1 預設事件 ──
+    const { gmUserId, gameId } = await seed.gmWithGame({
+      gameOverrides: { isActive: true },
+    });
+    const seededStats = [
+      { id: 'stat-hp', name: '生命值', value: 80, maxValue: 100 },
+      { id: 'stat-mp', name: '魔力', value: 50, maxValue: 50 }, // 已達上限
+    ];
+    const charA = await seed.character({ gameId, name: '法師', stats: seededStats });
+    await seed.characterRuntime({ refId: charA._id, gameId, name: '法師', stats: seededStats });
+    await seed.gameRuntime({
+      refId: gameId,
+      gmUserId,
+      presetEvents: [{
+        id: 'pe-mana-tick',
+        name: '回魔',
+        showName: true,
+        actions: [{
+          id: 'act-mana',
+          type: 'stat_change',
+          statTargets: 'all',
+          statName: '魔力',
+          statChangeTarget: 'value',
+          statChangeValue: 1,
+        }],
+        executionCount: 0,
+      }],
+    });
+
+    const { gmPage, playerPage } = await asGmAndPlayer({ gmUserId, characterId: charA._id });
+
+    // Player 先載入（規則 30）
+    await playerPage.goto(`/c/${charA._id}`);
+    await playerPage.locator('button[aria-label*="通知"]').first().waitFor({ state: 'visible' });
+
+    // GM 進入控制台
+    await gmPage.goto(`/games/${gameId}`);
+    await gmPage.getByRole('tab', { name: '控制台' }).click();
+
+    const wsPromise = waitForWebSocketEvent(playerPage, {
+      event: 'role.updated',
+      channel: `private-character-${charA._id}`,
+    });
+
+    await executePresetEvent(gmPage, '回魔');
+    await waitForToast(gmPage, '已執行');
+
+    // ── 核心斷言：MP 撞上限（value 維持 50），但 payload 仍帶設定變化量 deltaValue=1 ──
+    // 修復前：實際 delta=0 → 不帶 delta，玩家端誤報無關數值或無通知。
+    const updateEvent = await wsPromise as Record<string, unknown>;
+    const updatePayload = updateEvent.payload as Record<string, unknown>;
+    const updates = updatePayload.updates as Record<string, unknown>;
+    const wsStats = updates.stats as Array<Record<string, unknown>>;
+
+    const mpStat = wsStats.find(s => s.name === '魔力');
+    expect(mpStat).toBeTruthy();
+    expect(mpStat!.value).toBe(50);      // 撞上限，實際值不變
+    expect(mpStat!.deltaValue).toBe(1);  // 仍以「設定變化量」通知
+
+    // 未被本事件影響的 HP：payload 不帶 delta（避免誤報無關數值）
+    const hpStat = wsStats.find(s => s.name === '生命值');
+    if (hpStat) {
+      expect(hpStat.deltaValue).toBeUndefined();
+    }
+
+    // ── DB：MP 真實值維持 50（capped，未被寫成 51） ──
+    const charRuntimes = await dbQuery('character_runtime', { refId: charA._id });
+    const dbStats = (charRuntimes[0] as Record<string, unknown>).stats as Array<Record<string, unknown>>;
+    const dbMp = dbStats.find(s => s.name === '魔力');
+    expect(dbMp!.value).toBe(50);
+  });
+
 });

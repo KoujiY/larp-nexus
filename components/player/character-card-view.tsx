@@ -131,7 +131,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   const [showcaseItemInfo, setShowcaseItemInfo] = useState<ShowcasedItemInfo | null>(null);
 
   // Phase 3.1: 使用通知系統 Hook
-  const { notifications, unreadCount, markAsRead, addNotification } = useNotificationSystem(character.id);
+  const { notifications, unreadCount, markAsRead, addNotification, clearNotifications } = useNotificationSystem(character.id);
 
   // 對抗狀態管理
   const { clearAllPendingContests } = useContestState(character.id);
@@ -303,6 +303,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
       setShowcaseDialogOpen(true);
     },
     onGameEnded: () => setGameEndedDialogOpen(true),
+    onClearNotifications: clearNotifications,
   });
 
   // 未解鎖時顯示入口畫面（所有角色統一流程）

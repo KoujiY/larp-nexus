@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
-import { RefreshCw, ScrollText } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useTransition } from 'react';
+import { RefreshCw, ScrollText, Trash2 } from 'lucide-react';
 import { formatStatDeltaText } from '@/lib/utils/format-stat-delta';
 import { getGameLogs, type LogData } from '@/app/actions/logs';
+import { clearPlayerNotifications } from '@/app/actions/clear-notifications';
 import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
 import {
   Select,
@@ -33,6 +34,15 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
   const [logs, setLogs] = useState<LogData[]>([]);
   const [characterFilter, setCharacterFilter] = useState('all');
   const [isPending, startTransition] = useTransition();
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
+  // 前端清除水位線：僅遮蔽顯示，不刪 DB。渲染時濾掉早於此時間戳的紀錄。
+  // clearedBefore 只影響「顯示哪些紀錄」（內容），不改變元件樹結構，故採 lazy initializer。
+  const watermarkKey = `gm-eventlog-${gameId}-clearedBefore`;
+  const [clearedBefore, setClearedBefore] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    return Number(localStorage.getItem(watermarkKey) ?? 0);
+  });
 
   const fetchLogs = useCallback(() => {
     startTransition(async () => {
@@ -51,6 +61,32 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
     fetchLogs();
   }, [fetchLogs, refreshKey]);
 
+  // 套用水位線過濾：DB 紀錄完整保留，僅前端隱藏清除點之前的項目
+  const visibleLogs = useMemo(
+    () => logs.filter((l) => new Date(l.timestamp).getTime() > clearedBefore),
+    [logs, clearedBefore],
+  );
+
+  /**
+   * 一鍵清除顯示：
+   * 1. GM 端 — 設定前端水位線（localStorage），隱藏目前所有紀錄（DB 不動）
+   * 2. 玩家端 — 廣播 notifications.cleared，各玩家 client 清空通知面板（DB 不動）
+   */
+  const handleClearDisplay = useCallback(() => {
+    const now = Date.now();
+    setClearedBefore(now);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(watermarkKey, String(now));
+    }
+    setConfirmingClear(false);
+    // 廣播給全體玩家（fire-and-forget；失敗僅記錄，不阻斷 GM 端清除）
+    void clearPlayerNotifications(gameId).then((res) => {
+      if (!res.success) {
+        console.error('[EventLog] clearPlayerNotifications failed:', res.message);
+      }
+    });
+  }, [watermarkKey, gameId]);
+
   /** 角色名稱查詢快取 */
   const characterNameMap = new Map(characters.map((c) => [c.id, c.name]));
 
@@ -63,6 +99,35 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
           歷史紀錄
         </h2>
         <div className="flex gap-2">
+          {confirmingClear ? (
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={handleClearDisplay}
+                className="flex items-center gap-1 text-xs font-bold bg-red-500/15 text-red-600 dark:text-red-400 rounded-lg px-3 py-1.5 hover:bg-red-500/25 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                確認清除
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingClear(false)}
+                className="text-xs font-bold bg-muted text-muted-foreground rounded-lg px-3 py-1.5 hover:bg-muted/70 transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingClear(true)}
+              title="清除前端顯示（GM 與全體玩家），不刪除資料庫資料"
+              className="flex items-center gap-1 text-xs font-bold bg-muted text-muted-foreground rounded-lg px-3 py-1.5 hover:bg-muted/70 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              清除顯示
+            </button>
+          )}
           <button
             type="button"
             onClick={fetchLogs}
@@ -88,13 +153,13 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
 
       {/* Event List */}
       <div className={`grow overflow-y-auto p-4 min-h-0 ${GM_SCROLLBAR_CLASS}`}>
-        {logs.length === 0 ? (
+        {visibleLogs.length === 0 ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground opacity-50">
             {isPending ? '載入中...' : '尚無事件紀錄'}
           </div>
         ) : (
           <div className="space-y-4">
-            {logs.map((log) => (
+            {visibleLogs.map((log) => (
               <EventLogEntry
                 key={log.id}
                 log={log}

@@ -3,6 +3,7 @@ import { emitSecretRevealed, emitTaskRevealed, emitRoleUpdated, emitSkillReveale
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 import { writeLog } from '@/lib/logs/write-log';
 import { computeStatChange } from '@/lib/effects/shared-effect-executor';
+import { resolveNotifyDelta } from '@/lib/utils/format-stat-delta';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
 import dbConnect from '@/lib/db/mongodb';
 import type { PresetEventAction, ActionTarget, PresetEventActionType } from '@/types/game';
@@ -264,6 +265,18 @@ async function executeStatChange(
         ...(result.newMaxValue !== undefined ? { maxValue: result.newMaxValue } : {}),
       };
     });
+
+    // 通知用變化量：撞上限（actual delta=0）時改用設定值，讓玩家仍收到「MP +1」
+    // 這類提示。deltaValue/deltaMax 僅供通知映射器產生文字；數值同步由
+    // role.updated 觸發的 router.refresh 自 DB 重新讀取，故不會汙染真實數值。
+    const notify = resolveNotifyDelta({
+      statChangeTarget,
+      syncValue,
+      configuredDelta: delta,
+      actualDeltaValue: result.deltaValue,
+      actualDeltaMax: result.deltaMax,
+    });
+
     await emitRoleUpdated(baselineId, {
       characterId: baselineId,
       updates: {
@@ -272,7 +285,7 @@ async function executeStatChange(
           name: s.name,
           value: s.value,
           maxValue: s.maxValue,
-          ...(i === statIndex ? { deltaValue: result.deltaValue, deltaMax: result.deltaMax } : {}),
+          ...(i === statIndex ? { deltaValue: notify.deltaValue, deltaMax: notify.deltaMax } : {}),
         })),
       },
     });
