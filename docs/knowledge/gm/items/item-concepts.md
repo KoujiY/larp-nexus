@@ -29,6 +29,7 @@ interface Item {
   usageCount?: number;
   cooldown?: number;             // Seconds between uses
   lastUsedAt?: Date;
+  usageConditions?: UsageCondition[]; // Feature 3: 使用前置條件（多條件 AND）
   isTransferable: boolean;
   // 僅 type === 'equipment'
   equipped?: boolean;
@@ -87,6 +88,27 @@ interface StatBoost {
 
 ### 伺服器端過濾
 隱藏物品在玩家端 API 回應中被過濾，玩家無法感知其存在。
+
+## 使用條件 (Usage Conditions, Feature 3)
+
+物品（consumable / tool；equipment 不適用）可設定**前置條件**，不符時玩家端「使用」按鈕停用並顯示原因。多條件為 **AND**（全部滿足才可用）。
+
+### 條件型別
+```typescript
+type UsageCondition =
+  | { type: 'stat'; statName: string; value: number; consume: boolean }     // 角色該 stat ≥ value
+  | { type: 'item'; itemName: string; quantity: number; consume: boolean }; // 持有「該名稱」物品總數 ≥ quantity
+```
+- **物品依「名稱」比對**：同名物品可能有多個不同 id 的條目（轉移合併、GM 分開建立），依名稱加總才符合「我有沒有炸彈」的直覺；扣除時跨同名條目貪婪扣減（每條目以 id 定位 `$inc`，不可用單一 name arrayFilter 否則超扣）。GM 下拉去重同名。
+- **consume=false**：純門檻（只檢查不扣除）
+- **consume=true**：成本（提交使用時扣除 value / quantity；採 commit-time，**檢定失敗仍扣**）。物品成本扣到 0 時**整個條目移除**（與偷竊/移除效果一致），不留下數量 0 的條目。
+
+### 三層實作
+1. **GM 編輯**：`ability-edit-wizard.tsx` Step 3「使用限制」下方的 `UsageConditionsEditor`（物品條件僅列本角色自己的物品）
+2. **玩家端**：`canUseItem(item, { stats, items })`（`lib/utils/item-validators.ts`）→ 禁用按鈕 + reason
+3. **Server 強制**：`item-use.ts` 提交前 `checkUsageConditions`，提交時以 `$inc` + `arrayFilters` 原子扣除（在效果套用之後執行以正確疊加）
+
+共用純邏輯：`lib/character/usage-condition.ts`（`checkUsageConditions` / `buildConsumeUpdate`）。
 
 ## Transferability
 - `isTransferable: true` → player can transfer item to another character

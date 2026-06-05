@@ -18,6 +18,7 @@ interface Skill {
   usageCount?: number;
   cooldown?: number;
   lastUsedAt?: Date;
+  usageConditions?: UsageCondition[];  // Feature 3: 使用前置條件（多條件 AND）
   effects?: SkillEffect[];
 }
 ```
@@ -60,6 +61,13 @@ interface Skill {
 
 ### 伺服器端過濾
 隱藏技能在玩家端 API 回應中被過濾，玩家無法感知其存在。
+
+## 使用條件 (Usage Conditions, Feature 3)
+
+技能可設定**前置條件**（數值門檻/成本、持有物品），不符時玩家端「使用」按鈕停用並顯示原因；多條件為 AND。`consume=true` 時於提交使用（含對抗發起）原子扣除，檢定失敗仍扣。機制與資料結構與物品共用，詳見 [../items/item-concepts.md](../items/item-concepts.md#使用條件-usage-conditions-feature-3)。
+
+- 玩家端驗證：`canUseSkill(skill, { stats, items })`（`lib/utils/skill-validators.ts`）
+- Server 強制：`skill-use.ts`；共用純邏輯：`lib/character/usage-condition.ts`
 
 ## GM UI
 - **⚡ 技能管理 tab**: Add/edit/remove skills
