@@ -9,6 +9,7 @@
  */
 
 import { Schema } from 'mongoose';
+import { AUTO_REVEAL_CONDITION_TYPES } from '@/types/character';
 
 /**
  * Phase 7.7: 自動揭露條件子文檔 Schema
@@ -21,11 +22,12 @@ export const autoRevealConditionSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ['none', 'items_viewed', 'items_acquired', 'secrets_revealed'],
+      enum: [...AUTO_REVEAL_CONDITION_TYPES],
       default: 'none',
     },
     itemIds: [{ type: String }],
     secretIds: [{ type: String }],
+    skillIds: [{ type: String }],
     matchLogic: {
       type: String,
       enum: ['and', 'or'],
@@ -152,6 +154,10 @@ function createItemsSchemaField() {
           target: { type: String, enum: ['value', 'maxValue', 'both'], default: 'value' },
         },
       ],
+      // 隱藏物品系統
+      isHidden: { type: Boolean, default: false },
+      hiddenAt: { type: Date },
+      autoRevealCondition: { type: autoRevealConditionSchema, default: undefined },
     },
   ];
 }
@@ -225,6 +231,10 @@ function createSkillsSchemaField() {
           description: String,
         },
       ],
+      // 隱藏技能系統
+      isHidden: { type: Boolean, default: false },
+      hiddenAt: { type: Date },
+      autoRevealCondition: { type: autoRevealConditionSchema, default: undefined },
     },
   ];
 }

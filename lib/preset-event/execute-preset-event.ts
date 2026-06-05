@@ -1,17 +1,17 @@
 import { GameRuntime, CharacterRuntime } from '@/lib/db/models';
-import { emitSecretRevealed, emitTaskRevealed, emitRoleUpdated } from '@/lib/websocket/events';
+import { emitSecretRevealed, emitTaskRevealed, emitRoleUpdated, emitSkillRevealed, emitSkillHidden, emitItemRevealed, emitItemHidden } from '@/lib/websocket/events';
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 import { writeLog } from '@/lib/logs/write-log';
 import { computeStatChange } from '@/lib/effects/shared-effect-executor';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
 import dbConnect from '@/lib/db/mongodb';
-import type { PresetEventAction, ActionTarget } from '@/types/game';
+import type { PresetEventAction, ActionTarget, PresetEventActionType } from '@/types/game';
 
 // ─── Types ───────────────────────────────────────────
 
 export interface ActionResult {
   actionId: string;
-  type: string;
+  type: PresetEventActionType;
   status: 'success' | 'skipped' | 'failed';
   reason?: string;
 }
@@ -116,6 +116,14 @@ async function executeAction(
         return await executeRevealSecret(action, gameId, gmUserId, charByBaselineId);
       case 'reveal_task':
         return await executeRevealTask(action, gameId, gmUserId, charByBaselineId);
+      case 'reveal_skill':
+        return await executeRevealSkill(action, gameId, gmUserId, charByBaselineId);
+      case 'hide_skill':
+        return await executeHideSkill(action, gameId, gmUserId, charByBaselineId);
+      case 'reveal_item':
+        return await executeRevealItem(action, gameId, gmUserId, charByBaselineId);
+      case 'hide_item':
+        return await executeHideItem(action, gameId, gmUserId, charByBaselineId);
       default:
         return { actionId: action.id, type: action.type, status: 'skipped', reason: `不支援的動作類型` };
     }
@@ -419,4 +427,205 @@ async function executeRevealTask(
   });
 
   return { actionId: action.id, type: 'reveal_task', status: 'success' };
+}
+
+async function executeRevealSkill(
+  action: PresetEventAction,
+  gameId: string,
+  gmUserId: string,
+  charByBaselineId: Map<string, Record<string, unknown>>,
+): Promise<ActionResult> {
+  const charId = action.revealCharacterId;
+  if (!charId || !charByBaselineId.has(charId)) {
+    return { actionId: action.id, type: 'reveal_skill', status: 'skipped', reason: '目標角色不存在' };
+  }
+  if (!action.revealTargetId) {
+    return { actionId: action.id, type: 'reveal_skill', status: 'skipped', reason: '未指定技能' };
+  }
+
+  const runtimeChar = charByBaselineId.get(charId)!;
+  const runtimeId = (runtimeChar._id as { toString(): string }).toString();
+  const skills = (runtimeChar.skills || []) as Array<{ id: string; name: string; isHidden?: boolean }>;
+  const skillIndex = skills.findIndex((s) => s.id === action.revealTargetId);
+
+  if (skillIndex === -1) {
+    return { actionId: action.id, type: 'reveal_skill', status: 'skipped', reason: '目標技能不存在' };
+  }
+
+  const skill = skills[skillIndex];
+  if (!skill.isHidden) {
+    return { actionId: action.id, type: 'reveal_skill', status: 'skipped', reason: '技能已可見' };
+  }
+
+  const now = new Date();
+  await CharacterRuntime.updateOne(
+    { _id: runtimeId },
+    { $set: {
+      [`skills.${skillIndex}.isHidden`]: false,
+      [`skills.${skillIndex}.hiddenAt`]: now,
+    }},
+  );
+
+  await emitSkillRevealed(charId, {
+    characterId: charId,
+    skillId: skill.id,
+    skillName: skill.name,
+    revealType: 'preset_event',
+  });
+
+  await writeLog({ gameId, characterId: charId, actorType: 'gm', actorId: gmUserId, action: 'reveal_skill', details: { skillId: skill.id, skillName: skill.name } });
+
+  return { actionId: action.id, type: 'reveal_skill', status: 'success' };
+}
+
+async function executeHideSkill(
+  action: PresetEventAction,
+  gameId: string,
+  gmUserId: string,
+  charByBaselineId: Map<string, Record<string, unknown>>,
+): Promise<ActionResult> {
+  const charId = action.revealCharacterId;
+  if (!charId || !charByBaselineId.has(charId)) {
+    return { actionId: action.id, type: 'hide_skill', status: 'skipped', reason: '目標角色不存在' };
+  }
+  if (!action.revealTargetId) {
+    return { actionId: action.id, type: 'hide_skill', status: 'skipped', reason: '未指定技能' };
+  }
+
+  const runtimeChar = charByBaselineId.get(charId)!;
+  const runtimeId = (runtimeChar._id as { toString(): string }).toString();
+  const skills = (runtimeChar.skills || []) as Array<{ id: string; name: string; isHidden?: boolean }>;
+  const skillIndex = skills.findIndex((s) => s.id === action.revealTargetId);
+
+  if (skillIndex === -1) {
+    return { actionId: action.id, type: 'hide_skill', status: 'skipped', reason: '目標技能不存在' };
+  }
+
+  const skill = skills[skillIndex];
+  if (skill.isHidden) {
+    return { actionId: action.id, type: 'hide_skill', status: 'skipped', reason: '技能已隱藏' };
+  }
+
+  const now = new Date();
+  await CharacterRuntime.updateOne(
+    { _id: runtimeId },
+    { $set: {
+      [`skills.${skillIndex}.isHidden`]: true,
+      [`skills.${skillIndex}.hiddenAt`]: now,
+    }},
+  );
+
+  await emitSkillHidden(charId, {
+    characterId: charId,
+    skillId: skill.id,
+    skillName: skill.name,
+    hideType: 'preset_event',
+  });
+
+  await writeLog({ gameId, characterId: charId, actorType: 'gm', actorId: gmUserId, action: 'hide_skill', details: { skillId: skill.id, skillName: skill.name } });
+
+  return { actionId: action.id, type: 'hide_skill', status: 'success' };
+}
+
+async function executeRevealItem(
+  action: PresetEventAction,
+  gameId: string,
+  gmUserId: string,
+  charByBaselineId: Map<string, Record<string, unknown>>,
+): Promise<ActionResult> {
+  const charId = action.revealCharacterId;
+  if (!charId || !charByBaselineId.has(charId)) {
+    return { actionId: action.id, type: 'reveal_item', status: 'skipped', reason: '目標角色不存在' };
+  }
+  if (!action.revealTargetId) {
+    return { actionId: action.id, type: 'reveal_item', status: 'skipped', reason: '未指定物品' };
+  }
+
+  const runtimeChar = charByBaselineId.get(charId)!;
+  const runtimeId = (runtimeChar._id as { toString(): string }).toString();
+  const items = (runtimeChar.items || []) as Array<{ id: string; name: string; isHidden?: boolean }>;
+  const itemIndex = items.findIndex((i) => i.id === action.revealTargetId);
+
+  if (itemIndex === -1) {
+    return { actionId: action.id, type: 'reveal_item', status: 'skipped', reason: '目標物品不存在' };
+  }
+
+  const item = items[itemIndex];
+  if (!item.isHidden) {
+    return { actionId: action.id, type: 'reveal_item', status: 'skipped', reason: '物品已可見' };
+  }
+
+  const now = new Date();
+  await CharacterRuntime.updateOne(
+    { _id: runtimeId },
+    { $set: {
+      [`items.${itemIndex}.isHidden`]: false,
+      [`items.${itemIndex}.hiddenAt`]: now,
+    }},
+  );
+
+  await emitItemRevealed(charId, {
+    characterId: charId,
+    itemId: item.id,
+    itemName: item.name,
+    revealType: 'preset_event',
+  });
+
+  await writeLog({ gameId, characterId: charId, actorType: 'gm', actorId: gmUserId, action: 'reveal_item', details: { itemId: item.id, itemName: item.name } });
+
+  return { actionId: action.id, type: 'reveal_item', status: 'success' };
+}
+
+async function executeHideItem(
+  action: PresetEventAction,
+  gameId: string,
+  gmUserId: string,
+  charByBaselineId: Map<string, Record<string, unknown>>,
+): Promise<ActionResult> {
+  const charId = action.revealCharacterId;
+  if (!charId || !charByBaselineId.has(charId)) {
+    return { actionId: action.id, type: 'hide_item', status: 'skipped', reason: '目標角色不存在' };
+  }
+  if (!action.revealTargetId) {
+    return { actionId: action.id, type: 'hide_item', status: 'skipped', reason: '未指定物品' };
+  }
+
+  const runtimeChar = charByBaselineId.get(charId)!;
+  const runtimeId = (runtimeChar._id as { toString(): string }).toString();
+  const items = (runtimeChar.items || []) as Array<{ id: string; name: string; isHidden?: boolean; equipped?: boolean }>;
+  const itemIndex = items.findIndex((i) => i.id === action.revealTargetId);
+
+  if (itemIndex === -1) {
+    return { actionId: action.id, type: 'hide_item', status: 'skipped', reason: '目標物品不存在' };
+  }
+
+  const item = items[itemIndex];
+  if (item.isHidden) {
+    return { actionId: action.id, type: 'hide_item', status: 'skipped', reason: '物品已隱藏' };
+  }
+
+  const now = new Date();
+  const updateFields: Record<string, unknown> = {
+    [`items.${itemIndex}.isHidden`]: true,
+    [`items.${itemIndex}.hiddenAt`]: now,
+  };
+  if (item.equipped) {
+    updateFields[`items.${itemIndex}.equipped`] = false;
+  }
+
+  await CharacterRuntime.updateOne(
+    { _id: runtimeId },
+    { $set: updateFields },
+  );
+
+  await emitItemHidden(charId, {
+    characterId: charId,
+    itemId: item.id,
+    itemName: item.name,
+    hideType: 'preset_event',
+  });
+
+  await writeLog({ gameId, characterId: charId, actorType: 'gm', actorId: gmUserId, action: 'hide_item', details: { itemId: item.id, itemName: item.name } });
+
+  return { actionId: action.id, type: 'hide_item', status: 'success' };
 }

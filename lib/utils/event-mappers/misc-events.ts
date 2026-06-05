@@ -7,7 +7,7 @@
  */
 
 import type { BaseEvent } from '@/types/event';
-import type { SecretRevealedEvent, TaskRevealedEvent, ItemShowcasedEvent, EffectExpiredEvent } from '@/types/event';
+import type { SecretRevealedEvent, TaskRevealedEvent, ItemShowcasedEvent, EffectExpiredEvent, SkillRevealedEvent, SkillHiddenEvent, ItemRevealedEvent, ItemHiddenEvent } from '@/types/event';
 import type { Notification } from './types';
 
 export function createMiscEventMappers(characterId: string) {
@@ -100,5 +100,49 @@ export function createMiscEventMappers(characterId: string) {
     }];
   };
 
-  return { mapSecretRevealed, mapTaskRevealed, mapItemShowcased, mapEffectExpired };
+  /** 映射技能揭露事件 */
+  const mapSkillRevealed = (event: BaseEvent): Notification[] => {
+    const payload = event.payload as SkillRevealedEvent['payload'];
+    return [{
+      id: `evt-${event.timestamp}`,
+      title: '技能揭露',
+      message: `你習得了新的技能：${payload.skillName}`,
+      type: event.type,
+    }];
+  };
+
+  /** 映射技能隱藏事件 */
+  const mapSkillHidden = (event: BaseEvent): Notification[] => {
+    const payload = event.payload as SkillHiddenEvent['payload'];
+    return [{
+      id: `evt-${event.timestamp}`,
+      title: '技能消失',
+      message: `你的技能已消失：${payload.skillName}`,
+      type: event.type,
+    }];
+  };
+
+  /** 映射物品揭露事件 */
+  const mapItemRevealed = (event: BaseEvent): Notification[] => {
+    const payload = event.payload as ItemRevealedEvent['payload'];
+    return [{
+      id: `evt-${event.timestamp}`,
+      title: '物品揭露',
+      message: `你獲得了新的道具：${payload.itemName}`,
+      type: event.type,
+    }];
+  };
+
+  /** 映射物品隱藏事件 */
+  const mapItemHidden = (event: BaseEvent): Notification[] => {
+    const payload = event.payload as ItemHiddenEvent['payload'];
+    return [{
+      id: `evt-${event.timestamp}`,
+      title: '物品消失',
+      message: `你的道具已消失：${payload.itemName}`,
+      type: event.type,
+    }];
+  };
+
+  return { mapSecretRevealed, mapTaskRevealed, mapItemShowcased, mapEffectExpired, mapSkillRevealed, mapSkillHidden, mapItemRevealed, mapItemHidden };
 }

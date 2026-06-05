@@ -91,6 +91,8 @@ export interface CharacterDocumentBase {
     acquiredAt: Date;
     equipped?: boolean;
     statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
+    isHidden?: boolean;
+    hiddenAt?: Date;
   }>;
 
   // Phase 4: 數值系統
@@ -124,6 +126,8 @@ export interface CharacterDocumentBase {
     cooldown?: number;
     lastUsedAt?: Date;
     effects?: MongoSkillEffect[];
+    isHidden?: boolean;
+    hiddenAt?: Date;
   }>;
 
   // Phase 7.7: 角色已檢視的道具記錄

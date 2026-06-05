@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { PRESET_ACTION_TYPES, type PresetEventActionType } from '@/types/game';
 
 /**
  * Phase 3 擴展版 Game Document
@@ -36,7 +37,7 @@ export interface GameDocument extends Document {
     showName?: boolean;
     actions: Array<{
       id: string;
-      type: 'broadcast' | 'stat_change' | 'reveal_secret' | 'reveal_task';
+      type: PresetEventActionType;
       broadcastTargets?: 'all' | string[];
       broadcastTitle?: string;
       broadcastMessage?: string;
@@ -124,7 +125,7 @@ const GameSchema = new Schema<GameDocument>(
             id: { type: String, required: true },
             type: {
               type: String,
-              enum: ['broadcast', 'stat_change', 'reveal_secret', 'reveal_task'],
+              enum: [...PRESET_ACTION_TYPES],
               required: true,
             },
             // broadcast

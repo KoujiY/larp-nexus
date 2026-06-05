@@ -60,7 +60,9 @@ import { toast } from 'sonner';
 import { validateCheckConfig, type CheckType } from '@/lib/utils/check-config-validators';
 import { normalizeCheckConfig } from '@/lib/utils/check-config-normalizers';
 import { getItemEffects } from '@/lib/item/get-item-effects';
-import type { Item, Skill, ItemEffect, SkillEffect, Stat, StatBoost, ContestConfig } from '@/types/character';
+import type { Item, Skill, ItemEffect, SkillEffect, Stat, StatBoost, ContestConfig, AutoRevealCondition } from '@/types/character';
+import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
+import type { GameItemInfo, GameSkillInfo } from '@/app/actions/games';
 import { cn } from '@/lib/utils';
 import {
   GM_LABEL_CLASS,
@@ -82,6 +84,11 @@ type AbilityEditWizardProps = {
   stats: Stat[];
   randomContestMaxValue?: number;
   onSave: (data: Item | Skill) => void;
+  availableItems: GameItemInfo[];
+  availableSkills: GameSkillInfo[];
+  availableSecrets?: { id: string; title: string }[];
+  /** 正在編輯項目所屬角色 ID；主動「使用了」條件僅能選自己的技能/物品 */
+  ownerCharacterId: string;
 };
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -136,6 +143,10 @@ export function AbilityEditWizard({
   stats,
   randomContestMaxValue = 100,
   onSave,
+  availableItems,
+  availableSkills,
+  availableSecrets,
+  ownerCharacterId,
 }: AbilityEditWizardProps) {
   const [data, setData] = useState<Item | Skill>(initialData);
   const [currentStep, setCurrentStep] = useState(0);
@@ -439,6 +450,29 @@ export function AbilityEditWizard({
               {tagCheckbox('stealth', '隱匿')}
             </div>
           </div>
+        )}
+
+        {/* 隱藏開關 */}
+        <div className="flex items-center justify-between p-5 bg-muted rounded-xl border border-border/10">
+          <div>
+            <span className="text-sm font-bold text-foreground">隱藏此{isItemMode ? '物品' : '技能'}</span>
+            <p className="text-xs text-muted-foreground mt-0.5">啟用後玩家在遊戲中看不到此{isItemMode ? '物品' : '技能'}</p>
+          </div>
+          <Switch checked={data.isHidden ?? false} onCheckedChange={(checked) => updateData({ isHidden: checked })} />
+        </div>
+
+        {/* 自動顯隱條件編輯器 */}
+        {data.isHidden && (
+          <AutoRevealConditionEditor
+            condition={data.autoRevealCondition}
+            onChange={(autoRevealCondition: AutoRevealCondition | undefined) => updateData({ autoRevealCondition })}
+            availableItems={availableItems}
+            availableSkills={availableSkills}
+            availableSecrets={availableSecrets}
+            allowedTypes={['items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used', 'skill_targeted', 'item_targeted']}
+            excludeId={data.id}
+            ownerCharacterId={ownerCharacterId}
+          />
         )}
       </div>
     );

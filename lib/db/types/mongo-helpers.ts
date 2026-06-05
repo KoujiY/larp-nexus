@@ -80,6 +80,9 @@ export interface MongoItem {
   acquiredAt: Date;
   equipped?: boolean;
   statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
+  isHidden?: boolean;
+  hiddenAt?: Date;
+  autoRevealCondition?: AutoRevealCondition;
   _id?: unknown;
 }
 
@@ -129,5 +132,8 @@ export interface MongoSkill {
   cooldown?: number;
   lastUsedAt?: Date;
   effects?: MongoSkillEffect[];
+  isHidden?: boolean;
+  hiddenAt?: Date;
+  autoRevealCondition?: AutoRevealCondition;
   _id?: unknown;
 }

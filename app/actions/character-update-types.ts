@@ -4,6 +4,8 @@
  * 從 character-update.ts 抽取，避免 667 行內聯型別定義。
  */
 
+import type { AutoRevealCondition } from '@/types/character';
+
 /** 效果目標類型 */
 type EffectTargetType = 'self' | 'other' | 'any';
 
@@ -28,14 +30,6 @@ type ContestConfig = {
 type RandomConfig = {
   maxValue: number;
   threshold: number;
-};
-
-/** 自動揭露條件 */
-type AutoRevealCondition = {
-  type: string;
-  itemIds?: string[];
-  secretIds?: string[];
-  matchLogic?: string;
 };
 
 /** 效果型別（與 BaseEffect 統一） */
@@ -123,6 +117,9 @@ export type UpdateCharacterInput = {
     acquiredAt: Date;
     equipped?: boolean;
     statBoosts?: Array<{ statName: string; value: number; target?: 'value' | 'maxValue' | 'both' }>;
+    isHidden?: boolean;
+    hiddenAt?: Date;
+    autoRevealCondition?: AutoRevealCondition;
   }>;
   skills?: Array<{
     id: string;
@@ -138,5 +135,8 @@ export type UpdateCharacterInput = {
     cooldown?: number;
     lastUsedAt?: Date;
     effects?: Effect[];
+    isHidden?: boolean;
+    hiddenAt?: Date;
+    autoRevealCondition?: AutoRevealCondition;
   }>;
 };

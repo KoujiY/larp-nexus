@@ -102,6 +102,37 @@ describe('updateCharacterItems', () => {
     expect(result.contestConfig).toBeUndefined()
     expect(result.randomConfig).toBeUndefined()
   })
+
+  // 回歸測試：防止 Baseline 儲存路徑（field-updater 白名單）再次丟棄隱藏物品欄位。
+  // 過去的 bug：wizard 設定 isHidden 後儲存，欄位被白名單濾掉，重新編輯時 toggle 歸零。
+  it('preserves isHidden and hiddenAt for hidden items', () => {
+    const hiddenAt = new Date('2026-05-29')
+    const item: MongoItem = { ...baseItem(), isHidden: true, hiddenAt }
+    const { items } = updateCharacterItems([item])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.isHidden).toBe(true)
+    expect(result.hiddenAt).toEqual(hiddenAt)
+  })
+
+  it('does not set isHidden when input omits it', () => {
+    const { items } = updateCharacterItems([baseItem()])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.isHidden).toBeUndefined()
+  })
+
+  // 回歸測試：防止 Baseline 儲存路徑（field-updater 白名單）再次丟棄自動揭露條件欄位。
+  it('preserves autoRevealCondition for items', () => {
+    const cond = { type: 'items_viewed' as const, itemIds: ['it-2'], matchLogic: 'or' as const }
+    const { items } = updateCharacterItems([{ ...baseItem(), autoRevealCondition: cond }])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.autoRevealCondition).toEqual(cond)
+  })
+
+  it('does not set autoRevealCondition when input omits it', () => {
+    const { items } = updateCharacterItems([baseItem()])
+    const result = items[0] as unknown as Record<string, unknown>
+    expect(result.autoRevealCondition).toBeUndefined()
+  })
 })
 
 // ─── updateCharacterSkills ───────────────────────────────────────────────────
@@ -196,5 +227,31 @@ describe('updateCharacterSkills', () => {
     expect(rc.maxValue).toBe(100)
     expect(rc.threshold).toBe(50)
     expect(s.contestConfig).toBeDefined()
+  })
+
+  // 回歸測試：防止 Baseline 儲存路徑（field-updater 白名單）再次丟棄隱藏技能欄位。
+  it('preserves isHidden and hiddenAt for hidden skills', () => {
+    const hiddenAt = new Date('2026-05-29')
+    const skill: MongoSkill = { ...baseSkill(), isHidden: true, hiddenAt }
+    const [s] = updateCharacterSkills([skill]) as unknown as Record<string, unknown>[]
+    expect(s.isHidden).toBe(true)
+    expect(s.hiddenAt).toEqual(hiddenAt)
+  })
+
+  it('does not set isHidden when input omits it', () => {
+    const [s] = updateCharacterSkills([baseSkill()]) as unknown as Record<string, unknown>[]
+    expect(s.isHidden).toBeUndefined()
+  })
+
+  // 回歸測試：防止 Baseline 儲存路徑（field-updater 白名單）再次丟棄自動揭露條件欄位。
+  it('preserves autoRevealCondition for skills', () => {
+    const cond = { type: 'skills_revealed' as const, skillIds: ['sk-2'], matchLogic: 'and' as const }
+    const [s] = updateCharacterSkills([{ ...baseSkill(), autoRevealCondition: cond }]) as unknown as Record<string, unknown>[]
+    expect(s.autoRevealCondition).toEqual(cond)
+  })
+
+  it('does not set autoRevealCondition when input omits it', () => {
+    const [s] = updateCharacterSkills([baseSkill()]) as unknown as Record<string, unknown>[]
+    expect(s.autoRevealCondition).toBeUndefined()
   })
 })

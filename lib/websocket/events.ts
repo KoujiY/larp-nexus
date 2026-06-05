@@ -18,6 +18,10 @@ import type {
   EquipmentToggledEvent,
   GameStartedEvent,
   GameEndedEvent,
+  SkillRevealedEvent,
+  SkillHiddenEvent,
+  ItemRevealedEvent,
+  ItemHiddenEvent,
 } from '@/types/event';
 import { getPusherServer, isPusherEnabled } from './pusher-server';
 // Phase 9: 離線事件佇列寫入
@@ -189,6 +193,46 @@ export async function emitTaskRevealed(characterId: string, payload: TaskReveale
   await Promise.all([
     trigger(`private-character-${characterId}`, 'task.revealed', payloadWithId),
     writePendingEvent(characterId, 'task.revealed', payloadWithId as Record<string, unknown>),
+  ]);
+}
+
+/** 推送「技能揭露」事件到角色頻道，同時寫入 pending events */
+export async function emitSkillRevealed(characterId: string, payload: SkillRevealedEvent['payload']) {
+  const eventId = generateEventId();
+  const payloadWithId = { ...payload, _eventId: eventId };
+  await Promise.all([
+    trigger(`private-character-${characterId}`, 'skill.revealed', payloadWithId),
+    writePendingEvent(characterId, 'skill.revealed', payloadWithId as Record<string, unknown>),
+  ]);
+}
+
+/** 推送「技能隱藏」事件到角色頻道，同時寫入 pending events */
+export async function emitSkillHidden(characterId: string, payload: SkillHiddenEvent['payload']) {
+  const eventId = generateEventId();
+  const payloadWithId = { ...payload, _eventId: eventId };
+  await Promise.all([
+    trigger(`private-character-${characterId}`, 'skill.hidden', payloadWithId),
+    writePendingEvent(characterId, 'skill.hidden', payloadWithId as Record<string, unknown>),
+  ]);
+}
+
+/** 推送「物品揭露」事件到角色頻道，同時寫入 pending events */
+export async function emitItemRevealed(characterId: string, payload: ItemRevealedEvent['payload']) {
+  const eventId = generateEventId();
+  const payloadWithId = { ...payload, _eventId: eventId };
+  await Promise.all([
+    trigger(`private-character-${characterId}`, 'item.revealed', payloadWithId),
+    writePendingEvent(characterId, 'item.revealed', payloadWithId as Record<string, unknown>),
+  ]);
+}
+
+/** 推送「物品隱藏」事件到角色頻道，同時寫入 pending events */
+export async function emitItemHidden(characterId: string, payload: ItemHiddenEvent['payload']) {
+  const eventId = generateEventId();
+  const payloadWithId = { ...payload, _eventId: eventId };
+  await Promise.all([
+    trigger(`private-character-${characterId}`, 'item.hidden', payloadWithId),
+    writePendingEvent(characterId, 'item.hidden', payloadWithId as Record<string, unknown>),
   ]);
 }
 

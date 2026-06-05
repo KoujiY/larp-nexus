@@ -24,7 +24,7 @@ export function createEventMappers(
 ) {
   const { mapItemTransferred, mapInventoryUpdated } = createItemEventMappers(characterId, recentTransferredItemsRef);
   const { mapSkillContest, mapSkillUsed, mapItemUsed } = createSkillEventMappers(characterId);
-  const { mapSecretRevealed, mapTaskRevealed, mapItemShowcased, mapEffectExpired } = createMiscEventMappers(characterId);
+  const { mapSecretRevealed, mapTaskRevealed, mapItemShowcased, mapEffectExpired, mapSkillRevealed, mapSkillHidden, mapItemRevealed, mapItemHidden } = createMiscEventMappers(characterId);
 
   /**
    * 將事件映射為通知
@@ -73,6 +73,18 @@ export function createEventMappers(
       case 'effect.expired':
         notifications = mapEffectExpired(event);
         break;
+      case 'skill.revealed':
+        notifications = mapSkillRevealed(event);
+        break;
+      case 'skill.hidden':
+        notifications = mapSkillHidden(event);
+        break;
+      case 'item.revealed':
+        notifications = mapItemRevealed(event);
+        break;
+      case 'item.hidden':
+        notifications = mapItemHidden(event);
+        break;
       // 其他技能相關：不顯示通知（需求指定）
       default:
         notifications = [];
@@ -103,6 +115,10 @@ export function createEventMappers(
     mapTaskRevealed,
     mapItemShowcased,
     mapEffectExpired,
+    mapSkillRevealed,
+    mapSkillHidden,
+    mapItemRevealed,
+    mapItemHidden,
     mapEventToNotifications,
   };
 }

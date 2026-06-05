@@ -202,6 +202,14 @@ export function useCharacterWebSocketHandler(
           break;
         }
 
+        case 'skill.revealed':
+        case 'skill.hidden':
+        case 'item.revealed':
+        case 'item.hidden': {
+          router.refresh();
+          break;
+        }
+
         case 'game.started': {
           // Phase 10.7: 遊戲開始 — 刷新數據
           router.refresh();

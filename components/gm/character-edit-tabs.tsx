@@ -360,8 +360,10 @@ export function CharacterEditTabs({
         <TabsContent value="items" forceMount className="data-[state=inactive]:hidden">
           <ItemsEditForm
             characterId={character.id}
+            gameId={gameId}
             initialItems={character.items || []}
             stats={character.stats || []}
+            secrets={(character.secretInfo?.secrets || []).map((s) => ({ id: s.id, title: s.title }))}
             gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>
@@ -380,8 +382,10 @@ export function CharacterEditTabs({
         <TabsContent value="skills" forceMount className="data-[state=inactive]:hidden">
           <SkillsEditForm
             characterId={character.id}
+            gameId={gameId}
             initialSkills={character.skills || []}
             stats={character.stats || []}
+            secrets={(character.secretInfo?.secrets || []).map((s) => ({ id: s.id, title: s.title }))}
             gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>

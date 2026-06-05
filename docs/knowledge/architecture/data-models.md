@@ -66,6 +66,38 @@ AI 服務設定，首次設定前不存在。
 | 玩家端偷竊/移除物品 | **不清理** — 物品移轉或減少數量，圖片跟隨物品 | N/A |
 | 結束遊戲（刪除 Runtime） | **不清理** — 圖片永遠存於 Baseline | N/A |
 
+## Skill / Item 可見性欄位
+
+技能（Skill）與物品（Item）子文件皆包含以下可見性欄位：
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `isHidden` | boolean | 預設 `false`；`true` 時玩家端不可見 |
+| `hiddenAt` | Date (optional) | 最後一次可見性狀態變更的時間戳 |
+| `autoRevealCondition` | `AutoRevealCondition` (optional) | 自動揭露條件（reveal-only，與隱藏資訊 / 任務共用同一型別） |
+
+```typescript
+type AutoRevealConditionType =
+  | 'none'
+  | 'items_viewed'
+  | 'items_acquired'
+  | 'secrets_revealed'
+  | 'skills_revealed'
+  | 'items_revealed'
+  | 'skill_used'
+  | 'item_used';
+
+interface AutoRevealCondition {
+  type: AutoRevealConditionType;
+  itemIds?: string[];      // items_viewed / items_acquired / item_used / items_revealed
+  secretIds?: string[];    // secrets_revealed
+  skillIds?: string[];     // skills_revealed / skill_used
+  matchLogic?: 'and' | 'or';
+}
+```
+
+這些欄位存在於 Baseline（`characters`）與 Runtime（`character_runtimes`）兩個 collection 中。
+
 ## 歷史變更備註
 - Phase A：Character/CharacterRuntime schema 透過 `createBaseCharacterSchemaFields()` factory 共用，消除 ~1292 行重複。
 - Phase D：Game `publicInfo` 從 `{ worldSetting, intro, chapters }` 改為 `{ blocks: BackgroundBlock[] }`，Character `publicInfo.background` 從 `string` 改為 `BackgroundBlock[]`，兩者共用同一段落結構。PIN 為固定 4 位數字。

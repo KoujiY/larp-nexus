@@ -63,6 +63,31 @@ interface StatBoost {
 - `components/gm/ability-card.tsx` 對 `type === 'equipment' && equipped === true` 的物品在卡片頂部顯示綠色「裝備中」badge（`GM_BADGE_VARIANTS.success`）
 - 即使 GM 正在編輯物品 tab（items dirty），badge 仍能即時跟上玩家穿脫 — 由 `items-edit-form.tsx` 的 `liveEquippedByWs` overlay 實現（見 [character-card.md WebSocket 衝突解決策略](../character/character-card.md#websocket-衝突解決策略character-edit-tabstsx)）
 
+## 隱藏物品 (Hidden Items)
+
+物品支援可見性系統，讓 GM 控制玩家是否能看到某個物品。
+
+### 欄位
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `isHidden` | boolean | `true` 時玩家端看不到此物品 |
+| `hiddenAt` | Date (optional) | 最後一次可見性狀態變更的時間戳 |
+| `autoRevealCondition` | `AutoRevealCondition` (optional) | 自動揭露條件（與隱藏資訊共用型別，見下方） |
+
+### GM 操作
+- **AbilityEditWizard**（Baseline 編輯器）：隱藏開關開啟時，顯示 `AutoRevealConditionEditor`（條件選擇器）
+- **Runtime 控制台**：物品卡片上有可見性切換按鈕
+- **Server Action**：`toggleVisibility(characterId, 'item', targetId)` — GM 手動切換
+
+### 自動揭露條件（與隱藏資訊共用）
+每個隱藏物品最多設定**一個** `autoRevealCondition`，為 **reveal-only**（條件滿足時揭露，不支援自動隱藏）。條件透過兩層下拉選單編輯（先選角色，再選該角色的物品 / 技能），儲存值為 ID（轉移後仍可正確比對）。支援的 condition type 詳見 [../../shared/auto-reveal-system.md](../../shared/auto-reveal-system.md)。
+
+### 自動卸除（Auto-unequip）
+若將一個目前已裝備（`equipped: true`）的 equipment 設為隱藏，系統會自動卸除該裝備，並恢復對應的 stat 數值。
+
+### 伺服器端過濾
+隱藏物品在玩家端 API 回應中被過濾，玩家無法感知其存在。
+
 ## Transferability
 - `isTransferable: true` → player can transfer item to another character
 - Transfer action: `item_take` / `item_steal` via skill effects

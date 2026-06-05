@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
+import { toggleVisibility } from '@/app/actions/toggle-visibility';
+import { getGameItems, getGameSkills } from '@/app/actions/games';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { AbilityCard } from '@/components/gm/ability-card';
 import { DashedAddButton } from '@/components/gm/dashed-add-button';
@@ -11,13 +13,16 @@ import { GM_SECTION_TITLE_CLASS } from '@/lib/styles/gm-form';
 import { toast } from 'sonner';
 import { Zap } from 'lucide-react';
 import type { Skill, Stat } from '@/types/character';
+import type { GameItemInfo, GameSkillInfo } from '@/app/actions/games';
 import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } from '@/types/gm-edit';
 import { AbilityEditWizard } from './ability-edit-wizard';
 
 interface SkillsEditFormProps {
   characterId: string;
+  gameId: string;
   initialSkills: Skill[];
   stats: Stat[];
+  secrets?: { id: string; title: string }[];
   /** 遊戲進行中時禁止上傳圖片（Runtime 新增的技能在 Baseline 找不到） */
   gameIsActive?: boolean;
   randomContestMaxValue?: number;
@@ -33,9 +38,11 @@ interface SkillsEditFormProps {
  * 新增卡片排在 grid 第一位。
  * 空狀態使用 GmEmptyState 共用元件。
  */
-export function SkillsEditForm({ characterId, initialSkills, stats, gameIsActive = false, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: SkillsEditFormProps) {
+export function SkillsEditForm({ characterId, gameId, initialSkills, stats, secrets, gameIsActive = false, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: SkillsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
+  const [availableSkills, setAvailableSkills] = useState<GameSkillInfo[]>([]);
   const [skills, setSkills] = useState<Skill[]>(initialSkills);
   const [prevInitialSkills, setPrevInitialSkills] = useState(initialSkills);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
@@ -59,6 +66,16 @@ export function SkillsEditForm({ characterId, initialSkills, stats, gameIsActive
   });
 
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
+
+  // 載入劇本中所有道具與技能（用於自動揭露條件設定）
+  useEffect(() => {
+    getGameItems(gameId).then((result) => {
+      if (result.success && result.data) setAvailableItems(result.data);
+    }).catch((error) => { console.error('Failed to load game items:', error); });
+    getGameSkills(gameId).then((result) => {
+      if (result.success && result.data) setAvailableSkills(result.data);
+    }).catch((error) => { console.error('Failed to load game skills:', error); });
+  }, [gameId]);
 
   /** 初始資料查找表 */
   const initialSkillsMap = useMemo(() => {
@@ -193,6 +210,15 @@ export function SkillsEditForm({ characterId, initialSkills, stats, gameIsActive
               onEdit={() => handleEditSkill(skill)}
               onRemove={() => handleSoftDelete(skill.id)}
               onRestore={() => handleRestore(skill.id)}
+              onToggleVisibility={gameIsActive ? async () => {
+                const result = await toggleVisibility(characterId, 'skill', skill.id);
+                if (result.success) {
+                  toast.success(result.message);
+                  router.refresh();
+                } else {
+                  toast.error(result.message || '操作失敗');
+                }
+              } : undefined}
               disabled={isLoading}
             />
           ))}
@@ -209,6 +235,10 @@ export function SkillsEditForm({ characterId, initialSkills, stats, gameIsActive
           stats={stats}
           randomContestMaxValue={randomContestMaxValue}
           onSave={(data) => handleWizardSave(data as Skill)}
+          availableItems={availableItems}
+          availableSkills={availableSkills}
+          availableSecrets={secrets}
+          ownerCharacterId={characterId}
         />
       )}
     </div>

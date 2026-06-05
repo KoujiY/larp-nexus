@@ -15,6 +15,10 @@ Players receive in-app notifications when events happen to their character (skil
 | Skill/item use result | Attacker (skill.used) |
 | Hidden info revealed | Character owner |
 | Hidden task revealed | Character owner |
+| Skill revealed (`skill.revealed`) | Character owner — 訊息：「你習得了新的技能：{name}」 |
+| Skill hidden (`skill.hidden`) | Character owner — 訊息：「你的技能已消失：{name}」 |
+| Item revealed (`item.revealed`) | Character owner — 訊息：「你獲得了新的物品：{name}」 |
+| Item hidden (`item.hidden`) | Character owner — 訊息：「你的物品已消失：{name}」 |
 | Game broadcast | All characters in game |
 | Private message | Specific character |
 | Stat changed | Character owner |

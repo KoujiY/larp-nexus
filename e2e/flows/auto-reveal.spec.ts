@@ -553,9 +553,10 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       await pageB.goto(`/c/${charB._id}`);
       await expect(pageB.getByRole('heading', { name: '守衛' })).toBeVisible();
 
-      // 設定 WS 監聽（只有 OR 秘密會揭露）
+      // 設定 WS 監聽（只有 OR 秘密會揭露）— filter by secretId 避免並行測試的 secret.revealed 干擾
       const wsRevealPromise = waitForWebSocketEvent(pageB, {
         event: 'secret.revealed',
+        filter: { path: 'payload.secretId', value: 'secret-or' },
         timeout: 30000,
       });
 
@@ -696,7 +697,8 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     // 但 SelectItem 用 onPointerUp 觸發選擇，evaluate .click() 不發射 pointer events。
     // → portal 中的 option 用 Playwright locator（發射完整事件鏈）
 
-    // 2a: 點擊 item picker trigger（dialog 內，用 evaluate 避 detach）
+    // 兩層下拉：triggers[0]=條件類型, triggers[1]=角色, triggers[2]=物品
+    // 2a: 點擊角色選擇器 trigger（第一層；dialog 內，用 evaluate 避 detach）
     await page.evaluate(async () => {
       for (let i = 0; i < 50; i++) {
         const dialogEl = document.querySelector('[role="dialog"]');
@@ -707,13 +709,30 @@ test.describe('Flow #10 — Auto-Reveal', () => {
         }
         await new Promise(r => setTimeout(r, 100));
       }
-      throw new Error('Item picker trigger not found after 5s');
+      throw new Error('Character picker trigger not found after 5s');
     });
 
-    // 2b: 選擇道具「線索」（portal 中，用 Playwright locator 發射 pointer events）
+    // 2b: 選擇角色「偵探」（portal 中，用 Playwright locator 發射 pointer events）
+    await page.getByRole('option', { name: '偵探' }).click({ timeout: 10000 });
+
+    // 2c: 點擊物品選擇器 trigger（第二層；選定角色後才會啟用，需檢查 !disabled）
+    await page.evaluate(async () => {
+      for (let i = 0; i < 50; i++) {
+        const dialogEl = document.querySelector('[role="dialog"]');
+        const triggers = dialogEl?.querySelectorAll('[data-slot="select-trigger"]');
+        if (triggers && triggers.length >= 3) {
+          const t = triggers[2] as HTMLButtonElement;
+          if (t.isConnected && !t.disabled) { t.click(); return; }
+        }
+        await new Promise(r => setTimeout(r, 100));
+      }
+      throw new Error('Item picker trigger not found or still disabled after 5s');
+    });
+
+    // 2d: 選擇道具「線索」（portal 中，用 Playwright locator 發射 pointer events）
     await page.getByRole('option', { name: '線索' }).click({ timeout: 10000 });
 
-    // 2c: 點擊「添加」按鈕（dialog 內，用 evaluate 避 detach）
+    // 2e: 點擊「添加」按鈕（dialog 內，用 evaluate 避 detach）
     await page.evaluate(async () => {
       for (let i = 0; i < 50; i++) {
         const dialogEl = document.querySelector('[role="dialog"]');

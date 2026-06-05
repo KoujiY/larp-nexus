@@ -7,13 +7,14 @@ import { Game, GameRuntime } from '@/lib/db/models';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { executePresetEvent, type ExecutionResult } from '@/lib/preset-event/execute-preset-event';
 import type { ApiResponse } from '@/types/api';
+import { PRESET_ACTION_TYPES } from '@/types/game';
 import type { PresetEvent, PresetEventInput, PresetEventRuntime } from '@/types/game';
 
 // ─── Validation ──────────────────────────────────────
 
 const actionSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(['broadcast', 'stat_change', 'reveal_secret', 'reveal_task']),
+  type: z.enum(PRESET_ACTION_TYPES),
   // broadcast
   broadcastTargets: z.union([z.literal('all'), z.array(z.string())]).optional(),
   broadcastTitle: z.string().max(100).optional(),
