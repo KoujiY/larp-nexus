@@ -11,6 +11,8 @@ export interface CharacterData {
   slogan?: string;
   imageUrl?: string;
   hasPinLock: boolean;
+  /** Feature 2: 標記後不顯示於玩家世界觀頁面的角色列表（角色本身仍正常運作） */
+  hiddenFromWorld?: boolean;
   publicInfo?: PublicInfo;
   secretInfo?: SecretInfo;
   tasks?: Task[];

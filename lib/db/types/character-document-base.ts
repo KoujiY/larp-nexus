@@ -24,6 +24,9 @@ export interface CharacterDocumentBase {
   hasPinLock: boolean;
   pin?: string;
 
+  // Feature 2: 標記後不顯示於玩家世界觀頁面的角色列表（角色本身仍正常運作）
+  hiddenFromWorld?: boolean;
+
   // Phase 3: 公開資訊（PIN 解鎖後可見）
   publicInfo?: {
     background: BackgroundBlock[];

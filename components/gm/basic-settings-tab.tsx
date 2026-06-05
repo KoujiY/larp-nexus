@@ -31,15 +31,17 @@ import type { RegisterSaveHandler, RegisterDiscardHandler, SaveHandlerOptions } 
 interface BasicSettingsTabProps {
   character: CharacterData;
   gameId: string;
+  /** 遊戲是否進行中（Runtime 模式）— 用於隱藏「不顯示於世界觀」開關 */
+  gameIsActive?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;
   onRegisterDiscard?: RegisterDiscardHandler;
 }
 
 /**
- * Tab 1：基本設定（名稱、描述、PIN、人格特質）
+ * Tab 1：基本設定（名稱、描述、PIN、人格特質、世界觀顯示）
  */
-export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterSave, onRegisterDiscard }: BasicSettingsTabProps) {
+export function BasicSettingsTab({ character, gameId, gameIsActive = false, onDirtyChange, onRegisterSave, onRegisterDiscard }: BasicSettingsTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,6 +52,7 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
     hasPinLock: character.hasPinLock,
     pin: '',
     personality: character.publicInfo?.personality || '',
+    hiddenFromWorld: character.hiddenFromWorld ?? false,
   }), [character]);
 
   const [formData, setFormData] = useState(initialData);
@@ -81,6 +84,7 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
         hasPinLock: boolean;
         pin?: string;
         publicInfo?: { personality: string };
+        hiddenFromWorld?: boolean;
       } = {
         name: formData.name,
         description: formData.description,
@@ -91,6 +95,13 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
 
       if (formData.pin) {
         updateData.pin = formData.pin;
+      }
+
+      // 僅在遊戲未進行時送出 hiddenFromWorld：
+      // 遊戲進行中 updateCharacter 會寫入 Runtime，而世界觀列表讀 Baseline，
+      // 送出會造成 Runtime/Baseline 分歧。此旗標的開關在 Runtime 也已隱藏。
+      if (!gameIsActive) {
+        updateData.hiddenFromWorld = formData.hiddenFromWorld;
       }
 
       const result = await updateCharacter(character.id, updateData);
@@ -109,7 +120,7 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
     } finally {
       setIsLoading(false);
     }
-  }, [character.id, formData, resetDirty, router]);
+  }, [character.id, formData, gameIsActive, resetDirty, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,44 +199,69 @@ export function BasicSettingsTab({ character, gameId, onDirtyChange, onRegisterS
         />
       </section>
 
-      {/* 5. PIN 解鎖保護 */}
-      <section className={cn(GM_SECTION_CARD_CLASS, 'max-w-lg space-y-6')}>
-        {/* Header */}
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold tracking-tight">PIN 解鎖保護</h3>
-            <p className="text-xs text-muted-foreground">
-              啟用後玩家需輸入 PIN 才能查看角色卡
-            </p>
-          </div>
-          <Switch
-            checked={formData.hasPinLock}
-            onCheckedChange={(checked) => update('hasPinLock', checked)}
-            disabled={isLoading}
-            className="cursor-pointer"
-          />
-        </div>
-
-        {/* PIN 輸入 */}
-        {formData.hasPinLock && (
-          <div className="pt-4 border-t border-border/15 max-w-xs">
-            <PinField
-              gameId={gameId}
-              excludeCharacterId={character.id}
-              value={formData.pin}
-              onChange={(value) => update('pin', value)}
+      {/* 5+6. PIN 解鎖保護 + 不顯示於世界觀（桌面並排、手機堆疊）
+          PIN（永遠存在）排第一格，「不顯示於世界觀」（遊戲進行中會隱藏）排第二格，
+          避免後者消失時造成版面位移。 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {/* PIN 解鎖保護 */}
+        <section className={cn(GM_SECTION_CARD_CLASS, 'space-y-6')}>
+          {/* Header */}
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold tracking-tight">PIN 解鎖保護</h3>
+              <p className="text-xs text-muted-foreground">
+                啟用後玩家需輸入 PIN 才能查看角色卡
+              </p>
+            </div>
+            <Switch
+              checked={formData.hasPinLock}
+              onCheckedChange={(checked) => update('hasPinLock', checked)}
               disabled={isLoading}
-              required={formData.hasPinLock && !character.hasPinLock}
-              placeholder={character.hasPinLock ? '留空保持不變' : '4 位數字'}
-              idleHint={
-                character.hasPinLock
-                  ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
-                  : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'
-              }
+              className="cursor-pointer"
             />
           </div>
+
+          {/* PIN 輸入 */}
+          {formData.hasPinLock && (
+            <div className="pt-4 border-t border-border/15 max-w-xs">
+              <PinField
+                gameId={gameId}
+                excludeCharacterId={character.id}
+                value={formData.pin}
+                onChange={(value) => update('pin', value)}
+                disabled={isLoading}
+                required={formData.hasPinLock && !character.hasPinLock}
+                placeholder={character.hasPinLock ? '留空保持不變' : '4 位數字'}
+                idleHint={
+                  character.hasPinLock
+                    ? '輸入新的 PIN 碼以修改，或留空保持原 PIN 不變'
+                    : '請設定 PIN 碼，玩家需要此碼才能查看角色卡'
+                }
+              />
+            </div>
+          )}
+        </section>
+
+        {/* 不顯示於世界觀（遊戲進行中隱藏：此旗標僅在開場前設定有效，世界觀列表讀取 Baseline） */}
+        {!gameIsActive && (
+          <section className={GM_SECTION_CARD_CLASS}>
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold tracking-tight">不顯示於世界觀</h3>
+                <p className="text-xs text-muted-foreground">
+                  啟用後此角色不會出現在玩家世界觀頁面的登場角色列表。角色本身仍正常運作（可登入、可被技能或物品指定為目標）。
+                </p>
+              </div>
+              <Switch
+                checked={formData.hiddenFromWorld}
+                onCheckedChange={(checked) => update('hiddenFromWorld', checked)}
+                disabled={isLoading}
+                className="cursor-pointer"
+              />
+            </div>
+          </section>
         )}
-      </section>
+      </div>
     </form>
   );
 }

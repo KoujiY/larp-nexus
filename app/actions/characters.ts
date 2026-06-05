@@ -36,6 +36,7 @@ function serializeCharacterDoc(
     slogan: (raw.slogan as string) || undefined,
     imageUrl: raw.imageUrl as string | undefined,
     hasPinLock: raw.hasPinLock as boolean,
+    hiddenFromWorld: raw.hiddenFromWorld === true,
     publicInfo: serializePublicInfo(raw.publicInfo as Record<string, unknown>),
     secretInfo: cleanSecretInfo,
     tasks: cleanTaskData(raw.tasks as Parameters<typeof cleanTaskData>[0]),

@@ -12,6 +12,7 @@ Component: `components/gm/character-edit-tabs.tsx` → 📝 基本資訊 tab →
 - **Slogan** (`slogan`, optional): One-line roleplay hint shown on player character card hero section. May contain spoilers about the character's true nature — intended for the player only, not other participants
 - **Personality** (`personality`): Character behavior guidelines and personality traits (stored in `publicInfo.personality`)
 - **PIN**: 4-6 digit lock. If `hasPinLock=true`, player must enter PIN to view character card. Set days before game event.
+- **不顯示於世界觀** (`hiddenFromWorld`, Feature 2): 布林旗標。啟用後角色不出現在玩家世界觀頁面（`/g/[gameId]`）的登場角色列表，但角色本身仍正常運作（可登入、可被技能/物品指定為目標）。過濾發生在 `getPublicGame` 的 DB 查詢層（讀取 Baseline），故旗標應於開場前設定；**遊戲進行中（Runtime）此開關隱藏**，避免誤以為能即時生效。GM 角色卡會以「隱藏」Badge 標示已標記的角色。
 
 ### 2. 公開資訊 (Public Info)
 See [public-info.md](./public-info.md)

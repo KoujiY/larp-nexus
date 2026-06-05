@@ -204,7 +204,12 @@ export async function getPublicGame(
 
     const [game, characters] = await Promise.all([
       Game.findById(gameId).lean(),
-      Character.find({ gameId }).select('_id name description imageUrl').sort({ name: 1 }).lean(),
+      // Feature 2: 排除被標記 hiddenFromWorld 的角色。
+      // 用 $ne: true 而非 false，舊資料（欄位為 undefined）仍會被納入，免資料遷移。
+      Character.find({ gameId, hiddenFromWorld: { $ne: true } })
+        .select('_id name description imageUrl')
+        .sort({ name: 1 })
+        .lean(),
     ]);
 
     if (!game) {

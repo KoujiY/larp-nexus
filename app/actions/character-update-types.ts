@@ -57,6 +57,8 @@ export type UpdateCharacterInput = {
   slogan?: string;
   hasPinLock?: boolean;
   pin?: string;
+  /** Feature 2: 是否不顯示於玩家世界觀頁面的角色列表 */
+  hiddenFromWorld?: boolean;
   publicInfo?: {
     background?: Array<{ type: 'title' | 'body'; content: string }>;
     personality?: string;
