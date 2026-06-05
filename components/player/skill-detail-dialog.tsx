@@ -10,6 +10,7 @@
  */
 
 import { Zap } from 'lucide-react';
+import { formatDuration } from '@/lib/utils/format-duration';
 import {
   Select,
   SelectContent,
@@ -278,7 +279,7 @@ export function SkillDetailDialog({
               </span>
               <span className="text-xs font-bold text-foreground">
                 {selectedSkill.cooldown > 0
-                  ? `${selectedSkill.cooldown}s${cooldownRemaining !== null ? ` (剩餘 ${cooldownRemaining}s)` : ''}`
+                  ? `${formatDuration(selectedSkill.cooldown, 'short')}${cooldownRemaining !== null ? ` (剩餘 ${formatDuration(cooldownRemaining, 'short')})` : ''}`
                   : '無'}
               </span>
             </div>

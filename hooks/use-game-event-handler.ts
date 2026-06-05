@@ -11,6 +11,7 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { notify } from '@/lib/notify';
 import type { BaseEvent, ItemShowcasedEvent, SkillContestEvent } from '@/types/event';
 import type { CharacterData } from '@/types/character';
 import type { ContestDialogState } from './use-contest-dialog-state';
@@ -68,6 +69,11 @@ export function useGameEventHandler({
     characterId: character.id,
     addNotification,
     onClearDialogState: clearDialogState,
+    onContestAborted: () => {
+      clearDefenderContest();
+      clearDialogState();
+      notify.warning('對方已中斷對抗檢定');
+    },
     onContestRequest: async (payload) => {
       const sourceId = payload.itemId || payload.skillId || '';
       const { generateContestId } = await import('@/lib/contest/contest-id');

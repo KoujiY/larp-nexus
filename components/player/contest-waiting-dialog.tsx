@@ -10,19 +10,37 @@
  * 與防守方 ContestResponseDialog 形成系列感。
  */
 
-import { useEffect } from 'react';
-import { Shield, Loader2, Hourglass } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Shield, Loader2, Hourglass, X } from 'lucide-react';
 import type { AttackerWaitingDisplayData } from '@/hooks/use-contest-dialog-state';
 
 interface ContestWaitingDialogProps {
   open: boolean;
   displayData: AttackerWaitingDisplayData | undefined;
+  onAbort?: () => Promise<void>;
 }
 
 export function ContestWaitingDialog({
   open,
   displayData,
+  onAbort,
 }: ContestWaitingDialogProps) {
+  const [abortStep, setAbortStep] = useState<'idle' | 'confirm' | 'aborting'>('idle');
+
+  const handleAbort = useCallback(async () => {
+    if (abortStep === 'idle') {
+      setAbortStep('confirm');
+      return;
+    }
+    if (abortStep === 'confirm') {
+      setAbortStep('aborting');
+      try {
+        await onAbort?.();
+      } catch {
+        setAbortStep('idle');
+      }
+    }
+  }, [abortStep, onAbort]);
   // 鎖定背景滾動
   useEffect(() => {
     if (open) {
@@ -135,7 +153,7 @@ export function ContestWaitingDialog({
         </main>
 
         {/* ── Footer（固定底部） ───────────────────────────────── */}
-        <footer className="absolute bottom-0 left-0 right-0 p-6 bg-background/90 backdrop-blur-[20px] border-t border-border/10 shrink-0 z-10">
+        <footer className="absolute bottom-0 left-0 right-0 p-6 bg-background/90 backdrop-blur-[20px] border-t border-border/10 shrink-0 z-10 space-y-3">
           <button
             type="button"
             className="w-full h-14 rounded-xl font-extrabold text-base tracking-wide flex items-center justify-center gap-2 bg-linear-to-br from-primary/50 to-primary/30 text-primary-foreground/60 cursor-not-allowed"
@@ -144,6 +162,27 @@ export function ContestWaitingDialog({
             <Hourglass className="w-5 h-5" />
             等待回應中...
           </button>
+          {onAbort && (
+            <button
+              type="button"
+              className={`w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
+                abortStep === 'confirm'
+                  ? 'bg-destructive/20 text-destructive border border-destructive/30'
+                  : abortStep === 'aborting'
+                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                    : 'bg-transparent text-muted-foreground hover:text-destructive hover:bg-destructive/10'
+              }`}
+              disabled={abortStep === 'aborting'}
+              onClick={handleAbort}
+            >
+              <X className="w-4 h-4" />
+              {abortStep === 'confirm'
+                ? '確定要中斷？此操作不可撤銷'
+                : abortStep === 'aborting'
+                  ? '中斷中...'
+                  : '中斷對抗'}
+            </button>
+          )}
         </footer>
       </div>
     </div>

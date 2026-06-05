@@ -9,6 +9,7 @@
  */
 
 import { Clock, Lock, Shield } from 'lucide-react';
+import { formatDuration } from '@/lib/utils/format-duration';
 import Image from 'next/image';
 import type { Item } from '@/types/character';
 
@@ -82,7 +83,7 @@ export function ItemCard({
           <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex flex-col items-center justify-center">
             <Clock className="h-5 w-5 text-primary animate-pulse mb-1" />
             <span className="text-lg font-bold text-primary font-mono leading-none">
-              {cooldownRemaining}s
+              {formatDuration(cooldownRemaining, 'short')}
             </span>
           </div>
         )}

@@ -11,6 +11,7 @@
  */
 
 import { useEffect } from 'react';
+import { formatDuration } from '@/lib/utils/format-duration';
 import {
   Select,
   SelectContent,
@@ -332,7 +333,7 @@ export function ItemDetailDialog({
                     冷卻時間
                   </span>
                   <span className="text-xs font-bold text-foreground">
-                    {selectedItem.cooldown > 0 ? `${selectedItem.cooldown}s` : '無'}
+                    {selectedItem.cooldown > 0 ? formatDuration(selectedItem.cooldown, 'short') : '無'}
                   </span>
                 </div>
               )}

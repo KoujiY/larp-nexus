@@ -422,6 +422,17 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       const attackerIdStr = String(payload.attackerId);
       const defenderIdStr = String(payload.defenderId);
 
+      // 中斷事件：清除攻擊方的 pendingContest（防守方中斷後攻擊方收到）
+      if (payload.subType === 'abort' && payload.sourceType === 'item' && payload.itemId) {
+        const itemId = payload.itemId;
+        waitingContestRef.current.delete(itemId);
+        clearTargetState();
+        if (hasPendingContest(itemId)) {
+          removePendingContest(itemId);
+        }
+        return;
+      }
+
       // 只處理攻擊方收到的結果事件（道具類型）
       if (
         payload.attackerValue !== 0 &&
@@ -451,11 +462,12 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
 
   // 衍生狀態：當前選中道具的對抗檢定與操作鎖定狀態
   // 集中計算一次，取代 JSX 中 9+ 處重複的 inline IIFE
+  // waitingContestRef 需要配合 dialogState 判斷：若 dialogState 已被清除（如 abort），ref 殘留不應阻擋操作
   const isContestInProgress = Boolean(
     selectedItem && (
       hasPendingContest(selectedItem.id) ||
-      waitingContestRef.current.has(selectedItem.id) ||
-      (dialogState?.type === 'attacker_waiting' &&
+      (waitingContestRef.current.has(selectedItem.id) &&
+       dialogState?.type === 'attacker_waiting' &&
        dialogState.sourceType === 'item' &&
        dialogState.sourceId === selectedItem.id)
     )

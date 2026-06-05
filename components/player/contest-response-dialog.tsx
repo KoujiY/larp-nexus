@@ -10,8 +10,8 @@
  * 設計決策：道具與技能為互斥選擇（只能選其中一類回應）。
  */
 
-import { useState, useEffect } from 'react';
-import { Shield, ChevronUp, Info, Lock, SearchX, Package, Sparkles } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Shield, ChevronUp, Info, Lock, SearchX, Package, Sparkles, X } from 'lucide-react';
 import type { SkillContestEvent } from '@/types/event';
 import { respondToContest } from '@/app/actions/contest-respond';
 import { notify } from '@/lib/notify';
@@ -27,6 +27,7 @@ interface ContestResponseDialogProps {
   skills?: Skill[];
   contestId: string;
   onResponded: () => void;
+  onAbort?: () => Promise<void>;
 }
 
 export function ContestResponseDialog({
@@ -38,11 +39,13 @@ export function ContestResponseDialog({
   skills = [],
   contestId,
   onResponded,
+  onAbort,
 }: ContestResponseDialogProps) {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [isResponding, setIsResponding] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [abortStep, setAbortStep] = useState<'idle' | 'confirm' | 'aborting'>('idle');
 
   // 當 dialog 打開時重置選擇
   useEffect(() => {
@@ -50,6 +53,7 @@ export function ContestResponseDialog({
       setSelectedItems([]);
       setSelectedSkills([]);
       setExpandedCards(new Set());
+      setAbortStep('idle');
     }
   }, [open]);
 
@@ -64,6 +68,21 @@ export function ContestResponseDialog({
       document.body.style.overflow = '';
     };
   }, [open]);
+
+  const handleAbort = useCallback(async () => {
+    if (abortStep === 'idle') {
+      setAbortStep('confirm');
+      return;
+    }
+    if (abortStep === 'confirm') {
+      setAbortStep('aborting');
+      try {
+        await onAbort?.();
+      } catch {
+        setAbortStep('idle');
+      }
+    }
+  }, [abortStep, onAbort]);
 
   if (!open || !contestEvent) return null;
 
@@ -244,7 +263,7 @@ export function ContestResponseDialog({
         </header>
 
         {/* ── 可滾動主內容 ────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto px-6 pb-28 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <main className="flex-1 overflow-y-auto px-6 pb-40 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
           <div className="space-y-8">
             {/* ── 數值對比 Grid ────────────────────────────────── */}
             <section className="space-y-3">
@@ -516,15 +535,15 @@ export function ContestResponseDialog({
         </main>
 
         {/* ── Footer（固定底部） ───────────────────────────────── */}
-        <footer className="absolute bottom-0 left-0 right-0 p-6 bg-background/90 backdrop-blur-[20px] border-t border-border/10 shrink-0 z-10">
+        <footer className="absolute bottom-0 left-0 right-0 p-6 bg-background/90 backdrop-blur-[20px] border-t border-border/10 shrink-0 z-10 space-y-3">
           <button
             type="button"
             className={`w-full h-14 rounded-xl font-extrabold text-base tracking-wide flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
-              isResponding
+              isResponding || abortStep === 'aborting'
                 ? 'bg-muted text-muted-foreground cursor-not-allowed'
                 : 'bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20'
             }`}
-            disabled={isResponding}
+            disabled={isResponding || abortStep === 'aborting'}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -533,6 +552,27 @@ export function ContestResponseDialog({
           >
             {buttonLabel}
           </button>
+          {onAbort && (
+            <button
+              type="button"
+              className={`w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
+                abortStep === 'confirm'
+                  ? 'bg-destructive/20 text-destructive border border-destructive/30'
+                  : abortStep === 'aborting'
+                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                    : 'bg-transparent text-muted-foreground hover:text-destructive hover:bg-destructive/10'
+              }`}
+              disabled={abortStep === 'aborting' || isResponding}
+              onClick={handleAbort}
+            >
+              <X className="w-4 h-4" />
+              {abortStep === 'confirm'
+                ? '確定要中斷？此操作不可撤銷'
+                : abortStep === 'aborting'
+                  ? '中斷中...'
+                  : '中斷對抗'}
+            </button>
+          )}
         </footer>
       </div>
     </div>

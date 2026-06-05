@@ -132,7 +132,8 @@ export function AbilityCard({
   }
 
   if (cooldown != null && cooldown > 0) {
-    badges.push({ label: `冷卻 ${cooldown}s`, variant: 'info' });
+    const cdLabel = cooldown >= 60 && cooldown % 60 === 0 ? `${cooldown / 60}m` : `${cooldown}s`;
+    badges.push({ label: `冷卻 ${cdLabel}`, variant: 'info' });
   }
 
   tags.forEach((tag) => {
@@ -349,7 +350,7 @@ export function AbilityCard({
                     />
                   )}
                   {cooldown != null && cooldown > 0 && (
-                    <GmInfoLine label="冷卻時間" value={`${cooldown} 秒`} />
+                    <GmInfoLine label="冷卻時間" value={cooldown >= 60 && cooldown % 60 === 0 ? `${cooldown / 60} 分鐘` : `${cooldown} 秒`} />
                   )}
                 </div>
               </div>

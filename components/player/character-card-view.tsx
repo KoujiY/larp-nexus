@@ -16,11 +16,13 @@ import { SkillList } from './skill-list';
 import { WorldInfoLink } from './world-info-link';
 import { useItem as consumeItemAction, transferItem as transferItemAction } from '@/app/actions/item-use';
 import { checkExpiredEffects } from '@/app/actions/temporary-effects';
+import { abortContest } from '@/app/actions/contest-abort';
 import { notify } from '@/lib/notify';
 import Image from 'next/image';
 import type { ShowcasedItemInfo } from './item-showcase-dialog';
 import { useNotificationSystem } from '@/hooks/use-notification-system';
 import { useContestDialogManagement } from '@/hooks/use-contest-dialog-management';
+import { useContestState } from '@/hooks/use-contest-state';
 import { useGameEventHandler } from '@/hooks/use-game-event-handler';
 import { CharacterModeBanner } from './character-mode-banner';
 import { NotificationButton } from './notification-button';
@@ -131,6 +133,8 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   // Phase 3.1: 使用通知系統 Hook
   const { notifications, unreadCount, markAsRead, addNotification } = useNotificationSystem(character.id);
 
+  // 對抗狀態管理
+  const { clearAllPendingContests } = useContestState(character.id);
   // 對抗 Dialog 狀態管理（含頁面重整後恢復邏輯）
   const contestDialog = useContestDialogManagement({ characterId: character.id });
   const {
@@ -146,6 +150,20 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
     attackerTargetItemOpen,
     attackerTargetItemData,
   } = contestDialog;
+
+  const handleAbortContest = useCallback(async () => {
+    const contestId = currentContestId || contestDialog.dialogState?.contestId || '';
+    const result = await abortContest(contestId, character.id);
+    if (result.success) {
+      clearDefenderContest();
+      clearDialogState();
+      clearAllPendingContests();
+      notify.warning('已中斷對抗檢定');
+    } else {
+      notify.error(result.message || '中斷失敗');
+      throw new Error(result.message);
+    }
+  }, [currentContestId, contestDialog.dialogState?.contestId, character.id, clearDefenderContest, clearDialogState, clearAllPendingContests]);
 
   // 最終解鎖狀態：localStorage 或手動解鎖
   const isUnlocked = isStorageUnlocked || isManuallyUnlocked;
@@ -544,12 +562,14 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
           clearDialogState();
           router.refresh();
         }}
+        onAbort={handleAbortContest}
       />
 
       {/* 攻擊方等待 Dialog */}
       <ContestWaitingDialog
         open={attackerWaitingOpen}
         displayData={attackerWaitingDisplayData}
+        onAbort={handleAbortContest}
       />
 
       {/* 攻擊方目標道具選擇 Dialog（分歧 2：攻擊方獲勝 + 偷竊/移除） */}
