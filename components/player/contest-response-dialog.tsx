@@ -263,7 +263,7 @@ export function ContestResponseDialog({
         </header>
 
         {/* ── 可滾動主內容 ────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto px-6 pb-28 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <main className="flex-1 overflow-y-auto px-6 pb-40 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
           <div className="space-y-8">
             {/* ── 數值對比 Grid ────────────────────────────────── */}
             <section className="space-y-3">
