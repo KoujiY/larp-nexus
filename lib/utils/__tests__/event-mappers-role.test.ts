@@ -50,13 +50,44 @@ describe('mapRoleUpdated', () => {
     expect(notifications[0].message).toContain('目前值')
   })
 
-  it('falls back to showing value when no delta', () => {
+  it('produces no notification when a stat has no delta (no absolute-value fallback)', () => {
     const event = baseEvent('role.updated', {
       updates: { stats: [{ name: 'HP', value: 20 }] },
     })
+    // 通知一律表達變化量；無 delta = 無實質變化 = 不產生通知
+    expect(mapRoleUpdated(event)).toEqual([])
+  })
+
+  it('does not mislabel an unrelated stat when the targeted stat is capped (delta 0)', () => {
+    // 場景：全體事件讓 MP+1，但 MP 已滿 → MP delta=0；payload 帶完整 stats 陣列，
+    // HP 未變動（無 delta）。修復前會誤報「HP → 當前值」，修復後應無任何通知。
+    const event = baseEvent('role.updated', {
+      updates: {
+        stats: [
+          { name: 'HP', value: 20, maxValue: 20 },
+          { name: 'MP', value: 10, maxValue: 10, deltaValue: 0, deltaMax: 0 },
+        ],
+      },
+    })
+    const notifications = mapRoleUpdated(event)
+    expect(notifications).toEqual([])
+    expect(notifications.some((n) => n.message.includes('HP'))).toBe(false)
+  })
+
+  it('still notifies the changed stat normally when not capped', () => {
+    // 對照組：MP+1 未撞上限 → MP 帶 deltaValue=1，HP 無 delta → 只報 MP
+    const event = baseEvent('role.updated', {
+      updates: {
+        stats: [
+          { name: 'HP', value: 20, maxValue: 20 },
+          { name: 'MP', value: 6, maxValue: 10, deltaValue: 1 },
+        ],
+      },
+    })
     const notifications = mapRoleUpdated(event)
     expect(notifications).toHaveLength(1)
-    expect(notifications[0].message).toContain('20')
+    expect(notifications[0].message).toContain('MP')
+    expect(notifications[0].message).toContain('+1')
   })
 })
 

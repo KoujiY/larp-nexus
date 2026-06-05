@@ -39,19 +39,16 @@ export function mapRoleUpdated(event: BaseEvent): Notification[] {
       newMax: deltaMax !== 0 ? maxVal : undefined,
     });
 
+    // 通知一律以「變化量（delta）」表達，絕不退回絕對值。
+    // role.updated 會帶完整 stats 陣列，只有被變更的 stat 帶 delta；
+    // 對未變動或變化量為 0 的 stat（例如目標數值已達上限、delta=0）做絕對值
+    // fallback，會誤把無關數值的當前值報成「→ X」（見 #stat-cap bug）。
+    // 因此無 delta = 無實質變化 = 不產生通知。
     if (text) {
       notifList.push({
         id: `evt-${event.timestamp}-${idx}`,
         title: '數值變更',
         message: text,
-        type: event.type,
-      });
-    } else if (typeof s.value === 'number' && notifList.length === 0) {
-      // 無 delta 但有 value 的 fallback
-      notifList.push({
-        id: `evt-${event.timestamp}-${idx}-fallback`,
-        title: '數值變更',
-        message: `${name} → ${s.value}`,
         type: event.type,
       });
     }
