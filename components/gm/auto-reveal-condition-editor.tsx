@@ -36,6 +36,8 @@ interface AutoRevealConditionEditorProps {
   allowedTypes: AutoRevealConditionType[];
   /** 正在編輯的項目自身 ID，從選擇器排除以避免自我參照（例：技能 X 的條件不該選 X 自己）*/
   excludeId?: string;
+  /** 正在編輯的項目所屬角色 ID；主動「使用了」條件僅能選此角色自己的技能/物品 */
+  ownerCharacterId?: string;
   /** 是否停用 */
   disabled?: boolean;
 }
@@ -83,6 +85,7 @@ export function AutoRevealConditionEditor({
   availableSecrets,
   allowedTypes,
   excludeId,
+  ownerCharacterId,
   disabled = false,
 }: AutoRevealConditionEditorProps) {
   // 物品選擇器暫存狀態
@@ -106,15 +109,24 @@ export function AutoRevealConditionEditor({
   const isSkillsCondition = SKILL_TYPES.includes(currentType);
   const isSecretsCondition = currentType === 'secrets_revealed';
 
-  // items_revealed / skills_revealed 只對「隱藏」項目有意義（揭露才會進入比對池），
-  // 故這兩種類型的選擇器僅列隱藏項目；其餘類型（viewed/acquired/used）列全部。
-  // 同時排除「正在編輯的項目自身」（excludeId），避免自我參照（X 的條件選到 X）
-  const itemPool = (currentType === 'items_revealed'
-    ? availableItems.filter((i) => i.isHidden)
-    : availableItems).filter((i) => i.itemId !== excludeId);
-  const skillPool = (currentType === 'skills_revealed'
-    ? availableSkills.filter((s) => s.isHidden)
-    : availableSkills).filter((s) => s.skillId !== excludeId);
+  // 選擇器來源池依條件類型而定（主體 = 正在編輯的角色 ownerCharacterId）：
+  // - 主動「使用了」（item_used / skill_used）：只能用自己的 → 僅列本角色的項目
+  // - 被動「被使用了」/ 檢視 / 取得（targeted / viewed / acquired）：別人可作用於我 → 列全部
+  // - 同層連鎖（items_revealed / skills_revealed）：僅列隱藏項目，並排除自身（避免自我參照）
+  const ownItems = availableItems.filter((i) => i.characterId === ownerCharacterId);
+  const ownSkills = availableSkills.filter((s) => s.characterId === ownerCharacterId);
+  const itemPool =
+    currentType === 'items_revealed'
+      ? availableItems.filter((i) => i.isHidden && i.itemId !== excludeId)
+      : currentType === 'item_used'
+        ? ownItems
+        : availableItems;
+  const skillPool =
+    currentType === 'skills_revealed'
+      ? availableSkills.filter((s) => s.isHidden && s.skillId !== excludeId)
+      : currentType === 'skill_used'
+        ? ownSkills
+        : availableSkills;
 
   /** 處理條件類型變更 */
   const handleTypeChange = (type: AutoRevealConditionType) => {

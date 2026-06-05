@@ -87,6 +87,8 @@ type AbilityEditWizardProps = {
   availableItems: GameItemInfo[];
   availableSkills: GameSkillInfo[];
   availableSecrets?: { id: string; title: string }[];
+  /** 正在編輯項目所屬角色 ID；主動「使用了」條件僅能選自己的技能/物品 */
+  ownerCharacterId: string;
 };
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -144,6 +146,7 @@ export function AbilityEditWizard({
   availableItems,
   availableSkills,
   availableSecrets,
+  ownerCharacterId,
 }: AbilityEditWizardProps) {
   const [data, setData] = useState<Item | Skill>(initialData);
   const [currentStep, setCurrentStep] = useState(0);
@@ -468,6 +471,7 @@ export function AbilityEditWizard({
             availableSecrets={availableSecrets}
             allowedTypes={['items_viewed', 'items_acquired', 'secrets_revealed', 'skills_revealed', 'items_revealed', 'skill_used', 'item_used', 'skill_targeted', 'item_targeted']}
             excludeId={data.id}
+            ownerCharacterId={ownerCharacterId}
           />
         )}
       </div>

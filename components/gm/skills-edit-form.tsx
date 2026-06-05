@@ -238,6 +238,7 @@ export function SkillsEditForm({ characterId, gameId, initialSkills, stats, secr
           availableItems={availableItems}
           availableSkills={availableSkills}
           availableSecrets={secrets}
+          ownerCharacterId={characterId}
         />
       )}
     </div>
