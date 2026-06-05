@@ -166,8 +166,8 @@ export interface SkillContestEvent extends BaseEvent<{
   randomContestMaxValue?: number;
   // Phase 7.6: 對抗檢定 ID（用於追蹤系統）
   contestId?: string;
-  // Phase 2: 事件子類型（用於區分請求/結果/效果）
-  subType?: 'request' | 'result' | 'effect';
+  // Phase 2: 事件子類型（用於區分請求/結果/效果/中斷）
+  subType?: 'request' | 'result' | 'effect' | 'abort';
   // Phase 7.6: 攻擊方是否有戰鬥標籤（用於決定防守方是否需要戰鬥標籤）
   attackerHasCombatTag?: boolean;
   // Phase 7.6: 來源是否具有「隱匿」標籤（用於隱藏攻擊方名稱）

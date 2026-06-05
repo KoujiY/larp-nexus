@@ -19,6 +19,8 @@ export interface UseContestHandlerOptions {
   onAttackerContestResult?: (event: SkillContestEvent['payload']) => void;
   /** 清除 Dialog 狀態的回調（確保對抗結算後 dialogState 不殘留） */
   onClearDialogState?: () => void;
+  /** 對方中斷對抗時的回調 */
+  onContestAborted?: () => void;
 }
 
 export interface UseContestHandlerReturn {
@@ -35,6 +37,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
     onDefenderContestResult,
     onAttackerContestResult,
     onClearDialogState,
+    onContestAborted,
   } = options;
 
   const { setDefenderContest, clearDefenderContest } = useDefenderContestState(characterId);
@@ -51,9 +54,26 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
 
       // 優先使用 subType 判斷事件類型，向後兼容 attackerValue === 0 的邏輯
       const eventSubType = payload.subType;
+      const isAbortEvent = eventSubType === 'abort';
       const isRequestEvent = eventSubType === 'request' || (!eventSubType && payload.attackerValue === 0);
       const isResultEvent = eventSubType === 'result' || (!eventSubType && payload.attackerValue !== 0);
       const isEffectEvent = eventSubType === 'effect';
+
+      // ── 中斷事件（對方中斷了對抗）─────────────────────────────
+      if (isAbortEvent) {
+        const isDefender = defenderIdStr === characterIdStr;
+        if (isDefender) {
+          clearDefenderContest();
+        } else {
+          const sourceId = payload.itemId || payload.skillId;
+          if (sourceId) {
+            removePendingContest(sourceId);
+          }
+        }
+        onClearDialogState?.();
+        onContestAborted?.();
+        return;
+      }
 
       // ── 防守方 ─────────────────────────────────────────────
       if (defenderIdStr === characterIdStr) {
@@ -112,6 +132,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
       onDefenderContestResult,
       onAttackerContestResult,
       onClearDialogState,
+      onContestAborted,
       setDefenderContest,
       clearDefenderContest,
       removePendingContest,

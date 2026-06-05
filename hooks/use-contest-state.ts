@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface ContestState {
   sourceId: string; // skillId 或 itemId
@@ -53,6 +53,8 @@ const CONTEST_TIMEOUT_MS = 180_000;
  */
 export function useContestState(characterId: string) {
   const storageKey = `${STORAGE_KEY_PREFIX}${characterId}`;
+  const customEventName = `contest-state-change:${storageKey}`;
+  const isSyncingRef = useRef(false);
 
   // lazy initializer：掛載時同步讀取 localStorage，避免 useEffect 中呼叫 setState
   const [pendingContests, setPendingContests] = useState<Record<string, ContestState>>(() => {
@@ -79,9 +81,45 @@ export function useContestState(characterId: string) {
     }
   });
 
-  // 保存狀態到 localStorage
+  // 同分頁跨實例同步：監聽自定義事件，從 localStorage 重新讀取
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    const syncFromLocalStorage = () => {
+      try {
+        isSyncingRef.current = true;
+        const stored = localStorage.getItem(storageKey);
+        if (!stored) {
+          setPendingContests({});
+        } else {
+          const parsed = JSON.parse(stored) as Record<string, ContestState>;
+          const now = Date.now();
+          const filtered: Record<string, ContestState> = {};
+          for (const [key, contest] of Object.entries(parsed)) {
+            if (now - contest.timestamp < CONTEST_TIMEOUT_MS) {
+              filtered[key] = contest;
+            }
+          }
+          setPendingContests(filtered);
+        }
+      } catch (error) {
+        console.error('[use-contest-state] Failed to sync from localStorage:', error);
+      }
+    };
+
+    const handleCustomChange = () => syncFromLocalStorage();
+    window.addEventListener(customEventName, handleCustomChange);
+    return () => window.removeEventListener(customEventName, handleCustomChange);
+  }, [storageKey, customEventName]);
+
+  // 保存狀態到 localStorage，並通知同分頁其他實例
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (isSyncingRef.current) {
+      isSyncingRef.current = false;
+      return;
+    }
 
     try {
       if (Object.keys(pendingContests).length === 0) {
@@ -89,10 +127,11 @@ export function useContestState(characterId: string) {
       } else {
         localStorage.setItem(storageKey, JSON.stringify(pendingContests));
       }
+      window.dispatchEvent(new Event(customEventName));
     } catch (error) {
       console.error('Failed to save contest state:', error);
     }
-  }, [pendingContests, storageKey]);
+  }, [pendingContests, storageKey, customEventName]);
 
   // 添加正在進行的對抗檢定
   const addPendingContest = useCallback((sourceId: string, sourceType: 'skill' | 'item', contestId: string) => {

@@ -25,6 +25,8 @@ export interface UseCharacterWebSocketHandlerOptions {
   onItemShowcased?: (payload: ItemShowcasedEvent['payload']) => void;
   /** Phase 10: 清除 Dialog 狀態的回調（確保對抗結算後 dialogState 不殘留） */
   onClearDialogState?: () => void;
+  /** 對方中斷對抗時的回調 */
+  onContestAborted?: () => void;
 }
 
 export interface UseCharacterWebSocketHandlerReturn {
@@ -37,7 +39,7 @@ export interface UseCharacterWebSocketHandlerReturn {
 export function useCharacterWebSocketHandler(
   options: UseCharacterWebSocketHandlerOptions
 ): UseCharacterWebSocketHandlerReturn {
-  const { characterId, addNotification, onContestRequest, onContestResult, onItemShowcased, onClearDialogState } = options;
+  const { characterId, addNotification, onContestRequest, onContestResult, onItemShowcased, onClearDialogState, onContestAborted } = options;
   const router = useRouter();
 
   // 追蹤最近的轉移/偷竊事件，用於過濾 inventoryUpdated 通知
@@ -70,6 +72,7 @@ export function useCharacterWebSocketHandler(
     },
     // Phase 10: 對抗結算後清除 dialogState，避免重新開啟技能/道具時殘留等待狀態
     onClearDialogState,
+    onContestAborted,
   });
 
   /**
@@ -97,7 +100,7 @@ export function useCharacterWebSocketHandler(
       // 攔截所有 skill.contest subType（request / result / effect）
       if (!eventId && event.type === 'skill.contest') {
         const payload = event.payload as SkillContestEvent['payload'];
-        if (payload.subType === 'request' || payload.subType === 'result' || payload.subType === 'effect') {
+        if (payload.subType === 'request' || payload.subType === 'result' || payload.subType === 'effect' || payload.subType === 'abort') {
           const role = payload.attackerId === characterId ? 'attacker' : 'defender';
           const dedupKey = `${payload.contestId}::${payload.subType}::${role}`;
 

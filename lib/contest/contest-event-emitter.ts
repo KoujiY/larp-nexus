@@ -122,6 +122,42 @@ export async function emitContestResult(
 }
 
 /**
+ * 發送對抗檢定中斷事件（任一方主動中斷）
+ *
+ * @param targetCharacterId 接收通知的對方角色 ID
+ * @param payload 事件 payload（不包含 subType，會自動添加）
+ */
+export async function emitContestAbort(
+  targetCharacterId: string,
+  payload: Omit<SkillContestEvent['payload'], 'subType'>
+): Promise<void> {
+  const pusher = getPusherServer();
+  if (!pusher || !isPusherEnabled()) return;
+
+  const eventId = generateEventId();
+  const event: SkillContestEvent = {
+    type: 'skill.contest',
+    timestamp: Date.now(),
+    payload: {
+      ...payload,
+      subType: 'abort',
+      _eventId: eventId,
+    },
+  };
+
+  try {
+    const channelName = `private-character-${targetCharacterId}`;
+    await Promise.all([
+      pusher.trigger(channelName, 'skill.contest', event),
+      writePendingEvent(targetCharacterId, 'skill.contest', event.payload as Record<string, unknown>),
+    ]);
+  } catch (error) {
+    console.error('[contest-event-emitter] Failed to emit contest abort', error);
+    throw error;
+  }
+}
+
+/**
  * 發送對抗檢定效果事件（攻擊方選擇目標道具後）
  * 
  * @param attackerId 攻擊方角色 ID

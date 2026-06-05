@@ -296,6 +296,17 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       const attackerIdStr = String(payload.attackerId);
       const defenderIdStr = String(payload.defenderId);
 
+      // 中斷事件：清除攻擊方的 pendingContest（防守方中斷後攻擊方收到）
+      if (payload.subType === 'abort' && payload.sourceType === 'skill' && payload.skillId) {
+        const skillId = payload.skillId;
+        waitingContestRef.current.delete(skillId);
+        clearTargetState();
+        if (hasPendingContest(skillId)) {
+          removePendingContest(skillId);
+        }
+        return;
+      }
+
       // 只處理攻擊方收到的結果事件（技能類型）
       if (
         payload.attackerValue !== 0 &&
@@ -391,11 +402,12 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
 
   // 衍生狀態：當前選中技能的對抗檢定與操作鎖定狀態
   // 集中計算一次，取代 JSX 中 10+ 處重複的 inline IIFE
+  // waitingContestRef 需要配合 dialogState 判斷：若 dialogState 已被清除（如 abort），ref 殘留不應阻擋操作
   const isContestInProgress = Boolean(
     selectedSkill && (
       hasPendingContest(selectedSkill.id) ||
-      waitingContestRef.current.has(selectedSkill.id) ||
-      (dialogState?.type === 'attacker_waiting' &&
+      (waitingContestRef.current.has(selectedSkill.id) &&
+       dialogState?.type === 'attacker_waiting' &&
        dialogState.sourceType === 'skill' &&
        dialogState.sourceId === selectedSkill.id)
     )
