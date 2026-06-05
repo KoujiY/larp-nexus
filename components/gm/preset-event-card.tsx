@@ -295,7 +295,9 @@ function ActionDetailCard({
           )}
         </>
       )}
-      {(action.type === 'reveal_secret' || action.type === 'reveal_task') && action.revealCharacterId && (
+      {(action.type === 'reveal_secret' || action.type === 'reveal_task'
+        || action.type === 'reveal_skill' || action.type === 'hide_skill'
+        || action.type === 'reveal_item' || action.type === 'hide_item') && action.revealCharacterId && (
         <GmInfoLine
           label="角色"
           value={charMap.get(action.revealCharacterId)?.name ?? action.revealCharacterId}
@@ -336,6 +338,18 @@ function getActionSummary(action: PresetEventAction, charMap: Map<string, Charac
       const char = action.revealCharacterId ? charMap.get(action.revealCharacterId) : undefined;
       const task = char?.tasks?.find((t) => t.id === action.revealTargetId);
       return task?.title ?? '揭露隱藏任務';
+    }
+    case 'reveal_skill':
+    case 'hide_skill': {
+      const char = action.revealCharacterId ? charMap.get(action.revealCharacterId) : undefined;
+      const skill = char?.skills?.find((s) => s.id === action.revealTargetId);
+      return skill?.name ?? (action.type === 'reveal_skill' ? '揭露技能' : '隱藏技能');
+    }
+    case 'reveal_item':
+    case 'hide_item': {
+      const char = action.revealCharacterId ? charMap.get(action.revealCharacterId) : undefined;
+      const item = char?.items?.find((i) => i.id === action.revealTargetId);
+      return item?.name ?? (action.type === 'reveal_item' ? '揭露道具' : '隱藏道具');
     }
     default:
       return action.type;

@@ -8,4 +8,8 @@ export const PRESET_ACTION_TYPE_LABELS: Record<string, string> = {
   stat_change: '數值變更',
   reveal_secret: '揭露資訊',
   reveal_task: '揭露任務',
+  reveal_skill: '揭露技能',
+  hide_skill: '隱藏技能',
+  reveal_item: '揭露道具',
+  hide_item: '隱藏道具',
 };
