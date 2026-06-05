@@ -91,6 +91,11 @@ export interface PublicInfo {
 export interface Relationship {
   targetName: string;
   description: string;
+  /**
+   * 玩家端讀取時依 targetName 比對劇本角色帶上的頭像（與 GM 端行為一致）。
+   * 非持久化欄位 — 由 getPublicCharacter 於讀取時填入，GM 儲存只保留 targetName/description。
+   */
+  imageUrl?: string;
 }
 
 /**
