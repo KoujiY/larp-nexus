@@ -93,16 +93,24 @@ export interface UpdateGameInput {
 
 // ─── Preset Events（預設事件系統）───────────────────
 
-/** 預設事件動作類型 */
-export type PresetEventActionType =
-  | 'broadcast'
-  | 'stat_change'
-  | 'reveal_secret'
-  | 'reveal_task'
-  | 'reveal_skill'
-  | 'hide_skill'
-  | 'reveal_item'
-  | 'hide_item';
+/**
+ * 預設事件動作類型 — 單一真相來源（SSOT）
+ *
+ * 新增動作類型只需改這個陣列；Zod 驗證、Mongoose enum、標籤表、TS 型別都從此推導，
+ * 漏接的地方會在編譯期被擋下（而非執行期靜默失敗）。
+ */
+export const PRESET_ACTION_TYPES = [
+  'broadcast',
+  'stat_change',
+  'reveal_secret',
+  'reveal_task',
+  'reveal_skill',
+  'hide_skill',
+  'reveal_item',
+  'hide_item',
+] as const;
+
+export type PresetEventActionType = typeof PRESET_ACTION_TYPES[number];
 
 /** 預設事件動作目標：全體角色或指定角色 ID 陣列 */
 export type ActionTarget = 'all' | string[];

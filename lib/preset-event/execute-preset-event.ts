@@ -5,13 +5,13 @@ import { writeLog } from '@/lib/logs/write-log';
 import { computeStatChange } from '@/lib/effects/shared-effect-executor';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
 import dbConnect from '@/lib/db/mongodb';
-import type { PresetEventAction, ActionTarget } from '@/types/game';
+import type { PresetEventAction, ActionTarget, PresetEventActionType } from '@/types/game';
 
 // ─── Types ───────────────────────────────────────────
 
 export interface ActionResult {
   actionId: string;
-  type: string;
+  type: PresetEventActionType;
   status: 'success' | 'skipped' | 'failed';
   reason?: string;
 }
