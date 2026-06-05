@@ -24,7 +24,7 @@ const TargetItemSelectionDialog = dynamic(
   { ssr: false },
 );
 
-export function SkillList({ skills, characterId, gameId, characterName, stats = [], randomContestMaxValue = 100, isReadOnly = false }: SkillListProps) {
+export function SkillList({ skills, characterId, gameId, characterName, stats = [], items = [], randomContestMaxValue = 100, isReadOnly = false }: SkillListProps) {
   // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用技能）
 
   const router = useRouter();
@@ -415,6 +415,12 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   /** Dialog 是否被鎖定（不可關閉/不可操作） */
   const isDialogLocked = isContestInProgress;
 
+  // Feature 3: 綁定使用條件上下文（stats + items），供卡片禁用與 Dialog 判斷
+  const checkCanUseSkill = useCallback(
+    (skill: Skill) => canUseSkill(skill, { stats, items }),
+    [stats, items],
+  );
+
   if (!skills || skills.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -446,7 +452,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       {/* 技能卡片列表 */}
       <div className="flex flex-col gap-3">
       {localSkills.map((skill) => {
-        const { canUse, reason } = canUseSkill(skill);
+        const { canUse, reason } = checkCanUseSkill(skill);
         const cooldownRemaining = getCooldownRemaining(skill);
         // Phase 8: 檢查是否有正在進行的對抗檢定
         const isPendingContest = hasPendingContest(skill.id);
@@ -487,7 +493,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
         isContestInProgress={isContestInProgress}
         handleUseSkill={handleUseSkill}
         isReadOnly={isReadOnly}
-        canUseSkill={canUseSkill}
+        canUseSkill={checkCanUseSkill}
       />
 
       {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 Dialog */}

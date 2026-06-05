@@ -3,13 +3,19 @@
  */
 
 import type { Item } from '@/types/character';
+import { checkUsageConditions, type UsageConditionContext } from '@/lib/character/usage-condition';
 
 /**
  * 檢查道具是否可以使用（不包含對抗檢定檢查）
  * @param item 道具對象
+ * @param ctx Feature 3: 角色上下文（stats / items），用於檢查使用條件。
+ *   未提供時略過條件檢查（向後相容既有呼叫端）。
  * @returns 返回是否可以使用及原因
  */
-export function canUseItem(item: Item): { canUse: boolean; reason?: string } {
+export function canUseItem(
+  item: Item,
+  ctx?: UsageConditionContext,
+): { canUse: boolean; reason?: string } {
   // 效果檢查：沒有效果的物品不可使用
   if (!item.effects || item.effects.length === 0) {
     return { canUse: false, reason: '無可用效果' };
@@ -35,6 +41,14 @@ export function canUseItem(item: Item): { canUse: boolean; reason?: string } {
     if (now - lastUsed < cooldownMs) {
       const remainingSeconds = Math.ceil((cooldownMs - (now - lastUsed)) / 1000);
       return { canUse: false, reason: `冷卻中 (${remainingSeconds}s)` };
+    }
+  }
+
+  // Feature 3: 使用條件檢查（需 ctx）
+  if (ctx) {
+    const result = checkUsageConditions(item.usageConditions, ctx);
+    if (!result.satisfied) {
+      return { canUse: false, reason: result.reason };
     }
   }
 

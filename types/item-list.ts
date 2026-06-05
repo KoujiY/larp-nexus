@@ -27,6 +27,8 @@ export interface ItemListProps {
   characterId: string;
   gameId: string;
   characterName: string;
+  /** Feature 3: 角色數值清單，用於「數值門檻/成本」類使用條件判斷 */
+  stats?: Array<{ name: string; value: number }>;
   randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
   isReadOnly?: boolean; // Phase 10.5.4: 預覽模式禁用互動
   onUseItem?: (

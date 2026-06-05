@@ -12,7 +12,7 @@
  */
 
 import mongoose from 'mongoose';
-import type { AutoRevealCondition, BackgroundBlock } from '@/types/character';
+import type { AutoRevealCondition, BackgroundBlock, UsageCondition } from '@/types/character';
 import type { MongoItemEffect, MongoSkillEffect } from '@/lib/db/types/mongo-helpers';
 
 export interface CharacterDocumentBase {
@@ -90,6 +90,7 @@ export interface CharacterDocumentBase {
     usageCount?: number;
     cooldown?: number;
     lastUsedAt?: Date;
+    usageConditions?: UsageCondition[];
     isTransferable: boolean;
     acquiredAt: Date;
     equipped?: boolean;
@@ -128,6 +129,7 @@ export interface CharacterDocumentBase {
     usageCount?: number;
     cooldown?: number;
     lastUsedAt?: Date;
+    usageConditions?: UsageCondition[];
     effects?: MongoSkillEffect[];
     isHidden?: boolean;
     hiddenAt?: Date;

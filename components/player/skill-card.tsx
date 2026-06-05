@@ -32,6 +32,7 @@ export interface SkillCardProps {
 export function SkillCard({
   skill,
   cooldownRemaining,
+  isPendingContest,
   isDisabled,
   onClick,
 }: SkillCardProps) {
@@ -56,11 +57,11 @@ export function SkillCard({
   return (
     <div
       className={`relative rounded-xl overflow-hidden transition-all bg-linear-to-br from-card to-surface-base ${
-        isDisabled || isExhausted
+        isPendingContest
           ? 'cursor-not-allowed'
           : 'cursor-pointer hover:shadow-[0_0_20px_rgba(254,197,106,0.08)] active:scale-[0.98]'
-      }${isExhausted ? ' opacity-40' : ''}`}
-      onClick={isDisabled && !isExhausted ? undefined : isExhausted ? undefined : onClick}
+      }${isExhausted ? ' opacity-40' : isDisabled ? ' opacity-60' : ''}`}
+      onClick={isPendingContest ? undefined : onClick}
     >
       <div className={`p-4 flex items-start gap-4${isOnCooldown ? ' opacity-60 grayscale-[0.5]' : ''}`}>
         {/* 技能圖示 */}

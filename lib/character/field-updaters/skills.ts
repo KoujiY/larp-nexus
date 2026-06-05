@@ -4,7 +4,7 @@
 
 import { normalizeTags } from '@/lib/utils/tags';
 import type { MongoSkill } from '@/lib/db/types/mongo-helpers';
-import { normalizeEffectData, normalizeCheckConfig } from './shared';
+import { normalizeEffectData, normalizeCheckConfig, normalizeUsageConditions } from './shared';
 
 /**
  * 更新角色 Skills
@@ -31,6 +31,8 @@ export function updateCharacterSkills(skills: MongoSkill[]): MongoSkill[] {
     if (skill.hiddenAt !== undefined) skillData.hiddenAt = skill.hiddenAt;
     // 自動揭露條件：保留 GM 在 Baseline 設定的條件
     if (skill.autoRevealCondition !== undefined) skillData.autoRevealCondition = skill.autoRevealCondition;
+    // Feature 3: 使用條件（正規化並丟棄無效列）
+    if (skill.usageConditions !== undefined) skillData.usageConditions = normalizeUsageConditions(skill.usageConditions);
 
     skillData.effects = (skill.effects || [])
       .filter((e) => e && e.type)

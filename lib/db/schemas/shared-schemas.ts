@@ -39,6 +39,27 @@ export const autoRevealConditionSchema = new Schema(
 
 // ─── 子欄位工廠函式（模組私有）────────────────────────────────────────────────
 
+/**
+ * Feature 3: 使用條件子文檔欄位定義（技能 / 物品共用）
+ *
+ * 單一陣列同時容納 stat / item 兩種形狀，未使用的欄位留空。
+ * `type` 在 inline 子文檔中以 `{ type: String, ... }` 形式定義是 Mongoose 的標準寫法，
+ * 與本檔 effects 定義一致。
+ */
+function createUsageConditionsSchemaField() {
+  return [
+    {
+      _id: false,
+      type: { type: String, enum: ['stat', 'item'], required: true },
+      statName: { type: String },
+      itemName: { type: String },
+      value: { type: Number },
+      quantity: { type: Number },
+      consume: { type: Boolean, default: false },
+    },
+  ];
+}
+
 /** Phase 3.5: 隱藏資訊欄位定義 */
 function createSecretInfoSchemaField() {
   return {
@@ -142,6 +163,7 @@ function createItemsSchemaField() {
       usageCount: { type: Number, default: 0 },
       cooldown: { type: Number },
       lastUsedAt: { type: Date },
+      usageConditions: createUsageConditionsSchemaField(), // Feature 3: 使用條件
       isTransferable: { type: Boolean, default: true },
       acquiredAt: { type: Date, default: Date.now },
       // 裝備系統（僅 type === 'equipment'）
@@ -208,6 +230,7 @@ function createSkillsSchemaField() {
       usageCount: { type: Number, default: 0 },
       cooldown: { type: Number },
       lastUsedAt: { type: Date },
+      usageConditions: createUsageConditionsSchemaField(), // Feature 3: 使用條件
       effects: [
         {
           _id: false,

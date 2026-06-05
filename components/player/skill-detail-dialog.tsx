@@ -24,6 +24,7 @@ import { getCooldownRemaining } from '@/lib/utils/skill-validators';
 import { EffectDisplay } from './effect-display';
 
 import { CheckInfoDisplay } from './check-info-display';
+import { UsageConditionsDisplay } from './usage-conditions-display';
 import { BottomSheet } from './bottom-sheet';
 
 export interface SkillDetailDialogProps {
@@ -242,6 +243,9 @@ export function SkillDetailDialog({
           ))}
         </div>
       )}
+
+      {/* Feature 3: 使用條件（置於效果與檢定資訊之間） */}
+      <UsageConditionsDisplay conditions={selectedSkill.usageConditions} />
 
       {/* 檢定資訊 */}
       {selectedSkill.checkType !== 'none' && (

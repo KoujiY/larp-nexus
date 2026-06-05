@@ -4,7 +4,7 @@
 
 import { normalizeTags } from '@/lib/utils/tags';
 import type { MongoItem } from '@/lib/db/types/mongo-helpers';
-import { normalizeEffectData, normalizeCheckConfig } from './shared';
+import { normalizeEffectData, normalizeCheckConfig, normalizeUsageConditions } from './shared';
 
 /** 道具庫存差異項目型別 */
 export type InventoryDiff = {
@@ -104,6 +104,8 @@ export function updateCharacterItems(
     if (item.hiddenAt !== undefined) itemData.hiddenAt = item.hiddenAt;
     // 自動揭露條件：保留 GM 在 Baseline 設定的條件
     if (item.autoRevealCondition !== undefined) itemData.autoRevealCondition = item.autoRevealCondition;
+    // Feature 3: 使用條件（正規化並丟棄無效列）
+    if (item.usageConditions !== undefined) itemData.usageConditions = normalizeUsageConditions(item.usageConditions);
 
     // 裝備系統欄位
     if (item.equipped !== undefined) itemData.equipped = item.equipped;

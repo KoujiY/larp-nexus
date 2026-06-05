@@ -34,7 +34,7 @@ const TargetItemSelectionDialog = dynamic(
   { ssr: false },
 );
 
-export function ItemList({ items, characterId, gameId, characterName, randomContestMaxValue = 100, isReadOnly = false, onUseItem, onTransferItem }: ItemListProps) {
+export function ItemList({ items, characterId, gameId, characterName, stats = [], randomContestMaxValue = 100, isReadOnly = false, onUseItem, onTransferItem }: ItemListProps) {
   // Phase 10.5.4: 唯讀模式下隱藏所有互動按鈕（使用、展示、轉移）
 
   const router = useRouter();
@@ -201,8 +201,8 @@ export function ItemList({ items, characterId, gameId, characterName, randomCont
       return { canUse: false, reason: '對抗檢定進行中' };
     }
 
-    // 使用基礎驗證函數檢查其他條件
-    return canUseItemBase(item);
+    // 使用基礎驗證函數檢查其他條件（Feature 3: 帶入 stats + items 上下文檢查使用條件）
+    return canUseItemBase(item, { stats, items: items ?? [] });
   };
 
   // Phase 4.3: 狀態恢復邏輯已由 useContestStateRestore Hook 處理

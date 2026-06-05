@@ -3,13 +3,19 @@
  */
 
 import type { Skill } from '@/types/character';
+import { checkUsageConditions, type UsageConditionContext } from '@/lib/character/usage-condition';
 
 /**
  * 檢查技能是否可以使用
  * @param skill 技能對象
+ * @param ctx Feature 3: 角色上下文（stats / items），用於檢查使用條件。
+ *   未提供時略過條件檢查（向後相容既有呼叫端）。
  * @returns 返回是否可以使用及原因
  */
-export function canUseSkill(skill: Skill): { canUse: boolean; reason?: string } {
+export function canUseSkill(
+  skill: Skill,
+  ctx?: UsageConditionContext,
+): { canUse: boolean; reason?: string } {
   // 使用次數檢查
   if (skill.usageLimit && skill.usageLimit > 0) {
     if ((skill.usageCount || 0) >= skill.usageLimit) {
@@ -25,6 +31,14 @@ export function canUseSkill(skill: Skill): { canUse: boolean; reason?: string } 
     if (now - lastUsed < cooldownMs) {
       const remainingSeconds = Math.ceil((cooldownMs - (now - lastUsed)) / 1000);
       return { canUse: false, reason: `冷卻中 (${remainingSeconds}s)` };
+    }
+  }
+
+  // Feature 3: 使用條件檢查（需 ctx）
+  if (ctx) {
+    const result = checkUsageConditions(skill.usageConditions, ctx);
+    if (!result.satisfied) {
+      return { canUse: false, reason: result.reason };
     }
   }
 

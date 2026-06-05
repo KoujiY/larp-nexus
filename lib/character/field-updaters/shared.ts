@@ -3,6 +3,40 @@
  * 供 skills.ts 和 items.ts 使用
  */
 
+import type { UsageCondition } from '@/types/character';
+
+/**
+ * Feature 3: 正規化使用條件陣列（供 Skills / Items 共用）
+ *
+ * 同時擔任 sanitization：丟棄缺欄位或數量非正的無效條件，
+ * 避免 GM 編輯時的空白列被存入 DB。
+ */
+export function normalizeUsageConditions(raw: unknown): UsageCondition[] {
+  if (!Array.isArray(raw)) return [];
+
+  const result: UsageCondition[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const cond = entry as Record<string, unknown>;
+    const consume = Boolean(cond.consume);
+
+    if (cond.type === 'stat') {
+      const statName = typeof cond.statName === 'string' ? cond.statName.trim() : '';
+      const value = Number(cond.value);
+      if (statName && Number.isFinite(value) && value > 0) {
+        result.push({ type: 'stat', statName, value, consume });
+      }
+    } else if (cond.type === 'item') {
+      const itemName = typeof cond.itemName === 'string' ? cond.itemName.trim() : '';
+      const quantity = Number(cond.quantity);
+      if (itemName && Number.isFinite(quantity) && quantity > 0) {
+        result.push({ type: 'item', itemName, quantity, consume });
+      }
+    }
+  }
+  return result;
+}
+
 /**
  * 正規化單一效果物件，供 Skills / Items 共用
  * @param effect 原始效果資料（以 Record 接收，避免重複定義型別）

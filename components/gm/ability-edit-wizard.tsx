@@ -62,6 +62,7 @@ import { normalizeCheckConfig } from '@/lib/utils/check-config-normalizers';
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import type { Item, Skill, ItemEffect, SkillEffect, Stat, StatBoost, ContestConfig, AutoRevealCondition } from '@/types/character';
 import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
+import { UsageConditionsEditor } from '@/components/gm/usage-conditions-editor';
 import type { GameItemInfo, GameSkillInfo } from '@/app/actions/games';
 import { cn } from '@/lib/utils';
 import {
@@ -317,7 +318,7 @@ export function AbilityEditWizard({
     let finalData: Item | Skill;
     if (isEquipmentType) {
       // 裝備：清除 effects/check 相關欄位，保留 statBoosts
-      finalData = { ...itemData, effects: [], checkType: 'none', contestConfig: undefined, randomConfig: undefined, usageLimit: 0, cooldown: 0, equipped: itemData.equipped ?? false, statBoosts: itemData.statBoosts ?? [] };
+      finalData = { ...itemData, effects: [], checkType: 'none', contestConfig: undefined, randomConfig: undefined, usageLimit: 0, cooldown: 0, usageConditions: [], equipped: itemData.equipped ?? false, statBoosts: itemData.statBoosts ?? [] };
     } else if (isItemMode) {
       finalData = { ...itemData, effects: getItemEffects(itemData), ...configPatch };
     } else {
@@ -724,6 +725,18 @@ export function AbilityEditWizard({
           </div>
           <p className="text-xs text-muted-foreground font-medium">兩次使用之間必須等待的時間間隔。設為 0 表示無冷卻。</p>
         </div>
+
+        {/* Feature 3: 使用條件（前置條件 / 成本）
+            物品條件僅列「本角色自己」的物品 — 與 runtime 檢查 character.items 的語意一致，
+            避免 GM 選到他人的 itemId 導致條件對本角色永遠不成立。 */}
+        <UsageConditionsEditor
+          conditions={data.usageConditions ?? []}
+          stats={stats}
+          availableItems={availableItems
+            .filter((i) => i.characterId === ownerCharacterId)
+            .map((i) => ({ id: i.itemId, name: i.itemName }))}
+          onChange={(next) => updateData({ usageConditions: next })}
+        />
 
         <div className="p-6 bg-muted rounded-2xl border border-border/50 flex gap-4 mt-4">
           <Info className="h-5 w-5 text-muted-foreground/50 shrink-0 mt-0.5" />

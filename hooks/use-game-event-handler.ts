@@ -73,6 +73,8 @@ export function useGameEventHandler({
       clearDefenderContest();
       clearDialogState();
       notify.warning('對方已中斷對抗檢定');
+      // Feature 3: 中斷後刷新，讓攻擊方發起時已扣除的成本（MP/物品）即時反映
+      router.refresh();
     },
     onContestRequest: async (payload) => {
       const sourceId = payload.itemId || payload.skillId || '';
