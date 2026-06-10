@@ -7,12 +7,14 @@
  * 依序建立：gmUsers → games → characters → gameRuntimes → characterRuntimes → pendingEvents → logs
  * 對每個 input 中的 `_id` / `*Id` 欄位自動做 string → ObjectId 轉換。
  *
- * 僅在 `process.env.E2E === '1'` 時可用。
+ * 僅在 `E2E=1`（本機 E2E）或設定 `LOADTEST_TOKEN`（staging 壓測，
+ * 須帶相符的 `x-loadtest-token` header）時可用。
  */
 
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/db/mongodb';
+import { isTestRouteAllowed } from '@/lib/test-route-guard';
 import {
   GMUser,
   Game,
@@ -88,7 +90,7 @@ async function createDocs(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (process.env.E2E !== '1') {
+  if (!isTestRouteAllowed(request)) {
     return new NextResponse('Not Found', { status: 404 });
   }
 

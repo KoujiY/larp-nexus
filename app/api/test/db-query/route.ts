@@ -7,12 +7,14 @@
  * - `collection`: 允許的 collection 名稱（allowlist）
  * - `filter`: JSON string，自動轉換 `_id` 和 `*Id` 欄位的 24-char hex string 為 ObjectId
  *
- * 僅在 `process.env.E2E === '1'` 時可用。
+ * 僅在 `E2E=1`（本機 E2E）或設定 `LOADTEST_TOKEN`（staging 壓測，
+ * 須帶相符的 `x-loadtest-token` header）時可用。
  */
 
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/db/mongodb';
+import { isTestRouteAllowed } from '@/lib/test-route-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,7 +64,7 @@ function convertObjectIds(obj: Record<string, unknown>): Record<string, unknown>
 }
 
 export async function GET(request: Request): Promise<Response> {
-  if (process.env.E2E !== '1') {
+  if (!isTestRouteAllowed(request)) {
     return new NextResponse('Not Found', { status: 404 });
   }
 
