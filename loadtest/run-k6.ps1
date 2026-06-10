@@ -8,9 +8,17 @@ param(
   [string]$Scenario
 )
 
-if (-not (Get-Command k6 -ErrorAction SilentlyContinue)) {
-  Write-Host '[ERROR] k6 not found. Install with: winget install k6'
-  exit 1
+# Resolve k6: PATH first, then the default winget install location
+# (PATH changes only reach terminals opened after the install).
+$k6 = (Get-Command k6 -ErrorAction SilentlyContinue).Source
+if (-not $k6) {
+  $fallback = 'C:\Program Files\k6\k6.exe'
+  if (Test-Path $fallback) {
+    $k6 = $fallback
+  } else {
+    Write-Host '[ERROR] k6 not found. Install with: winget install k6'
+    exit 1
+  }
 }
 
 $envFile = Join-Path $PSScriptRoot '.env'
@@ -43,7 +51,7 @@ if (-not (Test-Path (Join-Path $PSScriptRoot 'state.json'))) {
 $script = Join-Path $PSScriptRoot "k6\$Scenario.js"
 Write-Host "Running $Scenario against $($vars['STAGING_URL'])"
 
-& k6 run `
+& $k6 run `
   -e "STAGING_URL=$($vars['STAGING_URL'])" `
   -e "LOADTEST_TOKEN=$($vars['LOADTEST_TOKEN'])" `
   -e "VERCEL_BYPASS=$($vars['VERCEL_BYPASS'])" `
