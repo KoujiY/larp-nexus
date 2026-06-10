@@ -21,26 +21,33 @@
 ## 基準線執行程序（對應計畫 5.1 步驟 1）
 
 ```cmd
+:: ── 視窗 A ──────────────────────────────────────
 :: 1. seed：清空 loadtest DB + 建 1 個 active 遊戲 + 30 個角色 → 寫出 state.json
 node loadtest\seed.mjs
 
-:: 2. 另開一個視窗：啟動 S4 端到端延遲訂閱端（全程保持運行）
+:: 2. 啟動 S4 端到端延遲訂閱端（會佔住此視窗持續運行，全程不要關）
 node loadtest\s4-subscriber.mjs
 
+:: ── 視窗 B（另開一個 cmd）────────────────────────
 :: 3. 依序執行（每個情境之間等系統靜下來 ~1 分鐘）
 loadtest\run-k6.cmd s1
 loadtest\run-k6.cmd s2
 loadtest\run-k6.cmd s3
 
+:: ── 回到視窗 A ──────────────────────────────────
 :: 4. Ctrl+C 結束 s4-subscriber → 記下它印出的 p50/p95 摘要
 ```
 
-執行期間同步蒐證：
+## 蒐證清單（填計畫 5.2「改前基準」欄的原料）
 
-- **`[perf]` 行**：Vercel dashboard → 該 preview deployment → Logs（或 `vercel logs <url>` CLI）。
-  grep `[perf]` 取 `total/db/pusher/emits`；「有 `[perf:start]` 無 `[perf]`」= 被 timeout 砍掉的請求。
-- **timeout**：Vercel logs 搜 `FUNCTION_INVOCATION_TIMEOUT`。
-- **Pusher 限流**（計畫 2.4）：Pusher dashboard → 該 app → Stats，看 burst 時 message rate 與 error。
+| # | 東西 | 從哪收 | 怎麼收 |
+|---|------|--------|--------|
+| ① | k6 結尾摘要 ×3（s1/s2/s3 各一份） | 視窗 B | 每個情境跑完，終端機最後印出的統計區塊（`checks`、`http_req_duration`、`contest_settle_time`、`contest_failures`、`iterations`）整塊複製。cmd 用滑鼠拖選後按 Enter 即複製 |
+| ② | S4 延遲摘要 | 視窗 A | 三個情境全跑完後 Ctrl+C，複製 `[s4] ── summary ──` 之後的 `p50/p95/max` 各行；CSV 中 latencyMs 特別誇張（數萬以上）的行挑幾筆附上 |
+| ③ | `[perf]` log 樣本 | Vercel dashboard | 專案 → Deployments → 本分支最新部署 → **Logs** 分頁 → 搜 `[perf]`。重點抓 **S2 burst 時段**的 `action=contest-respond` / `action=use-skill` 行 10–30 筆。另搜兩個關鍵字：`FUNCTION_INVOCATION_TIMEOUT`（記筆數）、`[perf:start]`（某 reqId 有 start 無對應 `[perf]` 行 = 被 timeout 砍掉的請求，特別重要） |
+| ④ | Pusher 訊息率（計畫 2.4） | Pusher dashboard | 該 app → **Stats**，看 S2/S3 時段的 message rate 峰值（約每秒幾則）與有無 error / limit 警告 |
+
+> ⏰ **時效**：③ 最急——Vercel Hobby 的 runtime log 保留約 1 小時，**跑完 S2 就先抓**，別等全部結束。①②④ 不會消失。
 
 跑完把數據填入計畫 **5.2 表的「改前基準」欄**。
 
