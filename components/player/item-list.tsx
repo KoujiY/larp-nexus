@@ -594,6 +594,12 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
           effectType={postUseSelectionState.effectType}
           onSelectionComplete={() => {
             setPostUseSelectionState(null);
+            // 非判定型偷竊/移除：流程結束後關閉物品 Dialog 回到主畫面
+            setSelectedItem(null);
+            setCheckResult(undefined);
+            setSelectedUseTargetId(undefined);
+            setIsTargetConfirmed(false);
+            setSelectedTargetItemId('');
             router.refresh();
           }}
         />
