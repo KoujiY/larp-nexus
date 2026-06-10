@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { withAction } from "@/lib/actions/action-wrapper";
+import { runWithGameCache } from "@/lib/game/game-request-cache";
 import { Character } from "@/lib/db/models";
 import { getCurrentGMUserId } from "@/lib/auth/session";
 import { getCharacterData } from "@/lib/game/get-character-data";
@@ -48,7 +49,7 @@ export async function updateCharacter(
   characterId: string,
   data: UpdateCharacterInput,
 ): Promise<ApiResponse<CharacterData>> {
-  return withAction(async () => {
+  return runWithGameCache(() => withAction(async () => {
     // ── 1. Auth ──────────────────────────────────
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -196,7 +197,7 @@ export async function updateCharacter(
       },
       message: "角色更新成功",
     };
-  });
+  }));
 }
 
 // ─── Internal helpers ─────────────────────────────

@@ -2,6 +2,7 @@
 
 import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData, CharacterBaselineSnapshot, TemporaryEffect } from '@/types/character';
@@ -19,6 +20,7 @@ import { fetchPendingEvents } from './pending-events'; // Phase 9: 離線事件�
 export async function getPublicCharacter(
   characterId: string
 ): Promise<ApiResponse<CharacterData>> {
+  return runWithGameCache(async () => {
   try {
     await dbConnect();
 
@@ -211,6 +213,7 @@ export async function getPublicCharacter(
       message: '無法取得角色資料',
     };
   }
+  });
 }
 
 /**

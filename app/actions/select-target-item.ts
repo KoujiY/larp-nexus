@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
 import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { emitSkillUsed, emitItemUsed } from '@/lib/websocket/events';
 import type { ApiResponse } from '@/types/api';
@@ -25,9 +26,9 @@ export async function selectTargetItemAfterUse(
   targetItemId: string
 ): Promise<ApiResponse<{ effectApplied?: string }>> {
   // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：薄 wrapper，業務邏輯在 impl 中不變
-  return runWithPerf('select-target-item', () =>
+  return runWithGameCache(() => runWithPerf('select-target-item', () =>
     selectTargetItemAfterUseImpl(characterId, sourceId, sourceType, effectType, targetCharacterId, targetItemId),
-  );
+  ));
 }
 
 async function selectTargetItemAfterUseImpl(

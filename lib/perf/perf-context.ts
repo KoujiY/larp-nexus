@@ -33,7 +33,16 @@ export type PerfStore = {
   getCharCalls: number;
 };
 
-const storage = new AsyncLocalStorage<PerfStore>();
+declare global {
+  // dev HMR 會重新評估本模組產生新的 ALS 實例，但 mongoose 包裝層
+  // （db-timing.ts，以 globalThis 旗標只安裝一次）的閉包持有「舊模組」的
+  // addDbTime。新舊模組必須共用同一個 storage，否則 HMR 後 dbOps 歸零。
+  // 與 lib/db/mongodb.ts 的 global 連線快取同一模式。
+  var __perfAlsStorage: AsyncLocalStorage<PerfStore> | undefined;
+}
+
+const storage: AsyncLocalStorage<PerfStore> =
+  globalThis.__perfAlsStorage ?? (globalThis.__perfAlsStorage = new AsyncLocalStorage<PerfStore>());
 
 /**
  * 埋點是否啟用（由 PERF_LOG 環境變數控制）

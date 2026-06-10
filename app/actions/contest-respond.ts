@@ -2,6 +2,7 @@
 
 import dbConnect from '@/lib/db/mongodb';
 import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { validateContestRequest, validateContestSource, validateDefenderItems, validateDefenderSkills, validateDefenderCombatTag, validateDefenderCheckType, validateDefenderRelatedStat } from '@/lib/contest/contest-validator';
@@ -28,9 +29,9 @@ export async function respondToContest(
   targetItemId?: string // Phase 7: 目標物品 ID（用於 item_take 和 item_steal 效果，從 contestEvent 中獲取）
 ): Promise<ApiResponse<{ contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail'; effectsApplied?: string[] }>> {
   // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：薄 wrapper，業務邏輯在 impl 中不變
-  return runWithPerf('contest-respond', () =>
+  return runWithGameCache(() => runWithPerf('contest-respond', () =>
     respondToContestImpl(contestId, defenderId, defenderItems, defenderSkills, targetItemId),
-  );
+  ));
 }
 
 async function respondToContestImpl(
@@ -383,7 +384,8 @@ async function respondToContestImpl(
     if (result === 'attacker_wins' && !needsTargetItemSelection) {
       // 攻擊方獲勝且不需要選擇目標物品：立即執行所有效果
       try {
-        const effectResult = await executeContestEffects(attacker!, defender!, source, targetItemId, 'attacker_wins');
+        // skipFinalReload：本 action 只用 effectsApplied/pendingReveal，省 2 次結尾重讀
+        const effectResult = await executeContestEffects(attacker!, defender!, source, targetItemId, 'attacker_wins', undefined, { skipFinalReload: true });
         effectsApplied = effectResult.effectsApplied;
         pendingReveal = effectResult.pendingReveal;
       } catch (error) {
@@ -423,7 +425,7 @@ async function respondToContestImpl(
           }
 
           if (defenderSourceObj) {
-            const effectResult = await executeContestEffects(attacker!, defender!, defenderSourceObj, undefined, 'defender_wins', defenderSources);
+            const effectResult = await executeContestEffects(attacker!, defender!, defenderSourceObj, undefined, 'defender_wins', defenderSources, { skipFinalReload: true });
             effectsApplied = effectResult.effectsApplied;
             pendingReveal = effectResult.pendingReveal;
           }

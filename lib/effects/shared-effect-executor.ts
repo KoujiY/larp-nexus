@@ -538,7 +538,8 @@ export interface AffectedNotificationsResult {
  *   1. $set selfStatSet / targetStatSet 至 DB
  *   2. emitCharacterAffected（跨角色 stat_change 通知）
  *   3. emitRoleUpdated（GM 端 silentSync）
- *   4. 重新讀取最終角色狀態
+ *   4. 回傳通知流程中已讀取的最新角色狀態（不額外重讀；
+ *      無 stat 變更的一方回傳傳入的 doc——呼叫端目前皆不使用此回傳值）
  */
 export async function emitAffectedNotifications(
   params: AffectedNotificationsParams
@@ -554,6 +555,12 @@ export async function emitAffectedNotifications(
 
   const hasStealthTag = sourceTags.includes('stealth');
 
+  // 回傳值追蹤：重用通知流程中已讀取的最新 doc，免去結尾的額外重讀
+  // （呼叫端目前皆不使用回傳的 doc；無 stat 變更時傳入的 doc 即最新）
+  let latestSelf: CharacterDocument = character;
+  let latestTarget: CharacterDocument | undefined =
+    batchResult.targetCharacter ?? undefined;
+
   // §4: 套用 self / target 兩組累積器至 DB
   if (hasSelfUpdates) {
     await updateCharacterData(characterId, { $set: selfStatSet });
@@ -565,6 +572,7 @@ export async function emitAffectedNotifications(
     if (crossCharacterChanges.length > 0) {
       // 重新讀取目標角色的 DB 狀態作為通知/同步的依據
       const updatedTargetDoc = await getCharacterData(targetCharacterId);
+      latestTarget = updatedTargetDoc as CharacterDocument;
       const targetObj = (updatedTargetDoc as unknown as { toObject?: () => Record<string, unknown> }).toObject
         ? (updatedTargetDoc as unknown as { toObject: () => Record<string, unknown> }).toObject()
         : JSON.parse(JSON.stringify(updatedTargetDoc));
@@ -615,6 +623,7 @@ export async function emitAffectedNotifications(
 
   if (hasSelfUpdates) {
     const selfDoc = await getCharacterData(characterId);
+    latestSelf = selfDoc as CharacterDocument;
     const selfObj = (selfDoc as unknown as { toObject?: () => Record<string, unknown> }).toObject
       ? (selfDoc as unknown as { toObject: () => Record<string, unknown> }).toObject()
       : JSON.parse(JSON.stringify(selfDoc));
@@ -631,8 +640,5 @@ export async function emitAffectedNotifications(
     }).catch((err) => console.error('[shared-effect-executor] emitRoleUpdated failed', err));
   }
 
-  const updatedCharacter = await getCharacterData(characterId);
-  const updatedTarget = targetCharacterId ? await getCharacterData(targetCharacterId) : undefined;
-
-  return { updatedCharacter, updatedTarget: updatedTarget || undefined };
+  return { updatedCharacter: latestSelf, updatedTarget: latestTarget };
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { withAction } from '@/lib/actions/action-wrapper';
 import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import type { CharacterDocument } from '@/lib/db/models';
 import { emitItemTransferred, emitItemUsed, emitRoleUpdated } from '@/lib/websocket/events';
@@ -11,7 +12,7 @@ import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleAbilityCheck } from '@/lib/contest/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
-import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
+import { processExpiredEffects } from '@/lib/effects/check-expired-effects'; // Phase 8: 過期效果檢查
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
@@ -45,7 +46,7 @@ export async function useItem(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  return withAction(() => runWithPerf('item-use', async () => {
+  return runWithGameCache(() => withAction(() => runWithPerf('item-use', async () => {
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
@@ -53,7 +54,14 @@ export async function useItem(
 
     // Phase 8: 使用物品前檢查並處理過期的時效性效果
     // 必須在 getCharacterData 之前執行，否則讀取的數值可能包含已過期效果的加值
-    await checkExpiredEffects(characterId);
+    // 直接呼叫 processExpiredEffects（不含 24h 紀錄清理）——清理屬維護性操作，
+    // 由開卡路徑（getPublicCharacter / getCharacterById）負責，熱路徑省 2 次 DB 往返
+    try {
+      await processExpiredEffects(characterId);
+    } catch (error) {
+      // 與原 checkExpiredEffects 行為一致：檢查失敗記錄但不阻斷動作
+      console.error('[item-use] 過期效果檢查失敗:', error);
+    }
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
@@ -497,7 +505,7 @@ export async function useItem(
       },
       message: toastMessage,
     };
-  }));
+  })));
 }
 
 /**
@@ -509,7 +517,7 @@ export async function transferItem(
   targetCharacterId: string,
   quantity: number
 ): Promise<ApiResponse<{ transferred: boolean; transferredQuantity: number }>> {
-  return withAction(() => runWithPerf('item-transfer', async () => {
+  return runWithGameCache(() => withAction(() => runWithPerf('item-transfer', async () => {
 
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
@@ -705,5 +713,5 @@ export async function transferItem(
       },
       message: `已將 ${quantity} 個「${sourceItem.name}」轉移給 ${targetCharacter.name}`,
     };
-  }));
+  })));
 }

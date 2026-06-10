@@ -1,6 +1,7 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { removeActiveContest, removeContestsByCharacterId, getContestInfo, isCharacterInContest } from '@/lib/contest-tracker';
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
@@ -16,6 +17,7 @@ export async function cancelContestItemSelection(
   contestId: string,
   characterId: string
 ): Promise<ApiResponse<{ cancelled: boolean }>> {
+  return runWithGameCache(async () => {
   try {
     await dbConnect();
 
@@ -161,5 +163,6 @@ export async function cancelContestItemSelection(
       message: '無法取消對抗檢定，請稍後再試',
     };
   }
+  });
 }
 

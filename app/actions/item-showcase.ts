@@ -1,6 +1,7 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import { emitItemShowcased, emitRoleUpdated } from '@/lib/websocket/events';
@@ -29,6 +30,7 @@ export async function showcaseItem(
   revealTriggered?: boolean;
   revealedCount?: number;
 }>> {
+  return runWithGameCache(async () => {
   try {
     await dbConnect();
 
@@ -169,6 +171,7 @@ export async function showcaseItem(
       message: '無法展示物品，請稍後再試',
     };
   }
+  });
 }
 
 /**
@@ -191,6 +194,7 @@ export async function recordItemView(
   revealTriggered?: boolean;
   revealedCount?: number;
 }>> {
+  return runWithGameCache(async () => {
   try {
     await dbConnect();
 
@@ -278,4 +282,5 @@ export async function recordItemView(
       message: '無法記錄物品檢視，請稍後再試',
     };
   }
+  });
 }

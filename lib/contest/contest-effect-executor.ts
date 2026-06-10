@@ -55,6 +55,9 @@ export interface ContestEffectExecutionResult {
  * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
  * @param contestResult 對抗檢定結果（Phase 7.6: 決定執行攻擊方還是防守方的效果）
  * @param defenderSources 防守方使用的技能/道具列表（Phase 7.6: 防守方獲勝時使用）
+ * @param options.skipFinalReload 跳過結尾的角色重讀（省 2 次 DB 查詢）。
+ *   ⚠️ 設為 true 時回傳的 updatedAttacker/updatedDefender 是「效果套用前」的傳入 doc，
+ *   不可用於讀取最新狀態——僅供不使用這兩個欄位的呼叫端（contest-respond）使用
  * @returns 執行結果
  */
 export async function executeContestEffects(
@@ -63,7 +66,8 @@ export async function executeContestEffects(
   source: SkillType | ItemType,
   targetItemId?: string,
   contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail' = 'attacker_wins',
-  defenderSources?: Array<{ type: 'skill' | 'item'; id: string }>
+  defenderSources?: Array<{ type: 'skill' | 'item'; id: string }>,
+  options?: { skipFinalReload?: boolean }
 ): Promise<ContestEffectExecutionResult> {
   await dbConnect();
 
@@ -294,11 +298,16 @@ export async function executeContestEffects(
     }
   }
 
-  const updatedAttacker = await getCharacterData(attackerIdStr);
-  const updatedDefender = await getCharacterData(defenderIdStr);
+  // skipFinalReload：呼叫端不需要最新 doc 時跳過重讀（回傳傳入的原始 doc）
+  let updatedAttacker = attacker;
+  let updatedDefender = defender;
+  if (!options?.skipFinalReload) {
+    updatedAttacker = await getCharacterData(attackerIdStr);
+    updatedDefender = await getCharacterData(defenderIdStr);
 
-  if (!updatedAttacker || !updatedDefender) {
-    throw new Error('找不到角色');
+    if (!updatedAttacker || !updatedDefender) {
+      throw new Error('找不到角色');
+    }
   }
 
   const winnerCharacterId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;

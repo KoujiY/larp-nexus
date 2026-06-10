@@ -6,6 +6,7 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { Game } from '@/lib/db/models';
 import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/check-expired-effects';
 import { getCurrentGMUserId } from '@/lib/auth/session';
@@ -51,6 +52,7 @@ export async function checkExpiredEffects(characterId?: string) {
 export async function getTemporaryEffects(
   characterId: string
 ): Promise<ApiResponse<{ effects: Array<TemporaryEffect & { remainingSeconds: number }> }>> {
+  return runWithGameCache(async () => {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -135,4 +137,5 @@ export async function getTemporaryEffects(
       message: '取得時效性效果時發生錯誤',
     };
   }
+  });
 }

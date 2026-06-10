@@ -1,5 +1,9 @@
 import dbConnect from '@/lib/db/mongodb';
 import { incrGetChar } from '@/lib/perf/perf-context';
+import {
+  getCachedGameId, getCachedIsActive,
+  setCachedCharGameId, setCachedIsActive,
+} from '@/lib/game/game-request-cache';
 import Character from '@/lib/db/models/Character';
 import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import Game from '@/lib/db/models/Game';
@@ -38,44 +42,72 @@ export function getBaselineCharacterId(
 export async function getCharacterData(
   characterId: string
 ): Promise<CharacterDocument | CharacterRuntimeDocument> {
-  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：計數每動作的 getCharacterData 呼叫
   incrGetChar();
 
   await dbConnect();
 
-  // 步驟 1：查詢 Baseline Character，取得 gameId
+  // ── 快取路徑：同一請求內已知 isActive 時跳過 Character+Game 查詢 ──
+  const cachedGameId = getCachedGameId(characterId);
+  if (cachedGameId !== undefined) {
+    const cachedIsActive = getCachedIsActive(cachedGameId);
+    if (cachedIsActive !== undefined) {
+      if (cachedIsActive) {
+        const runtimeCharacter = await CharacterRuntime.findOne({
+          refId: characterId,
+          type: 'runtime',
+        });
+        if (runtimeCharacter) return runtimeCharacter;
+        // Runtime 遺失（異常）：降級回 Baseline（需 1 額外查詢）
+        const fallback = await Character.findById(characterId);
+        if (!fallback) throw new Error(`找不到角色：${characterId}`);
+        console.warn(
+          `[getCharacterData] 遊戲進行中但找不到 Runtime Character：characterId=${characterId}, gameId=${cachedGameId}`
+        );
+        return fallback;
+      }
+      // isActive=false：直接查 Baseline
+      const baselineCharacter = await Character.findById(characterId);
+      if (!baselineCharacter) throw new Error(`找不到角色：${characterId}`);
+      return baselineCharacter;
+    }
+  }
+
+  // ── 完整路徑：首次呼叫，查 Character+Game 並填入快取 ──
   const baselineCharacter = await Character.findById(characterId);
   if (!baselineCharacter) {
     throw new Error(`找不到角色：${characterId}`);
   }
 
   const gameId = baselineCharacter.gameId;
+  const gameIdStr = gameId.toString();
+  setCachedCharGameId(characterId, gameIdStr);
 
-  // 步驟 2：查詢 Game，取得 isActive
-  const game = await Game.findById(gameId);
-  if (!game) {
-    throw new Error(`找不到遊戲：${gameId.toString()}`);
+  // 同一請求內已查過此 game 的 isActive（例如攻擊方先查、防守方同遊戲）→ 免查 Game
+  let isActive = getCachedIsActive(gameIdStr);
+  if (isActive === undefined) {
+    const game = await Game.findById(gameId);
+    if (!game) {
+      throw new Error(`找不到遊戲：${gameIdStr}`);
+    }
+    isActive = game.isActive === true;
+    setCachedIsActive(gameIdStr, isActive);
   }
 
-  // 步驟 3：如果 isActive = true，查詢 Runtime
-  if (game.isActive) {
+  if (isActive) {
     const runtimeCharacter = await CharacterRuntime.findOne({
       refId: baselineCharacter._id,
       type: 'runtime',
     });
 
     if (runtimeCharacter) {
-      // 找到 Runtime，返回 Runtime
       return runtimeCharacter;
     } else {
-      // 找不到 Runtime（異常情況），記錄警告並返回 Baseline
       console.warn(
-        `[getCharacterData] 遊戲進行中但找不到 Runtime Character：characterId=${characterId}, gameId=${gameId.toString()}`
+        `[getCharacterData] 遊戲進行中但找不到 Runtime Character：characterId=${characterId}, gameId=${gameIdStr}`
       );
       return baselineCharacter;
     }
   }
 
-  // 步驟 4：如果 isActive = false，返回 Baseline
   return baselineCharacter;
 }

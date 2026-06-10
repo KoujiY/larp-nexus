@@ -51,8 +51,8 @@ export async function executeItemEffects(
   const effects = getItemEffects(item);
 
   if (effects.length === 0) {
-    const updatedCharacter = await getCharacterData(getBaselineCharacterId(character));
-    return { effectsApplied: [], updatedCharacter };
+    // 無效果 = 無寫入，傳入的 doc 即最新狀態，免重讀
+    return { effectsApplied: [], updatedCharacter: character };
   }
 
   const characterId = getBaselineCharacterId(character);
