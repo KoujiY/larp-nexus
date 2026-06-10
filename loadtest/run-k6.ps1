@@ -68,5 +68,10 @@ $outFile = Join-Path $resultsDir "$Scenario-$stamp.txt"
   $script 2>&1 | Tee-Object -FilePath $outFile
 
 $code = $LASTEXITCODE
+
+# Tee-Object on PS 5.1 always writes UTF-16; re-encode to UTF-8 so the
+# file is half the size and friendly to grep/diff tools.
+(Get-Content $outFile) | Set-Content -Encoding UTF8 $outFile
+
 Write-Host "Output saved to $outFile"
 exit $code
