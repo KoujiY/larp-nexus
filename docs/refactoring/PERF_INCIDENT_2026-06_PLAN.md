@@ -174,6 +174,25 @@
 | **批 2** | 冷啟動瘦身 + 通知管理器 `Promise.all` 平行化 + emit 非阻塞化（降級項順手做） | 冷啟動輪 total < 3s |
 | **批 3** | GM log debounce + pending_events TTL index | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8） |
 
+### 4.2 批 1 收尾深掃結果（2026-06-11，三路並行盤查）
+
+**覆蓋確認**：全域掃描證實所有 `getCharacterData`/`updateCharacterData` 的 entry point 均已包 `runWithGameCache`，無孤兒呼叫端。
+
+**批 1 已修**（詳見 commit）：per-request isActive 快取（含完整路徑快取捷徑）、contest/skill/item 三處無人使用的結尾重讀、無效果路徑重讀、24h 清理移出熱路徑、contest-select-item fallback 分支重複讀取、ALS globalThis 加固（防 dev HMR 失聯）。實測：contest-respond 19–24 → 12、skill-use 20 → 13。
+
+**延後至批 2 的節省機會**（依預估收益排序）：
+1. **autoReveal 整併**：每動作觸發 2–3 次 `executeAutoReveal`，各自重讀角色（快取下各 1 op）。可合併 trigger 類型為單次呼叫或傳入已讀 doc。估省 2–3 ops/動作。
+2. **pending event 批次寫入**：每 emit 一筆 `PendingEvent.create`，contest 一輪 ~5–7 筆 → 收集後一次 `insertMany`。併入批 2「emit 非阻塞化」一起做（同一改造面）。估省 2–4 ops。
+3. **processExpiredEffects 單邊查詢**：現況無條件查 Character+CharacterRuntime 兩個 collection（2 ops），active game 期間效果只在 Runtime。若可得知 isActive 可只查單邊。受限於「過期檢查必須在入口讀取之前」的順序，需審慎設計。估省 1 op。
+4. **random_contest 的 Game 重複讀**：`contest-respond.ts`（randomContestMaxValue）與 `contest-handler.ts` 各有重複 `Game.findById`。可擴充 game-request-cache 快取所需欄位。僅影響 random_contest，估省 1–2 ops。
+5. **GM 冷路徑**（低頻，可不修）：`characters.ts getCharacterById` 三讀（auth lean 讀 + getCharacterData + 過期檢查後重讀）；`validateCharacterAccess` 用 raw 查詢不填快取；`temporary-effects.ts` 取得 isActive 後又重查 Game。
+6. **同類 413 風險**：偷竊/轉移路徑（`shared-effect-executor` role.updated、`transferItem`）仍送完整 items 陣列，大背包角色可能超過 Pusher 10KB；消費端分析與裝備路徑相同（均只 refresh / 讀 stats），可比照瘦身。
+
+**已評估、不採用**（記錄原因避免重走）：
+- `contest-select-item` 套用 `skipFinalReload`：**不可**——該 action 真的使用 `updatedAttacker`/`updatedDefender` 組通知 payload，跳過重讀會讓通知帶效果套用前的數值。
+- usage `$set` / consume `$inc` / `$pull` 合併為單次寫入：**不可 naive 合併**——`$inc` 與 `$pull` 同時操作 items 路徑會衝突（程式碼已有註解），且 MongoDB 對「已宣告未使用的 arrayFilter」會報錯。
+- `processExpiredEffects` 前置 `countDocuments` 存在性檢查：**無淨節省**——count 本身就是一個 op。
+
 ## Step 5 — 驗收（明確路徑、量尺、通過門檻）
 
 ### 5.1 流程（不可跳步）
