@@ -307,9 +307,12 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
         return;
       }
 
-      // 只處理攻擊方收到的結果事件（技能類型）
+      // 只處理攻擊方收到的對抗終結事件（結果 / 效果）（技能類型）
+      // 用 subType 判別，而非 `attackerValue !== 0`：對抗請求送防守方時 attackerValue
+      // 固定為 0（佔位），但若攻擊方對抗數值本身為 0，結果/效果事件也帶 0，舊判別式
+      // 會崩潰、永遠清不掉攻擊方本地對抗狀態，導致攻防 UI 失步。
       if (
-        payload.attackerValue !== 0 &&
+        (payload.subType === 'result' || payload.subType === 'effect') &&
         attackerIdStr === characterIdStr &&
         defenderIdStr !== characterIdStr &&
         payload.sourceType === 'skill' &&
