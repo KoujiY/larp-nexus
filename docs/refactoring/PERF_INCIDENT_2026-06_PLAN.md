@@ -1,6 +1,6 @@
 # 效能事故調查與修復計畫（Performance Incident）
 
-> 狀態：**Step 2.1 埋點完成 + 壓測環境就緒（待 k6 腳本與壓測）** ｜ 建立：2026-06-10 ｜ 事故：上週末（約 2026-06-06/07）下午 13:30–17:30
+> 狀態：**改前基準線完成（Step 1–3 結案，根因已坐實）→ 進入 Step 4 修復** ｜ 建立：2026-06-10 ｜ 基準線：2026-06-11 ｜ 事故：上週末（約 2026-06-06/07）下午 13:30–17:30
 >
 > 本文件為跨 session 交接用，自足可讀。處理時請先讀完「環境事實」與「Step 1 假設總表」，避免重走已排除的路。
 
@@ -58,14 +58,15 @@
 | 1 | Atlas 連線數爆掉（connection storm） | **已排除** | peak 58 / 上限 500 |
 | 2 | Atlas 吞吐量飽和（DB overload） | **已排除** | ~2 ops/秒 |
 | 3 | Region 落差（Vercel↔Atlas） | **已排除** | 兩者同在東京 |
-| 4 | **單一動作 fan-out 過大（latency-bound）** | **領先（主因）** | 每動作 20–40 次循序 DB+Pusher 來回 |
-| 5 | Pusher emit + pending event 寫入為**阻塞式 `await`** | **領先（加重因子）** | `lib/websocket/events.ts` 每 emit `await` 了 trigger + DB 寫入 |
-| 6 | `getCharacterData` 3 查詢 × 重複呼叫 | **領先（加重因子）** | `lib/game/get-character-data.ts` 已確認 |
-| 7 | Hobby 冷啟動 + 10s timeout → 慢動作被砍 → 通知靠 pending events 延遲補送 | **領先（解釋「數十分鐘」）** | Hobby 限制 + pending events 補送機制 |
-| 8 | GM 端「收到事件就重抓 `getGameLogs`」→ 尖峰自我放大 → Hobby 併發耗盡 | **存疑（GM 崩潰主嫌）** | `components/gm/runtime-console-ws-listener.tsx` 的 `onLogRefresh` |
+| 4 | **單一動作 fan-out 過大（latency-bound）** | **✅ 坐實（2026-06-11 壓測）** | `[perf]` 實測：最簡單的自身技能 = 20 dbOps；contest-respond = 19–24 dbOps |
+| 5 | Pusher emit + pending event 寫入為**阻塞式 `await`** | **❌ 推翻** | `[perf]` 實測：pusher 佔比僅 11–103ms（總耗時 1–3%），即使 burst 也不變；S4 emit→送達 ≈ 0ms |
+| 6 | `getCharacterData` 3 查詢 × 重複呼叫 | **✅ 坐實** | `[perf]` 實測：自身技能 getChar=5、contest-respond getChar=6（每次 = 3 查詢） |
+| 7 | Hobby 冷啟動 + 10s timeout → 慢動作被砍 → 通知靠 pending events 延遲補送 | **✅ 坐實（「數十分鐘」主因）** | 冷啟動輪 total 5.6–8.0s、貼近 10s 線；S2 max 10.63s；S4 證明送達瞬時 → 延遲只可能來自「動作沒完成 → 補送」 |
+| 8 | GM 端「收到事件就重抓 `getGameLogs`」→ 尖峰自我放大 → Hobby 併發耗盡 | **存疑（基準輪未測）** | 壓測未含 GM 端模擬；`get-game-logs` 埋點已就位，修復驗證輪補測 |
 | 9 | pending_events 無 TTL → 集合膨脹 → 查詢漸慢 | **次要/長期** | `lib/db/models/PendingEvent.ts` 無 `expireAfterSeconds` |
-| 10 | Pusher 免費層 message-rate 限流 | **待查** | 13 連線 OK，但 burst 訊息率未確認（Pusher dashboard） |
+| 10 | Pusher 免費層 message-rate 限流 | **❌ 排除** | 壓測峰值 157 msg/s，dashboard 無 error / 限流；S4 端到端延遲 p95 ≤ 21ms |
 | 11 | M0 操作限流（throttling）單獨成因 | **暫排除** | ops 太低；burst 瞬間仍可能，但無證據，非主因 |
+| 12 | **（新發現）同 instance 併發 + M0 → DB 單操作延遲放大** | **✅ 坐實** | Vercel Fluid 把多請求塞進同一 instance（log `concurrency` 達 5）：同樣 ~20 ops，無競爭時 db≈95ms，burst 時膨脹至 2000–4800ms（單操作 ~4ms → 100–200ms） |
 
 ---
 
@@ -126,27 +127,37 @@
 
 ---
 
-## Step 3 — 鎖定根因 + 驗收方法
+## Step 3 — 鎖定根因 + 驗收方法 ✅ 結案（2026-06-11 基準線）
 
-- **領先根因**：latency-bound per-action fan-out（#4 + 加重因子 #5/#6/#7）；GM 崩潰 = #8。
-- **確認標準（壓測 + 埋點後）**：
-  - 單一對抗 function 耗時 **數秒**、其中 **emit/DB 佔大半**、**emit 次數 ≥ 10** → 坐實 #4/#5。
-  - burst 時 GM 的 `getGameLogs` 被**高頻觸發 + 排隊/超時** → 坐實 #8。
-- **建立基準線（改前）**：記錄 p50/p95 單動作耗時、每動作 emit 次數、GM log 刷新率、10–15 併發下的 timeout 比例。
+**最終根因判定**：
+
+1. **主因 = #4 fan-out（DB 來回數）× #12 併發放大 × #7 冷啟動** 的三重疊加：
+   - 每動作 17–24 次 DB 操作（含 `getCharacterData` 3–6 次、`updateCharacterData` 每次寫入前多 2 次查詢）。
+   - burst 時 Vercel Fluid 將多請求塞進同一 instance，DB 單操作延遲放大 20–50 倍（4ms → 100–200ms）→ 20 ops × 150ms ≈ 3 秒。
+   - 冷啟動再疊 1.5–2 秒（Next 啟動 + Mongoose 連線），合計貼近 10s timeout。
+2. **「通知延遲數十分鐘」的機制**：動作被 timeout 砍掉 → 通知從未發出 → 玩家重連後靠 pending events 補送。**不是傳輸延遲**（S4 實測 emit→送達 ≈ 0ms）。
+3. **#5（阻塞 emit）與 #10（Pusher 限流）正式出局**：pusher 佔比 1–3%、157 msg/s 無限流。
+4. **「整個系統卡死」的體感放大器**：對抗越慢 → 角色被 `USER_IN_CONTEST`/`TARGET_IN_CONTEST` 鎖越久 → 其他玩家的動作被規則擋下（S2 實測 ~30% 被擋），單點延遲透過遊戲規則擴散成全場堵塞感。
+5. **#8（GM 端自我放大）基準輪未測**，`get-game-logs` 埋點已就位，修復驗證輪補測。
+
+**關鍵情境重現確認**：S2（13 人齊發）對抗結算 med 3.87s、p90 10.69s、max 10.85s —— 與事故症狀（間歇性爆發、與多人同時操作高度相關）完全吻合；S3 證明暖機下 30 併發也不會 timeout → 觸發條件是「burst 撞上冷啟動」的組合，不是單純人數。
 
 ---
 
-## Step 4 — 修復（候選，依優先序）
+## Step 4 — 修復（依基準線數據改寫優先序，2026-06-11）
 
-| 優先 | 措施 | 預期效果 | 風險 | 主要檔案 |
+> 改寫理由：基準線推翻了「阻塞 emit 是大頭」的預設（實測佔比 1–3%），坐實了「DB 來回數 × 併發放大」才是延遲主體。優先序從「省 emit 時間」全面轉向「**省 DB 來回數**」。
+
+| 優先 | 措施 | 預期效果（依實測推算） | 風險 | 主要檔案 |
 |------|------|----------|------|----------|
-| **最高** | **emit + pending event 非阻塞化（fire-and-forget）** | 動作提交完 DB 即回傳，通知背景扇出 → 單動作延遲砍半以上 | 中（須保留必要事件順序，見下方注意） | `lib/websocket/events.ts`, `lib/websocket/pending-events.ts` |
-| **最高** | **消除重複 `getCharacterData`**（傳遞已讀 doc，不重抓同一角色） | 每省一次 = 少 3 次來回 | 中 | `app/actions/skill-use.ts`, `app/actions/item-use.ts`, `app/actions/contest-respond.ts`, `lib/contest/*` |
-| 高 | **`getCharacterData` 自身減查詢**（快取 `game.isActive` / 合併查詢） | 被呼叫上百次，單點優化全域受惠 | 中 | `lib/game/get-character-data.ts` |
-| 高 | **GM log 刷新 debounce/節流**（合併刷新，如 500ms） | GM 請求量降一個量級 | 低 | `components/gm/runtime-console-ws-listener.tsx`, `components/gm/event-log.tsx` |
-| 中 | **平行化獨立操作（`Promise.all`）+ 減少重複 emit** | 降低單動作牆鐘時間與 Pusher 呼叫數 | 中 | `lib/contest/contest-notification-manager.ts`, `lib/contest/contest-effect-executor.ts` |
-| 低（體質） | `maxPoolSize` 設低（如 5–10）+ pending_events 加 TTL index | 防連線風暴；防集合膨脹 | 低 | `lib/db/mongodb.ts`, `lib/db/models/PendingEvent.ts` |
-| 選用（產品決策） | 升 Atlas tier（M2/M5/M10）/ Vercel Pro | **止痛非治本**；先改碼再評估 | — | — |
+| **最高** | **消除重複 `getCharacterData` / `updateCharacterData` 前置查詢**：action 內傳遞已讀 doc；`updateCharacterData` 不再每次寫入前重查 Character+Game（每動作 2–6 次寫入 × 2 查詢 = 4–12 ops 純浪費） | contest-respond 24 ops → 估 ~12 ops；burst 時單操作 150ms 計，**省 1.5–2 秒** | 中 | `lib/game/update-character-data.ts`, `app/actions/skill-use.ts`, `app/actions/item-use.ts`, `app/actions/contest-respond.ts`, `lib/contest/*` |
+| **最高** | **`getCharacterData` 自身減查詢**：per-request 快取 `game.isActive`（3 查詢 → 首次 3、後續 1） | getChar 5–6 次 × 省 2 ops = **省 10–12 ops** | 中 | `lib/game/get-character-data.ts` |
+| 高 | **冷啟動瘦身**：檢視啟動時工作（連線已有 global cache；`maxPoolSize` 調低、`minPoolSize`/心跳設定避免重握手） | 冷啟動懲罰 1.5–2s → 目標 <1s | 低 | `lib/db/mongodb.ts` |
+| 高 | **GM log 刷新 debounce/節流**（合併刷新，如 500ms）——#8 未測，先做防禦性修復並於驗證輪量測 | GM 請求量降一個量級 | 低 | `components/gm/runtime-console-ws-listener.tsx`, `components/gm/event-log.tsx` |
+| 中 | **平行化獨立操作（`Promise.all`）**：通知管理器內互不依賴的查詢/寫入並行 | 縮短牆鐘時間（ops 數不變但不再純循序） | 中 | `lib/contest/contest-notification-manager.ts`, `lib/contest/contest-effect-executor.ts` |
+| **降級為中** | emit + pending event 非阻塞化（fire-and-forget） | 實測僅省 11–103ms + 2–4 次 pending 寫入；仍有價值但非主菜 | 中（須保留事件順序，見注意事項） | `lib/websocket/events.ts`, `lib/websocket/pending-events.ts` |
+| 低（體質） | pending_events 加 TTL index | 防集合長期膨脹 | 低 | `lib/db/models/PendingEvent.ts` |
+| 選用（產品決策） | 升 Vercel Pro（timeout 60s + 更多暖 instance）/ Atlas tier | **止痛非治本**；改碼後重新評估 | — | — |
 
 ---
 
@@ -163,16 +174,18 @@
 
 ### 5.2 量尺與通過門檻（pass/fail，含具體數字）
 
-| 指標 | 量測來源 | 改前基準 | **通過門檻** |
+| 指標 | 量測來源 | 改前基準（2026-06-11） | **通過門檻** |
 |------|----------|----------|--------------|
-| 單一 `contest-respond` 動作 total（p95） | `[perf]` log | （壓測填） | **< 2000ms**，且**永不**達 10s timeout |
-| 單動作 emit 次數 | `[perf]` log | （填） | 非硬門檻，但記錄並盡量降低 |
-| emit 是否阻塞主流程 | `[perf]`：action 回傳時間 vs pusher 完成時間 | （填） | action 回傳**不再包含** pusher 扇出時間（已解耦） |
-| S2（10–15 同時動作）function timeout 數 | Vercel log（`FUNCTION_INVOCATION_TIMEOUT`） | （填） | **= 0** |
-| 端到端通知延遲（p95，S4） | k6 ws 量測 | （填） | **< 3s** |
-| GM 端 burst 時「負載過重」/5xx | Vercel log + 實際觀察 | （填） | **無** |
-| GM `getGameLogs` 呼叫頻率（S2） | `[perf]` / log | （填） | 較基準**降低 ≥ 一個量級**（debounce 生效） |
-| 系統可承載「同時動作數」上限（S3） | 階梯壓測 | （填） | **≥ 20**（目標；至少明確量出數字） |
+| 單一 `contest-respond` 動作 total（p95） | `[perf]` log / k6 | **暖 burst p95 ≈ 2.92s（max 3.9s）**；對抗完整結算（發起+回應）med 3.87s、p90 10.69s、max 10.85s | **< 2000ms**，且**永不**達 10s timeout |
+| 單動作 DB 操作數 / emit 次數 | `[perf]` log | **skill-use：20 ops / 1 emit / getChar 5；contest-respond：19–24 ops / 2 emits / getChar 6** | ops 顯著下降（目標 ≤ 半數）；emit 記錄即可 |
+| emit 是否阻塞主流程 | `[perf]`：pusher vs total | pusher 僅 11–103ms（1–3%）——**已證實非瓶頸** | 維持不阻塞即可（門檻改為資訊性） |
+| S2（10–15 同時動作）function timeout 數 | k6 客戶端記錄（主）+ Vercel log（輔） | **0 timeout**；1×HTTP 500；max 10.63s（貼線） | **= 0** 且 max 遠離 10s 線 |
+| 端到端通知延遲（p95，S4） | s4-subscriber（pusher-js） | **p95 ≤ 21ms（≈ 0，時鐘偏差內）** | **< 3s**（已達標——瓶頸不在此） |
+| GM 端 burst 時「負載過重」/5xx | Vercel log + 實際觀察 | 未測（基準輪無 GM 端模擬） | **無** |
+| GM `getGameLogs` 呼叫頻率（S2） | `[perf]` / log | 未測（埋點已就位，驗證輪補測） | 較基準**降低 ≥ 一個量級**（debounce 生效） |
+| 系統可承載「同時動作數」上限（S3） | 階梯壓測 | **≥ 30（暖機，0 timeout；p90 4.11s）**；冷啟動 + 13 burst 即貼 10s 線 | **≥ 20**（暖機已達標；改善目標 = 冷+burst 也不貼線） |
+| Pusher message rate（2.4 補充） | Pusher dashboard | 峰值 157 msg/s，無 error / 限流 | 資訊性 |
+| 冷啟動單動作 total | `[perf]` log | **5.6–8.0s**（db 含連線等待 8.4–10s） | 顯著下降（目標 < 3s） |
 
 ### 5.3 簽核條件
 
