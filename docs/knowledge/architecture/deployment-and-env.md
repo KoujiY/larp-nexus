@@ -43,11 +43,28 @@ BLOB_READ_WRITE_TOKEN=
 AI_ENCRYPTION_SECRET=<min 32 chars, generate with: openssl rand -base64 32>
 ```
 
+### Optional（效能量測 / 壓測，預設不設）
+```bash
+# 效能埋點：設 1 時每個熱路徑 server action 輸出一行 [perf] log
+# （lib/perf/，PERF_INCIDENT_2026-06 量測基礎建設）
+PERF_LOG=1
+
+# 壓測模式開啟 /api/test/* 路由：請求須帶相符的 x-loadtest-token header
+# （lib/test-route-guard.ts；與 E2E=1 互斥使用，詳見 e2e-testing.md 安全機制）
+LOADTEST_TOKEN=<random hex, generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+```
+
 ### Local Development
 Create `.env.local` (never commit to git)
 
 ### Production
 Set all variables in Vercel Dashboard → Project → Settings → Environment Variables
+
+### Vercel 環境拓撲（2026-06 起）
+- **Production**：`MONGODB_URI` 指向正式資料庫。
+- **Preview**（所有分支共用）：`MONGODB_URI` 指向 `larp-nexus-loadtest`（壓測 / PR 預覽共用；名稱必須含 `test` 以通過 test route 的 DB 名稱防護），並設 `PERF_LOG=1` 與 `LOADTEST_TOKEN`。
+- Atlas cluster 與 Pusher app 各環境**共用同一個**（時間隔離：壓測不得與真實活動同時進行）。
+- Preview 部署開啟 Deployment Protection，自動化腳本以 `x-vercel-protection-bypass` header 通過。
 
 ## Cron Jobs
 - `app/api/cron/check-expired-effects/` — checks expired temporary effects and cleans pending events

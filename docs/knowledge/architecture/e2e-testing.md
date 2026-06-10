@@ -105,7 +105,7 @@ Next.js dev 模式下 HMR 會 re-instantiate module，導致 EventEmitter 實例
 
 ## Test API Routes
 
-E2E 環境提供 4 個僅在 `E2E=1` 時可用的 API route：
+E2E 環境提供 4 個受 `lib/test-route-guard.ts` 守門的 API route：
 
 | Route | 方法 | 用途 |
 |-------|------|------|
@@ -116,7 +116,10 @@ E2E 環境提供 4 個僅在 `E2E=1` 時可用的 API route：
 
 ### 安全機制
 
-1. **環境檢查**：所有 test route 在第一行檢查 `process.env.E2E !== '1'` → 404，production 環境永遠不可達。
+1. **環境檢查**（`lib/test-route-guard.ts` 的 `isTestRouteAllowed()`，兩種放行模式）：
+   - **本機 E2E 模式**：`E2E=1` 且未設 `LOADTEST_TOKEN` → 放行（Playwright 既有行為）。
+   - **staging 壓測模式**：設 `LOADTEST_TOKEN`（不設 E2E）→ 僅放行帶相符 `x-loadtest-token` header 的請求。供壓測腳本在「真實 Pusher + 真實 Atlas」的 build 下程式化登入/seed——不能用 `E2E=1` 開 staging，因為它是 build-time webpack alias，會把 Pusher 換成 stub，壓測就量不到真實延遲。
+   - 兩者皆未設（production 常態）→ 一律 404。兩者同時設定時 token 檢查優先。
 2. **DB 名稱防護**：`reset`、`seed`、`db-query` 三個 route 在操作前檢查連線的資料庫名稱必須包含 `e2e` 或 `test`，否則回傳 403。這是防禦縱深——即使 URI 設定錯誤連到 Atlas，也不會清空/汙染真實資料。
 
 ```typescript

@@ -1,6 +1,6 @@
 # 效能事故調查與修復計畫（Performance Incident）
 
-> 狀態：**調查中（待壓測驗證根因）** ｜ 建立：2026-06-10 ｜ 事故：上週末（約 2026-06-06/07）下午 13:30–17:30
+> 狀態：**Step 2.1 埋點完成 + 壓測環境就緒（待 k6 腳本與壓測）** ｜ 建立：2026-06-10 ｜ 事故：上週末（約 2026-06-06/07）下午 13:30–17:30
 >
 > 本文件為跨 session 交接用，自足可讀。處理時請先讀完「環境事實」與「Step 1 假設總表」，避免重走已排除的路。
 
@@ -73,7 +73,14 @@
 
 舊 log 已蒸發 → 自己製造可控證據。分三部分：**埋點 → 壓測環境 → 壓測情境**。
 
-### 2.1 埋點（measurement substrate）— 第一步、純觀測、低風險
+### 2.1 埋點（measurement substrate）— 第一步、純觀測、低風險 ✅ 完成（2026-06-10，分支 `feat/perf-instrumentation`）
+
+> 實作摘要：`lib/perf/perf-context.ts`（AsyncLocalStorage 累加器 + `runWithPerf`）+
+> `lib/perf/db-timing.ts`（包 `Query.exec`/`Aggregate.exec`/`save`/`insertMany`，全 model 查詢自動計時）。
+> 包裝範圍：skill-use、item-use、item-transfer、contest-respond、select-target-item、
+> contest-select-item、get-game-logs（#8 量尺）。
+> 輸出含 `dbOps=<n>` 擴充欄位；入口另印 `[perf:start]`（與 `[perf]` 配對找出被 timeout 砍掉的請求）。
+> 開關 `PERF_LOG=1`，預設關閉、零行為改變。已通過本機驗收。
 
 在熱路徑各 server action 與 emit 層加結構化計時，**每個動作輸出一行** `[perf]` log：
 
@@ -88,12 +95,19 @@
 - 實作建議：用 `AsyncLocalStorage` 持有一個 per-request `perf` 累加器，避免污染所有函數簽名；統一前綴 `[perf]` 方便篩。
 - **這組埋點同時是驗收的量尺**（改前/改後都用它）→ 務必先做、全程保留、最後再移除（或用 env 旗標 gate 起來）。
 
-### 2.2 壓測環境（在哪測）
+### 2.2 壓測環境（在哪測）— ✅ 環境決策已拍板（2026-06-10）
 
 - **只對 staging 測，絕不對 production**（production 是真實遊戲 DB）。
 - 前置工作項：在 staging 準備一個 **`isActive=true` 的 seed 遊戲 + N 個角色 + 可程式化登入**。
   - 可沿用既有測試登入端點 `/api/test/login`（E2E 用，受 `E2E=1` gate），或在 staging 開一個專用 seed 路由。
-- 工具：**k6**（能寫 burst 情境，且能同時跑 ws 訂閱量測端到端延遲）。
+- 工具：**k6**（能寫 burst 情境）；S4 的 Pusher 訂閱端改用 **Node 伴隨腳本**（pusher-js 自動處理私有頻道授權，比 k6 原生 ws 手刻握手可靠）。
+
+**已拍板的環境決策**：
+- **staging = Vercel Preview 部署**（推分支即自動產生；不另建 staging 分支，直接用 `feat/perf-instrumentation` 的 preview）。
+- **Atlas / Pusher 皆與 prod 共用同一個 cluster / app**（代表性優先：量到的就是事故機器/app 的真實行為，含 M0 與 Pusher 免費層限流特性）。代價是**時間隔離鐵律：壓測不得與真實活動同時進行**。
+- Preview 環境變數：`MONGODB_URI` → `larp-nexus-loadtest`（名稱必須含 `test`，test route DB 防護才放行）、`PERF_LOG=1`、`LOADTEST_TOKEN`。**不設 `E2E`**。
+- ⚠️ **關鍵發現：`E2E=1` 是 build-time webpack alias**，會把 Pusher server/client 換成 in-process stub —— staging 若設 E2E，壓測量到的是假 Pusher，完全失真。因此 test route 守門改為兩模式（`lib/test-route-guard.ts`）：本機 `E2E=1` 照舊；staging 憑 `LOADTEST_TOKEN` + `x-loadtest-token` header 開啟。
+- Vercel Deployment Protection 維持開啟，壓測腳本以 `x-vercel-protection-bypass` header（Protection Bypass for Automation secret）通過。
 
 ### 2.3 壓測情境（怎麼測）
 
