@@ -135,7 +135,10 @@
    - 每動作 17–24 次 DB 操作（含 `getCharacterData` 3–6 次、`updateCharacterData` 每次寫入前多 2 次查詢）。
    - burst 時 Vercel Fluid 將多請求塞進同一 instance，DB 單操作延遲放大 20–50 倍（4ms → 100–200ms）→ 20 ops × 150ms ≈ 3 秒。
    - 冷啟動再疊 1.5–2 秒（Next 啟動 + Mongoose 連線），合計貼近 10s timeout。
-2. **「通知延遲數十分鐘」的機制**：動作被 timeout 砍掉 → 通知從未發出 → 玩家重連後靠 pending events 補送。**不是傳輸延遲**（S4 實測 emit→送達 ≈ 0ms）。
+2. **「通知延遲數十分鐘」= 雙路徑匯流到 pending events 補送**（**不是傳輸延遲**，S4 實測 emit→送達 ≈ 0ms）：
+   - 路徑 a（故障）：動作被 timeout 砍掉 → 通知從未發出 → 等補送。
+   - 路徑 b（架構性，非故障）：接收方鎖屏/切後台 → WebSocket 斷線 → 即時通知無人收 → 等補送。LARP 現場玩家頻繁鎖屏，b 必然大量發生。
+   - 兩條路徑的送達時間都 =「接收方下次開畫面」→ 數十分鐘。**修復只能消滅 a；b 是 pending events 照設計運作**，若要鎖屏可收通知需另立 Web Push 議題（超出本計畫範圍，驗收時須向使用者說明此界線）。
 3. **#5（阻塞 emit）與 #10（Pusher 限流）正式出局**：pusher 佔比 1–3%、157 msg/s 無限流。
 4. **「整個系統卡死」的體感放大器**：對抗越慢 → 角色被 `USER_IN_CONTEST`/`TARGET_IN_CONTEST` 鎖越久 → 其他玩家的動作被規則擋下（S2 實測 ~30% 被擋），單點延遲透過遊戲規則擴散成全場堵塞感。
 5. **#8（GM 端自我放大）基準輪未測**，`get-game-logs` 埋點已就位，修復驗證輪補測。
