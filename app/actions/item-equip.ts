@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { withAction } from '@/lib/actions/action-wrapper';
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
@@ -57,7 +58,7 @@ export async function toggleEquipment(
   characterId: string,
   itemId: string,
 ): Promise<ApiResponse<{ equipped: boolean }>> {
-  return withAction(async () => {
+  return runWithGameCache(() => withAction(async () => {
     // 驗證玩家權限
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色（請嘗試重新整理頁面並重新解鎖）' };
@@ -131,9 +132,6 @@ export async function toggleEquipment(
     // 註：expected 值假設「寫入瞬間無並發變動」，若有並發變動，後續動作
     //      或下一次 role.updated 事件會自然糾正。
     const deltaById = new Map(deltas.map((d) => [d.statId, d]));
-    const broadcastItems = items.map((it) =>
-      (it as { id: string }).id === itemId ? { ...it, equipped: newEquipped } : it,
-    );
     const broadcastStats = currentStats.map((s) => {
       const d = deltaById.get(s.id);
       if (!d) {
@@ -147,15 +145,17 @@ export async function toggleEquipment(
       };
     });
 
-    // 推送 WebSocket：通知玩家端 items 與 stats 同步更新
+    // 推送 WebSocket：通知 stats 同步更新
     // silentSync: 此 role.updated 為副作用同步事件，玩家端不產生通知
     // （裝備切換的玩家通知由 equipment.toggled 處理），GM 端 useRoleUpdated
     // 預設過濾，避免重複 refresh / sticky bar
+    // 不送 items：完整 items 陣列易超過 Pusher 10KB 上限（413），且所有訂閱端
+    // 均不讀取此事件的 items（玩家端/GM 編輯頁只 refresh、GM 控制台只讀 stats，
+    // 控制台 items 由 equipment.toggled 自洽更新）
     await emitRoleUpdated(characterId, {
       characterId,
       silentSync: true,
       updates: {
-        items: broadcastItems,
         stats: broadcastStats,
       },
     });
@@ -197,5 +197,5 @@ export async function toggleEquipment(
       success: true,
       data: { equipped: newEquipped },
     };
-  });
+  }));
 }
