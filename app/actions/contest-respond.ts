@@ -1,6 +1,7 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
+import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { validateContestRequest, validateContestSource, validateDefenderItems, validateDefenderSkills, validateDefenderCombatTag, validateDefenderCheckType, validateDefenderRelatedStat } from '@/lib/contest/contest-validator';
@@ -25,6 +26,19 @@ export async function respondToContest(
   defenderItems?: string[], // 防守方使用的物品 ID 陣列
   defenderSkills?: string[], // 防守方使用的技能 ID 陣列
   targetItemId?: string // Phase 7: 目標物品 ID（用於 item_take 和 item_steal 效果，從 contestEvent 中獲取）
+): Promise<ApiResponse<{ contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail'; effectsApplied?: string[] }>> {
+  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：薄 wrapper，業務邏輯在 impl 中不變
+  return runWithPerf('contest-respond', () =>
+    respondToContestImpl(contestId, defenderId, defenderItems, defenderSkills, targetItemId),
+  );
+}
+
+async function respondToContestImpl(
+  contestId: string,
+  defenderId: string,
+  defenderItems?: string[],
+  defenderSkills?: string[],
+  targetItemId?: string
 ): Promise<ApiResponse<{ contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail'; effectsApplied?: string[] }>> {
   try {
     await dbConnect();

@@ -1,4 +1,5 @@
 import dbConnect from '@/lib/db/mongodb';
+import { incrGetChar } from '@/lib/perf/perf-context';
 import Character from '@/lib/db/models/Character';
 import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import Game from '@/lib/db/models/Game';
@@ -37,6 +38,9 @@ export function getBaselineCharacterId(
 export async function getCharacterData(
   characterId: string
 ): Promise<CharacterDocument | CharacterRuntimeDocument> {
+  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：計數每動作的 getCharacterData 呼叫
+  incrGetChar();
+
   await dbConnect();
 
   // 步驟 1：查詢 Baseline Character，取得 gameId

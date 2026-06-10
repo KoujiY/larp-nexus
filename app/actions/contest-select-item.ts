@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
+import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
 import { getContestInfo, removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
@@ -22,6 +23,20 @@ export async function selectTargetItemForContest(
   targetCharacterId?: string, // Phase 9: 目標角色 ID（如果服務器端記錄丟失，可以使用此參數）
   defenderSourceId?: string, // Phase 9: 防守方使用的技能/物品 ID（當防守方選擇物品時需要）
   defenderSourceType?: 'skill' | 'item' // Phase 9: 防守方使用的技能/物品類型（當防守方選擇物品時需要）
+): Promise<ApiResponse<{ success: boolean; effectApplied?: string }>> {
+  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：薄 wrapper，業務邏輯在 impl 中不變
+  return runWithPerf('contest-select-item', () =>
+    selectTargetItemForContestImpl(contestId, characterId, targetItemId, targetCharacterId, defenderSourceId, defenderSourceType),
+  );
+}
+
+async function selectTargetItemForContestImpl(
+  contestId: string,
+  characterId: string,
+  targetItemId: string,
+  targetCharacterId?: string,
+  defenderSourceId?: string,
+  defenderSourceType?: 'skill' | 'item'
 ): Promise<ApiResponse<{ success: boolean; effectApplied?: string }>> {
   try {
     await dbConnect();

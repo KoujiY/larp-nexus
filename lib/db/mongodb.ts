@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import * as fs from 'fs';
 import * as path from 'path';
+import { isPerfLogEnabled } from '@/lib/perf/perf-context';
+import { installDbTiming } from '@/lib/perf/db-timing';
 
 type MongooseConnection = typeof mongoose;
 
@@ -41,6 +43,11 @@ function resolveMongoUri(): string {
 }
 
 async function connectDB() {
+  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：PERF_LOG=1 時安裝查詢計時
+  if (isPerfLogEnabled()) {
+    installDbTiming();
+  }
+
   const MONGODB_URI = resolveMongoUri();
 
   if (!MONGODB_URI) {
