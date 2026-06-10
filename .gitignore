@@ -42,8 +42,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# loadtest runtime state (seeded IDs, machine-specific)
+# loadtest runtime state (seeded IDs, machine-specific) and run outputs
 /loadtest/state.json
+/loadtest/results/
 
 # vercel
 .vercel

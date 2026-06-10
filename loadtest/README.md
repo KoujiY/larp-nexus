@@ -42,12 +42,14 @@ loadtest\run-k6.cmd s3
 
 | # | 東西 | 從哪收 | 怎麼收 |
 |---|------|--------|--------|
-| ① | k6 結尾摘要 ×3（s1/s2/s3 各一份） | 視窗 B | 每個情境跑完，終端機最後印出的統計區塊（`checks`、`http_req_duration`、`contest_settle_time`、`contest_failures`、`iterations`）整塊複製。cmd 用滑鼠拖選後按 Enter 即複製 |
+| ① | k6 完整輸出 ×3（s1/s2/s3 各一份） | **自動存檔** | `run-k6` 會把全部輸出（含 ERRO 失敗行）存到 `loadtest/results/<情境>-<時間戳>.txt`，不用手動複製 |
 | ② | S4 延遲摘要 | 視窗 A | 三個情境全跑完後 Ctrl+C，複製 `[s4] ── summary ──` 之後的 `p50/p95/max` 各行；CSV 中 latencyMs 特別誇張（數萬以上）的行挑幾筆附上 |
-| ③ | `[perf]` log 樣本 | Vercel dashboard | 專案 → Deployments → 本分支最新部署 → **Logs** 分頁 → 搜 `[perf]`。重點抓 **S2 burst 時段**的 `action=contest-respond` / `action=use-skill` 行 10–30 筆。另搜兩個關鍵字：`FUNCTION_INVOCATION_TIMEOUT`（記筆數）、`[perf:start]`（某 reqId 有 start 無對應 `[perf]` 行 = 被 timeout 砍掉的請求，特別重要） |
+| ③ | `[perf]` log 樣本 | Vercel dashboard | 專案 → Deployments → 本分支最新部署 → **Logs** 分頁 → 搜 `[perf]` 後匯出。重點抓 **S2 burst 時段**的 `action=contest-respond` / `action=use-skill` 行 |
 | ④ | Pusher 訊息率（計畫 2.4） | Pusher dashboard | 該 app → **Stats**，看 S2/S3 時段的 message rate 峰值（約每秒幾則）與有無 error / limit 警告 |
 
-> ⏰ **時效**：③ 最急——Vercel Hobby 的 runtime log 保留約 1 小時，**跑完 S2 就先抓**，別等全部結束。①②④ 不會消失。
+**timeout / 5xx 的判定以 ① 的 k6 客戶端記錄為主儀器**（status ≥ 500、或 duration 貼近 10s 的請求），Vercel logs 為輔——Hobby 的 runtime log 保留僅約 1 小時且 UI 緩衝有限，`FUNCTION_INVOCATION_TIMEOUT` 等伺服器端證據很容易蒸發。
+
+> ⏰ **時效**：③ **每跑完一個情境立刻匯出一次**，別等全部結束。①②④ 不會消失。
 
 跑完把數據填入計畫 **5.2 表的「改前基準」欄**。
 

@@ -51,10 +51,22 @@ if (-not (Test-Path (Join-Path $PSScriptRoot 'state.json'))) {
 $script = Join-Path $PSScriptRoot "k6\$Scenario.js"
 Write-Host "Running $Scenario against $($vars['STAGING_URL'])"
 
-& $k6 run `
+# Auto-save full k6 output (incl. ERRO lines = client-side 5xx/timeout
+# evidence). Vercel Hobby log retention is ~1h, so the durable record of
+# failures lives here, not in the dashboard.
+$resultsDir = Join-Path $PSScriptRoot 'results'
+if (-not (Test-Path $resultsDir)) {
+  New-Item -ItemType Directory -Path $resultsDir | Out-Null
+}
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$outFile = Join-Path $resultsDir "$Scenario-$stamp.txt"
+
+& $k6 run --no-color `
   -e "STAGING_URL=$($vars['STAGING_URL'])" `
   -e "LOADTEST_TOKEN=$($vars['LOADTEST_TOKEN'])" `
   -e "VERCEL_BYPASS=$($vars['VERCEL_BYPASS'])" `
-  $script
+  $script 2>&1 | Tee-Object -FilePath $outFile
 
-exit $LASTEXITCODE
+$code = $LASTEXITCODE
+Write-Host "Output saved to $outFile"
+exit $code
