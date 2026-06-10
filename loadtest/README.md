@@ -28,9 +28,9 @@ node loadtest\seed.mjs
 node loadtest\s4-subscriber.mjs
 
 :: 3. 依序執行（每個情境之間等系統靜下來 ~1 分鐘）
-powershell -File loadtest\run-k6.ps1 s1
-powershell -File loadtest\run-k6.ps1 s2
-powershell -File loadtest\run-k6.ps1 s3
+loadtest\run-k6.cmd s1
+loadtest\run-k6.cmd s2
+loadtest\run-k6.cmd s3
 
 :: 4. Ctrl+C 結束 s4-subscriber → 記下它印出的 p50/p95 摘要
 ```
@@ -62,7 +62,7 @@ loadtest/
   env.example        ← 密語範本（複製為 .env 填值；.env 不進 git）
   smoke.cmd/.ps1     ← 閘門煙霧測試（400/404/401）
   seed.mjs           ← reset + seed → state.json（不進 git）
-  run-k6.ps1         ← k6 啟動器（讀 .env 注入 -e 旗標）
+  run-k6.cmd/.ps1    ← k6 啟動器（cmd 包裝層繞過 execution policy；讀 .env 注入 -e 旗標）
   k6/common.js       ← 登入、action 呼叫、wall-clock 對齊 burst
   k6/s1.js s2.js s3.js
   s4-subscriber.mjs  ← pusher-js 訂閱端（端到端延遲 CSV + 摘要）
