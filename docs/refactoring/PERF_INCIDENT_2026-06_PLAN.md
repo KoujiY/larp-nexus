@@ -172,7 +172,7 @@
 |------|------|----------|
 | **批 1（主菜）✅ 完成（2026-06-11，S2 delta 達標）** | 消除重複 `getCharacterData`/`updateCharacterData` 前置查詢 + per-request 快取 `game.isActive` | dbOps 19–24 → 目標 ≤ 半數；S2 p95 顯著下降 |
 | **批 2 🔨 實作完成（2026-06-11，待使用者驗收 + S2/冷啟動輪對照）** | 冷啟動瘦身 + 通知管理器 `Promise.all` 平行化 + emit 批次化（4.2 延後項 1、2 一併處理，詳見 4.3） | 冷啟動輪 total < 3s |
-| **批 3** | GM log debounce + pending_events TTL index + index 檢查/同步腳本 | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8）。⚠️ 批 2 起 production/loadtest 已關 autoIndex：**TTL index 部署後不會自動建立**（缺失時 TTL 靜默不運作），需手動對 loadtest 與正式 DB 各建一次，或以同批新增的 `scripts/check-indexes.ts`（比對 `schema.indexes()` vs `listIndexes()`，`--sync` 補建）執行 |
+| **批 3** | GM log debounce + pending_events TTL index + index 檢查/同步腳本 + **修復 `{gameId,pin}` index schema bug**（移除 `sparse`，與 `partialFilterExpression` 互斥導致 createIndex 從未成功，詳見 5.2.2；建立前先查 (gameId, pin) 重複資料，loadtest 與正式 DB 都要建） | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8）。⚠️ 批 2 起 production/loadtest 已關 autoIndex：**TTL index 部署後不會自動建立**（缺失時 TTL 靜默不運作），需手動對 loadtest 與正式 DB 各建一次，或以同批新增的 `scripts/check-indexes.ts`（比對 `schema.indexes()` vs `listIndexes()`，`--sync` 補建）執行 |
 
 ### 4.2 批 1 收尾深掃結果（2026-06-11，三路並行盤查）
 
@@ -259,6 +259,22 @@
 | 規則性擋下（IN_CONTEST） | ~30% | 11/65 ≈ 17%（動作變快 → 鎖定窗口變短） | 體感放大器同步緩解 |
 
 結論：**latency-bound 假設獲得改後驗證**——ops 砍半直接反映為 p95 砍 36%。剩餘長尾（p90 8.6s）集中於冷啟動輪，正是批 2 的目標。
+
+### 5.2.2 批 2 後 S2 delta（2026-06-11，deployment dpl_F3H1Pdic）
+
+來源：`loadtest/results/s2-20260611-215130.txt` + Vercel `[perf]` log 匯出（含冷啟動輪）。
+
+| 指標 | 批 1 後 | 批 2 後 | 判定 |
+|------|---------|---------|------|
+| contest-respond p95（k6 `respond-contest`） | 1.88s | **1.94s** | ✅ 持平（< 2000ms 門檻內，差異屬雜訊） |
+| http max | 7.54s | **5.57s** | ✅ 再遠離 10s 線（−26%） |
+| timeout / 5xx | 0 / 0 | **0 / 0**（http_req_failed 0/258） | ✅ |
+| 對抗完整結算（contest_settle_time） | med 2.24s / p90 8.59s / max 8.66s | **med 2.2s / p90 6.59s / max 6.65s** | ✅ 長尾 −23%（冷啟動輪改善的直接反映） |
+| **冷啟動輪單動作 total** | 5.0–6.2s | **3.0–4.3s（med ≈ 3.35s）** | ⚠️ 顯著下降（−35%）但未全達 < 3s 門檻；db 含連線等待 4.0–6.5s（原 6.9–9.1s）。剩餘成本 ≈ Next 啟動 + Atlas TLS 握手，已接近 Hobby + M0 的程式碼面下限 |
+| dbOps | contest-respond 11 / skill-use 11 | **contest-respond 10–11 / skill-use 10** | ✅ 無回歸、微降 |
+| 規則性擋下（IN_CONTEST） | 11/65 ≈ 17% | 14/65 ≈ 21.5% | 資訊性（規則擋下屬雜訊範圍） |
+
+**批 2 新發現（index-check 首戰立功）**：loadtest DB 的 `characters` 缺 `{gameId:1, pin:1}` index。根因追查＝**schema bug**：[Character.ts](../../lib/db/models/Character.ts) 對該 index 同時宣告 `sparse: true` 與 `partialFilterExpression` —— **MongoDB 不允許兩者並用，createIndex 一律失敗**。亦即此 unique index 從未在任何環境（含 production）建立成功，「同一 Game 內 PIN 唯一」從未被 DB 層強制，過去 autoIndex 的建立失敗被 Mongoose 靜默吞掉。修復方向：移除 `sparse: true`（`partialFilterExpression` 本就涵蓋 null 排除語意），建立前先查重複 (gameId, pin) 資料。**處置已拍板（2026-06-11）：併入批 3**（與 TTL index、檢查/同步腳本同一作業面）。註：壓測當輪 12 條 index-check 警告經確認為同一發現 × 12 個冷啟動 instance，無其他缺漏。
 
 ### 5.3 簽核條件
 
