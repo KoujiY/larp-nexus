@@ -78,7 +78,7 @@ const pendingEventSchema = new Schema<PendingEventDocument>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true, // 無複合索引以 expiresAt 為前綴，保留供 TTL/過期查詢使用
+      // 索引改於下方以 TTL 形式宣告（expireAfterSeconds），勿在此重複 index: true
     },
   },
   {
@@ -98,6 +98,18 @@ const pendingEventSchema = new Schema<PendingEventDocument>(
 pendingEventSchema.index({ targetCharacterId: 1, isDelivered: 1, expiresAt: 1 });
 pendingEventSchema.index({ targetGameId: 1, isDelivered: 1, expiresAt: 1 });
 pendingEventSchema.index({ isDelivered: 1, expiresAt: 1 });
+
+/**
+ * 批 3（PERF_INCIDENT_2026-06）：TTL index —— expiresAt 到期後由 MongoDB
+ * 自動刪除（TTL monitor 約每 60s 掃描一次），防止集合長期膨脹。
+ * cron 清理（clean-pending-events.ts）保留：TTL 不涵蓋「已送達 >1h」的
+ * 加速清理，且作為 TTL 未建立環境的兜底。
+ *
+ * ⚠️ 維運：production/loadtest 已存在同 key 的普通 index `expiresAt_1`，
+ * 直接建 TTL 會撞 IndexOptionsConflict —— 以 `pnpm check-indexes --sync`
+ * 處理（syncIndexes 會 drop 舊的再建）。
+ */
+pendingEventSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 /**
  * 導出 PendingEvent Model
