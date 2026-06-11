@@ -66,6 +66,16 @@ Set all variables in Vercel Dashboard → Project → Settings → Environment V
 - Atlas cluster 與 Pusher app 各環境**共用同一個**（時間隔離：壓測不得與真實活動同時進行）。
 - Preview 部署開啟 Deployment Protection，自動化腳本以 `x-vercel-protection-bypass` header 通過。
 
+## MongoDB 連線設定（PERF_INCIDENT_2026-06 批 2）
+`lib/db/mongodb.ts` 的 Mongoose 連線選項：
+- `maxPoolSize: 10` / `minPoolSize: 1` — 對應 Vercel Fluid 同 instance 實測併發 ~5-6；保一條暖連線降低 idle 後重握手。
+- `autoIndex` — **production / loadtest 為 false**（省去每次冷啟動逐 model 對 Atlas 發 createIndex 的往返）；本機 dev 與 E2E（`E2E=1`，MongoMemoryServer 全新空 DB）維持 true。
+
+> ⚠️ **維運注意**：因 production 關閉 autoIndex，**在 schema 新增/修改 index 後不會自動建立**。建立方式擇一：
+> 1. 直接在 Atlas UI 對目標 collection 建立新 index（推薦，最直觀）。
+> 2. 本機以正確的 `MONGODB_URI` 跑一次性腳本，對受影響 model 呼叫 `Model.syncIndexes()`。
+> 3. 臨時將 `autoIndex` 條件改回 true 部署一次，索引建好後還原。
+
 ## Cron Jobs
 - `app/api/cron/check-expired-effects/` — checks expired temporary effects and cleans pending events
 - Must be configured in `vercel.json` with appropriate schedule

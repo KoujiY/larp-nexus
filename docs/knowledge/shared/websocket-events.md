@@ -43,6 +43,13 @@
 | `game.ended` | Game ended |
 | `notifications.cleared` | GM 一鍵清除：全體玩家清空前端通知面板（純前端，不刪 DB；不寫 pending events） |
 
+## 批次發送（PERF_INCIDENT_2026-06 批 2）
+同一動作需通知**多個獨立收件人**時，使用批次發送函數：Pusher trigger 平行發送、pending events 合併為**單次 `insertMany`**，每個收件人注入**獨立 `_eventId`**（與逐筆發送的去重行為一致）。
+- `lib/contest/contest-event-emitter.ts` → `emitContestEventsBatch(subType, targets)`：對抗結果/效果事件（通知管理器的初始結果與 select-item 效果階段使用）
+- `lib/websocket/events.ts` → `emitRoleUpdatedBatch(targets)`：物品轉移的轉出方 + 接收方同步
+
+順序原則：**跨收件人可平行；同一收件人的多個事件有順序需求時仍須依序逐筆發送**（如防守方的 `skill.contest` result 必須先於其 `skill.used`）。
+
 ## Base Event Structure
 ```typescript
 interface BaseEvent {

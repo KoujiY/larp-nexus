@@ -41,6 +41,12 @@ Auto-reveal is evaluated at:
 - `lib/contest/contest-effect-executor.ts` — after contest effects applied
 - `app/actions/item-showcase.ts` — after item showcased
 
+## Multi-Trigger 整併（PERF_INCIDENT_2026-06 批 2）
+`executeAutoReveal(characterId, trigger)` 的 `trigger` 接受**單一或陣列**：
+- 陣列時各 trigger 的條件集合**取聯集**，語意等價於對同一角色逐一觸發，但只重讀一次角色資料。
+- 主要用例：`skill-use.ts` / `item-use.ts` 在「無目標（對自己使用）」時，將主動（`skill_used`/`item_used`）與被動（`skill_targeted`/`item_targeted`）合併為單次呼叫（省一次角色讀取）。
+- 施放方與目標為**不同角色**時仍維持兩次呼叫（本來就需各讀一次）。
+
 ## Chain Reveals
 
 ### 隱藏資訊 / 任務（secrets & tasks）

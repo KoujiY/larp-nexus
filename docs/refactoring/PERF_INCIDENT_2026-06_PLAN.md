@@ -171,8 +171,8 @@
 | 批次 | 內容 | 驗證重點 |
 |------|------|----------|
 | **批 1（主菜）✅ 完成（2026-06-11，S2 delta 達標）** | 消除重複 `getCharacterData`/`updateCharacterData` 前置查詢 + per-request 快取 `game.isActive` | dbOps 19–24 → 目標 ≤ 半數；S2 p95 顯著下降 |
-| **批 2** | 冷啟動瘦身 + 通知管理器 `Promise.all` 平行化 + emit 非阻塞化（降級項順手做） | 冷啟動輪 total < 3s |
-| **批 3** | GM log debounce + pending_events TTL index | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8） |
+| **批 2 🔨 實作完成（2026-06-11，待使用者驗收 + S2/冷啟動輪對照）** | 冷啟動瘦身 + 通知管理器 `Promise.all` 平行化 + emit 批次化（4.2 延後項 1、2 一併處理，詳見 4.3） | 冷啟動輪 total < 3s |
+| **批 3** | GM log debounce + pending_events TTL index + index 檢查/同步腳本 | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8）。⚠️ 批 2 起 production/loadtest 已關 autoIndex：**TTL index 部署後不會自動建立**（缺失時 TTL 靜默不運作），需手動對 loadtest 與正式 DB 各建一次，或以同批新增的 `scripts/check-indexes.ts`（比對 `schema.indexes()` vs `listIndexes()`，`--sync` 補建）執行 |
 
 ### 4.2 批 1 收尾深掃結果（2026-06-11，三路並行盤查）
 
@@ -192,6 +192,28 @@
 - `contest-select-item` 套用 `skipFinalReload`：**不可**——該 action 真的使用 `updatedAttacker`/`updatedDefender` 組通知 payload，跳過重讀會讓通知帶效果套用前的數值。
 - usage `$set` / consume `$inc` / `$pull` 合併為單次寫入：**不可 naive 合併**——`$inc` 與 `$pull` 同時操作 items 路徑會衝突（程式碼已有註解），且 MongoDB 對「已宣告未使用的 arrayFilter」會報錯。
 - `processExpiredEffects` 前置 `countDocuments` 存在性檢查：**無淨節省**——count 本身就是一個 op。
+
+### 4.3 批 2 實作摘要（2026-06-11）
+
+**冷啟動瘦身**（`lib/db/mongodb.ts`）：
+- `maxPoolSize: 10`、`minPoolSize: 1`（對應 Fluid 實測併發 ~5-6；保暖連線）。
+- `autoIndex: false`（限 production/loadtest）——啟動工作盤點確認專案無 top-level 重活、models 純 re-export，唯一可削減的啟動成本是 Mongoose 預設 autoIndex 每次冷啟動逐 model 對 Atlas 發 createIndex。**E2E 例外保持 true**（E2E 以 NODE_ENV=production 跑 next start，但 MongoMemoryServer 是全新空 DB，關掉會失去 index 與 unique 約束）。維運注意已記錄於 `docs/knowledge/architecture/deployment-and-env.md`。
+
+**平行化**（原則：只解耦「不同收件人 / 不同角色」之間；同一收件人/角色內保持順序）：
+- `contest-notification-manager.ts`：初始結果改為收集後批次發送；最終通知階段攻擊方鏈 ∥ 防守方鏈 `Promise.all`，鏈內保序（contest result → skill.used）。
+- `contest-effect-executor.ts`：bucket 寫入（不同角色）平行；temporary effect `$push` 收集後與 bucket 更新一併等待；結尾重讀兩角色平行；`writeLog` 與重讀平行（皆仍 await，不降級 fire-and-forget）。
+- `item-use.ts` transferItem：兩筆 `role.updated` 批次發送。
+
+**pending event 批次寫入（4.2 延後項 2）— 採方案 B（呼叫點就地合併）**：
+- 新增 `emitContestEventsBatch`（contest-event-emitter）與 `emitRoleUpdatedBatch`（events.ts）：多收件人 Pusher 平行 + pending 單次 `insertMany`，每收件人獨立 `_eventId`。
+- **決策記錄**：曾評估方案 A（ALS 請求層 buffer + 結尾 flush，可多省 1–2 ops），**不採用**——A 會新增「即時已送出、補送列遺失」的 timeout 遺失窗口，削弱本次事故最在意的 pending 補送安全網；B 與既有語意零差異（pending 仍在 emit 當下落地）。使用者拍板（2026-06-11）。
+
+**autoReveal 整併（4.2 延後項 1）**：
+- `executeAutoReveal` 接受單一或多個 trigger（條件集合取聯集）；`skill-use.ts` / `item-use.ts` 在無目標（對自己使用）時主動 + 被動合併為單次呼叫，省一次角色重讀。對抗路徑（attacker/defender 為不同角色）維持各一次。
+
+**回歸閘門**：tsc 0 err、eslint 0 err、vitest 421/421（含新增：auto-reveal 多 trigger ×5、contest-event-emitter 批次 ×5、events 批次 ×3）。
+
+**護欄遵守確認**：「對抗結果先於自動揭露」由 pendingReveal 延遲觸發保證——manager 方法仍回傳「全部送完」的 promise，呼叫端 await 後才觸發 `executeAutoReveal`，此結構未變。`_eventId` 去重與補送排序（`createdAt` 升序）語意不變。
 
 ## Step 5 — 驗收（明確路徑、量尺、通過門檻）
 
@@ -263,4 +285,5 @@
 ## 相關但獨立的議題（非本次效能事故，僅記錄狀態）
 
 - **攻擊方 pending 等待狀態被跳過 / dialog 提前消失**（2026-06-11 使用者回報範圍擴大）：原記錄為「對抗特定技能、疑為單一技能資料問題」已暫緩；現回報為「部分場景使用技能/物品後直接跳過 pending 等待畫面」。⚠️ **處置順序：等本計畫批 1–2 修復上線後先重新驗證**——pending 畫面依賴 `useSkill` 回應的 `contestId`，若請求超時/極慢，前端本來就進不了等待狀態，部分案例可能是本效能事故的「路徑 a」症狀而非獨立 bug。修復後仍重現者，**另開分支**處理（正確性 bug，不混入本效能分支）。
+- **瀏覽器上/下一頁返回角色頁不觸發 pending 補送 → 對抗孤兒化**（2026-06-11 批 2 驗收時發現）：pending events 補送只在頁面**重新載入**時觸發（`getPublicCharacter` → `fetchPendingEvents`）；透過瀏覽器歷史導航（bfcache / client-side 路由返回）回到角色頁不會重新拉取，導致「等待技能回應」dialog 不出現、對抗變孤兒。獨立於本效能計畫，後續另行處理（候選方向：`pageshow`/`visibilitychange` 觸發補送拉取、或 bfcache 還原時 revalidate）。
 - **新功能需求：B 被使用技能/物品時的強通知（震動等）**（2026-06-11 提出）：**另開 feature 分支**，走標準新功能流程（需求定義 → /plan → /tdd）。技術邊界先記錄：頁面開啟時可用 Vibration API / 應用內提示（注意 iOS Safari 不支援 Vibration API）；**鎖屏狀態必須走 Web Push**——與本計畫 Step 3 的「路徑 b」界線是同一件事，兩個議題應一併規劃。
