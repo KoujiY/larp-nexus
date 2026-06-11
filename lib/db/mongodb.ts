@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { isPerfLogEnabled } from '@/lib/perf/perf-context';
 import { installDbTiming } from '@/lib/perf/db-timing';
+import { scheduleIndexCheck } from '@/lib/db/index-check';
 
 type MongooseConnection = typeof mongoose;
 
@@ -79,6 +80,11 @@ async function connectDB() {
       const host = conn.connection.host;
       const dbName = conn.connection.db?.databaseName;
       console.info(`[MongoDB] Connected successfully → ${host}/${dbName}`);
+      // autoIndex 關閉的環境：背景比對 schema 宣告與 DB 實際 index，
+      // 缺漏時 console.warn（fire-and-forget，不阻塞請求路徑）
+      if (!opts.autoIndex) {
+        scheduleIndexCheck();
+      }
       return conn;
     });
   }
