@@ -3,8 +3,8 @@
 ## 專案資訊
 
 - **專案名稱**：LARP Nexus
-- **版本**：v4.0
-- **更新日期**：2026-04-13（AI 角色匯入功能）
+- **版本**：v0.7.0（自本版起與 `package.json` 版號對齊）
+- **更新日期**：2026-06-12（隱藏技能/物品、效能修復與壓測基礎設施）
 - **專案類型**：LARP GM/玩家輔助系統
 
 ---
@@ -44,9 +44,16 @@
 | 共用 | `knowledge/shared/` | 對抗流程、檢定機制、自動揭露、通知、WebSocket |
 | 架構 | `knowledge/architecture/` | 資料模型、API、部署、E2E 測試 |
 
+### 開發規劃
+
+進行中與待執行的計畫位於 `docs/refactoring/`：
+
+- **[BACKLOG.md](./refactoring/BACKLOG.md)** — 待辦清單（殘留事項、未排程構想的唯一入口）
+- 其餘為各項工作的活躍計畫文件；計畫完成簽核後依封存流程移至 `docs/archive/`
+
 ### 歷史文件
 
-歷史開發文件位於 `docs/archive/`，為唯讀參考（含早期設計規格、E2E flow 設計文件等）。
+歷史開發文件位於 `docs/archive/`，為唯讀參考（含早期設計規格、已結案的開發/重構/效能計畫、E2E flow 設計文件等）。
 
 ---
 
@@ -106,7 +113,8 @@ larp-nexus/
 └── docs/                # 文件目錄
     ├── specs/           # 技術規格
     ├── knowledge/       # 知識庫（原子化領域知識）
-    └── archive/         # 歷史文件
+    ├── refactoring/     # 開發規劃（活躍計畫 + BACKLOG.md）
+    └── archive/         # 歷史文件（已結案計畫、唯讀參考）
 ```
 
 ---
@@ -116,7 +124,7 @@ larp-nexus/
 - **框架**：Next.js 16 (App Router)
 - **語言**：TypeScript 5
 - **資料庫**：MongoDB Atlas + Mongoose
-- **UI**：Tailwind CSS 4 + shadcn/ui + Framer Motion
+- **UI**：Tailwind CSS 4 + shadcn/ui（動畫採 CSS-first，未使用動畫庫）
 - **狀態管理**：React Hooks + WebSocket
 - **即時通訊**：Pusher (WebSocket)
 - **圖片儲存**：Vercel Blob
@@ -250,6 +258,24 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 ---
 
 ## 更新日誌
+
+### v0.7.0 (2026-06-12) - 隱藏技能/物品、效能修復與壓測基礎設施
+
+> 自本版起，文件版號與 `package.json` 對齊（先前的 v1.0–v4.0 為文件內部編號）。
+
+- **隱藏技能/物品（可見性系統）**
+  - 技能與物品可設為隱藏，玩家完全無感知，揭露後才出現在清單
+  - 自動揭露條件統一為四種隱藏內容（資訊/任務/技能/物品）共用，擴充至 9 種條件類型（含主動「使用了」/ 被動「被使用了」）
+  - 連鎖揭露、GM 控制台手動切換可見性
+- **使用條件（技能/物品前置）**
+  - 數值門檻、數值成本（使用當下原子扣除）、持有物品條件
+- **效果目標各自指定**
+  - 每個效果獨立指定作用對象（自己/其他角色/任意），支援混合目標卡片
+- **角色欄位擴充**：標語（slogan）、不顯示於世界觀
+- **前端效能優化**：玩家入口 First Load JS −27.5%、動畫政策改為 CSS-first（移除 Framer Motion）、bundle analyzer + Lighthouse CI
+- **效能事故修復（通知延遲）**：熱路徑 DB 操作砍半、GM log 刷新節流、冷啟動單動作 −65%、index schema bug 修復；新增 `[perf]` 埋點（`PERF_LOG` gate）與 k6 壓測基礎設施（`loadtest/`）
+- **程式碼品質**：React 19 `set-state-in-effect` 重構、lint 全清、E2E 擴充（隱藏技能/物品流程）
+- **文件治理**：建立 `docs/refactoring/BACKLOG.md` 與結案封存流程，10 份已完成計畫文件移至 `docs/archive/`
 
 ### v4.0 (2026-04-13) - AI 角色匯入
 - **AI 角色匯入功能**
@@ -418,4 +444,4 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 - 定期 Review 文件完整性
 
 **文件維護者**：SPEC AGENT
-**最後更新**：2026-04-13（v4.0 AI 角色匯入）
+**最後更新**：2026-06-12（v0.7.0）
