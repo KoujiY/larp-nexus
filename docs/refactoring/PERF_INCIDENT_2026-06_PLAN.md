@@ -1,6 +1,6 @@
 # 效能事故調查與修復計畫（Performance Incident）
 
-> 狀態：**改前基準線完成（Step 1–3 結案，根因已坐實）→ 進入 Step 4 修復** ｜ 建立：2026-06-10 ｜ 基準線：2026-06-11 ｜ 事故：上週末（約 2026-06-06/07）下午 13:30–17:30
+> 狀態：**批 1 完成並通過 S2 delta 驗證（p95 1.88s 達標）→ 進入批 2（冷啟動瘦身 + 平行化）** ｜ 建立：2026-06-10 ｜ 基準線：2026-06-11 ｜ 批 1 驗證：2026-06-11 ｜ 事故：上週末（約 2026-06-06/07）下午 13:30–17:30
 >
 > 本文件為跨 session 交接用，自足可讀。處理時請先讀完「環境事實」與「Step 1 假設總表」，避免重走已排除的路。
 
@@ -170,7 +170,7 @@
 
 | 批次 | 內容 | 驗證重點 |
 |------|------|----------|
-| **批 1（主菜）** | 消除重複 `getCharacterData`/`updateCharacterData` 前置查詢 + per-request 快取 `game.isActive` | dbOps 19–24 → 目標 ≤ 半數；S2 p95 顯著下降 |
+| **批 1（主菜）✅ 完成（2026-06-11，S2 delta 達標）** | 消除重複 `getCharacterData`/`updateCharacterData` 前置查詢 + per-request 快取 `game.isActive` | dbOps 19–24 → 目標 ≤ 半數；S2 p95 顯著下降 |
 | **批 2** | 冷啟動瘦身 + 通知管理器 `Promise.all` 平行化 + emit 非阻塞化（降級項順手做） | 冷啟動輪 total < 3s |
 | **批 3** | GM log debounce + pending_events TTL index | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8） |
 
@@ -218,6 +218,24 @@
 | 系統可承載「同時動作數」上限（S3） | 階梯壓測 | **≥ 30（暖機，0 timeout；p90 4.11s）**；冷啟動 + 13 burst 即貼 10s 線 | **≥ 20**（暖機已達標；改善目標 = 冷+burst 也不貼線） |
 | Pusher message rate（2.4 補充） | Pusher dashboard | 峰值 157 msg/s，無 error / 限流 | 資訊性 |
 | 冷啟動單動作 total | `[perf]` log | **5.6–8.0s**（db 含連線等待 8.4–10s） | 顯著下降（目標 < 3s） |
+
+### 5.2.1 批 1 後 S2 delta（2026-06-11，deployment dpl_ABLbHY7j）
+
+來源：`loadtest/results/s2-20260611-080050.txt` + Vercel `[perf]` log 匯出。
+
+| 指標 | 基準 | 批 1 後 | 判定 |
+|------|------|---------|------|
+| contest-respond p95（k6 `respond-contest`） | 暖 burst ≈ 2.92s | **1.88s** | ✅ 過 < 2000ms 門檻 |
+| http max | 10.63s（貼 10s 線） | **7.54s** | ✅ 遠離 timeout 線 |
+| timeout / 5xx | 0 / 1×500 | **0 / 0**（無 orphan `[perf:start]`） | ✅ |
+| dbOps：contest-respond | 19–24（getChar 6） | **11**（getChar 4） | ✅ 54% 削減 |
+| dbOps：skill-use | 20（getChar 5） | **11**（getChar 3） | ✅ 45% 削減 |
+| 對抗完整結算（k6 `contest_settle_time`） | med 3.87s / p90 10.69s / max 10.85s | **med 2.24s / p90 8.59s / max 8.66s** | med −42%；p90/max 受冷啟動輪拖累 |
+| 冷啟動輪單動作 total | 5.6–8.0s | 5.0–6.2s（db 含連線等待 6.9–9.1s） | ⏳ 未改善（預期——批 2 主菜） |
+| Fluid 併發放大 | 單操作 4ms → 100–200ms | 仍存在（c=6 時 db 累計 3.3–3.6s），但 ops 減半 → 總衝擊減半 | ⏳ 批 2 平行化 + 冷啟動處理 |
+| 規則性擋下（IN_CONTEST） | ~30% | 11/65 ≈ 17%（動作變快 → 鎖定窗口變短） | 體感放大器同步緩解 |
+
+結論：**latency-bound 假設獲得改後驗證**——ops 砍半直接反映為 p95 砍 36%。剩餘長尾（p90 8.6s）集中於冷啟動輪，正是批 2 的目標。
 
 ### 5.3 簽核條件
 
