@@ -71,6 +71,8 @@ Set all variables in Vercel Dashboard → Project → Settings → Environment V
 - `maxPoolSize: 10` / `minPoolSize: 1` — 對應 Vercel Fluid 同 instance 實測併發 ~5-6；保一條暖連線降低 idle 後重握手。
 - `autoIndex` — **production / loadtest 為 false**（省去每次冷啟動逐 model 對 Atlas 發 createIndex 的往返）；本機 dev 與 E2E（`E2E=1`，MongoMemoryServer 全新空 DB）維持 true。
 
+**Index 缺失警告**：autoIndex 關閉的環境，連線建立後會在背景比對各 model 的 schema 宣告與 DB 實際 index（`lib/db/index-check.ts`，fire-and-forget 不阻塞請求），缺漏或 unique/TTL 屬性不符時輸出 `[index-check] ⚠️` 警告（Vercel Functions log 可見），並指引回本文件。
+
 > ⚠️ **維運注意**：因 production 關閉 autoIndex，**在 schema 新增/修改 index 後不會自動建立**。建立方式擇一：
 > 1. 直接在 Atlas UI 對目標 collection 建立新 index（推薦，最直觀）。
 > 2. 本機以正確的 `MONGODB_URI` 跑一次性腳本，對受影響 model 呼叫 `Model.syncIndexes()`。

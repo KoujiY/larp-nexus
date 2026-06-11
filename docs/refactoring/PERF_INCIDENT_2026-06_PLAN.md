@@ -198,6 +198,7 @@
 **冷啟動瘦身**（`lib/db/mongodb.ts`）：
 - `maxPoolSize: 10`、`minPoolSize: 1`（對應 Fluid 實測併發 ~5-6；保暖連線）。
 - `autoIndex: false`（限 production/loadtest）——啟動工作盤點確認專案無 top-level 重活、models 純 re-export，唯一可削減的啟動成本是 Mongoose 預設 autoIndex 每次冷啟動逐 model 對 Atlas 發 createIndex。**E2E 例外保持 true**（E2E 以 NODE_ENV=production 跑 next start，但 MongoMemoryServer 是全新空 DB，關掉會失去 index 與 unique 約束）。維運注意已記錄於 `docs/knowledge/architecture/deployment-and-env.md`。
+- **index 缺失警告**（`lib/db/index-check.ts`，2026-06-11 驗收後依使用者要求追加）：autoIndex 關閉的環境，連線後背景比對 schema 宣告 vs DB 實際 index（含 unique / expireAfterSeconds 屬性），缺漏時輸出 `[index-check] ⚠️` 警告並指引維運文件——對沖「index 缺失完全靜默」的風險（全表掃描、unique/TTL 不生效）。批 3 的 `--sync` 補建腳本仍照計畫進行。
 
 **平行化**（原則：只解耦「不同收件人 / 不同角色」之間；同一收件人/角色內保持順序）：
 - `contest-notification-manager.ts`：初始結果改為收集後批次發送；最終通知階段攻擊方鏈 ∥ 防守方鏈 `Promise.all`，鏈內保序（contest result → skill.used）。
