@@ -172,7 +172,7 @@
 |------|------|----------|
 | **批 1（主菜）✅ 完成（2026-06-11，S2 delta 達標）** | 消除重複 `getCharacterData`/`updateCharacterData` 前置查詢 + per-request 快取 `game.isActive` | dbOps 19–24 → 目標 ≤ 半數；S2 p95 顯著下降 |
 | **批 2 🔨 實作完成（2026-06-11，待使用者驗收 + S2/冷啟動輪對照）** | 冷啟動瘦身 + 通知管理器 `Promise.all` 平行化 + emit 批次化（4.2 延後項 1、2 一併處理，詳見 4.3） | 冷啟動輪 total < 3s |
-| **批 3** | GM log debounce + pending_events TTL index + index 檢查/同步腳本 + **修復 `{gameId,pin}` index schema bug**（移除 `sparse`，與 `partialFilterExpression` 互斥導致 createIndex 從未成功，詳見 5.2.2；建立前先查 (gameId, pin) 重複資料，loadtest 與正式 DB 都要建） | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8）。⚠️ 批 2 起 production/loadtest 已關 autoIndex：**TTL index 部署後不會自動建立**（缺失時 TTL 靜默不運作），需手動對 loadtest 與正式 DB 各建一次，或以同批新增的 `scripts/check-indexes.ts`（比對 `schema.indexes()` vs `listIndexes()`，`--sync` 補建）執行 |
+| **批 3 🔨 實作完成（2026-06-11，待使用者驗收 + DB 操作 + 最終驗證輪）** | GM log debounce + pending_events TTL index + index 檢查/同步腳本 + **修復 `{gameId,pin}` index schema bug**（移除 `sparse`，與 `partialFilterExpression` 互斥導致 createIndex 從未成功，詳見 5.2.2；建立前先查 (gameId, pin) 重複資料，loadtest 與正式 DB 都要建） | 併入最終驗證輪（S1–S4 完整重跑 + 補測 #8）。⚠️ 批 2 起 production/loadtest 已關 autoIndex：**TTL index 部署後不會自動建立**（缺失時 TTL 靜默不運作），需手動對 loadtest 與正式 DB 各建一次，或以同批新增的 `scripts/check-indexes.ts`（比對 `schema.indexes()` vs `listIndexes()`，`--sync` 補建）執行 |
 
 ### 4.2 批 1 收尾深掃結果（2026-06-11，三路並行盤查）
 
@@ -215,6 +215,22 @@
 **回歸閘門**：tsc 0 err、eslint 0 err、vitest 421/421（含新增：auto-reveal 多 trigger ×5、contest-event-emitter 批次 ×5、events 批次 ×3）。
 
 **護欄遵守確認**：「對抗結果先於自動揭露」由 pendingReveal 延遲觸發保證——manager 方法仍回傳「全部送完」的 promise，呼叫端 await 後才觸發 `executeAutoReveal`，此結構未變。`_eventId` 去重與補送排序（`createdAt` 升序）語意不變。
+
+### 4.4 批 3 實作摘要（2026-06-11）
+
+**GM log 節流（#8 防禦）**：
+- 新增 `lib/utils/throttle.ts`（leading + trailing，500ms）：閒置時首個事件立即刷新（保留即時感）、burst 收斂為每窗口至多一次 `getGameLogs`。
+- `runtime-console.tsx`：WebSocket 事件驅動的刷新走節流；GM 主動操作（廣播/預設事件）維持即時。監聽器本身不動。
+
+**pending_events TTL**：`PendingEvent.ts` 的 `expiresAt` 改為 TTL index（`expireAfterSeconds: 0`，比照 MagicLink 既例）。cron 清理保留（「已送達 >1h」加速清理 + TTL 未建立環境的兜底）。
+
+**`{gameId,pin}` schema 修復**：實作時發現**第二個錯誤**——除了 sparse 與 partialFilterExpression 互斥外，**partialFilterExpression 不支援 `$ne` 運算子**（原宣告 `$ne: null` / `$ne: ''` 也會導致 createIndex 失敗）。修復：移除 sparse，過濾條件改寫為 `{ pin: { $type: 'string', $gt: '' } }`（非空字串，語意等價）。已以 MongoMemoryServer 顯式驗證：index 可建立、unique 約束生效（重複寫入拒於 E11000）、無 PIN 角色不受限。
+
+**`scripts/check-indexes.ts`**（`pnpm check-indexes [--sync]`）：重用 `lib/db/index-check.ts` 比對邏輯；自行連線並顯式 `autoIndex: false`（防止本機 NODE_ENV 觸發隱式建 index 繞過查重防護）；`--sync` 前對 `{gameId,pin}` 自動查重，有重複列明細並跳過；同步後複查。
+
+**回歸閘門**：tsc 0 err、eslint 0 err、vitest 434/434（新增 throttle ×7）、E2E `contest-flow` + `time-dependent-edges` 21/21（含 #12.5 TTL 清理）。
+
+**待辦（程式碼外）**：loadtest 與正式 DB 各跑一次 `pnpm check-indexes --sync`（先 report 再 sync；正式 DB 操作前確認無活動進行中）。
 
 ## Step 5 — 驗收（明確路徑、量尺、通過門檻）
 

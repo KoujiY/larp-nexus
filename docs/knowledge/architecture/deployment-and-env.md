@@ -81,6 +81,16 @@ Set all variables in Vercel Dashboard → Project → Settings → Environment V
 ## Cron Jobs
 - `app/api/cron/check-expired-effects/` — checks expired temporary effects and cleans pending events
 - Must be configured in `vercel.json` with appropriate schedule
+- **pending_events TTL（批 3 起）**：`expiresAt` 帶 TTL index（`expireAfterSeconds: 0`），MongoDB 約每 60s 自動刪除過期文件。cron 清理**保留**：負責「已送達 >1h」的加速清理，並作為 TTL 未建立環境的兜底。
+
+## Index 檢查 / 同步腳本
+```bash
+pnpm check-indexes          # 比對 schema 宣告 vs DB 實際 index（report-only）
+pnpm check-indexes --sync   # 同步差異（syncIndexes：建缺漏、drop schema 未宣告的 index）
+```
+- 指定目標 DB：先設 `MONGODB_URI` 環境變數再執行（預設讀 `.env.local`）。
+- 內建防護：建立 Character `{gameId, pin}` unique index 前自動查重，有重複資料時列出明細並跳過。
+- 適用時機：schema 新增/修改 index 後、指向全新 DB 時、收到 `[index-check] ⚠️` 警告時。
 
 ## Full Setup Guide
 See `docs/specs/10_EXTERNAL_SETUP_CHECKLIST.md` for step-by-step external service setup.

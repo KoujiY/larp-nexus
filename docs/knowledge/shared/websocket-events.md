@@ -66,6 +66,7 @@ interface BaseEvent {
 - `lib/utils/event-mappers.ts` — 將原始事件轉換為通知顯示格式
 
 ### GM 端（Runtime 控制台）
+- **log 刷新節流（PERF_INCIDENT_2026-06 批 3）**：WebSocket 事件驅動的歷史紀錄刷新（`getGameLogs`）經 `lib/utils/throttle.ts` 的 leading+trailing 節流（500ms）——閒置時首個事件立即刷新、burst 收斂為每窗口至多一次，消除「事件越多 → GM 查詢越多」的自我放大（假設 #8）。GM 主動操作（發廣播、執行預設事件）仍即時刷新，不受節流影響（`components/gm/runtime-console.tsx`）。
 - `components/gm/runtime-console-ws-listener.tsx` — 輕量 WebSocket 監聽器
   - 僅監聽 3 種 stat 相關事件：`role.updated`、`character.affected`、`effect.expired`
   - 從 event payload 直接解析 stat 變動，透過 callback 更新 client state（零 DB 查詢）
