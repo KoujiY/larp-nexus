@@ -486,4 +486,105 @@ describe('executeAutoReveal', () => {
       expect(result[0]).toMatchObject({ type: 'item', action: 'reveal', id: 'it1' })
     })
   })
+
+  // PERF_INCIDENT_2026-06 批 2：多 trigger 整併（單次呼叫 = 條件集合取聯集）
+  describe('multi-trigger (批 2)', () => {
+    // 1. [skill_used, skill_targeted] 單次呼叫應同時滿足主動與被動條件
+    it('merged [skill_used, skill_targeted] satisfies both active and passive conditions', async () => {
+      const character = makeCharacter({
+        skills: [
+          {
+            id: 'sk-active', name: 'Active Only', isHidden: true,
+            autoRevealCondition: { type: 'skill_used', skillIds: ['sk-src'] },
+          },
+          {
+            id: 'sk-passive', name: 'Passive Only', isHidden: true,
+            autoRevealCondition: { type: 'skill_targeted', skillIds: ['sk-src'] },
+          },
+        ],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+      vi.mocked(Character.findByIdAndUpdate).mockResolvedValue(null)
+
+      const result = await executeAutoReveal('char-id', [
+        { type: 'skill_used', skillIds: ['sk-src'] },
+        { type: 'skill_targeted', skillIds: ['sk-src'] },
+      ])
+
+      expect(result).toHaveLength(2)
+      expect(result.map((r) => r.id).sort()).toEqual(['sk-active', 'sk-passive'])
+    })
+
+    // 2. 合併呼叫只重讀一次角色資料（整併的目的）
+    it('merged call reads character data only once', async () => {
+      const character = makeCharacter({
+        skills: [{
+          id: 'sk1', name: 'Skill', isHidden: true,
+          autoRevealCondition: { type: 'skill_used', skillIds: ['sk-src'] },
+        }],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+      vi.mocked(Character.findByIdAndUpdate).mockResolvedValue(null)
+
+      await executeAutoReveal('char-id', [
+        { type: 'skill_used', skillIds: ['sk-src'] },
+        { type: 'skill_targeted', skillIds: ['sk-src'] },
+      ])
+
+      expect(vi.mocked(getCharacterData)).toHaveBeenCalledTimes(1)
+    })
+
+    // 3. 單元素陣列與單一 trigger 行為等價
+    it('single-element array behaves identically to a single trigger', async () => {
+      const character = makeCharacter({
+        skills: [{
+          id: 'sk1', name: 'Skill', isHidden: true,
+          autoRevealCondition: { type: 'skill_used', skillIds: ['sk-src'] },
+        }],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+      vi.mocked(Character.findByIdAndUpdate).mockResolvedValue(null)
+
+      const result = await executeAutoReveal('char-id', [
+        { type: 'skill_used', skillIds: ['sk-src'] },
+      ])
+
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({ type: 'skill', action: 'reveal', id: 'sk1' })
+    })
+
+    // 4. 空陣列：不讀 DB、直接回空
+    it('empty trigger array returns [] without reading character data', async () => {
+      const result = await executeAutoReveal('char-id', [])
+
+      expect(result).toEqual([])
+      expect(vi.mocked(getCharacterData)).not.toHaveBeenCalled()
+    })
+
+    // 5. item 觸發的聯集（item_used + item_targeted）
+    it('merged [item_used, item_targeted] satisfies both item conditions', async () => {
+      const character = makeCharacter({
+        items: [
+          {
+            id: 'it-active', name: 'Active Item', isHidden: true,
+            autoRevealCondition: { type: 'item_used', itemIds: ['it-src'] },
+          },
+          {
+            id: 'it-passive', name: 'Passive Item', isHidden: true,
+            autoRevealCondition: { type: 'item_targeted', itemIds: ['it-src'] },
+          },
+        ],
+      })
+      vi.mocked(getCharacterData).mockResolvedValue(character as never)
+      vi.mocked(Character.findByIdAndUpdate).mockResolvedValue(null)
+
+      const result = await executeAutoReveal('char-id', [
+        { type: 'item_used', itemIds: ['it-src'] },
+        { type: 'item_targeted', itemIds: ['it-src'] },
+      ])
+
+      expect(result).toHaveLength(2)
+      expect(result.map((r) => r.id).sort()).toEqual(['it-active', 'it-passive'])
+    })
+  })
 })
