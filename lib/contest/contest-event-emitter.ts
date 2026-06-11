@@ -122,6 +122,61 @@ export async function emitContestResult(
 }
 
 /**
+ * 批次發送對抗檢定事件（多收件人、各自獨立 payload）
+ *
+ * PERF_INCIDENT_2026-06 批 2：將同一階段內發給不同收件人的事件合併為
+ * 一次呼叫 —— Pusher trigger 平行發送、pending events 合併為單次 insertMany。
+ * 每個收件人的 payload 各自注入獨立 _eventId（與逐筆發送行為一致）。
+ *
+ * 注意：僅適用於「彼此獨立的收件人」；同一收件人的多個事件若有順序需求，
+ * 仍應依序呼叫個別 emit 函數。
+ *
+ * @param subType 事件子類型（result | effect）
+ * @param targets 收件人與其 payload 列表
+ */
+export async function emitContestEventsBatch(
+  subType: 'result' | 'effect',
+  targets: Array<{
+    characterId: string;
+    payload: Omit<SkillContestEvent['payload'], 'subType'>;
+  }>
+): Promise<void> {
+  const pusher = getPusherServer();
+  if (!pusher || !isPusherEnabled() || targets.length === 0) return;
+
+  const events = targets.map((target) => ({
+    characterId: target.characterId,
+    event: {
+      type: 'skill.contest',
+      timestamp: Date.now(),
+      payload: {
+        ...target.payload,
+        subType,
+        _eventId: generateEventId(),
+      },
+    } satisfies SkillContestEvent,
+  }));
+
+  try {
+    await Promise.all([
+      ...events.map(({ characterId, event }) =>
+        pusher.trigger(`private-character-${characterId}`, 'skill.contest', event)
+      ),
+      writePendingEvents(
+        events.map(({ characterId, event }) => ({
+          targetCharacterId: characterId,
+          eventType: 'skill.contest' as const,
+          eventPayload: event.payload as Record<string, unknown>,
+        }))
+      ),
+    ]);
+  } catch (error) {
+    console.error('[contest-event-emitter] Failed to emit contest events batch', { subType, error });
+    throw error;
+  }
+}
+
+/**
  * 發送對抗檢定中斷事件（任一方主動中斷）
  *
  * @param targetCharacterId 接收通知的對方角色 ID
