@@ -1,7 +1,7 @@
 # 壓測工具（PERF_INCIDENT_2026-06 Step 2.3）
 
 對 staging（Vercel preview + `larp-nexus-loadtest` DB）重現效能事故並量測基準線。
-計畫全文與通過門檻見 [`docs/refactoring/PERF_INCIDENT_2026-06_PLAN.md`](../docs/refactoring/PERF_INCIDENT_2026-06_PLAN.md)。
+計畫全文與通過門檻見 [`docs/archive/PERF_INCIDENT_2026-06_PLAN.md`](../docs/archive/PERF_INCIDENT_2026-06_PLAN.md)。
 
 ## ⚠️ 鐵律
 

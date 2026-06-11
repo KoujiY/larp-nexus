@@ -60,7 +60,7 @@ The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs**
 - Overlay **不寫入 items state**（避免歷史偽 dirty bug — WS payload 與 RSC payload 序列化差異會被 `useFormGuard` 判成 dirty）
 - Render 時透過 `displayItems` 投影 overlay、save 時合併進 payload（避免 GM 儲存把 server 的 equipped 倒回去）、RSC refresh 或 discard 時清空
 
-**未來擴充方向**：若要擴到 secrets / tasks 的 trump policy，可把當前的 `STATS_AFFECTING_EVENTS` / `ITEMS_ONLY_EVENTS` 分類陣列升級為顯式的 `Record<EventType, TabKey[]>` + `Record<TabKey, 'trump' | 'guard'>`。參考 `docs/refactoring/NEXT_DEVELOPMENT_PLAN.md` §3.5-followup。
+**未來擴充方向**：若要擴到 secrets / tasks 的 trump policy，可把當前的 `STATS_AFFECTING_EVENTS` / `ITEMS_ONLY_EVENTS` 分類陣列升級為顯式的 `Record<EventType, TabKey[]>` + `Record<TabKey, 'trump' | 'guard'>`。參考 `docs/archive/NEXT_DEVELOPMENT_PLAN.md` §3.5-followup。
 
 ## Image Upload
 

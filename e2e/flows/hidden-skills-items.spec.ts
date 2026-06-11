@@ -6,7 +6,7 @@
  * - GM 手動揭露後玩家端即時顯示（#11.2）
  * - GM 手動隱藏後玩家端即時消失（#11.3）
  *
- * @see docs/specs/hidden-skills-items.md
+ * @see docs/archive/superpowers/specs/2026-05-10-hidden-skills-items-design.md
  */
 
 import { test, expect } from '../fixtures';
