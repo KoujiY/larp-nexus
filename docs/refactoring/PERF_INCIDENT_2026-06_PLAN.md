@@ -230,7 +230,7 @@
 
 **回歸閘門**：tsc 0 err、eslint 0 err、vitest 434/434（新增 throttle ×7）、E2E `contest-flow` + `time-dependent-edges` 21/21（含 #12.5 TTL 清理）。
 
-**待辦（程式碼外）**：loadtest 與正式 DB 各跑一次 `pnpm check-indexes --sync`（先 report 再 sync；正式 DB 操作前確認無活動進行中）。
+**待辦（程式碼外）**：~~loadtest 與正式 DB 各跑一次 `pnpm check-indexes --sync`~~ ✅ 兩者皆已執行（2026-06-12 確認）；loadtest 側另由最終驗證輪冷啟動 0 條 `[index-check]` 警告佐證（見 5.2.3）。
 
 ## Step 5 — 驗收（明確路徑、量尺、通過門檻）
 
@@ -292,10 +292,35 @@
 
 **批 2 新發現（index-check 首戰立功）**：loadtest DB 的 `characters` 缺 `{gameId:1, pin:1}` index。根因追查＝**schema bug**：[Character.ts](../../lib/db/models/Character.ts) 對該 index 同時宣告 `sparse: true` 與 `partialFilterExpression` —— **MongoDB 不允許兩者並用，createIndex 一律失敗**。亦即此 unique index 從未在任何環境（含 production）建立成功，「同一 Game 內 PIN 唯一」從未被 DB 層強制，過去 autoIndex 的建立失敗被 Mongoose 靜默吞掉。修復方向：移除 `sparse: true`（`partialFilterExpression` 本就涵蓋 null 排除語意），建立前先查重複 (gameId, pin) 資料。**處置已拍板（2026-06-11）：併入批 3**（與 TTL index、檢查/同步腳本同一作業面）。註：壓測當輪 12 條 index-check 警告經確認為同一發現 × 12 個冷啟動 instance，無其他缺漏。
 
+### 5.2.3 最終驗證輪全表判定（2026-06-12，deployment dpl_x95kUmqj）
+
+來源：`loadtest/results/s1-20260612-032840.txt`、`s2-20260612-032202.txt`、`s3-20260612-033444.txt`、s4-subscriber 統整、Vercel `[perf]` log 匯出（S2 視窗含 GM 控制台開啟之 #8 補測；S3 視窗為冷啟動輪）。
+
+| 指標 | 門檻 | 改後實測 | 判定 |
+|------|------|----------|------|
+| contest-respond total p95 | < 2000ms，永不達 10s | respond-contest **p95 = 1.09s**、max 1.97s；全場 http max 5.63s | ✅ |
+| 單動作 DB ops / emits | ops ≤ 基準半數 | contest-respond **10–11 ops**（基準 19–24）；skill-use **6–11 ops**（基準 20） | ✅ |
+| emit 阻塞性 | 維持不阻塞（資訊性） | pusher 0–43ms，佔 total 1–4% | ✅ |
+| S2 timeout / 5xx | = 0 且遠離 10s | `http_req_failed` **0/252**、0 timeout；17 筆失敗全為 `USER_IN_CONTEST` 規則性擋下 | ✅ |
+| S4 端到端通知延遲 p95 | < 3s | **p95 = 191ms**（n=317，p50 161ms）；max 26s 為冷啟動輪補送路徑長尾，不影響 p95 門檻 | ✅ |
+| GM 端 burst 負載過重 / 5xx | 無 | Vercel log 無任何 5xx／真錯誤（error 匯出僅 Node `url.parse` DeprecationWarning，來自依賴）；使用者實際觀察控制台無卡頓 | ✅ |
+| GM `getGameLogs` 呼叫頻率（#8 補測） | 較「每事件 1 抓」降 ≥ 一個量級 | 5 個 burst 視窗各重抓 **7 / 6 / 6 / 4 / 5 次**（≈ 2.2 次/秒上限，吻合 500ms leading+trailing throttle），同期每 burst 事件 20+ 筆。本輪事件率（≈7 事件/秒）下為 3–4× 削減；throttle 為**天花板機制**，請求率與事件數脫鉤，換算事故級事件率（157 msg/s）≈ 80× 削減 | ✅（機制生效＝達標，使用者拍板 2026-06-12） |
+| S3 承載上限 | ≥ 20 同時動作 | ramp 至 **30 VUs**：checks 100%（239/239）、`http_req_failed` 0/540、p95 3.05s、max 6.15s | ✅ |
+| Pusher message rate | 資訊性 | log 側無限流跡象；Pusher dashboard 確認無 error（使用者 2026-06-12） | ✅ |
+| 冷啟動單動作 total | 顯著下降，目標 < 3s | **1.0–3.04s，med ≈ 2.1s**（基準 5.6–8.0s，−65%）；僅 3 筆 3.00–3.04s 貼線 | ✅（門檻邊緣達標） |
+
+附帶確認：
+
+- **冷啟動 `[index-check]` 警告消失**：S2/S3 視窗含大量冷啟動 instance（`Mongoose db-timing installed` + `Connected successfully` 為冷啟動特徵），`[index-check]` 警告 **0 條**（批 2 同場景為 12 條）→ 批 3 index 修復與同步生效。
+- **回歸閘門**：`tsc` 0 error、`eslint` 0 error（僅 3 個 k6 腳本既有 warning）、`vitest` 434/434 pass、`e2e/flows/contest-flow.spec.ts` 全綠（使用者本機執行）。
+- burst 期間 `getGameLogs` db 時間由閒時 5–9ms 膨脹至 600–820ms，屬 M0 共享層併發下的正常表現，無逾時（資訊性記錄）。
+
 ### 5.3 簽核條件
 
 - 5.2 表**每一條**門檻達標 **+** 回歸閘門全綠 **+** 使用者確認 → 才結案。
 - 任一項無法達標 → 回 Step 4 補強，或重新評估根因（必要時才動用「選用：升 tier」）。
+
+**簽核紀錄（2026-06-12）**：5.2 全表達標（見 5.2.3）＋回歸閘門全綠＋使用者確認（#8 判定拍板、GM 端實際觀察無異常、冷啟動警告消失、e2e 全綠）→ **本事件結案**。5.1 步驟 6（埋點移除/gate）已以實作形式完成：埋點由 `PERF_LOG=1` 環境變數 gate（[lib/perf/perf-context.ts](../../lib/perf/perf-context.ts)），production 未設定即零輸出、零開銷；該變數僅設於 Vercel Preview 環境（2026-06-12 已確認；保留供後續壓測重用，代價是 preview log 較肥）。
 
 ---
 
