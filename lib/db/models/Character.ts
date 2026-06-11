@@ -33,18 +33,18 @@ const CharacterSchema = new Schema<CharacterDocument>(
 CharacterSchema.index({ gameId: 1 });
 
 // Phase 10: 複合索引 - 同一 Game 內 PIN 唯一
+// 批 3 修復（PERF_INCIDENT_2026-06 5.2.2）：原宣告有兩個錯誤導致 createIndex
+// 從未成功（且被 Mongoose 靜默吞掉）：
+// 1. sparse 與 partialFilterExpression 互斥（MongoDB 拒絕並用）
+// 2. partialFilterExpression 不支援 $ne 運算子
+// 改以 { $type: 'string', $gt: '' } 表達「pin 為非空字串」——
+// 同時排除 null（型別不符）與空字串（$gt: ''），語意與原意圖一致
 CharacterSchema.index(
   { gameId: 1, pin: 1 },
   {
     unique: true,
-    sparse: true, // 允許 pin 為 null（無 PIN 鎖的角色）
     partialFilterExpression: {
-      // 只對有 PIN 的角色建立唯一性約束（排除 null 和空字串）
-      $and: [
-        { pin: { $exists: true } },
-        { pin: { $ne: null } },
-        { pin: { $ne: '' } },
-      ],
+      pin: { $type: 'string', $gt: '' },
     },
   }
 );
