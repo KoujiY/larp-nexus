@@ -45,7 +45,9 @@ AI_ENCRYPTION_SECRET=<min 32 chars, generate with: openssl rand -base64 32>
 
 ### Optional（效能量測 / 壓測，預設不設）
 ```bash
-# 效能埋點：設 1 時每個熱路徑 server action 輸出一行 [perf] log
+# 效能埋點：設 1 時每個 server action 輸出一行 [perf] log
+# （所有 action 統一經 withAction(name) 包裝——lib/actions/action-wrapper.ts，
+#  dbConnect 計入計時窗；2026-06-13 統一後與此前的 [perf] 數據不可直接比較）
 # （lib/perf/，PERF_INCIDENT_2026-06 量測基礎建設）
 PERF_LOG=1
 
