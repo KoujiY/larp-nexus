@@ -28,9 +28,10 @@
 | 項目 | 位置 | 說明 |
 |------|------|------|
 | 對抗效果 emit 先於 temporaryEffects 寫入 | `lib/contest/contest-effect-executor.ts:292` | 平行化後 `character.affected` 可在同角色的 temp-effect `$push`（line ~310 才統一 await）落地前發出；client 收事件即重抓會看到數值已變但無倒數條目。修法需權衡：await 順序（犧牲批 2 平行度）vs 寫入併入同 bucket vs client 端不依賴順序 |
-| GM 編輯分頁 fallback 髒頁丟失 | `components/gm/game-edit-tabs.tsx:47` | `effectiveTab` 為純衍生值，遊戲結束→編輯 info→重新開始時跳回 console，未存編輯無確認即丟失。修法選項：fallback 時 setActiveTab、或 info TabsContent 改 forceMount |
+| ~~GM 編輯分頁 fallback 髒頁丟失~~ | `components/gm/game-edit-tabs.tsx` | ✅ 2026-06-12 `fix/backlog-quick-wins`：fallback 改為 render-phase setActiveTab 提交回 state，重新開始後停留原分頁，附 6 條元件回歸測試。**注意**：分析中發現編輯內容丟失的另一病灶（見下方「GameEditForm reset-on-refresh」新條目） |
+| GameEditForm reset-on-refresh 髒頁丟失 | `components/gm/game-edit-form.tsx:68` | 2026-06-12 修分頁跳頁時發現：`initialData !== prevInitialData`（reference 比較）在任何 `router.refresh()` 後必為 true（RSC 重新序列化 → `game` prop 新 reference）→ `setFormData(initialData)` 洗掉編輯中內容，與分頁無關。修法需設計：dirty 時不 reset 有資料一致性地雷——`formData.isActive` 是舊快照且會回寫（`game-edit-form.tsx` handleSubmit），跨 lifecycle 保留髒頁再儲存可能把進行中遊戲的 isActive 蓋回 false，需先釐清 updateGame payload 設計 |
 | isActive 快取放大既有 TOCTOU | `lib/game/game-request-cache.ts` | 既有 race 的視窗放大（單次讀寫間 → 整個 action 期間）；正確修法是寫入帶 isActive 條件或版本欄位（動核心資料層）。endGame 的 snapshot→deleteMany→isActive=false 三步無交易為根因 |
-| dev 環境 TTL index 衝突被靜默吞掉 | `lib/db/models/PendingEvent.ts:110` | 長壽 dev DB 上 plain `expiresAt_1` 與新 TTL 宣告 IndexOptionsConflict，autoIndex 失敗無聲、index-check 只在 autoIndex=off 時排程。修法：autoIndex=true 時也排 index check，或 dev DB 手動 `check-indexes --sync` |
+| ~~dev 環境 TTL index 衝突被靜默吞掉~~ | `lib/db/models/PendingEvent.ts` | ✅ 2026-06-12 `fix/backlog-quick-wins`：操作面已對開發 DB（`larp-nexus`）跑 `check-indexes --sync` 解掉衝突；程式面 index check 擴大為全環境（E2E 除外）執行，autoIndex=true 時建立靜默失敗從此會被 warn 出來（文案提示跑 `--sync`）。production/loadtest 的同類衝突部署後由 index-check warn 提示，屆時依 PendingEvent.ts 註記處理 |
 
 ### 流程 / 通用化（設計題）
 
@@ -44,10 +45,10 @@
 
 | 項目 | 說明 |
 |------|------|
-| 冷啟動 index check 與首請求搶 M0 連線池 | 每次冷啟動 10+ 次 listIndexes 緊接 connect 發出；候選：deferred（setTimeout）或 env 旗標 gate |
-| GM log 每 tick 全量重抓 100 筆 | throttle 只限頻不減量；候選：since-cursor 增量抓取或直接套用觸發事件的 payload |
-| 資料層分支邏輯四份複製 | get/update-character-data 的快取/完整路徑 ×2 檔案重複 runtime/baseline 分支；候選：共用 `resolveIsActive()`（本次 review 的靜默 no-op bug 即源於路徑分歧）|
-| 其他小型重複 | batch emitter 樣板（events.ts vs contest-event-emitter）、ALS globalThis 樣板（perf-context vs game-request-cache）、PS1 env 解析（run-k6 vs smoke）、processExpiredEffects try/catch（item-use vs skill-use）、emitContestResult 已死的雙收件人路徑 |
+| ~~冷啟動 index check 與首請求搶 M0 連線池~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：scheduleIndexCheck 延後 10 秒背景執行（timer unref），並擴大為全環境覆蓋（見上方 TTL index 條目） |
+| GM log 增量抓取 | throttle 只限頻不減量，每次 refresh 全量重抓 100 筆。**方案評估（2026-06-12）：採 since-cursor 增量**——`getGameLogs` 加 `since` 參數（`$gt` timestamp + client 以 id 去重，`{gameId, timestamp}` 複合 index 已存在）；EventLog 維護最新游標，WS 觸發的 throttled refresh 只抓新增並 prepend（記憶體內上限輪替）；切換篩選與「重新讀取」按鈕重置游標走全量。**不採**直接套用 WS payload：log 由 server 寫入（結構 ≠ 事件 payload、無共同 id 可去重）、非所有 log 都有對應 WS 事件、掉線會靜默缺漏仍需抓取兜底，把 log 重建邏輯複製到 client 維護成本高於收益。注意：增量化後每次呼叫仍有 auth + Game.findById 固定開銷，省的是 Log scan 與 ~100 筆序列化；上線後以 `[perf] get-game-logs` 驗證成效 |
+| ~~資料層分支邏輯四份複製~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：抽共用 `lib/game/resolve-is-active.ts`，四路徑回歸測試 19 條；update 完整路徑 baseline 落空同步從靜默 no-op 收斂為 throw |
+| 其他小型重複 | ✅ 已清（2026-06-12 `fix/backlog-quick-wins`）：~~batch emitter 樣板~~（generateEventId 共用 + events.ts 樣板收斂為三 helper；兩檔發送機構錯誤語意不同屬設計，刻意不合併）、~~processExpiredEffects try/catch~~（抽 processExpiredEffectsSafe）、~~emitContestResult 已死的雙收件人路徑~~（簡化為單收件人）。**殘留**：ALS globalThis 樣板（perf-context vs game-request-cache）、PS1 env 解析（run-k6 vs smoke） |
 
 ## 條件性 / 量測後裁決
 
