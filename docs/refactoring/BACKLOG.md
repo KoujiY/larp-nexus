@@ -31,7 +31,7 @@
 | ~~GM 編輯分頁 fallback 髒頁丟失~~ | `components/gm/game-edit-tabs.tsx` | ✅ 2026-06-12 `fix/backlog-quick-wins`：fallback 改為 render-phase setActiveTab 提交回 state，重新開始後停留原分頁，附 6 條元件回歸測試。**注意**：分析中發現編輯內容丟失的另一病灶（見下方「GameEditForm reset-on-refresh」新條目） |
 | GameEditForm reset-on-refresh 髒頁丟失 | `components/gm/game-edit-form.tsx:68` | 2026-06-12 修分頁跳頁時發現：`initialData !== prevInitialData`（reference 比較）在任何 `router.refresh()` 後必為 true（RSC 重新序列化 → `game` prop 新 reference）→ `setFormData(initialData)` 洗掉編輯中內容，與分頁無關。修法需設計：dirty 時不 reset 有資料一致性地雷——`formData.isActive` 是舊快照且會回寫（`game-edit-form.tsx` handleSubmit），跨 lifecycle 保留髒頁再儲存可能把進行中遊戲的 isActive 蓋回 false，需先釐清 updateGame payload 設計 |
 | isActive 快取放大既有 TOCTOU | `lib/game/game-request-cache.ts` | 既有 race 的視窗放大（單次讀寫間 → 整個 action 期間）；正確修法是寫入帶 isActive 條件或版本欄位（動核心資料層）。endGame 的 snapshot→deleteMany→isActive=false 三步無交易為根因 |
-| ~~dev 環境 TTL index 衝突被靜默吞掉~~ | `lib/db/models/PendingEvent.ts` | ✅ 2026-06-12 `fix/backlog-quick-wins`：操作面已對開發 DB（`larp-nexus`）跑 `check-indexes --sync` 解掉衝突；程式面 index check 擴大為全環境（E2E 除外）執行，autoIndex=true 時建立靜默失敗從此會被 warn 出來（文案提示跑 `--sync`）。production/loadtest 的同類衝突部署後由 index-check warn 提示，屆時依 PendingEvent.ts 註記處理 |
+| ~~dev 環境 TTL index 衝突被靜默吞掉~~ | `lib/db/models/PendingEvent.ts` | ✅ 2026-06-12 `fix/backlog-quick-wins`：操作面已對開發 DB（`larp-nexus`）跑 `check-indexes --sync` 解掉衝突；程式面 index check 擴大為全環境（E2E 除外）執行，autoIndex=true 時建立靜默失敗從此會被 warn 出來（文案提示跑 `--sync`）。production/loadtest 已於更早前手動同步，2026-06-12 以報告模式複驗兩環境全數一致，**無殘留待辦** |
 
 ### 流程 / 通用化（設計題）
 
@@ -61,7 +61,7 @@
 
 | 項目 | 來源 | 說明 |
 |------|------|------|
-| 開啟 Vercel Log Drain 長期保存 log | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md)「待補資料」 | **下次活動前務必完成**——本次事故的「負載過重」原始訊息因未開而遺失 |
+| 活動期間 log 長期保存對策 | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md)「待補資料」 | 原方案 Vercel Log Drain 經查證（2026-06-12）**現行方案不可用**（原生 Log Drain 需 Pro，dashboard 找不到對應整合入口），短期無方案升級計畫 → 擱置。**下次活動前需重新評估替代方案**（候選：活動期間以 `vercel logs <deployment> --follow` 重導到本機檔案、或屆時再查可用整合）——事故背景：2026-06 效能事故的「負載過重」原始訊息因 log 過期而遺失 |
 
 ## 已有計畫文件、待排程
 

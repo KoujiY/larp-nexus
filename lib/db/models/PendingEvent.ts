@@ -105,9 +105,10 @@ pendingEventSchema.index({ isDelivered: 1, expiresAt: 1 });
  * cron 清理（clean-pending-events.ts）保留：TTL 不涵蓋「已送達 >1h」的
  * 加速清理，且作為 TTL 未建立環境的兜底。
  *
- * ⚠️ 維運：production/loadtest 已存在同 key 的普通 index `expiresAt_1`，
- * 直接建 TTL 會撞 IndexOptionsConflict —— 以 `pnpm check-indexes --sync`
- * 處理（syncIndexes 會 drop 舊的再建）。
+ * ⚠️ 維運（故障排除）：若 DB 上存在同 key 的普通 index `expiresAt_1`
+ * （如還原舊快照、指向未轉換的 DB），建立 TTL 會撞 IndexOptionsConflict，
+ * index-check 會以「TTL 不符」warn —— 以 `pnpm check-indexes --sync`
+ * 解決（syncIndexes 會 drop 舊的再建）。
  */
 pendingEventSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
