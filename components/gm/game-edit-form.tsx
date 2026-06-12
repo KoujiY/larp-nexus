@@ -55,7 +55,6 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
 
   const initialData = useMemo(() => ({
     name: game.name,
-    isActive: game.isActive,
     publicInfo: {
       blocks: game.publicInfo?.blocks || [],
     },
@@ -65,9 +64,15 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
   const [formData, setFormData] = useState(initialData);
   const [prevInitialData, setPrevInitialData] = useState(initialData);
 
+  // router.refresh() 後 game prop 必為新 reference → initialData 重算。
+  // 只在「使用者未編輯」（formData 仍等於編輯基準 prevInitialData）時同步
+  // server 新資料；已編輯則保留輸入，避免任何 refresh 洗掉未儲存內容。
+  // 保留的編輯儲存時為 last-write-wins。
   if (initialData !== prevInitialData) {
     setPrevInitialData(initialData);
-    setFormData(initialData);
+    if (JSON.stringify(formData) === JSON.stringify(prevInitialData)) {
+      setFormData(initialData);
+    }
   }
 
   const { isDirty, resetDirty } = useFormGuard({
@@ -101,7 +106,6 @@ export function GameEditForm({ game, onDirtyChange }: GameEditFormProps) {
     try {
       const updateData = {
         name: formData.name,
-        isActive: formData.isActive,
         publicInfo: {
           blocks: formData.publicInfo.blocks,
         },

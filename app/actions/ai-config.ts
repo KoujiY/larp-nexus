@@ -7,6 +7,7 @@ import GMUser from '@/lib/db/models/GMUser';
 import { encrypt, decrypt } from '@/lib/crypto';
 import { testAiConnection } from '@/lib/ai/provider';
 import { revalidatePath } from 'next/cache';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /** getAiConfig 回傳型別 */
@@ -33,6 +34,10 @@ type SaveAiConfigInput = z.infer<typeof saveAiConfigSchema>;
  * 取得當前使用者的 AI 設定（不含 API Key 明文）
  */
 export async function getAiConfig(): Promise<ApiResponse<AiConfigResponse>> {
+  return withAction<AiConfigResponse>('get-ai-config', () => getAiConfigImpl());
+}
+
+async function getAiConfigImpl(): Promise<ApiResponse<AiConfigResponse>> {
   const userId = await getCurrentGMUserId();
   if (!userId) {
     return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -62,6 +67,12 @@ export async function getAiConfig(): Promise<ApiResponse<AiConfigResponse>> {
  * 儲存 API Key（不驗證連線，同時寫入 provider/baseUrl/model）
  */
 export async function saveAiConfig(
+  input: SaveAiConfigInput
+): Promise<ApiResponse<undefined>> {
+  return withAction<undefined>('save-ai-config', () => saveAiConfigImpl(input));
+}
+
+async function saveAiConfigImpl(
   input: SaveAiConfigInput
 ): Promise<ApiResponse<undefined>> {
   const userId = await getCurrentGMUserId();
@@ -111,6 +122,12 @@ const updateAiSettingsSchema = z.object({
 export async function updateAiSettings(
   input: z.infer<typeof updateAiSettingsSchema>
 ): Promise<ApiResponse<undefined>> {
+  return withAction<undefined>('update-ai-settings', () => updateAiSettingsImpl(input));
+}
+
+async function updateAiSettingsImpl(
+  input: z.infer<typeof updateAiSettingsSchema>
+): Promise<ApiResponse<undefined>> {
   const userId = await getCurrentGMUserId();
   if (!userId) {
     return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -150,6 +167,10 @@ export async function updateAiSettings(
  * 使用已儲存的 API Key 驗證目前的 AI 設定是否可用
  */
 export async function testAiConfig(): Promise<ApiResponse<undefined>> {
+  return withAction<undefined>('test-ai-config', () => testAiConfigImpl());
+}
+
+async function testAiConfigImpl(): Promise<ApiResponse<undefined>> {
   const userId = await getCurrentGMUserId();
   if (!userId) {
     return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -200,6 +221,10 @@ export async function testAiConfig(): Promise<ApiResponse<undefined>> {
  * 刪除 AI 設定
  */
 export async function deleteAiConfig(): Promise<ApiResponse<undefined>> {
+  return withAction<undefined>('delete-ai-config', () => deleteAiConfigImpl());
+}
+
+async function deleteAiConfigImpl(): Promise<ApiResponse<undefined>> {
   const userId = await getCurrentGMUserId();
   if (!userId) {
     return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };

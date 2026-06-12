@@ -5,6 +5,7 @@ import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { removeActiveContest, removeContestsByCharacterId, getContestInfo, isCharacterInContest } from '@/lib/contest-tracker';
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 import type { BaseEvent } from '@/types/event';
 import type { CharacterDocument, CharacterRuntimeDocument } from '@/lib/db/models';
@@ -14,6 +15,13 @@ import type { CharacterDocument, CharacterRuntimeDocument } from '@/lib/db/model
  * 用於清除服務器端的對抗檢定追蹤狀態，並發送通知給攻擊方
  */
 export async function cancelContestItemSelection(
+  contestId: string,
+  characterId: string
+): Promise<ApiResponse<{ cancelled: boolean }>> {
+  return withAction<{ cancelled: boolean }>('cancel-contest-item-selection', () => cancelContestItemSelectionImpl(contestId, characterId));
+}
+
+async function cancelContestItemSelectionImpl(
   contestId: string,
   characterId: string
 ): Promise<ApiResponse<{ cancelled: boolean }>> {

@@ -6,6 +6,7 @@ import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server'
 import { emitGameBroadcast } from '@/lib/websocket/events';
 import { writeLog } from '@/lib/logs/write-log';
 import dbConnect from '@/lib/db/mongodb';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 type PushEventInput = {
@@ -21,6 +22,10 @@ type PushEventInput = {
  * GM 推送事件：對全劇本或單一角色的即時通知
  */
 export async function pushEvent(input: PushEventInput): Promise<ApiResponse<{ pushed: boolean }>> {
+  return withAction<{ pushed: boolean }>('push-event', () => pushEventImpl(input));
+}
+
+async function pushEventImpl(input: PushEventInput): Promise<ApiResponse<{ pushed: boolean }>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {

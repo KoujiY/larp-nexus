@@ -3,6 +3,7 @@
 import dbConnect from '@/lib/db/mongodb';
 import { PendingEvent } from '@/lib/db/models';
 import type { PendingEvent as PendingEventType } from '@/types/event';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -20,6 +21,13 @@ import type { ApiResponse } from '@/types/api';
  * @returns API 回應包含事件列表
  */
 export async function fetchPendingEvents(
+  characterId: string,
+  gameId?: string
+): Promise<ApiResponse<{ events: PendingEventType[] }>> {
+  return withAction<{ events: PendingEventType[] }>('fetch-pending-events', () => fetchPendingEventsImpl(characterId, gameId));
+}
+
+async function fetchPendingEventsImpl(
   characterId: string,
   gameId?: string
 ): Promise<ApiResponse<{ events: PendingEventType[] }>> {

@@ -38,6 +38,12 @@ import {
 
 type EventName = WebSocketEvent['type'];
 
+/**
+ * payload 過大警告門檻：Pusher 單訊息上限 10KB，超過會 413 且在
+ * fire-and-forget 路徑被吞掉——逼近上限時先在 server log 留下可觀測證據
+ */
+const PAYLOAD_WARN_BYTES = 8 * 1024;
+
 async function trigger(channel: string, eventName: EventName, payload: BaseEvent['payload']) {
   const pusher = getPusherServer();
   if (!pusher || !isPusherEnabled()) return;
@@ -47,6 +53,13 @@ async function trigger(channel: string, eventName: EventName, payload: BaseEvent
     timestamp: Date.now(),
     payload,
   };
+
+  const payloadBytes = Buffer.byteLength(JSON.stringify(event), 'utf8');
+  if (payloadBytes > PAYLOAD_WARN_BYTES) {
+    console.warn(
+      `[pusher] payload 逼近 10KB 上限（${payloadBytes} bytes）：channel=${channel} event=${eventName}——請檢查該事件是否攜帶了無上界的陣列`
+    );
+  }
 
   try {
     // 失敗也計次（timePusher 的 finally）：對延遲分析而言，重點是「花了多少時間在等 Pusher」

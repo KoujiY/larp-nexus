@@ -1,0 +1,44 @@
+# Index 治理（BACKLOG：Index 治理自動化）
+#
+# production 關閉 autoIndex 後，schema 的 index 變更不會自動落地——
+# 本 workflow 在 PR 觸碰 model/index 相關檔案時，比對 schema 宣告與
+# production DB 實際 index，有差異即擋下 merge，強制「先建 index、
+# 再 merge」的安全順序（大 collection 的 index 建立不被部署綁架）。
+#
+# 需要的 repo secret：MONGODB_URI_PRODUCTION（唯讀帳號即可，僅 listIndexes）
+
+name: index-check
+
+on:
+  pull_request:
+    paths:
+      - 'lib/db/models/**'
+      - 'lib/db/index-check.ts'
+      - 'scripts/check-indexes.ts'
+      - '.github/workflows/index-check.yml'
+  workflow_dispatch:
+
+jobs:
+  check-production-indexes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check production indexes against schema
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI_PRODUCTION }}
+        run: pnpm check-indexes --ci

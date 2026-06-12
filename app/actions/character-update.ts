@@ -49,7 +49,7 @@ export async function updateCharacter(
   characterId: string,
   data: UpdateCharacterInput,
 ): Promise<ApiResponse<CharacterData>> {
-  return runWithGameCache(() => withAction(async () => {
+  return runWithGameCache(() => withAction('character-update', async () => {
     // ── 1. Auth ──────────────────────────────────
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -169,7 +169,6 @@ export async function updateCharacter(
       beforeState,
       updatedCharacter,
       cleanStats,
-      cleanItems,
       cleanSkills,
       inventoryDiffs,
       hasManualSecretReveal,

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
-import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { withAction } from '@/lib/actions/action-wrapper';
 import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { emitSkillUsed, emitItemUsed } from '@/lib/websocket/events';
@@ -25,10 +25,13 @@ export async function selectTargetItemAfterUse(
   targetCharacterId: string,
   targetItemId: string
 ): Promise<ApiResponse<{ effectApplied?: string }>> {
-  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：薄 wrapper，業務邏輯在 impl 中不變
-  return runWithGameCache(() => runWithPerf('select-target-item', () =>
-    selectTargetItemAfterUseImpl(characterId, sourceId, sourceType, effectType, targetCharacterId, targetItemId),
-  ));
+  // withAction 統一包裝（perf + dbConnect + 錯誤格式化），業務邏輯在 impl 中不變
+  return runWithGameCache(() =>
+    withAction<{ effectApplied?: string }>(
+      'select-target-item',
+      () => selectTargetItemAfterUseImpl(characterId, sourceId, sourceType, effectType, targetCharacterId, targetItemId),
+    ),
+  );
 }
 
 async function selectTargetItemAfterUseImpl(

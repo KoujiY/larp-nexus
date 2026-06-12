@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
-import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { withAction } from '@/lib/actions/action-wrapper';
 import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getContestInfo, removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
@@ -25,10 +25,13 @@ export async function selectTargetItemForContest(
   defenderSourceId?: string, // Phase 9: 防守方使用的技能/物品 ID（當防守方選擇物品時需要）
   defenderSourceType?: 'skill' | 'item' // Phase 9: 防守方使用的技能/物品類型（當防守方選擇物品時需要）
 ): Promise<ApiResponse<{ success: boolean; effectApplied?: string }>> {
-  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：薄 wrapper，業務邏輯在 impl 中不變
-  return runWithGameCache(() => runWithPerf('contest-select-item', () =>
-    selectTargetItemForContestImpl(contestId, characterId, targetItemId, targetCharacterId, defenderSourceId, defenderSourceType),
-  ));
+  // withAction 統一包裝（perf + dbConnect + 錯誤格式化），業務邏輯在 impl 中不變
+  return runWithGameCache(() =>
+    withAction<{ success: boolean; effectApplied?: string }>(
+      'contest-select-item',
+      () => selectTargetItemForContestImpl(contestId, characterId, targetItemId, targetCharacterId, defenderSourceId, defenderSourceType),
+    ),
+  );
 }
 
 async function selectTargetItemForContestImpl(

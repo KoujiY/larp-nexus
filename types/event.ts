@@ -26,7 +26,15 @@ export interface RoleUpdatedEvent extends BaseEvent<{
     avatar?: string;
     publicInfo?: Record<string, unknown>;
     tasks?: Array<Record<string, unknown>>;
-    items?: Array<Record<string, unknown>>;
+    /**
+     * 物品有變動的輕量訊號（取代原 items 完整陣列）。
+     *
+     * 不攜帶內容：全 codebase 無訂閱端讀取 items 內容（GM console 只讀
+     * stats、編輯頁與玩家端皆以事件為 refresh 訊號），而完整陣列在大
+     * 物品欄會超過 Pusher 10KB 上限（413 被吞）。需要最新清單的訂閱端
+     * 一律走 refresh / refetch。
+     */
+    itemsChanged?: boolean;
     stats?: Array<Record<string, unknown>>;
     skills?: Array<Record<string, unknown>>;
   };

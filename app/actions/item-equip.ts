@@ -58,7 +58,7 @@ export async function toggleEquipment(
   characterId: string,
   itemId: string,
 ): Promise<ApiResponse<{ equipped: boolean }>> {
-  return runWithGameCache(() => withAction(async () => {
+  return runWithGameCache(() => withAction('item-equip', async () => {
     // 驗證玩家權限
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色（請嘗試重新整理頁面並重新解鎖）' };

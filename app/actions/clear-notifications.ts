@@ -4,6 +4,7 @@ import dbConnect from '@/lib/db/mongodb';
 import Game from '@/lib/db/models/Game';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { emitNotificationsCleared } from '@/lib/websocket/events';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -18,6 +19,10 @@ import type { ApiResponse } from '@/types/api';
  * @param gameId - Baseline Game ID
  */
 export async function clearPlayerNotifications(gameId: string): Promise<ApiResponse<null>> {
+  return withAction<null>('clear-player-notifications', () => clearPlayerNotificationsImpl(gameId));
+}
+
+async function clearPlayerNotificationsImpl(gameId: string): Promise<ApiResponse<null>> {
   try {
     // 驗證 GM 身份
     const gmUserId = await getCurrentGMUserId();

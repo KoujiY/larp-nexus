@@ -6,6 +6,7 @@ import { validatePlayerAccess } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import { emitItemShowcased, emitRoleUpdated } from '@/lib/websocket/events';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -22,6 +23,22 @@ import type { ApiResponse } from '@/types/api';
  * @param targetCharacterId - 被展示方角色 ID（Baseline ID）
  */
 export async function showcaseItem(
+  characterId: string,
+  itemId: string,
+  targetCharacterId: string
+): Promise<ApiResponse<{
+  showcased: boolean;
+  revealTriggered?: boolean;
+  revealedCount?: number;
+}>> {
+  return withAction<{
+    showcased: boolean;
+    revealTriggered?: boolean;
+    revealedCount?: number;
+  }>('showcase-item', () => showcaseItemImpl(characterId, itemId, targetCharacterId));
+}
+
+async function showcaseItemImpl(
   characterId: string,
   itemId: string,
   targetCharacterId: string
@@ -187,6 +204,21 @@ export async function showcaseItem(
  * @param itemId - 被檢視的物品 ID
  */
 export async function recordItemView(
+  characterId: string,
+  itemId: string
+): Promise<ApiResponse<{
+  recorded: boolean;
+  revealTriggered?: boolean;
+  revealedCount?: number;
+}>> {
+  return withAction<{
+    recorded: boolean;
+    revealTriggered?: boolean;
+    revealedCount?: number;
+  }>('record-item-view', () => recordItemViewImpl(characterId, itemId));
+}
+
+async function recordItemViewImpl(
   characterId: string,
   itemId: string
 ): Promise<ApiResponse<{

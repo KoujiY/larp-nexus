@@ -9,6 +9,7 @@ import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10: 統一讀取
 import { serializePublicInfo } from '@/lib/character/normalize-background';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData } from '@/types/character';
 import { cleanSkillData, cleanItemData, cleanStatData, cleanTaskData, cleanSecretData } from '@/lib/character-cleanup';
@@ -65,6 +66,12 @@ const characterSchema = z.object({
 export async function getCharacterPin(
   characterId: string
 ): Promise<ApiResponse<{ pin: string }>> {
+  return withAction<{ pin: string }>('get-character-pin', () => getCharacterPinImpl(characterId));
+}
+
+async function getCharacterPinImpl(
+  characterId: string
+): Promise<ApiResponse<{ pin: string }>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -115,6 +122,12 @@ export async function getCharacterPin(
  * 取得特定劇本的所有角色
  */
 export async function getCharactersByGameId(
+  gameId: string
+): Promise<ApiResponse<CharacterData[]>> {
+  return withAction<CharacterData[]>('get-characters-by-game-id', () => getCharactersByGameIdImpl(gameId));
+}
+
+async function getCharactersByGameIdImpl(
   gameId: string
 ): Promise<ApiResponse<CharacterData[]>> {
   try {
@@ -186,6 +199,12 @@ export async function getCharactersByGameId(
  * 遊戲進行中回傳 Runtime 資料，否則回傳 Baseline 資料
  */
 export async function getCharacterById(
+  characterId: string
+): Promise<ApiResponse<CharacterData>> {
+  return withAction<CharacterData>('get-character-by-id', () => getCharacterByIdImpl(characterId));
+}
+
+async function getCharacterByIdImpl(
   characterId: string
 ): Promise<ApiResponse<CharacterData>> {
   return runWithGameCache(async () => {
@@ -268,6 +287,16 @@ export async function getCharacterById(
  * 建立新角色
  */
 export async function createCharacter(data: {
+  gameId: string;
+  name: string;
+  description?: string;
+  hasPinLock: boolean;
+  pin?: string;
+}): Promise<ApiResponse<CharacterData>> {
+  return withAction<CharacterData>('create-character', () => createCharacterImpl(data));
+}
+
+async function createCharacterImpl(data: {
   gameId: string;
   name: string;
   description?: string;
@@ -400,6 +429,13 @@ export async function uploadCharacterImage(
   characterId: string,
   formData: FormData
 ): Promise<ApiResponse<{ imageUrl: string }>> {
+  return withAction<{ imageUrl: string }>('upload-character-image', () => uploadCharacterImageImpl(characterId, formData));
+}
+
+async function uploadCharacterImageImpl(
+  characterId: string,
+  formData: FormData
+): Promise<ApiResponse<{ imageUrl: string }>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -485,6 +521,15 @@ export async function uploadAbilityImage(
   mode: 'item' | 'skill',
   formData: FormData,
 ): Promise<ApiResponse<{ imageUrl: string }>> {
+  return withAction<{ imageUrl: string }>('upload-ability-image', () => uploadAbilityImageImpl(characterId, abilityId, mode, formData));
+}
+
+async function uploadAbilityImageImpl(
+  characterId: string,
+  abilityId: string,
+  mode: 'item' | 'skill',
+  formData: FormData,
+): Promise<ApiResponse<{ imageUrl: string }>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -551,6 +596,12 @@ export async function uploadAbilityImage(
  * 刪除角色
  */
 export async function deleteCharacter(
+  characterId: string
+): Promise<ApiResponse<null>> {
+  return withAction<null>('delete-character', () => deleteCharacterImpl(characterId));
+}
+
+async function deleteCharacterImpl(
   characterId: string
 ): Promise<ApiResponse<null>> {
   try {
@@ -633,6 +684,14 @@ export async function deleteCharacter(
  * @returns API 回應（isAvailable: true/false）
  */
 export async function checkPinAvailability(
+  gameId: string,
+  pin: string,
+  excludeCharacterId?: string
+): Promise<ApiResponse<{ isAvailable: boolean }>> {
+  return withAction<{ isAvailable: boolean }>('check-pin-availability', () => checkPinAvailabilityImpl(gameId, pin, excludeCharacterId));
+}
+
+async function checkPinAvailabilityImpl(
   gameId: string,
   pin: string,
   excludeCharacterId?: string

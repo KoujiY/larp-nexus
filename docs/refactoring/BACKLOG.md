@@ -16,6 +16,7 @@
 | 項目 | 來源 | 說明 |
 |------|------|------|
 | 瀏覽器歷史導航返回角色頁不觸發 pending 補送 → 對抗孤兒化 | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md) 尾部議題 | 補送只掛在頁面重新載入（`getPublicCharacter` → `fetchPendingEvents`），bfcache / client-side 路由返回不會重拉。候選方向：`pageshow` / `visibilitychange` 觸發補送、或 bfcache 還原時 revalidate。碰核心補送語意，需縱向分析 |
+| 物品轉移/偷取無 GM log | 2026-06-13 `refactor/infra-and-form-guards` C1 驗收時發現 | 玩家間物品流動（轉移 `transferItem`、偷取 `item_steal`）從未寫入 logs collection，GM 歷史紀錄完全看不到（偷取頂多透過 contest log 間接可見）——原始缺口，非 413 修復造成。修法：比照 `item_use` 在轉移/偷取路徑補 `writeLog`（action 如 `item_transfer`），EventLog 的 `getEventCategory` 加對應分類 |
 
 ## Code review 殘留發現（2026-06-12 feat/perf-instrumentation 分支 review）
 
@@ -29,7 +30,7 @@
 |------|------|------|
 | 對抗效果 emit 先於 temporaryEffects 寫入 | `lib/contest/contest-effect-executor.ts:292` | 平行化後 `character.affected` 可在同角色的 temp-effect `$push`（line ~310 才統一 await）落地前發出；client 收事件即重抓會看到數值已變但無倒數條目。修法需權衡：await 順序（犧牲批 2 平行度）vs 寫入併入同 bucket vs client 端不依賴順序 |
 | ~~GM 編輯分頁 fallback 髒頁丟失~~ | `components/gm/game-edit-tabs.tsx` | ✅ 2026-06-12 `fix/backlog-quick-wins`：fallback 改為 render-phase setActiveTab 提交回 state，重新開始後停留原分頁，附 6 條元件回歸測試。**注意**：分析中發現編輯內容丟失的另一病灶（見下方「GameEditForm reset-on-refresh」新條目） |
-| GameEditForm reset-on-refresh 髒頁丟失 | `components/gm/game-edit-form.tsx:68` | 2026-06-12 修分頁跳頁時發現：`initialData !== prevInitialData`（reference 比較）在任何 `router.refresh()` 後必為 true（RSC 重新序列化 → `game` prop 新 reference）→ `setFormData(initialData)` 洗掉編輯中內容，與分頁無關。修法需設計：dirty 時不 reset 有資料一致性地雷——`formData.isActive` 是舊快照且會回寫（`game-edit-form.tsx` handleSubmit），跨 lifecycle 保留髒頁再儲存可能把進行中遊戲的 isActive 蓋回 false，需先釐清 updateGame payload 設計 |
+| ~~GameEditForm reset-on-refresh 髒頁丟失~~ | `components/gm/game-edit-form.tsx` | ✅ 2026-06-13 `refactor/infra-and-form-guards`：reset 加「使用者已編輯則保留」守衛（vs 編輯基準深比較，未編輯仍正常同步）；isActive 地雷以拆除 updateGame 的 isActive 死通道解決（無 UI 編輯此欄位，lifecycle 由專屬 action 管理）。元件回歸測試 +4 |
 | isActive 快取放大既有 TOCTOU | `lib/game/game-request-cache.ts` | 既有 race 的視窗放大（單次讀寫間 → 整個 action 期間）；正確修法是寫入帶 isActive 條件或版本欄位（動核心資料層）。endGame 的 snapshot→deleteMany→isActive=false 三步無交易為根因 |
 | ~~dev 環境 TTL index 衝突被靜默吞掉~~ | `lib/db/models/PendingEvent.ts` | ✅ 2026-06-12 `fix/backlog-quick-wins`：操作面已對開發 DB（`larp-nexus`）跑 `check-indexes --sync` 解掉衝突；程式面 index check 擴大為全環境（E2E 除外）執行，autoIndex=true 時建立靜默失敗從此會被 warn 出來（文案提示跑 `--sync`）。production/loadtest 已於更早前手動同步，2026-06-12 以報告模式複驗兩環境全數一致，**無殘留待辦** |
 
@@ -37,9 +38,9 @@
 
 | 項目 | 說明 |
 |------|------|
-| Index 治理自動化 | autoIndex 關閉後，未來新 schema index 在 production 永不自動建立，唯一防線是無人監看的 console.warn。候選：CI/deploy 跑 `check-indexes`（report mode 非 0 exit 即擋）|
-| Pusher 413 防護通用化 | equip 的 stats-only 修復是點修；物品轉移與偷取仍推完整 items 陣列（`app/actions/item-use.ts:689`、`shared-effect-executor.ts:249`），大物品欄會原樣復發 413 且被 trigger() 吞掉。應在共用 emit 層設計 payload 大小策略 |
-| perf 包裝統一 | `runWithPerf` 三種巢狀順序（dbConnect 計時窗不一致），多個 action 完全未包裝且無機制提醒。候選：name 參數併入 `withAction` 統一包裝（注意：統一後新舊 [perf] 數據不可比）|
+| ~~Index 治理自動化~~ | ✅ 2026-06-13 `refactor/infra-and-form-guards`：`check-indexes --ci`（差異 exit 1、永不寫 DB）+ GitHub Actions workflow（PR 觸碰 models 路徑時對 production 比對擋 merge），repo secret `MONGODB_URI_PRODUCTION` 已設定 |
+| ~~Pusher 413 防護通用化~~ | ✅ 2026-06-13 `refactor/infra-and-form-guards`：全 codebase 無訂閱端讀取 `role.updated` 的 items 內容——三發送端（轉移/偷取/GM 編輯儲存）改送 `itemsChanged` 旗標、事件型別刪除 items 欄位（tsc 保證無漏網）、順帶省 2-3 次組 payload 的 DB 重讀；共用 trigger() 加 8KB 序列化大小警告作通用 backstop |
+| ~~perf 包裝統一~~ | ✅ 2026-06-13 `refactor/infra-and-form-guards`：`withAction(name, handler)` 統一（runWithPerf 內建、dbConnect 入計時窗、NEXT_ 控制流錯誤重拋）；65 個 action 全對帳（62 包裝、3 合理跳過）。**統一後新舊 [perf] 數據不可比** |
 
 ### 效率 / 清理（低風險，可順手做）
 

@@ -9,7 +9,7 @@ import { serializePublicInfo } from '@/lib/character/normalize-background';
 import { emitRoleUpdated, emitInventoryUpdated } from '@/lib/websocket/events';
 import { executeAutoReveal, executeChainRevealForSecrets } from '@/lib/reveal/auto-reveal-evaluator';
 import { writeLog } from '@/lib/logs/write-log';
-import type { MongoStat, MongoItem, MongoSkill } from '@/lib/db/types/mongo-helpers';
+import type { MongoStat, MongoSkill } from '@/lib/db/types/mongo-helpers';
 import type { InventoryDiff } from '@/lib/character/field-updaters';
 import type { UpdateCharacterInput } from './character-update-types';
 
@@ -22,7 +22,6 @@ export type SideEffectParams = {
   beforeState: Record<string, unknown>;
   updatedCharacter: Record<string, unknown>;
   cleanStats: MongoStat[];
-  cleanItems: MongoItem[];
   cleanSkills: MongoSkill[];
   inventoryDiffs: InventoryDiff[];
   hasManualSecretReveal: boolean;
@@ -72,7 +71,6 @@ export async function emitUpdateSideEffects({
   beforeState,
   updatedCharacter,
   cleanStats,
-  cleanItems,
   cleanSkills,
   inventoryDiffs,
   hasManualSecretReveal,
@@ -106,7 +104,7 @@ export async function emitUpdateSideEffects({
         name: updatedCharacter.name as string,
         avatar: updatedCharacter.imageUrl as string | undefined,
         publicInfo: serializePublicInfo(updatedCharacter.publicInfo as Record<string, unknown>),
-        items: itemsChanged ? (cleanItems as unknown as Record<string, unknown>[]) : undefined,
+        itemsChanged: itemsChanged || undefined,
         stats: statsChanged ? (changedStats as unknown as Record<string, unknown>[]) : undefined,
         skills: skillsChanged ? (cleanSkills as unknown as Record<string, unknown>[]) : undefined,
       },

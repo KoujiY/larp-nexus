@@ -10,6 +10,7 @@ import {
 } from '@/lib/auth/magic-link';
 import { GMUser } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -22,6 +23,12 @@ const emailSchema = z.string().email('請輸入有效的 Email 地址');
  * @param email GM Email
  */
 export async function sendMagicLink(
+  email: string
+): Promise<ApiResponse<undefined>> {
+  return withAction<undefined>('send-magic-link', () => sendMagicLinkImpl(email));
+}
+
+async function sendMagicLinkImpl(
   email: string
 ): Promise<ApiResponse<undefined>> {
   try {
@@ -68,6 +75,12 @@ export async function sendMagicLink(
  * @param token Magic Link Token
  */
 export async function verifyMagicLink(
+  token: string
+): Promise<ApiResponse<undefined>> {
+  return withAction<undefined>('verify-magic-link', () => verifyMagicLinkImpl(token));
+}
+
+async function verifyMagicLinkImpl(
   token: string
 ): Promise<ApiResponse<undefined>> {
   try {

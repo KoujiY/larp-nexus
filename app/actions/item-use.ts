@@ -2,12 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { withAction } from '@/lib/actions/action-wrapper';
-import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
 import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import type { CharacterDocument } from '@/lib/db/models';
 import { emitItemTransferred, emitItemUsed, emitRoleUpdatedBatch } from '@/lib/websocket/events';
-import { cleanItemData } from '@/lib/character-cleanup';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleAbilityCheck } from '@/lib/contest/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
@@ -46,7 +44,7 @@ export async function useItem(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  return runWithGameCache(() => withAction(() => runWithPerf('item-use', async () => {
+  return runWithGameCache(() => withAction('item-use', async () => {
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
@@ -504,7 +502,7 @@ export async function useItem(
       },
       message: toastMessage,
     };
-  })));
+  }));
 }
 
 /**
@@ -516,7 +514,7 @@ export async function transferItem(
   targetCharacterId: string,
   quantity: number
 ): Promise<ApiResponse<{ transferred: boolean; transferredQuantity: number }>> {
-  return runWithGameCache(() => withAction(() => runWithPerf('item-transfer', async () => {
+  return runWithGameCache(() => withAction('item-transfer', async () => {
 
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
@@ -664,44 +662,23 @@ export async function transferItem(
       transferType: 'give',
     }).catch((error) => console.error('Failed to emit item.transferred', error));
 
-    // Phase 9: 發送 role.updated 事件給兩個角色，讓GM端能同步更新物品列表
-    // 重新載入兩個角色的最新資料
-    // Phase 10.4: 使用統一讀取（自動判斷 Baseline/Runtime）
-    const [updatedSourceCharacter, updatedTargetCharacter] = await Promise.all([
-      getCharacterData(characterId),
-      getCharacterData(targetCharacterId),
-    ]);
-
-    if (updatedSourceCharacter && updatedTargetCharacter) {
-      const sourceCleanItems = cleanItemData(updatedSourceCharacter.items);
-      const targetCleanItems = cleanItemData(updatedTargetCharacter.items);
-
-
-      // 發送 role.updated 給兩個角色，包含最新的物品列表
-      // 批 2：兩個收件人互相獨立 → 批次發送（Pusher 平行 + pending 單次 insertMany）
-      await emitRoleUpdatedBatch([
-        {
-          characterId,
-          payload: {
-            characterId,
-            updates: {
-              items: sourceCleanItems as unknown as Array<Record<string, unknown>>,
-            },
-          },
-        },
-        {
-          characterId: targetCharacterId,
-          payload: {
-            characterId: targetCharacterId,
-            updates: {
-              items: targetCleanItems as unknown as Array<Record<string, unknown>>,
-            },
-          },
-        },
-      ]).catch((error: unknown) => {
-        console.error('[transferItem] Failed to emit role.updated (transfer items)', error);
-      });
-    }
+    // Phase 9: 發送 role.updated 給兩個角色作為物品變動的 refresh 訊號。
+    // 只送 itemsChanged 旗標不送內容：無訂閱端讀取 items 內容，且完整陣列
+    // 在大物品欄會超過 Pusher 10KB 上限（413）——也因此不再需要為組
+    // payload 重讀兩個角色（省 2 次 DB 查詢）。
+    // 批 2：兩個收件人互相獨立 → 批次發送（Pusher 平行 + pending 單次 insertMany）
+    await emitRoleUpdatedBatch([
+      {
+        characterId,
+        payload: { characterId, updates: { itemsChanged: true } },
+      },
+      {
+        characterId: targetCharacterId,
+        payload: { characterId: targetCharacterId, updates: { itemsChanged: true } },
+      },
+    ]).catch((error: unknown) => {
+      console.error('[transferItem] Failed to emit role.updated (transfer items)', error);
+    });
 
     // Phase 7.7: 物品轉移後，為接收方觸發自動揭露評估（items_acquired）
     executeAutoReveal(targetCharacterId, { type: 'items_acquired' })
@@ -718,5 +695,5 @@ export async function transferItem(
       },
       message: `已將 ${quantity} 個「${sourceItem.name}」轉移給 ${targetCharacter.name}`,
     };
-  })));
+  }));
 }

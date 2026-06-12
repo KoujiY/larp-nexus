@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { startGame } from '@/lib/game/start-game';
 import { endGame } from '@/lib/game/end-game';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -18,6 +19,12 @@ import type { ApiResponse } from '@/types/api';
  * @returns 操作結果
  */
 export async function startGameAction(
+  gameId: string
+): Promise<ApiResponse<{ message: string }>> {
+  return withAction<{ message: string }>('start-game-action', () => startGameActionImpl(gameId));
+}
+
+async function startGameActionImpl(
   gameId: string
 ): Promise<ApiResponse<{ message: string }>> {
   try {
@@ -64,6 +71,13 @@ export async function startGameAction(
  * @returns 操作結果（包含 snapshotId）
  */
 export async function endGameAction(
+  gameId: string,
+  snapshotName?: string
+): Promise<ApiResponse<{ message: string; snapshotId?: string }>> {
+  return withAction<{ message: string; snapshotId?: string }>('end-game-action', () => endGameActionImpl(gameId, snapshotName));
+}
+
+async function endGameActionImpl(
   gameId: string,
   snapshotName?: string
 ): Promise<ApiResponse<{ message: string; snapshotId?: string }>> {
