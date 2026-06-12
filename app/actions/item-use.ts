@@ -12,7 +12,7 @@ import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleAbilityCheck } from '@/lib/contest/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
-import { processExpiredEffects } from '@/lib/effects/check-expired-effects'; // Phase 8: 過期效果檢查
+import { processExpiredEffectsSafe } from '@/lib/effects/check-expired-effects'; // Phase 8: 過期效果檢查
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
@@ -54,14 +54,7 @@ export async function useItem(
 
     // Phase 8: 使用物品前檢查並處理過期的時效性效果
     // 必須在 getCharacterData 之前執行，否則讀取的數值可能包含已過期效果的加值
-    // 直接呼叫 processExpiredEffects（不含 24h 紀錄清理）——清理屬維護性操作，
-    // 由開卡路徑（getPublicCharacter / getCharacterById）負責，熱路徑省 2 次 DB 往返
-    try {
-      await processExpiredEffects(characterId);
-    } catch (error) {
-      // 與原 checkExpiredEffects 行為一致：檢查失敗記錄但不阻斷動作
-      console.error('[item-use] 過期效果檢查失敗:', error);
-    }
+    await processExpiredEffectsSafe(characterId, 'item-use');
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);

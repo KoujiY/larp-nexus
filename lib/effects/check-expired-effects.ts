@@ -37,6 +37,28 @@ export interface ExpiredEffectResult {
  * @param characterId - 可選，指定角色 ID（Baseline ID）；若未提供則檢查所有角色
  * @returns 處理結果：成功處理的效果數量和詳細資訊
  */
+/**
+ * 熱路徑前置的過期效果檢查：失敗記錄但不阻斷動作
+ *
+ * item-use / skill-use 在讀取角色前呼叫（否則讀到的數值可能包含已過期
+ * 效果的加值）。不含 24h 紀錄清理——清理屬維護性操作，由開卡路徑
+ * （getPublicCharacter / getCharacterById）負責，熱路徑省 2 次 DB 往返。
+ *
+ * @param characterId - 角色 ID（Baseline ID）
+ * @param logTag - 失敗 log 的前綴（呼叫端動作名，如 'item-use'）
+ */
+export async function processExpiredEffectsSafe(
+  characterId: string,
+  logTag: string
+): Promise<void> {
+  try {
+    await processExpiredEffects(characterId);
+  } catch (error) {
+    // 與原 checkExpiredEffects 行為一致：檢查失敗記錄但不阻斷動作
+    console.error(`[${logTag}] 過期效果檢查失敗:`, error);
+  }
+}
+
 export async function processExpiredEffects(characterId?: string): Promise<{
   processedCount: number;
   results: ExpiredEffectResult[];

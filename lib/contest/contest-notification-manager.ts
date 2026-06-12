@@ -285,12 +285,8 @@ export class ContestNotificationManager {
           const finalPayload = { ...contestPayload, effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined };
           finalPayload.defenderSkills = defenderSkills && defenderSkills.length > 0 ? defenderSkills : undefined;
           finalPayload.defenderItems = defenderItems && defenderItems.length > 0 ? defenderItems : undefined;
-          await emitContestResult(
-            attackerIdStr,
-            defenderIdStr,
-            finalPayload,
-            { skipAttacker: false, skipDefender: true }
-          );
+          // 結果僅發送給攻擊方（防守方獲勝資訊由其自身鏈路通知）
+          await emitContestResult(attackerIdStr, finalPayload);
         }
 
         // 發送 skill.used（成功）給攻擊方
@@ -323,12 +319,11 @@ export class ContestNotificationManager {
               updatedPayload.skillId = undefined;
             }
 
-            await emitContestResult(
-              attackerIdStr,
-              defenderIdStr,
-              { ...updatedPayload, effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined },
-              { skipAttacker: true, skipDefender: false }
-            );
+            // 結果僅發送給防守方（攻擊方由其自身鏈路通知）
+            await emitContestResult(defenderIdStr, {
+              ...updatedPayload,
+              effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+            });
           }
 
           // 發送 skill.used（成功）給防守方（如果有回應）

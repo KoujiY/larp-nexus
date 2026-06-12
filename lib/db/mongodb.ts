@@ -80,10 +80,13 @@ async function connectDB() {
       const host = conn.connection.host;
       const dbName = conn.connection.db?.databaseName;
       console.info(`[MongoDB] Connected successfully → ${host}/${dbName}`);
-      // autoIndex 關閉的環境：背景比對 schema 宣告與 DB 實際 index，
-      // 缺漏時 console.warn（fire-and-forget，不阻塞請求路徑）
-      if (!opts.autoIndex) {
-        scheduleIndexCheck();
+      // 背景比對 schema 宣告與 DB 實際 index（延後執行，不與冷啟動
+      // 首請求搶 M0 連線池）。autoIndex 開啟的環境（本機 dev）也要跑：
+      // mongoose 建 index 失敗（如 IndexOptionsConflict）不會丟錯，
+      // 此檢查是唯一偵測點。E2E 為全新 MongoMemoryServer + autoIndex，
+      // index 必然一致，跳過以省成本
+      if (process.env.E2E !== '1') {
+        scheduleIndexCheck({ autoIndexEnabled: opts.autoIndex });
       }
       return conn;
     });

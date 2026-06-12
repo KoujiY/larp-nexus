@@ -43,25 +43,29 @@ export function GameEditTabs({ game, characters, charactersTab, consoleTab, hasA
   const [importDirty, setImportDirty] = useState(false);
 
   // 結束遊戲後 console tab 隨 consoleTab prop 消失，activeTab 可能還停在
-  // 'console'（無對應 TabsContent → 空白畫面）→ derived fallback 至劇本資訊
-  const effectiveTab = !hasConsole && activeTab === 'console' ? 'info' : activeTab;
+  // 'console'（無對應 TabsContent → 空白畫面）。必須提交回 state 而非用
+  // derived fallback：殘留的 'console' 會在重新開始遊戲時把使用者拉回控制台，
+  // unmount 編輯中的劇本資訊分頁（render-phase adjustment，React 官方樣式）
+  if (!hasConsole && activeTab === 'console') {
+    setActiveTab('info');
+  }
 
   const handleTabChange = useCallback((newTab: string) => {
-    if (effectiveTab === 'info' && infoDirty) {
+    if (activeTab === 'info' && infoDirty) {
       const confirmed = window.confirm('您有未儲存的變更，確定要離開嗎？');
       if (!confirmed) return;
     }
     setActiveTab(newTab);
-  }, [effectiveTab, infoDirty]);
+  }, [activeTab, infoDirty]);
 
   // 控制台模式需要限制高度，讓 EventLog 自適應剩餘空間
   // offset ≈ banner(41) + header(~200) + content-padding(48) + margin(~20) = ~310px
-  const isConsoleActive = hasConsole && effectiveTab === 'console';
+  const isConsoleActive = hasConsole && activeTab === 'console';
 
   return (
     <GameEditTabContext.Provider value={{ switchToImportTab: () => setActiveTab('import') }}>
     <Tabs
-      value={effectiveTab}
+      value={activeTab}
       onValueChange={handleTabChange}
       activationMode="manual"
       className={
@@ -116,7 +120,7 @@ export function GameEditTabs({ game, characters, charactersTab, consoleTab, hasA
       <TabsContent
         value="import"
         forceMount
-        className={effectiveTab !== 'import' ? 'hidden' : 'space-y-6'}
+        className={activeTab !== 'import' ? 'hidden' : 'space-y-6'}
       >
         <CharacterImportTab
           gameId={game.id}

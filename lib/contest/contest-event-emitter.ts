@@ -8,18 +8,11 @@
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
 // 效能埋點：所有 pusher.trigger 經 timePusher 計時，確保 [perf] pusher= 涵蓋對抗事件
 import { timePusher } from '@/lib/perf/perf-context';
+// Phase 11: 統一事件 ID（跨通道去重）
+import { generateEventId } from '@/lib/websocket/event-id';
 import type { SkillContestEvent } from '@/types/event';
 // Phase 9: 離線事件佇列寫入
 import { writePendingEvent, writePendingEvents } from '@/lib/websocket/pending-events';
-
-/**
- * Phase 11: 生成統一事件 ID，用於跨通道去重
- */
-function generateEventId(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
-  return `evt-${timestamp}-${random}`;
-}
 
 /**
  * 發送對抗檢定請求事件（攻擊方發起對抗）
@@ -64,59 +57,37 @@ export async function emitContestRequest(
 
 /**
  * 發送對抗檢定結果事件（防守方回應後）
- * 
- * @param attackerId 攻擊方角色 ID
- * @param defenderId 防守方角色 ID
+ *
+ * 單收件人：呼叫端依情境分別發送給攻擊方或防守方
+ * （原雙收件人 + skip 選項的組合從未同時發送給兩方，已收斂為單收件人介面）。
+ *
+ * @param targetCharacterId 接收結果的角色 ID（攻擊方或防守方）
  * @param payload 事件 payload（不包含 subType，會自動添加）
- * @param options 選項
- * @param options.skipAttacker 是否跳過發送給攻擊方（當需要選擇目標道具時使用）
- * @param options.skipDefender 是否跳過發送給防守方（當防守方獲勝但無回應時使用）
  */
 export async function emitContestResult(
-  attackerId: string,
-  defenderId: string,
-  payload: Omit<SkillContestEvent['payload'], 'subType'>,
-  options?: { skipAttacker?: boolean; skipDefender?: boolean }
+  targetCharacterId: string,
+  payload: Omit<SkillContestEvent['payload'], 'subType'>
 ): Promise<void> {
   const pusher = getPusherServer();
   if (!pusher || !isPusherEnabled()) return;
 
   // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
   const event: SkillContestEvent = {
     type: 'skill.contest',
     timestamp: Date.now(),
     payload: {
       ...payload,
       subType: 'result', // Phase 2: 標記為結果事件
-      _eventId: eventId,
+      _eventId: generateEventId(),
     },
   };
 
   try {
-    const pushPromises: Promise<unknown>[] = [];
-    const pendingTargets: Array<{ targetCharacterId: string; eventType: string; eventPayload: Record<string, unknown> }> = [];
-
-    // 發送給攻擊方（除非需要選擇目標道具）
-    if (!options?.skipAttacker) {
-      const attackerChannelName = `private-character-${attackerId}`;
-      pushPromises.push(timePusher(pusher.trigger(attackerChannelName, 'skill.contest', event)));
-      pendingTargets.push({ targetCharacterId: attackerId, eventType: 'skill.contest', eventPayload: event.payload as Record<string, unknown> });
-    }
-
-    // 發送給防守方（除非防守方獲勝但無回應）
-    if (!options?.skipDefender) {
-      const defenderChannelName = `private-character-${defenderId}`;
-      pushPromises.push(timePusher(pusher.trigger(defenderChannelName, 'skill.contest', event)));
-      pendingTargets.push({ targetCharacterId: defenderId, eventType: 'skill.contest', eventPayload: event.payload as Record<string, unknown> });
-    }
-
-    // Phase 9: 同步寫入 pending events
-    if (pendingTargets.length > 0) {
-      pushPromises.push(writePendingEvents(pendingTargets));
-    }
-
-    await Promise.all(pushPromises);
+    await Promise.all([
+      timePusher(pusher.trigger(`private-character-${targetCharacterId}`, 'skill.contest', event)),
+      // Phase 9: 寫入 pending events
+      writePendingEvent(targetCharacterId, 'skill.contest', event.payload as Record<string, unknown>),
+    ]);
   } catch (error) {
     console.error('[contest-event-emitter] Failed to emit contest result', error);
     throw error;
