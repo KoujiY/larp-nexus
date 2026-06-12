@@ -18,8 +18,9 @@
  * 開關：PERF_LOG=1 時啟用；未設定時 runWithPerf 直通、累加函數 no-op。
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
+import type { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
+import { getGlobalAls } from '@/lib/utils/global-als';
 
 /** per-request 效能累加器 */
 export type PerfStore = {
@@ -33,16 +34,9 @@ export type PerfStore = {
   getCharCalls: number;
 };
 
-declare global {
-  // dev HMR 會重新評估本模組產生新的 ALS 實例，但 mongoose 包裝層
-  // （db-timing.ts，以 globalThis 旗標只安裝一次）的閉包持有「舊模組」的
-  // addDbTime。新舊模組必須共用同一個 storage，否則 HMR 後 dbOps 歸零。
-  // 與 lib/db/mongodb.ts 的 global 連線快取同一模式。
-  var __perfAlsStorage: AsyncLocalStorage<PerfStore> | undefined;
-}
-
-const storage: AsyncLocalStorage<PerfStore> =
-  globalThis.__perfAlsStorage ?? (globalThis.__perfAlsStorage = new AsyncLocalStorage<PerfStore>());
+// HMR 後 mongoose 包裝層（db-timing.ts，閉包持有舊模組的 addDbTime）
+// 仍須與新模組共用同一個 storage，否則 dbOps 歸零——由 getGlobalAls 保證
+const storage: AsyncLocalStorage<PerfStore> = getGlobalAls<PerfStore>('perf-context');
 
 /**
  * 埋點是否啟用（由 PERF_LOG 環境變數控制）
