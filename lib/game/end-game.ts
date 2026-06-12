@@ -5,20 +5,24 @@ import CharacterRuntime from '@/lib/db/models/CharacterRuntime';
 import { writeLog } from '@/lib/logs/write-log';
 import { emitGameEnded } from '@/lib/websocket/events';
 import type { ApiResponse } from '@/types/api';
-import type { GameRuntimeDocument } from '@/lib/db/models/GameRuntime';
-import type { CharacterRuntimeDocument } from '@/lib/db/models/CharacterRuntime';
-import mongoose from 'mongoose';
 
 /**
- * Phase 10.3.2: 結束遊戲邏輯
+ * 結束遊戲邏輯（CONTEST_CONSISTENCY_PLAN D2：convert-in-place）
  *
- * 功能：
- * 1. 查詢 Runtime 資料（GameRuntime + CharacterRuntime）
- * 2. 建立 Snapshot（保存當前遊戲狀態）
- * 3. 刪除 Runtime 資料
- * 4. 設定 Game.isActive = false
- * 5. 記錄操作日誌（game_end）
- * 6. 推送 WebSocket 事件（Phase 10.7 實作）
+ * 順序設計（flag-first + 原地轉型）：
+ * 1. 設定 Game.isActive = false（提前到第一步 —— 新進 action 立即路由 Baseline）
+ * 2. GameRuntime 原地轉型為 snapshot（updateOne $set type）
+ * 3. CharacterRuntime 原地轉型為 snapshot（updateMany $set type）
+ * 4. 記錄操作日誌（game_end）
+ * 5. 推送 WebSocket 事件
+ *
+ * 與舊版「複製快照 → deleteMany → isActive=false」的差異：
+ * 原地轉型是 per-doc 原子操作，不存在「快照已拍但 runtime 仍接受寫入」的
+ * silent data loss 視窗 —— 已快取 isActive=true 的 in-flight 玩家寫入，
+ * 要嘛在轉型前落地（保留在快照中）、要嘛轉型後查無 type='runtime' 文件
+ * 而 loud throw（updateCharacterData 既有的「找不到 Runtime Character」路徑）。
+ * snapshot 沿用 runtime 的 _id（codebase 無 snapshot 讀取端、
+ * {refId, type} 索引非 unique，已驗證無依賴）。
  *
  * @param gameId - Baseline Game ID
  * @param gmUserId - GM User ID（用於權限檢查和日誌記錄）
@@ -33,7 +37,7 @@ export async function endGame(
   try {
     await dbConnect();
 
-    // ========== 步驟 1：查詢 Baseline Game 和 Runtime ==========
+    // ========== 前置：查詢 Baseline Game 並驗證權限 ==========
     const game = await Game.findById(gameId);
 
     if (!game) {
@@ -44,7 +48,6 @@ export async function endGame(
       };
     }
 
-    // 驗證 GM 權限
     if (game.gmUserId.toString() !== gmUserId) {
       return {
         success: false,
@@ -97,105 +100,59 @@ export async function endGame(
       };
     }
 
-    // 查詢所有 CharacterRuntime
-    const characterRuntimes = await CharacterRuntime.find({
-      gameId,
-      type: 'runtime',
-    });
-
-    // ========== 步驟 2：建立 Snapshot ==========
-    let createdGameSnapshot: mongoose.Document | null = null;
-    const createdCharacterSnapshotIds: mongoose.Types.ObjectId[] = [];
-
-    try {
-      // 2.1 建立 GameRuntime Snapshot
-      const gameRuntimeDoc = gameRuntime as GameRuntimeDocument;
-      const finalSnapshotName =
-        snapshotName || `快照 ${new Date().toISOString()}`;
-      const snapshotCreatedAt = new Date();
-
-      createdGameSnapshot = await GameRuntime.create({
-        refId: gameRuntimeDoc.refId,
-        type: 'snapshot',
-        gmUserId: gameRuntimeDoc.gmUserId,
-        name: gameRuntimeDoc.name,
-        description: gameRuntimeDoc.description,
-        gameCode: gameRuntimeDoc.gameCode,
-        isActive: false, // Snapshot 的 isActive 應為 false
-        publicInfo: gameRuntimeDoc.publicInfo,
-        randomContestMaxValue: gameRuntimeDoc.randomContestMaxValue,
-        snapshotName: finalSnapshotName,
-        snapshotCreatedAt,
-      });
-
-      // 2.2 批次建立 CharacterRuntime Snapshot
-      const characterSnapshotDocs = characterRuntimes.map(
-        (charRuntime: CharacterRuntimeDocument) => ({
-          refId: charRuntime.refId,
-          type: 'snapshot',
-          gameId: charRuntime.gameId,
-          name: charRuntime.name,
-          description: charRuntime.description,
-          imageUrl: charRuntime.imageUrl,
-          hasPinLock: charRuntime.hasPinLock,
-          pin: charRuntime.pin,
-          publicInfo: charRuntime.publicInfo,
-          secretInfo: charRuntime.secretInfo,
-          tasks: charRuntime.tasks,
-          items: charRuntime.items,
-          stats: charRuntime.stats,
-          skills: charRuntime.skills,
-          viewedItems: charRuntime.viewedItems,
-          temporaryEffects: charRuntime.temporaryEffects,
-          snapshotGameRuntimeId: createdGameSnapshot?._id, // 關聯到 Snapshot Game
-        })
-      );
-
-      const createdCharacters = await CharacterRuntime.insertMany(
-        characterSnapshotDocs
-      );
-      createdCharacterSnapshotIds.push(
-        ...createdCharacters.map((c) => c._id as mongoose.Types.ObjectId)
-      );
-    } catch (error) {
-      // 錯誤處理：刪除已建立的 Snapshot（回滾）
-      console.error('[endGame] Error during snapshot creation:', error);
-
-      if (createdGameSnapshot) {
-        await GameRuntime.deleteOne({ _id: createdGameSnapshot._id });
-      }
-
-      if (createdCharacterSnapshotIds.length > 0) {
-        await CharacterRuntime.deleteMany({
-          _id: { $in: createdCharacterSnapshotIds },
-        });
-      }
-
-      return {
-        success: false,
-        error: 'SNAPSHOT_CREATION_FAILED',
-        message: '建立遊戲快照失敗，請稍後再試',
-      };
-    }
-
-    // ========== 步驟 3：刪除 Runtime ==========
-    try {
-      await GameRuntime.deleteOne({ _id: gameRuntime._id });
-      await CharacterRuntime.deleteMany({ gameId, type: 'runtime' });
-    } catch (error) {
-      console.error('[endGame] Error during runtime deletion:', error);
-      // 注意：此時 Snapshot 已建立，即使刪除 Runtime 失敗也不回滾 Snapshot
-      // 因為 Snapshot 本身是有價值的資料，可以保留
-    }
-
-    // ========== 步驟 4：設定 Game.isActive = false ==========
+    // ========== 步驟 1：設定 Game.isActive = false（flag-first） ==========
+    // 提前到轉型之前：新進 action 解析 isActive=false → 路由 Baseline，
+    // 縮小「已快取 isActive=true 的 in-flight 寫入」殘留視窗。
     // 使用 updateOne 避免觸發整份文件 validation（老舊文件可能不符新 schema）
     await Game.updateOne(
       { _id: game._id },
       { $set: { isActive: false } },
     );
 
-    // ========== 步驟 5：記錄操作日誌 ==========
+    // ========== 步驟 2-3：runtime 原地轉型為 snapshot ==========
+    const finalSnapshotName = snapshotName || `快照 ${new Date().toISOString()}`;
+    const snapshotCreatedAt = new Date();
+    let characterCount = 0;
+
+    try {
+      // 2. GameRuntime 轉型
+      await GameRuntime.updateOne(
+        { _id: gameRuntime._id },
+        {
+          $set: {
+            type: 'snapshot',
+            isActive: false, // Snapshot 的 isActive 應為 false
+            snapshotName: finalSnapshotName,
+            snapshotCreatedAt,
+          },
+        },
+      );
+
+      // 3. CharacterRuntime 批次轉型（per-doc 原子，關聯到轉型後的 GameRuntime）
+      const charResult = await CharacterRuntime.updateMany(
+        { gameId, type: 'runtime' },
+        {
+          $set: {
+            type: 'snapshot',
+            snapshotGameRuntimeId: gameRuntime._id,
+          },
+        },
+      );
+      characterCount = charResult.modifiedCount;
+    } catch (error) {
+      // isActive 已先落地（遊戲已結束）。轉型部分失敗的殘留 runtime 文件：
+      // GM 重按「結束遊戲」可重試轉型（GameRuntime 仍為 runtime 時走完整路徑、
+      // 已轉型時走「僅重設 isActive」降級路徑）；下次 startGame 的 deleteMany
+      // 也會清理孤兒 CharacterRuntime
+      console.error('[endGame] Error during runtime conversion:', error);
+      return {
+        success: false,
+        error: 'SNAPSHOT_CONVERSION_FAILED',
+        message: '遊戲快照轉換失敗，請再次嘗試結束遊戲',
+      };
+    }
+
+    // ========== 步驟 4：記錄操作日誌 ==========
     await writeLog({
       gameId: game._id.toString(),
       actorType: 'gm',
@@ -204,26 +161,25 @@ export async function endGame(
       details: {
         gameName: game.name,
         gameCode: game.gameCode,
-        characterCount: characterRuntimes.length,
-        snapshotName:
-          snapshotName || `快照 ${new Date().toISOString()}`,
-        snapshotId: createdGameSnapshot?._id?.toString() || undefined,
+        characterCount,
+        snapshotName: finalSnapshotName,
+        snapshotId: gameRuntime._id?.toString() || undefined,
       },
     });
 
-    // ========== 步驟 6：推送 WebSocket 事件（Phase 10.7）==========
+    // ========== 步驟 5：推送 WebSocket 事件 ==========
     await emitGameEnded(game._id.toString(), {
       gameId: game._id.toString(),
       gameCode: game.gameCode,
       gameName: game.name,
-      snapshotId: createdGameSnapshot?._id?.toString(),
+      snapshotId: gameRuntime._id?.toString(),
     });
 
     return {
       success: true,
       data: {
         message: '遊戲已成功結束',
-        snapshotId: createdGameSnapshot?._id.toString(),
+        snapshotId: gameRuntime._id.toString(),
       },
     };
   } catch (error) {
