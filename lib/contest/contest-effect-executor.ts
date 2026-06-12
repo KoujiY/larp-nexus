@@ -12,7 +12,8 @@ import { emitCharacterAffected } from '@/lib/websocket/events';
 import { getBaselineCharacterId, getCharacterData } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
-import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
+import { buildTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
+import type { TemporaryEffect } from '@/types/character';
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import { writeLog } from '@/lib/logs/write-log';
 import type { SkillType, ItemType } from '@/lib/db/types/character-types';
@@ -122,13 +123,15 @@ export async function executeContestEffects(
       name: string; deltaValue?: number; deltaMax?: number;
       newValue: number; newMax?: number;
     }>;
+    /** 時效性效果記錄：與 statSet 併入同一次 updateCharacterData（$set + $push 原子合併） */
+    tempEffects: TemporaryEffect[];
   }
   const buckets = new Map<string, TargetBucket>();
   const initBucket = (character: CharacterDocument, isOpponent: boolean): TargetBucket => {
     const idStr = getBaselineCharacterId(character);
     let bucket = buckets.get(idStr);
     if (!bucket) {
-      bucket = { character, idStr, isOpponent, statSet: {}, statUpdates: [], crossCharacterChanges: [] };
+      bucket = { character, idStr, isOpponent, statSet: {}, statUpdates: [], crossCharacterChanges: [], tempEffects: [] };
       buckets.set(idStr, bucket);
     }
     return bucket;
@@ -140,9 +143,6 @@ export async function executeContestEffects(
     // 'other' / 'any' / undefined（向下相容）都套用到對手
     return { character: opponent, isOpponent: true };
   };
-
-  // 批 2：時效性效果寫入收集器（迴圈內啟動、迴圈後與 bucket 更新一併等待）
-  const tempEffectWrites: Promise<unknown>[] = [];
 
   for (const effect of effects) {
     if (effect.type === 'stat_change' && effect.targetStat && effect.value !== undefined) {
@@ -186,11 +186,10 @@ export async function executeContestEffects(
       }
 
       // Phase 8: 時效性效果 — source 永遠是 sourceOwner，target 依 effect 決定
-      // 批 2：先收集寫入 promise，迴圈結束後與 bucket 更新一併平行等待
-      //（$push 為原子操作，與 bucket 的 $set 互不衝突）
+      // 記錄入桶，與 statSet 併入同一次 updateCharacterData（$set + $push 同一原子操作），
+      // 確保 character.affected 發出時數值與倒數條目同時落地
       if (effect.duration && effect.duration > 0) {
-        tempEffectWrites.push(createTemporaryEffectRecord(
-          bucket.idStr,
+        bucket.tempEffects.push(buildTemporaryEffectRecord(
           {
             sourceType: actualSourceType,
             sourceId: actualSource.id,
@@ -271,7 +270,9 @@ export async function executeContestEffects(
 
   // §4: 對每個 bucket 獨立應用更新，並為對手 target 發送 character-affected 通知
   // 批 2：bucket 之間是不同角色的獨立寫入 → 平行；單一 bucket 內維持
-  // 「DB 更新完成 → 才發 character.affected」的順序
+  // 「DB 更新完成 → 才發 character.affected」的順序。
+  // 時效性效果以 $push 併入同一次更新（單文件原子性保證 client 重抓時
+  // 數值與倒數條目一致，不可能只見其一）
   const statUpdates: Array<{
     id: string; name: string; value: number; maxValue?: number;
     deltaValue?: number; deltaMax?: number;
@@ -280,10 +281,15 @@ export async function executeContestEffects(
   for (const bucket of buckets.values()) {
     statUpdates.push(...bucket.statUpdates);
 
-    if (Object.keys(bucket.statSet).length === 0) continue;
+    if (Object.keys(bucket.statSet).length === 0 && bucket.tempEffects.length === 0) continue;
 
     bucketWrites.push((async () => {
-      await updateCharacterData(bucket.idStr, { $set: bucket.statSet });
+      await updateCharacterData(bucket.idStr, {
+        ...(Object.keys(bucket.statSet).length > 0 ? { $set: bucket.statSet } : {}),
+        ...(bucket.tempEffects.length > 0
+          ? { $push: { temporaryEffects: { $each: bucket.tempEffects } } }
+          : {}),
+      });
 
       if (bucket.crossCharacterChanges.length > 0) {
         const sourceTags = actualSource.tags || [];
@@ -307,7 +313,7 @@ export async function executeContestEffects(
       }
     })());
   }
-  await Promise.all([...bucketWrites, ...tempEffectWrites]);
+  await Promise.all(bucketWrites);
 
   const winnerCharacterId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
   const winnerCharacterName = contestResult === 'defender_wins' ? defender.name : attacker.name;
