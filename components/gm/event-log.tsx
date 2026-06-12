@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useTransition } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useTransition } from 'react';
 import { RefreshCw, ScrollText, Trash2 } from 'lucide-react';
 import { formatStatDeltaText } from '@/lib/utils/format-stat-delta';
 import { getGameLogs, type LogData } from '@/app/actions/logs';
+import { mergeIncrementalLogs } from '@/components/gm/event-log-utils';
 import { clearPlayerNotifications } from '@/app/actions/clear-notifications';
 import { GM_SCROLLBAR_CLASS } from '@/lib/styles/gm-form';
 import {
@@ -21,20 +22,27 @@ interface EventLogProps {
   refreshKey?: number;
 }
 
+/** 全量抓取與記憶體內保留的上限（與增量合併的 cap 一致） */
+const LOG_LIMIT = 100;
+
 /**
  * Runtime 控制台 — 事件紀錄面板
  *
  * 刷新策略（非即時同步）：
- * 1. 進入畫面時載入一次
- * 2. 點選「重新讀取」按鈕
- * 3. 切換篩選條件時
- * 4. 外部呼叫 refresh 時（如 GM 發送廣播後）
+ * 1. 進入畫面 / 切換篩選 / 點「重新讀取」→ 全量載入並重置游標
+ * 2. 外部觸發（refreshKey 變更，如 WS 事件 throttled / GM 發送廣播後）
+ *    → since-cursor 增量抓取，只拉游標之後的新紀錄 prepend
+ *    （BACKLOG：GM log 增量抓取——throttle 只限頻不減量的後續收斂）
  */
 export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) {
   const [logs, setLogs] = useState<LogData[]>([]);
   const [characterFilter, setCharacterFilter] = useState('all');
   const [isPending, startTransition] = useTransition();
   const [confirmingClear, setConfirmingClear] = useState(false);
+
+  // 增量游標：最新一筆 log 的 ISO 時間戳。存 ref 而非 state——
+  // 它只服務下一次抓取，不影響渲染，且避免 callback 因 logs 變動而重建
+  const newestTsRef = useRef<string | null>(null);
 
   // 前端清除水位線：僅遮蔽顯示，不刪 DB。渲染時濾掉早於此時間戳的紀錄。
   // clearedBefore 只影響「顯示哪些紀錄」（內容），不改變元件樹結構，故採 lazy initializer。
@@ -44,22 +52,64 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
     return Number(localStorage.getItem(watermarkKey) ?? 0);
   });
 
-  const fetchLogs = useCallback(() => {
+  /** 全量載入：取代整份列表並重置游標 */
+  const fetchFull = useCallback(() => {
     startTransition(async () => {
       const res = await getGameLogs(gameId, {
-        limit: 100,
+        limit: LOG_LIMIT,
         characterId: characterFilter === 'all' ? undefined : characterFilter,
       });
       if (res.success && res.data) {
         setLogs(res.data);
+        newestTsRef.current = res.data[0]
+          ? new Date(res.data[0].timestamp).toISOString()
+          : null;
       }
     });
   }, [gameId, characterFilter]);
 
-  // 進入畫面 + 篩選變更 + 外部觸發時刷新
+  /** 增量抓取：只拉游標（含）之後的新紀錄，以 id 去重後 prepend */
+  const fetchIncremental = useCallback(() => {
+    const since = newestTsRef.current;
+    if (!since) {
+      // 尚無任何紀錄（空清單無游標）→ 退回全量
+      fetchFull();
+      return;
+    }
+    startTransition(async () => {
+      const res = await getGameLogs(gameId, {
+        limit: LOG_LIMIT,
+        characterId: characterFilter === 'all' ? undefined : characterFilter,
+        since,
+      });
+      if (res.success && res.data) {
+        const incoming = res.data;
+        setLogs((prev) => {
+          const merged = mergeIncrementalLogs(prev, incoming, LOG_LIMIT);
+          if (merged[0]) {
+            newestTsRef.current = new Date(merged[0].timestamp).toISOString();
+          }
+          return merged;
+        });
+      }
+    });
+  }, [gameId, characterFilter, fetchFull]);
+
+  // 進入畫面 + 篩選變更：全量載入（重置游標）
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs, refreshKey]);
+    fetchFull();
+  }, [fetchFull]);
+
+  // 外部觸發：增量抓取。latest-ref 隔離依賴——篩選變更時 fetchIncremental
+  // 重建不應觸發抓取（全量 effect 已處理），只有 refreshKey 變更才抓
+  const fetchIncrementalRef = useRef(fetchIncremental);
+  useEffect(() => {
+    fetchIncrementalRef.current = fetchIncremental;
+  }, [fetchIncremental]);
+  useEffect(() => {
+    if (refreshKey === 0) return; // 0 = 尚未有外部觸發，mount 由全量載入涵蓋
+    fetchIncrementalRef.current();
+  }, [refreshKey]);
 
   // 套用水位線過濾：DB 紀錄完整保留，僅前端隱藏清除點之前的項目
   const visibleLogs = useMemo(
@@ -130,7 +180,7 @@ export function EventLog({ gameId, characters, refreshKey = 0 }: EventLogProps) 
           )}
           <button
             type="button"
-            onClick={fetchLogs}
+            onClick={fetchFull}
             disabled={isPending}
             className="flex items-center gap-1 text-xs font-bold bg-primary/10 text-primary rounded-lg px-3 py-1.5 hover:bg-primary/20 transition-colors disabled:opacity-50"
           >

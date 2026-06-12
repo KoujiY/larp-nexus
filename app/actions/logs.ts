@@ -22,20 +22,37 @@ export interface LogData {
 }
 
 /**
+ * getGameLogs 查詢選項
+ */
+export interface GetGameLogsOptions {
+  /** 返回數量上限（預設 100） */
+  limit?: number;
+  /** 僅查詢指定角色的紀錄 */
+  characterId?: string;
+  /**
+   * 增量游標（ISO 時間戳）：僅回傳此時間（含）之後的紀錄。
+   * 以 `$gte` 查詢——與游標同毫秒的既有紀錄會重複出現，
+   * 呼叫端須以 id 去重（見 mergeIncrementalLogs）。
+   * 無效字串視同未提供（退回全量查詢）。
+   */
+  since?: string;
+}
+
+/**
  * Phase 10.6.3: 取得遊戲日誌 Server Action
  *
  * 功能：
  * - 驗證 GM 身份和權限
  * - 查詢遊戲日誌（按時間降序）
- * - 支援限制返回數量
+ * - 支援限制返回數量與 since 增量游標（BACKLOG：GM log 增量抓取）
  *
  * @param gameId - Baseline Game ID
- * @param limit - 返回數量限制（預設 100）
+ * @param options - 查詢選項（limit / characterId / since）
  * @returns 日誌列表
  */
 export async function getGameLogs(
   gameId: string,
-  options?: { limit?: number; characterId?: string }
+  options?: GetGameLogsOptions
 ): Promise<ApiResponse<LogData[]>> {
   // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：量測 GM 端 burst 時的呼叫頻率（假設 #8 的量尺）
   return runWithPerf('get-game-logs', () => getGameLogsImpl(gameId, options));
@@ -43,7 +60,7 @@ export async function getGameLogs(
 
 async function getGameLogsImpl(
   gameId: string,
-  options?: { limit?: number; characterId?: string }
+  options?: GetGameLogsOptions
 ): Promise<ApiResponse<LogData[]>> {
   try {
     // 驗證 GM 身份
@@ -81,6 +98,13 @@ async function getGameLogsImpl(
     const query: Record<string, unknown> = { gameId: game._id };
     if (options?.characterId) {
       query.characterId = options.characterId;
+    }
+    // 增量游標：{gameId, timestamp} 複合 index 直接支撐此查詢形狀
+    if (options?.since) {
+      const sinceDate = new Date(options.since);
+      if (!Number.isNaN(sinceDate.getTime())) {
+        query.timestamp = { $gte: sinceDate };
+      }
     }
     const logs = await Log.find(query)
       .sort({ timestamp: -1 })

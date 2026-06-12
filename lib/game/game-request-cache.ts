@@ -14,7 +14,8 @@
  * 與 perf-context.ts 同模式但始終啟用（不受 PERF_LOG 控制）。
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
+import type { AsyncLocalStorage } from 'node:async_hooks';
+import { getGlobalAls } from '@/lib/utils/global-als';
 
 type GameRequestCacheStore = {
   /** gameId (string) → isActive */
@@ -23,16 +24,10 @@ type GameRequestCacheStore = {
   charToGame: Map<string, string>;
 };
 
-declare global {
-  // dev HMR / 多編譯單元可能產生多個模組實例；寫入端（action 入口的
-  // runWithGameCache）與讀取端（get/update-character-data）必須共用
-  // 同一個 ALS 實例，否則快取靜默失效。與 perf-context.ts 同一模式。
-  var __gameRequestCacheStorage: AsyncLocalStorage<GameRequestCacheStore> | undefined;
-}
-
+// 寫入端（action 入口的 runWithGameCache）與讀取端（get/update-character-data）
+// 必須跨 HMR / 編譯單元共用同一個 ALS 實例，否則快取靜默失效——由 getGlobalAls 保證
 const storage: AsyncLocalStorage<GameRequestCacheStore> =
-  globalThis.__gameRequestCacheStorage ??
-  (globalThis.__gameRequestCacheStorage = new AsyncLocalStorage<GameRequestCacheStore>());
+  getGlobalAls<GameRequestCacheStore>('game-request-cache');
 
 /**
  * 在 per-request cache context 內執行 fn

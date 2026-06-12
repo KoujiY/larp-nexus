@@ -31,7 +31,7 @@
 | ~~GM 編輯分頁 fallback 髒頁丟失~~ | `components/gm/game-edit-tabs.tsx` | ✅ 2026-06-12 `fix/backlog-quick-wins`：fallback 改為 render-phase setActiveTab 提交回 state，重新開始後停留原分頁，附 6 條元件回歸測試。**注意**：分析中發現編輯內容丟失的另一病灶（見下方「GameEditForm reset-on-refresh」新條目） |
 | GameEditForm reset-on-refresh 髒頁丟失 | `components/gm/game-edit-form.tsx:68` | 2026-06-12 修分頁跳頁時發現：`initialData !== prevInitialData`（reference 比較）在任何 `router.refresh()` 後必為 true（RSC 重新序列化 → `game` prop 新 reference）→ `setFormData(initialData)` 洗掉編輯中內容，與分頁無關。修法需設計：dirty 時不 reset 有資料一致性地雷——`formData.isActive` 是舊快照且會回寫（`game-edit-form.tsx` handleSubmit），跨 lifecycle 保留髒頁再儲存可能把進行中遊戲的 isActive 蓋回 false，需先釐清 updateGame payload 設計 |
 | isActive 快取放大既有 TOCTOU | `lib/game/game-request-cache.ts` | 既有 race 的視窗放大（單次讀寫間 → 整個 action 期間）；正確修法是寫入帶 isActive 條件或版本欄位（動核心資料層）。endGame 的 snapshot→deleteMany→isActive=false 三步無交易為根因 |
-| ~~dev 環境 TTL index 衝突被靜默吞掉~~ | `lib/db/models/PendingEvent.ts` | ✅ 2026-06-12 `fix/backlog-quick-wins`：操作面已對開發 DB（`larp-nexus`）跑 `check-indexes --sync` 解掉衝突；程式面 index check 擴大為全環境（E2E 除外）執行，autoIndex=true 時建立靜默失敗從此會被 warn 出來（文案提示跑 `--sync`）。production/loadtest 的同類衝突部署後由 index-check warn 提示，屆時依 PendingEvent.ts 註記處理 |
+| ~~dev 環境 TTL index 衝突被靜默吞掉~~ | `lib/db/models/PendingEvent.ts` | ✅ 2026-06-12 `fix/backlog-quick-wins`：操作面已對開發 DB（`larp-nexus`）跑 `check-indexes --sync` 解掉衝突；程式面 index check 擴大為全環境（E2E 除外）執行，autoIndex=true 時建立靜默失敗從此會被 warn 出來（文案提示跑 `--sync`）。production/loadtest 已於更早前手動同步，2026-06-12 以報告模式複驗兩環境全數一致，**無殘留待辦** |
 
 ### 流程 / 通用化（設計題）
 
@@ -46,9 +46,9 @@
 | 項目 | 說明 |
 |------|------|
 | ~~冷啟動 index check 與首請求搶 M0 連線池~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：scheduleIndexCheck 延後 10 秒背景執行（timer unref），並擴大為全環境覆蓋（見上方 TTL index 條目） |
-| GM log 增量抓取 | throttle 只限頻不減量，每次 refresh 全量重抓 100 筆。**方案評估（2026-06-12）：採 since-cursor 增量**——`getGameLogs` 加 `since` 參數（`$gt` timestamp + client 以 id 去重，`{gameId, timestamp}` 複合 index 已存在）；EventLog 維護最新游標，WS 觸發的 throttled refresh 只抓新增並 prepend（記憶體內上限輪替）；切換篩選與「重新讀取」按鈕重置游標走全量。**不採**直接套用 WS payload：log 由 server 寫入（結構 ≠ 事件 payload、無共同 id 可去重）、非所有 log 都有對應 WS 事件、掉線會靜默缺漏仍需抓取兜底，把 log 重建邏輯複製到 client 維護成本高於收益。注意：增量化後每次呼叫仍有 auth + Game.findById 固定開銷，省的是 Log scan 與 ~100 筆序列化；上線後以 `[perf] get-game-logs` 驗證成效 |
+| ~~GM log 增量抓取~~ | ✅ 2026-06-12 `refactor/log-cursor-and-leftovers`：依評估採 since-cursor 增量實作完成——`getGameLogs` 加 `since`（`$gte` + client 以 id 去重），EventLog 拆全量/增量雙路徑，回歸測試 +12。固定開銷（auth + Game.findById）仍在，上線後以 `[perf] get-game-logs` 對照成效 |
 | ~~資料層分支邏輯四份複製~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：抽共用 `lib/game/resolve-is-active.ts`，四路徑回歸測試 19 條；update 完整路徑 baseline 落空同步從靜默 no-op 收斂為 throw |
-| 其他小型重複 | ✅ 已清（2026-06-12 `fix/backlog-quick-wins`）：~~batch emitter 樣板~~（generateEventId 共用 + events.ts 樣板收斂為三 helper；兩檔發送機構錯誤語意不同屬設計，刻意不合併）、~~processExpiredEffects try/catch~~（抽 processExpiredEffectsSafe）、~~emitContestResult 已死的雙收件人路徑~~（簡化為單收件人）。**殘留**：ALS globalThis 樣板（perf-context vs game-request-cache）、PS1 env 解析（run-k6 vs smoke） |
+| ~~其他小型重複~~ | ✅ 全數清完：`fix/backlog-quick-wins`（2026-06-12）清 batch emitter 樣板（generateEventId 共用 + events.ts 收斂三 helper；兩檔發送機構錯誤語意不同屬設計，刻意不合併）、processExpiredEffects try/catch（抽 processExpiredEffectsSafe）、emitContestResult 死的雙收件人路徑；`refactor/log-cursor-and-leftovers`（同日）清 ALS globalThis 樣板（抽 getGlobalAls，Symbol.for registry）、PS1 env 解析（抽 env-utils.ps1 Import-LoadtestEnv） |
 
 ## 條件性 / 量測後裁決
 
@@ -61,7 +61,7 @@
 
 | 項目 | 來源 | 說明 |
 |------|------|------|
-| 開啟 Vercel Log Drain 長期保存 log | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md)「待補資料」 | **下次活動前務必完成**——本次事故的「負載過重」原始訊息因未開而遺失 |
+| 活動期間 log 長期保存對策 | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md)「待補資料」 | 原方案 Vercel Log Drain 經查證（2026-06-12）**現行方案不可用**（原生 Log Drain 需 Pro，dashboard 找不到對應整合入口），短期無方案升級計畫 → 擱置。**下次活動前需重新評估替代方案**（候選：活動期間以 `vercel logs <deployment> --follow` 重導到本機檔案、或屆時再查可用整合）——事故背景：2026-06 效能事故的「負載過重」原始訊息因 log 過期而遺失 |
 
 ## 已有計畫文件、待排程
 

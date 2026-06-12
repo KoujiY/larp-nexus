@@ -21,27 +21,10 @@ if (-not $k6) {
   }
 }
 
-$envFile = Join-Path $PSScriptRoot '.env'
-if (-not (Test-Path $envFile)) {
-  Write-Host '[ERROR] loadtest\.env not found. Run: copy loadtest\env.example loadtest\.env'
-  exit 1
-}
-
-$vars = @{}
-foreach ($raw in Get-Content $envFile -Encoding UTF8) {
-  $line = $raw.Trim()
-  if ($line -eq '' -or $line.StartsWith('#')) { continue }
-  $i = $line.IndexOf('=')
-  if ($i -lt 1) { continue }
-  $vars[$line.Substring(0, $i).Trim()] = $line.Substring($i + 1).Trim().Trim('"').Trim("'")
-}
-
-foreach ($key in 'STAGING_URL', 'LOADTEST_TOKEN', 'VERCEL_BYPASS') {
-  if (-not $vars[$key]) {
-    Write-Host "[ERROR] $key missing in loadtest\.env"
-    exit 1
-  }
-}
+# Shared .env parsing (encoding lessons documented there)
+. (Join-Path $PSScriptRoot 'env-utils.ps1')
+$vars = Import-LoadtestEnv -ScriptRoot $PSScriptRoot `
+  -RequiredKeys 'STAGING_URL', 'LOADTEST_TOKEN', 'VERCEL_BYPASS'
 
 if (-not (Test-Path (Join-Path $PSScriptRoot 'state.json'))) {
   Write-Host '[ERROR] loadtest\state.json not found. Run: node loadtest\seed.mjs'
