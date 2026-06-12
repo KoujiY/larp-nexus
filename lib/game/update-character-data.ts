@@ -68,7 +68,10 @@ export async function updateCharacterData(
         }
         return;
       }
-      await Character.findByIdAndUpdate(characterId, updates, mongooseOptions);
+      const baselineResult = await Character.findByIdAndUpdate(characterId, updates, mongooseOptions);
+      if (!baselineResult) {
+        throw new Error(`找不到角色：${characterId}`);
+      }
       return;
     }
   }
