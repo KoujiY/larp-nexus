@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import dbConnect from '@/lib/db/mongodb';
+import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getContestInfo, removeActiveContest, removeContestsByCharacterId } from '@/lib/contest-tracker';
 import { ContestNotificationManager } from '@/lib/contest/contest-notification-manager';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
@@ -22,6 +24,20 @@ export async function selectTargetItemForContest(
   targetCharacterId?: string, // Phase 9: 目標角色 ID（如果服務器端記錄丟失，可以使用此參數）
   defenderSourceId?: string, // Phase 9: 防守方使用的技能/物品 ID（當防守方選擇物品時需要）
   defenderSourceType?: 'skill' | 'item' // Phase 9: 防守方使用的技能/物品類型（當防守方選擇物品時需要）
+): Promise<ApiResponse<{ success: boolean; effectApplied?: string }>> {
+  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：薄 wrapper，業務邏輯在 impl 中不變
+  return runWithGameCache(() => runWithPerf('contest-select-item', () =>
+    selectTargetItemForContestImpl(contestId, characterId, targetItemId, targetCharacterId, defenderSourceId, defenderSourceType),
+  ));
+}
+
+async function selectTargetItemForContestImpl(
+  contestId: string,
+  characterId: string,
+  targetItemId: string,
+  targetCharacterId?: string,
+  defenderSourceId?: string,
+  defenderSourceType?: 'skill' | 'item'
 ): Promise<ApiResponse<{ success: boolean; effectApplied?: string }>> {
   try {
     await dbConnect();
@@ -47,7 +63,9 @@ export async function selectTargetItemForContest(
     const contestInfo = getContestInfo(contestId);
     let resolvedDefenderId: string;
     let attackerSourceType: 'skill' | 'item'; // 攻擊方的技能/物品類型
-    
+    // fallback 分支先讀的攻擊方 doc，後續主流程重用（避免同一請求重複讀取）
+    let preloadedAttacker: Awaited<ReturnType<typeof getCharacterData>> | null = null;
+
     if (!contestInfo) {
       // 如果找不到記錄（可能是服務器重啟或記錄過期），嘗試從參數或 contestId 解析信息
       if (targetCharacterId) {
@@ -56,7 +74,8 @@ export async function selectTargetItemForContest(
 
         // Phase 10.4: 使用統一的讀取函數確定攻擊方的 sourceType
         const attacker = await getCharacterData(parsedAttackerIdStr);
-        
+        preloadedAttacker = attacker;
+
         // 先嘗試找物品
         const attackerItems = attacker.items || [];
         const itemIndex = attackerItems.findIndex((i: { id: string }) => i.id === sourceId);
@@ -92,7 +111,7 @@ export async function selectTargetItemForContest(
     }
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
-    const attacker = await getCharacterData(parsedAttackerIdStr);
+    const attacker = preloadedAttacker ?? (await getCharacterData(parsedAttackerIdStr));
     const defender = await getCharacterData(resolvedDefenderId);
 
     // 驗證在同一劇本內

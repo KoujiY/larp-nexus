@@ -55,6 +55,9 @@ export interface ContestEffectExecutionResult {
  * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
  * @param contestResult 對抗檢定結果（Phase 7.6: 決定執行攻擊方還是防守方的效果）
  * @param defenderSources 防守方使用的技能/道具列表（Phase 7.6: 防守方獲勝時使用）
+ * @param options.skipFinalReload 跳過結尾的角色重讀（省 2 次 DB 查詢）。
+ *   ⚠️ 設為 true 時回傳的 updatedAttacker/updatedDefender 是「效果套用前」的傳入 doc，
+ *   不可用於讀取最新狀態——僅供不使用這兩個欄位的呼叫端（contest-respond）使用
  * @returns 執行結果
  */
 export async function executeContestEffects(
@@ -63,7 +66,8 @@ export async function executeContestEffects(
   source: SkillType | ItemType,
   targetItemId?: string,
   contestResult: 'attacker_wins' | 'defender_wins' | 'both_fail' = 'attacker_wins',
-  defenderSources?: Array<{ type: 'skill' | 'item'; id: string }>
+  defenderSources?: Array<{ type: 'skill' | 'item'; id: string }>,
+  options?: { skipFinalReload?: boolean }
 ): Promise<ContestEffectExecutionResult> {
   await dbConnect();
 
@@ -137,6 +141,9 @@ export async function executeContestEffects(
     return { character: opponent, isOpponent: true };
   };
 
+  // 批 2：時效性效果寫入收集器（迴圈內啟動、迴圈後與 bucket 更新一併等待）
+  const tempEffectWrites: Promise<unknown>[] = [];
+
   for (const effect of effects) {
     if (effect.type === 'stat_change' && effect.targetStat && effect.value !== undefined) {
       const { character: effectTarget, isOpponent } = resolveEffectTarget(effect.targetType);
@@ -179,8 +186,10 @@ export async function executeContestEffects(
       }
 
       // Phase 8: 時效性效果 — source 永遠是 sourceOwner，target 依 effect 決定
+      // 批 2：先收集寫入 promise，迴圈結束後與 bucket 更新一併平行等待
+      //（$push 為原子操作，與 bucket 的 $set 互不衝突）
       if (effect.duration && effect.duration > 0) {
-        await createTemporaryEffectRecord(
+        tempEffectWrites.push(createTemporaryEffectRecord(
           bucket.idStr,
           {
             sourceType: actualSourceType,
@@ -197,7 +206,7 @@ export async function executeContestEffects(
             syncValue: effect.syncValue,
           },
           effect.duration
-        );
+        ));
       }
     } else if (effect.type === 'task_reveal' && effect.targetTaskId) {
       const { character: effectTarget, isOpponent } = resolveEffectTarget(effect.targetType);
@@ -261,75 +270,91 @@ export async function executeContestEffects(
   }
 
   // §4: 對每個 bucket 獨立應用更新，並為對手 target 發送 character-affected 通知
+  // 批 2：bucket 之間是不同角色的獨立寫入 → 平行；單一 bucket 內維持
+  // 「DB 更新完成 → 才發 character.affected」的順序
   const statUpdates: Array<{
     id: string; name: string; value: number; maxValue?: number;
     deltaValue?: number; deltaMax?: number;
   }> = [];
+  const bucketWrites: Promise<void>[] = [];
   for (const bucket of buckets.values()) {
     statUpdates.push(...bucket.statUpdates);
 
     if (Object.keys(bucket.statSet).length === 0) continue;
 
-    await updateCharacterData(bucket.idStr, { $set: bucket.statSet });
+    bucketWrites.push((async () => {
+      await updateCharacterData(bucket.idStr, { $set: bucket.statSet });
 
-    if (bucket.crossCharacterChanges.length > 0) {
-      const sourceTags = actualSource.tags || [];
-      const hasStealthTag = sourceTags.includes('stealth');
+      if (bucket.crossCharacterChanges.length > 0) {
+        const sourceTags = actualSource.tags || [];
+        const hasStealthTag = sourceTags.includes('stealth');
 
-      emitCharacterAffected(bucket.idStr, {
-        targetCharacterId: bucket.idStr,
-        sourceCharacterId: sourceOwnerIdStr,
-        sourceCharacterName: hasStealthTag ? '' : sourceOwner.name,
-        sourceType: actualSourceType,
-        sourceName: '', // 不顯示技能/道具名稱
-        sourceHasStealthTag: hasStealthTag,
-        effectType: 'stat_change',
-        changes: {
-          stats: bucket.crossCharacterChanges.map((c) => ({
-            name: c.name, deltaValue: c.deltaValue,
-            deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
-          })),
-        },
-      }).catch((err) => console.error('[contest-effect-executor] emitCharacterAffected failed', err));
-    }
+        emitCharacterAffected(bucket.idStr, {
+          targetCharacterId: bucket.idStr,
+          sourceCharacterId: sourceOwnerIdStr,
+          sourceCharacterName: hasStealthTag ? '' : sourceOwner.name,
+          sourceType: actualSourceType,
+          sourceName: '', // 不顯示技能/道具名稱
+          sourceHasStealthTag: hasStealthTag,
+          effectType: 'stat_change',
+          changes: {
+            stats: bucket.crossCharacterChanges.map((c) => ({
+              name: c.name, deltaValue: c.deltaValue,
+              deltaMax: c.deltaMax, newValue: c.newValue, newMax: c.newMax,
+            })),
+          },
+        }).catch((err) => console.error('[contest-effect-executor] emitCharacterAffected failed', err));
+      }
+    })());
   }
-
-  const updatedAttacker = await getCharacterData(attackerIdStr);
-  const updatedDefender = await getCharacterData(defenderIdStr);
-
-  if (!updatedAttacker || !updatedDefender) {
-    throw new Error('找不到角色');
-  }
+  await Promise.all([...bucketWrites, ...tempEffectWrites]);
 
   const winnerCharacterId = contestResult === 'defender_wins' ? defenderIdStr : attackerIdStr;
   const winnerCharacterName = contestResult === 'defender_wins' ? defender.name : attacker.name;
   const loserCharacterId = contestResult === 'defender_wins' ? attackerIdStr : defenderIdStr;
   const loserCharacterName = contestResult === 'defender_wins' ? attacker.name : defender.name;
 
-  await writeLog({
-    gameId: attacker.gameId.toString(),
-    characterId: winnerCharacterId,
-    actorType: 'character',
-    actorId: winnerCharacterId,
-    action: 'contest_result',
-    details: {
-      contestResult,
-      sourceType: actualSourceType,
-      sourceId: actualSource.id,
-      sourceName: actualSource.name,
-      attackerCharacterId: attackerIdStr,
-      attackerCharacterName: attacker.name,
-      defenderCharacterId: defenderIdStr,
-      defenderCharacterName: defender.name,
-      winnerCharacterId,
-      winnerCharacterName,
-      loserCharacterId,
-      loserCharacterName,
-      effectsApplied,
-      statChanges: statUpdates.length > 0 ? statUpdates : undefined,
-      targetItemId: targetItemId || undefined,
-    },
-  });
+  // 批 2：結算 log 與結尾重讀互不依賴 → 平行；重讀本身的兩個角色也平行。
+  // skipFinalReload：呼叫端不需要最新 doc 時跳過重讀（回傳傳入的原始 doc）
+  const [reloaded] = await Promise.all([
+    options?.skipFinalReload
+      ? Promise.resolve(null)
+      : Promise.all([getCharacterData(attackerIdStr), getCharacterData(defenderIdStr)]),
+    writeLog({
+      gameId: attacker.gameId.toString(),
+      characterId: winnerCharacterId,
+      actorType: 'character',
+      actorId: winnerCharacterId,
+      action: 'contest_result',
+      details: {
+        contestResult,
+        sourceType: actualSourceType,
+        sourceId: actualSource.id,
+        sourceName: actualSource.name,
+        attackerCharacterId: attackerIdStr,
+        attackerCharacterName: attacker.name,
+        defenderCharacterId: defenderIdStr,
+        defenderCharacterName: defender.name,
+        winnerCharacterId,
+        winnerCharacterName,
+        loserCharacterId,
+        loserCharacterName,
+        effectsApplied,
+        statChanges: statUpdates.length > 0 ? statUpdates : undefined,
+        targetItemId: targetItemId || undefined,
+      },
+    }),
+  ]);
+
+  let updatedAttacker = attacker;
+  let updatedDefender = defender;
+  if (reloaded) {
+    [updatedAttacker, updatedDefender] = reloaded;
+
+    if (!updatedAttacker || !updatedDefender) {
+      throw new Error('找不到角色');
+    }
+  }
 
   // 隱藏技能/物品自動揭露：actualSource 的擁有者（sourceOwner，依勝負可能為攻或守）
   // = 主動使用；其對手（opponent）= 被動被使用。以 source 的歸屬判定，而非固定攻/守。

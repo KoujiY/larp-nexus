@@ -10,7 +10,7 @@
  * 3. 執行效果後，根據結果發送對應的通知
  */
 
-import { emitContestResult, emitContestEffect } from '@/lib/contest/contest-event-emitter';
+import { emitContestResult, emitContestEffect, emitContestEventsBatch } from '@/lib/contest/contest-event-emitter';
 import { emitSkillUsed } from '@/lib/websocket/events';
 import { getBaselineCharacterId } from '@/lib/game/get-character-data';
 import type { CharacterDocument } from '@/lib/db/models';
@@ -161,6 +161,13 @@ export class ContestNotificationManager {
       const isDefenderWins = result === 'defender_wins';
       const skipDefender = isDefenderWins && !hasDefenderResponse;
 
+      // PERF_INCIDENT_2026-06 批 2：攻擊方與防守方是獨立收件人，先收集各自的
+      // payload，最後一次批次發送（Pusher 平行 + pending events 單次 insertMany）
+      const initialTargets: Array<{
+        characterId: string;
+        payload: Omit<SkillContestEvent['payload'], 'subType'>;
+      }> = [];
+
       // Phase 4: 修復邏輯錯誤
       // 發送給攻擊方
       // Phase 10: 攻擊方獲勝且需要選擇目標道具時，才發送初始結果給攻擊方（讓前端能夠開啟選擇道具 dialog）
@@ -169,12 +176,10 @@ export class ContestNotificationManager {
       if (isAttackerWins) {
         if (needsTargetItemSelection) {
           // 攻擊方獲勝且需要選擇目標道具：發送無效果的結果給攻擊方（包含 needsTargetItemSelection 標記）
-          await emitContestResult(
-            attackerIdStr,
-            defenderIdStr,
-            { ...contestPayload, effectsApplied: undefined },
-            { skipAttacker: false, skipDefender: true }
-          );
+          initialTargets.push({
+            characterId: attackerIdStr,
+            payload: { ...contestPayload, effectsApplied: undefined },
+          });
         }
         // 不需要選擇目標道具：跳過初始結果，最終結果會在 isSendingFinal 路徑發送
       } else if (isDefenderWins) {
@@ -189,12 +194,7 @@ export class ContestNotificationManager {
             attackerPayload.defenderSkills = undefined;
             attackerPayload.defenderItems = undefined;
           }
-          await emitContestResult(
-            attackerIdStr,
-            defenderIdStr,
-            attackerPayload,
-            { skipAttacker: false, skipDefender: true }
-          );
+          initialTargets.push({ characterId: attackerIdStr, payload: attackerPayload });
         }
         // 如果防守方需要選擇目標道具，不發送給攻擊方（將在選擇道具後發送）
       }
@@ -205,12 +205,10 @@ export class ContestNotificationManager {
       if (!skipDefender) {
         if (isAttackerWins) {
           // 攻擊方獲勝：發送無效果的結果給防守方
-          await emitContestResult(
-            attackerIdStr,
-            defenderIdStr,
-            { ...contestPayload, effectsApplied: undefined },
-            { skipAttacker: true, skipDefender: false }
-          );
+          initialTargets.push({
+            characterId: defenderIdStr,
+            payload: { ...contestPayload, effectsApplied: undefined },
+          });
         } else if (isDefenderWins && hasDefenderResponse) {
           // 防守方獲勝且有回應：發送無效果的結果給防守方
           // 如果防守方需要選擇目標道具，需要設置防守方的技能/道具 ID
@@ -252,13 +250,13 @@ export class ContestNotificationManager {
               defenderPayload.sourceType = defenderSourceType;
             }
           }
-          await emitContestResult(
-            attackerIdStr,
-            defenderIdStr,
-            defenderPayload,
-            { skipAttacker: true, skipDefender: false }
-          );
+          initialTargets.push({ characterId: defenderIdStr, payload: defenderPayload });
         }
+      }
+
+      // 批次發送本階段所有初始結果（攻防雙方各自獨立 _eventId，行為與逐筆發送一致）
+      if (initialTargets.length > 0) {
+        await emitContestEventsBatch('result', initialTargets);
       }
     }
 
@@ -306,53 +304,61 @@ export class ContestNotificationManager {
         });
       } else if (isDefenderWins) {
         // 防守方獲勝
-        // 發送包含效果的完整事件給防守方（如果有回應）
-        if (hasDefenderResponse) {
-          // 設置防守方使用的技能/道具名稱
-          const updatedPayload = { ...contestPayload };
-          if (defenderSource && defenderSourceType === 'skill') {
-            updatedPayload.skillName = defenderSource.name;
-            updatedPayload.skillId = defenderSource.id;
-            updatedPayload.itemName = undefined;
-            updatedPayload.itemId = undefined;
-          } else if (defenderSource && defenderSourceType === 'item') {
-            updatedPayload.itemName = defenderSource.name;
-            updatedPayload.itemId = defenderSource.id;
-            updatedPayload.skillName = undefined;
-            updatedPayload.skillId = undefined;
+        // PERF_INCIDENT_2026-06 批 2：攻擊方與防守方是獨立收件人，兩條事件鏈
+        // 平行發送；同一收件人內（防守方 contest result → skill.used）保持順序
+        const defenderChain = async () => {
+          // 發送包含效果的完整事件給防守方（如果有回應）
+          if (hasDefenderResponse) {
+            // 設置防守方使用的技能/道具名稱
+            const updatedPayload = { ...contestPayload };
+            if (defenderSource && defenderSourceType === 'skill') {
+              updatedPayload.skillName = defenderSource.name;
+              updatedPayload.skillId = defenderSource.id;
+              updatedPayload.itemName = undefined;
+              updatedPayload.itemId = undefined;
+            } else if (defenderSource && defenderSourceType === 'item') {
+              updatedPayload.itemName = defenderSource.name;
+              updatedPayload.itemId = defenderSource.id;
+              updatedPayload.skillName = undefined;
+              updatedPayload.skillId = undefined;
+            }
+
+            await emitContestResult(
+              attackerIdStr,
+              defenderIdStr,
+              { ...updatedPayload, effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined },
+              { skipAttacker: true, skipDefender: false }
+            );
           }
 
-          await emitContestResult(
-            attackerIdStr,
-            defenderIdStr,
-            { ...updatedPayload, effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined },
-            { skipAttacker: true, skipDefender: false }
-          );
-        }
+          // 發送 skill.used（成功）給防守方（如果有回應）
+          if (defenderSource && hasDefenderResponse) {
+            await emitSkillUsed(defenderIdStr, {
+              characterId: defenderIdStr,
+              skillId: defenderSource.id,
+              skillName: defenderSource.name,
+              checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
+              checkPassed: true,
+              effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+            });
+          }
+        };
 
-        // 發送 skill.used（失敗）給攻擊方
-        // 注意：如果防守方需要選擇目標道具，不應該在這裡發送（將在選擇道具後發送）
-        if (!needsTargetItemSelection) {
-          await emitSkillUsed(attackerIdStr, {
-            characterId: attackerIdStr,
-            skillId: attackerSource.id,
-            skillName: attackerSource.name,
-            checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
-            checkPassed: false,
-          });
-        }
+        const attackerChain = async () => {
+          // 發送 skill.used（失敗）給攻擊方
+          // 注意：如果防守方需要選擇目標道具，不應該在這裡發送（將在選擇道具後發送）
+          if (!needsTargetItemSelection) {
+            await emitSkillUsed(attackerIdStr, {
+              characterId: attackerIdStr,
+              skillId: attackerSource.id,
+              skillName: attackerSource.name,
+              checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
+              checkPassed: false,
+            });
+          }
+        };
 
-        // 發送 skill.used（成功）給防守方（如果有回應）
-        if (defenderSource && hasDefenderResponse) {
-          await emitSkillUsed(defenderIdStr, {
-            characterId: defenderIdStr,
-            skillId: defenderSource.id,
-            skillName: defenderSource.name,
-            checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
-            checkPassed: true,
-            effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
-          });
-        }
+        await Promise.all([defenderChain(), attackerChain()]);
       }
       // result === 'both_fail' 時不發送 skill.used 事件
     }
@@ -452,10 +458,7 @@ export class ContestNotificationManager {
     if (isDefenderWins && hasDefenderResponse && defenderSource) {
       // 防守方獲勝：發送包含效果的完整事件給防守方和攻擊方
       // Phase 9: 防守方選擇道具後，需要同時通知攻擊方和防守方
-      await emitContestEffect(defenderIdStr, contestPayload);
-      
-      // 同時發送給攻擊方，讓攻擊方知道對抗檢定已完成並關閉等待面板
-      // 注意：發送給攻擊方的 payload 需要包含攻擊方的技能/道具 ID，以便攻擊方能正確清除 pendingContest
+      // 發送給攻擊方的 payload 需要包含攻擊方的技能/道具 ID，以便攻擊方能正確清除 pendingContest
       const attackerPayload = { ...contestPayload };
       // 恢復攻擊方的技能/道具 ID（攻擊方的 pendingContest 是基於攻擊方的技能/道具 ID 存儲的）
       if (attackerSourceType === 'skill') {
@@ -471,28 +474,39 @@ export class ContestNotificationManager {
       }
       // 恢復攻擊方的 sourceType
       attackerPayload.sourceType = attackerSourceType;
-      await emitContestEffect(attackerIdStr, attackerPayload);
+
+      // PERF_INCIDENT_2026-06 批 2：兩個收件人的 effect 事件批次發送
+      //（Pusher 平行 + pending 單次 insertMany），完成後再平行發送各自的 skill.used
+      //（同一收件人內保持 contest effect → skill.used 的順序）
+      await emitContestEventsBatch('effect', [
+        { characterId: defenderIdStr, payload: contestPayload },
+        { characterId: attackerIdStr, payload: attackerPayload },
+      ]);
+
+      const skillUsedEmits: Promise<void>[] = [];
 
       // 發送 skill.used（成功）給防守方
       if (defenderSourceType === 'skill') {
-        await emitSkillUsed(defenderIdStr, {
+        skillUsedEmits.push(emitSkillUsed(defenderIdStr, {
           characterId: defenderIdStr,
           skillId: defenderSource.id,
           skillName: defenderSource.name,
           checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
           checkPassed: true,
           effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
-        });
+        }));
       }
 
       // 發送 skill.used（失敗）給攻擊方
-      await emitSkillUsed(attackerIdStr, {
+      skillUsedEmits.push(emitSkillUsed(attackerIdStr, {
         characterId: attackerIdStr,
         skillId: attackerSource.id,
         skillName: attackerSource.name,
         checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
         checkPassed: false,
-      });
+      }));
+
+      await Promise.all(skillUsedEmits);
     } else {
       // 攻擊方獲勝：發送包含效果的完整事件給攻擊方
       // 修復：確保防守方沒有回應時，清除 defenderSkills 和 defenderItems
@@ -501,21 +515,26 @@ export class ContestNotificationManager {
         attackerWinsPayload.defenderSkills = undefined;
         attackerWinsPayload.defenderItems = undefined;
       }
-      await emitContestEffect(attackerIdStr, attackerWinsPayload);
 
-      // 發送 skill.used（成功）給攻擊方
-      await emitSkillUsed(attackerIdStr, {
-        characterId: attackerIdStr,
-        skillId: attackerSource.id,
-        skillName: attackerSource.name,
-        checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
-        checkPassed: true,
-        effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
-      });
-      
-      // 問題1修復：發送 skill.used（失敗）給防守方（如果防守方有使用技能/道具回應）
-      if (hasDefenderResponse && defenderSource && defenderSourceType) {
-        if (defenderSourceType === 'skill') {
+      // PERF_INCIDENT_2026-06 批 2：攻擊方鏈（effect → skill.used 保序）與
+      // 防守方鏈（skill.used）互相獨立，平行發送
+      const attackerChain = async () => {
+        await emitContestEffect(attackerIdStr, attackerWinsPayload);
+
+        // 發送 skill.used（成功）給攻擊方
+        await emitSkillUsed(attackerIdStr, {
+          characterId: attackerIdStr,
+          skillId: attackerSource.id,
+          skillName: attackerSource.name,
+          checkType: checkType === 'random_contest' ? 'random_contest' : 'contest',
+          checkPassed: true,
+          effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined,
+        });
+      };
+
+      const defenderChain = async () => {
+        // 問題1修復：發送 skill.used（失敗）給防守方（如果防守方有使用技能/道具回應）
+        if (hasDefenderResponse && defenderSource && defenderSourceType === 'skill') {
           await emitSkillUsed(defenderIdStr, {
             characterId: defenderIdStr,
             skillId: defenderSource.id,
@@ -527,7 +546,9 @@ export class ContestNotificationManager {
             targetCharacterName: attacker.name, // 目標角色名稱
           });
         }
-      }
+      };
+
+      await Promise.all([attackerChain(), defenderChain()]);
     }
   }
 }

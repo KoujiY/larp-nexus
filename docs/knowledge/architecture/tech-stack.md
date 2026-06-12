@@ -45,4 +45,4 @@
 - Run `pnpm analyze` to rebuild with webpack pipeline and emit `.next/analyze/{client,edge,nodejs}.html`
 - `.github/workflows/bundle-analysis.yml` runs it on PR/push and uploads the HTML reports as artifacts
 - `.github/workflows/lighthouse.yml` + `.github/lighthouserc.json` run Lighthouse CI against static routes (`/`, `/auth/login`, `/auth/verify`) on PRs with warn-only assertions
-- See `docs/refactoring/FRONTEND_PERFORMANCE_OPTIMIZATION.md` for the eager First Load JS baseline per route and optimization history
+- See `docs/archive/FRONTEND_PERFORMANCE_OPTIMIZATION.md` for the eager First Load JS baseline per route and optimization history

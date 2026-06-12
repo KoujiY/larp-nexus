@@ -329,13 +329,16 @@ function buildTriggerReason(condition: AutoRevealCondition): string {
  * 8. 批量發送揭露事件
  *
  * @param characterId - 要檢查的角色 ID
- * @param trigger - 觸發來源（用於日誌）
+ * @param trigger - 觸發來源（單一或多個；多個時條件集合取聯集，等價於
+ *   對同一角色逐一觸發，但只重讀一次角色資料 —— PERF_INCIDENT_2026-06 批 2）
  * @returns 所有揭露結果
  */
 export async function executeAutoReveal(
   characterId: string,
-  trigger: RevealTrigger
+  trigger: RevealTrigger | RevealTrigger[]
 ): Promise<RevealResult[]> {
+  const triggers: RevealTrigger[] = Array.isArray(trigger) ? trigger : [trigger];
+  if (triggers.length === 0) return [];
   // 1. 讀取最新角色資料（Phase 11: 自動判斷 Baseline/Runtime）
   let character;
   try {
@@ -405,18 +408,18 @@ export async function executeAutoReveal(
     revealedSecretIds
   );
 
-  // 6. 評估技能/物品可見性條件
+  // 6. 評估技能/物品可見性條件（多 trigger 時取聯集）
   const usedSkillIds = new Set<string>(
-    trigger.type === 'skill_used' ? trigger.skillIds : []
+    triggers.flatMap((t) => (t.type === 'skill_used' ? t.skillIds : []))
   );
   const usedItemIds = new Set<string>(
-    trigger.type === 'item_used' ? trigger.itemIds : []
+    triggers.flatMap((t) => (t.type === 'item_used' ? t.itemIds : []))
   );
   const targetedSkillIds = new Set<string>(
-    trigger.type === 'skill_targeted' ? trigger.skillIds : []
+    triggers.flatMap((t) => (t.type === 'skill_targeted' ? t.skillIds : []))
   );
   const targetedItemIds = new Set<string>(
-    trigger.type === 'item_targeted' ? trigger.itemIds : []
+    triggers.flatMap((t) => (t.type === 'item_targeted' ? t.itemIds : []))
   );
 
   const skillEntries: SkillEntry[] = (character.skills ?? []).map((s: {
@@ -631,7 +634,7 @@ export async function executeAutoReveal(
 
   const skillItemCount = skillItemResults.length;
   console.info(
-    `[auto-reveal] Character ${characterIdStr}: revealed ${secretResults.length} secrets, ${taskResults.length} tasks, ${skillItemCount} skill/item changes (trigger: ${trigger.type})`
+    `[auto-reveal] Character ${characterIdStr}: revealed ${secretResults.length} secrets, ${taskResults.length} tasks, ${skillItemCount} skill/item changes (trigger: ${triggers.map((t) => t.type).join('+')})`
   );
 
   return allResults;

@@ -4,20 +4,22 @@
  * 清空 DB 所有 collection + contest-tracker in-memory Map + E2E bus listeners。
  * 每個 test 開始前呼叫，確保乾淨的初始狀態。
  *
- * 僅在 `process.env.E2E === '1'` 時可用。
+ * 僅在 `E2E=1`（本機 E2E）或設定 `LOADTEST_TOKEN`（staging 壓測，
+ * 須帶相符的 `x-loadtest-token` header）時可用。
  */
 
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/db/mongodb';
+import { isTestRouteAllowed } from '@/lib/test-route-guard';
 import { __testResetAll } from '@/lib/contest-tracker';
 import { getE2EBus } from '@/lib/websocket/__e2e__/event-bus';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(): Promise<Response> {
-  if (process.env.E2E !== '1') {
+export async function POST(request: Request): Promise<Response> {
+  if (!isTestRouteAllowed(request)) {
     return new NextResponse('Not Found', { status: 404 });
   }
 

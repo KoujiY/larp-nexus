@@ -1,6 +1,7 @@
 'use server';
 
 import dbConnect from '@/lib/db/mongodb';
+import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
 import Log from '@/lib/db/models/Log';
 import Game from '@/lib/db/models/Game';
 import { getCurrentGMUserId } from '@/lib/auth/session';
@@ -33,6 +34,14 @@ export interface LogData {
  * @returns 日誌列表
  */
 export async function getGameLogs(
+  gameId: string,
+  options?: { limit?: number; characterId?: string }
+): Promise<ApiResponse<LogData[]>> {
+  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：量測 GM 端 burst 時的呼叫頻率（假設 #8 的量尺）
+  return runWithPerf('get-game-logs', () => getGameLogsImpl(gameId, options));
+}
+
+async function getGameLogsImpl(
   gameId: string,
   options?: { limit?: number; characterId?: string }
 ): Promise<ApiResponse<LogData[]>> {

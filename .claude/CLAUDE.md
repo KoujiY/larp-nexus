@@ -97,7 +97,7 @@ docs/             # 文檔
   ├── knowledge/  # 原子化知識庫（主要參考）
   ├── specs/      # 技術規格（詳細 API/WebSocket 規格）
   ├── archive/    # 歷史文件（唯讀參考）
-  └── refactoring/ # 開發規劃（NEXT_DEVELOPMENT_PLAN.md）
+  └── refactoring/ # 開發規劃（活躍計畫文件 + BACKLOG.md）
 ```
 
 ## 開發工具
@@ -124,6 +124,18 @@ docs/             # 文檔
 5. `/code-review` 審查程式碼
 6. 同步檢查（知識庫 + 開發規劃 + E2E 影響評估）
 7. Commit（按 type 拆分）& PR
+8. 結案與封存（見下方「結案與封存」）
+
+### 結案與封存（MANDATORY，開發最後一步）
+
+計畫文件（`docs/refactoring/` 下）所有項目完成、驗收簽核後：
+
+1. **抽出殘留事項**：把文件尾部的「相關但獨立的議題」「待補資料」「後續可選 iteration」等未完成註記，搬到 `docs/refactoring/BACKLOG.md`（標注來源文件）
+2. **封存文件**：`git mv` 至 `docs/archive/`（一次性的 spec/設計文件亦同；`docs/superpowers/` 產出保留子目錄結構）
+3. **更新引用**：grep 被移動檔名，修正所有指向舊路徑的引用（知識庫、CLAUDE.md、程式碼註解、README）
+4. **檢視 `docs/USER_GUIDE.md`**：本輪開發若有使用者可見的功能變更，同步更新操作手冊
+
+原則：`docs/refactoring/` 只放「進行中或待執行」的文件；讀完即知全貌，不需要翻閱已完成文件的尾部找殘留事項。違反此流程會導致過時文件堆積、未完成事項被埋沒。
 
 ### Bug 修復
 1. 讀取相關知識庫文件理解現行邏輯

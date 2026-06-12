@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { createThrottledCallback } from '@/lib/utils/throttle';
 import { CharacterStatusOverview } from '@/components/gm/character-status-overview';
 import { EventLog } from '@/components/gm/event-log';
 import { GameBroadcastPanel } from '@/components/gm/game-broadcast-panel';
@@ -94,6 +95,15 @@ export function RuntimeConsole({ gameId, characters }: RuntimeConsoleProps) {
     setRefreshKey((k) => k + 1);
   }, []);
 
+  // 批 3（#8 防禦）：WebSocket 事件驅動的 log 刷新走節流（leading+trailing 500ms），
+  // burst 時收斂為每窗口至多一次 getGameLogs；GM 主動操作（廣播/預設事件）
+  // 仍走上方的即時 handleBroadcastSent
+  const throttledLogRefresh = useMemo(
+    () => createThrottledCallback(() => setRefreshKey((k) => k + 1), 500),
+    [],
+  );
+  useEffect(() => () => throttledLogRefresh.cancel(), [throttledLogRefresh]);
+
   // 高度由 GameEditTabs 的 flex 佈局約束，此處用 h-full 填滿
   return (
     <div className="flex flex-col gap-8 h-full overflow-hidden">
@@ -104,7 +114,7 @@ export function RuntimeConsole({ gameId, characters }: RuntimeConsoleProps) {
         currentItemsMap={currentItemsMap}
         onStatUpdate={handleStatUpdate}
         onItemsUpdate={handleItemsUpdate}
-        onLogRefresh={handleBroadcastSent}
+        onLogRefresh={throttledLogRefresh}
       />
 
       {/* 1. 角色狀態總覽 */}

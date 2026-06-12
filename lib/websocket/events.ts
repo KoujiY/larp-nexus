@@ -25,6 +25,8 @@ import type {
   ItemHiddenEvent,
 } from '@/types/event';
 import { getPusherServer, isPusherEnabled } from './pusher-server';
+// 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：累加 Pusher trigger 耗時與次數
+import { timePusher } from '@/lib/perf/perf-context';
 // Phase 9: 離線事件佇列寫入
 import {
   writePendingEvent,
@@ -58,7 +60,8 @@ async function trigger(channel: string, eventName: EventName, payload: BaseEvent
   };
 
   try {
-    await pusher.trigger(channel, eventName, event);
+    // 失敗也計次（timePusher 的 finally）：對延遲分析而言，重點是「花了多少時間在等 Pusher」
+    await timePusher(pusher.trigger(channel, eventName, event));
   } catch (error) {
     console.error('[pusher] trigger error', { channel, eventName, error });
   }
@@ -83,6 +86,35 @@ export async function emitRoleUpdated(characterId: string, payload: RoleUpdatedE
   await Promise.all([
     trigger(`private-character-${characterId}`, 'role.updated', payloadWithId),
     writePendingEvent(characterId, 'role.updated', payloadWithId as Record<string, unknown>),
+  ]);
+}
+
+/**
+ * 批次推送「角色資料更新」事件到多個角色頻道，pending events 合併為單次寫入
+ *
+ * PERF_INCIDENT_2026-06 批 2：供「同一動作需通知多個獨立角色」的呼叫端使用
+ * （如物品轉移的轉出方 + 接收方）。每個目標注入獨立 _eventId，
+ * Pusher trigger 平行發送、pending events 一次 insertMany。
+ */
+export async function emitRoleUpdatedBatch(
+  targets: Array<{ characterId: string; payload: RoleUpdatedEvent['payload'] }>
+) {
+  if (targets.length === 0) return;
+  const entries = targets.map((target) => ({
+    characterId: target.characterId,
+    payloadWithId: { ...target.payload, _eventId: generateEventId() },
+  }));
+  await Promise.all([
+    ...entries.map(({ characterId, payloadWithId }) =>
+      trigger(`private-character-${characterId}`, 'role.updated', payloadWithId)
+    ),
+    writePendingEvents(
+      entries.map(({ characterId, payloadWithId }) => ({
+        targetCharacterId: characterId,
+        eventType: 'role.updated' as const,
+        eventPayload: payloadWithId as Record<string, unknown>,
+      }))
+    ),
   ]);
 }
 

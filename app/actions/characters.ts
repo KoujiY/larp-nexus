@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { uploadImageToBlob, deleteImagesFromBlob, collectCharacterImageUrls } from '@/lib/image/upload';
 import { Character, CharacterRuntime, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10: 統一讀取
 import { serializePublicInfo } from '@/lib/character/normalize-background';
@@ -187,6 +188,7 @@ export async function getCharactersByGameId(
 export async function getCharacterById(
   characterId: string
 ): Promise<ApiResponse<CharacterData>> {
+  return runWithGameCache(async () => {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -259,6 +261,7 @@ export async function getCharacterById(
       message: '無法取得角色資料',
     };
   }
+  });
 }
 
 /**

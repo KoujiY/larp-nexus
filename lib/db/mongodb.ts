@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import * as fs from 'fs';
 import * as path from 'path';
+import { isPerfLogEnabled } from '@/lib/perf/perf-context';
+import { installDbTiming } from '@/lib/perf/db-timing';
+import { scheduleIndexCheck } from '@/lib/db/index-check';
 
 type MongooseConnection = typeof mongoose;
 
@@ -41,6 +44,11 @@ function resolveMongoUri(): string {
 }
 
 async function connectDB() {
+  // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：PERF_LOG=1 時安裝查詢計時
+  if (isPerfLogEnabled()) {
+    installDbTiming();
+  }
+
   const MONGODB_URI = resolveMongoUri();
 
   if (!MONGODB_URI) {
@@ -54,12 +62,29 @@ async function connectDB() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      // 冷啟動瘦身（PERF_INCIDENT_2026-06 批 2）：
+      // - maxPoolSize：Vercel Fluid 實測同 instance 併發 ~5-6，10 已足夠；
+      //   壓低池上限避免 burst 時對 M0 開出過多 socket
+      // - minPoolSize：保留一條暖連線，降低 idle 後重握手機率
+      maxPoolSize: 10,
+      minPoolSize: 1,
+      // - autoIndex：production/loadtest 關閉（index 已建在 Atlas，省去每次
+      //   冷啟動逐 model 發 createIndex 的往返）。E2E 必須保持 true ——
+      //   E2E 以 NODE_ENV=production 跑 next start，但 MongoMemoryServer
+      //   是全新空 DB，關掉會導致 index / unique 約束完全不存在。
+      //   ⚠️ 維運注意：schema 新增 index 後需手動 sync（見知識庫 architecture/）
+      autoIndex: process.env.E2E === '1' || process.env.NODE_ENV !== 'production',
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((conn) => {
       const host = conn.connection.host;
       const dbName = conn.connection.db?.databaseName;
       console.info(`[MongoDB] Connected successfully → ${host}/${dbName}`);
+      // autoIndex 關閉的環境：背景比對 schema 宣告與 DB 實際 index，
+      // 缺漏時 console.warn（fire-and-forget，不阻塞請求路徑）
+      if (!opts.autoIndex) {
+        scheduleIndexCheck();
+      }
       return conn;
     });
   }

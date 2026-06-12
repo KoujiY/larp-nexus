@@ -1,7 +1,8 @@
 /**
  * E2E 專用 test-login route
  *
- * 僅在 `process.env.E2E === '1'` 時可用；正式環境回 404。
+ * 僅在 `E2E=1`（本機 E2E）或設定 `LOADTEST_TOKEN`（staging 壓測，
+ * 須帶相符的 `x-loadtest-token` header）時可用；正式環境回 404。
  *
  * 透過 manipulate iron-session 直接蓋入 GM / player 的登入狀態，
  * 避免 E2E 測試每次都要走完整 OTP / PIN 流程（純基礎設施層）。
@@ -16,6 +17,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth/session';
+import { isTestRouteAllowed } from '@/lib/test-route-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,7 +36,7 @@ const playerSchema = z.object({
 const bodySchema = z.union([gmSchema, playerSchema]);
 
 export async function POST(request: Request): Promise<Response> {
-  if (process.env.E2E !== '1') {
+  if (!isTestRouteAllowed(request)) {
     return new NextResponse('Not Found', { status: 404 });
   }
 

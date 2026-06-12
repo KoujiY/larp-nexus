@@ -79,7 +79,7 @@ interface RoleUpdatedEvent extends BaseEvent {
 
 | 觸發場景 | 主事件 | silentSync 用途 |
 |---|---|---|
-| 玩家穿戴/卸除裝備 | `equipment.toggled` | 同步 GM 端 stats 與 items.equipped |
+| 玩家穿戴/卸除裝備 | `equipment.toggled` | 同步 GM 端 stats（僅帶 stats，不帶 items——完整 items 易超過 Pusher 10KB 上限；items.equipped 由 `equipment.toggled` 事件自洽同步） |
 | 技能/道具效果改變 stats | `character.affected` | 同步 GM 端 base stats |
 | 時效性效果過期 | `effect.expired` | 同步 GM 端恢復後的 stats |
 

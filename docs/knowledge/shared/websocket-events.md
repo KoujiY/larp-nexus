@@ -43,6 +43,13 @@
 | `game.ended` | Game ended |
 | `notifications.cleared` | GM 一鍵清除：全體玩家清空前端通知面板（純前端，不刪 DB；不寫 pending events） |
 
+## 批次發送（PERF_INCIDENT_2026-06 批 2）
+同一動作需通知**多個獨立收件人**時，使用批次發送函數：Pusher trigger 平行發送、pending events 合併為**單次 `insertMany`**，每個收件人注入**獨立 `_eventId`**（與逐筆發送的去重行為一致）。
+- `lib/contest/contest-event-emitter.ts` → `emitContestEventsBatch(subType, targets)`：對抗結果/效果事件（通知管理器的初始結果與 select-item 效果階段使用）
+- `lib/websocket/events.ts` → `emitRoleUpdatedBatch(targets)`：物品轉移的轉出方 + 接收方同步
+
+順序原則：**跨收件人可平行；同一收件人的多個事件有順序需求時仍須依序逐筆發送**（如防守方的 `skill.contest` result 必須先於其 `skill.used`）。
+
 ## Base Event Structure
 ```typescript
 interface BaseEvent {
@@ -59,6 +66,7 @@ interface BaseEvent {
 - `lib/utils/event-mappers.ts` — 將原始事件轉換為通知顯示格式
 
 ### GM 端（Runtime 控制台）
+- **log 刷新節流（PERF_INCIDENT_2026-06 批 3）**：WebSocket 事件驅動的歷史紀錄刷新（`getGameLogs`）經 `lib/utils/throttle.ts` 的 leading+trailing 節流（500ms）——閒置時首個事件立即刷新、burst 收斂為每窗口至多一次，消除「事件越多 → GM 查詢越多」的自我放大（假設 #8）。GM 主動操作（發廣播、執行預設事件）仍即時刷新，不受節流影響（`components/gm/runtime-console.tsx`）。
 - `components/gm/runtime-console-ws-listener.tsx` — 輕量 WebSocket 監聽器
   - 僅監聽 3 種 stat 相關事件：`role.updated`、`character.affected`、`effect.expired`
   - 從 event payload 直接解析 stat 變動，透過 callback 更新 client state（零 DB 查詢）

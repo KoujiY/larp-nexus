@@ -1,7 +1,8 @@
 /**
  * E2E 專用 SSE route
  *
- * 僅在 `process.env.E2E === '1'` 時可用；正式環境回 404。
+ * 僅在 `E2E=1`（本機 E2E）或設定 `LOADTEST_TOKEN`（staging 壓測，
+ * 須帶相符的 `x-loadtest-token` header）時可用；正式環境回 404。
  *
  * 此 route 把 `lib/websocket/__e2e__/event-bus.ts` 的 EventEmitter
  * 橋接到 browser 端的 `pusher-client.e2e.ts`（透過 EventSource）：
@@ -21,12 +22,13 @@
 
 import type { E2EBusPayload } from '@/lib/websocket/__e2e__/event-bus';
 import { getE2EBus } from '@/lib/websocket/__e2e__/event-bus';
+import { isTestRouteAllowed } from '@/lib/test-route-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<Response> {
-  if (process.env.E2E !== '1') {
+export async function GET(request: Request): Promise<Response> {
+  if (!isTestRouteAllowed(request)) {
     return new Response('Not Found', { status: 404 });
   }
 

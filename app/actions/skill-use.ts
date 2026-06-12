@@ -1,13 +1,15 @@
 'use server';
 
 import { withAction } from '@/lib/actions/action-wrapper';
+import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { emitSkillUsed } from '@/lib/websocket/events';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleAbilityCheck } from '@/lib/contest/check-handler';
 import { executeSkillEffects } from '@/lib/skill/skill-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
-import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
+import { processExpiredEffects } from '@/lib/effects/check-expired-effects'; // Phase 8: 過期效果檢查
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import { checkUsageConditions, buildConsumeUpdate } from '@/lib/character/usage-condition'; // Feature 3
@@ -37,7 +39,7 @@ export async function useSkill(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  return withAction(async () => {
+  return runWithGameCache(() => withAction(() => runWithPerf('skill-use', async () => {
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
@@ -45,7 +47,14 @@ export async function useSkill(
 
     // Phase 8: 使用技能前檢查並處理過期的時效性效果
     // 必須在 getCharacterData 之前執行，否則讀取的數值可能包含已過期效果的加值
-    await checkExpiredEffects(characterId);
+    // 直接呼叫 processExpiredEffects（不含 24h 紀錄清理）——清理屬維護性操作，
+    // 由開卡路徑（getPublicCharacter / getCharacterById）負責，熱路徑省 2 次 DB 往返
+    try {
+      await processExpiredEffects(characterId);
+    } catch (error) {
+      // 與原 checkExpiredEffects 行為一致：檢查失敗記錄但不阻斷動作
+      console.error('[skill-use] 過期效果檢查失敗:', error);
+    }
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
@@ -420,14 +429,20 @@ export async function useSkill(
       console.error('Failed to emit skill.used event', error);
     });
 
-    // 隱藏技能/物品：技能使用後觸發自動揭露評估（主動：施放方）
-    executeAutoReveal(characterId, { type: 'skill_used', skillIds: [skill.id] })
-      .catch((error) => console.error('[skill-use] Failed to execute auto-reveal for skill_used', error));
-
-    // 被動觸發：技能被使用在目標身上（無目標時視為對自己使用）
+    // 隱藏技能/物品：技能使用後觸發自動揭露評估（主動：施放方；被動：目標方）
+    // 批 2：無目標（對自己使用）時，主動 + 被動合併為單次呼叫，省一次角色重讀
     const skillTargetId = targetCharacterId ?? characterId;
-    executeAutoReveal(skillTargetId, { type: 'skill_targeted', skillIds: [skill.id] })
-      .catch((error) => console.error('[skill-use] Failed to execute auto-reveal for skill_targeted', error));
+    if (skillTargetId === characterId) {
+      executeAutoReveal(characterId, [
+        { type: 'skill_used', skillIds: [skill.id] },
+        { type: 'skill_targeted', skillIds: [skill.id] },
+      ]).catch((error) => console.error('[skill-use] Failed to execute auto-reveal for skill_used/skill_targeted', error));
+    } else {
+      executeAutoReveal(characterId, { type: 'skill_used', skillIds: [skill.id] })
+        .catch((error) => console.error('[skill-use] Failed to execute auto-reveal for skill_used', error));
+      executeAutoReveal(skillTargetId, { type: 'skill_targeted', skillIds: [skill.id] })
+        .catch((error) => console.error('[skill-use] Failed to execute auto-reveal for skill_targeted', error));
+    }
 
     // Phase 7.7: 技能使用通知發送完成後，觸發自動揭露評估（items_acquired）
     // 延遲到此處執行，確保揭露通知不會搶先於技能結果通知送達客戶端
@@ -458,5 +473,5 @@ export async function useSkill(
       },
       message: toastMessage,
     };
-  });
+  })));
 }

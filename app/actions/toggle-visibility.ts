@@ -1,6 +1,7 @@
 'use server';
 
 import { withAction } from '@/lib/actions/action-wrapper';
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
@@ -21,7 +22,7 @@ export async function toggleVisibility(
   type: 'skill' | 'item',
   targetId: string,
 ): Promise<ApiResponse<{ isHidden: boolean }>> {
-  return withAction(async () => {
+  return runWithGameCache(() => withAction(async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -133,5 +134,5 @@ export async function toggleVisibility(
     });
 
     return { success: true, data: { isHidden: newHidden }, message: newHidden ? '物品已隱藏' : '物品已揭露' };
-  });
+  }));
 }

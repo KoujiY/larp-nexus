@@ -2,15 +2,17 @@
 
 import { revalidatePath } from 'next/cache';
 import { withAction } from '@/lib/actions/action-wrapper';
+import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
+import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import type { CharacterDocument } from '@/lib/db/models';
-import { emitItemTransferred, emitItemUsed, emitRoleUpdated } from '@/lib/websocket/events';
+import { emitItemTransferred, emitItemUsed, emitRoleUpdatedBatch } from '@/lib/websocket/events';
 import { cleanItemData } from '@/lib/character-cleanup';
 import { isCharacterInContest } from '@/lib/contest-tracker';
 import { handleAbilityCheck } from '@/lib/contest/check-handler';
 import { executeItemEffects } from '@/lib/item/item-effect-executor';
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
-import { checkExpiredEffects } from './temporary-effects'; // Phase 8: 過期效果檢查
+import { processExpiredEffects } from '@/lib/effects/check-expired-effects'; // Phase 8: 過期效果檢查
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
 import { getItemEffects } from '@/lib/item/get-item-effects';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
@@ -44,7 +46,7 @@ export async function useItem(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  return withAction(async () => {
+  return runWithGameCache(() => withAction(() => runWithPerf('item-use', async () => {
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
@@ -52,7 +54,14 @@ export async function useItem(
 
     // Phase 8: 使用物品前檢查並處理過期的時效性效果
     // 必須在 getCharacterData 之前執行，否則讀取的數值可能包含已過期效果的加值
-    await checkExpiredEffects(characterId);
+    // 直接呼叫 processExpiredEffects（不含 24h 紀錄清理）——清理屬維護性操作，
+    // 由開卡路徑（getPublicCharacter / getCharacterById）負責，熱路徑省 2 次 DB 往返
+    try {
+      await processExpiredEffects(characterId);
+    } catch (error) {
+      // 與原 checkExpiredEffects 行為一致：檢查失敗記錄但不阻斷動作
+      console.error('[item-use] 過期效果檢查失敗:', error);
+    }
 
     // Phase 10.4: 使用統一的讀取函數（自動判斷 Baseline/Runtime）
     const character = await getCharacterData(characterId);
@@ -465,14 +474,20 @@ export async function useItem(
       console.error('Failed to emit item.used event', error);
     });
 
-    // 隱藏技能/物品：物品使用後觸發自動揭露評估（主動：施放方）
-    executeAutoReveal(characterId, { type: 'item_used', itemIds: [item.id] })
-      .catch((error) => console.error('[item-use] Failed to execute auto-reveal for item_used', error));
-
-    // 被動觸發：物品被使用在目標身上（無目標時視為對自己使用）
+    // 隱藏技能/物品：物品使用後觸發自動揭露評估（主動：施放方；被動：目標方）
+    // 批 2：無目標（對自己使用）時，主動 + 被動合併為單次呼叫，省一次角色重讀
     const itemTargetId = targetCharacterId ?? characterId;
-    executeAutoReveal(itemTargetId, { type: 'item_targeted', itemIds: [item.id] })
-      .catch((error) => console.error('[item-use] Failed to execute auto-reveal for item_targeted', error));
+    if (itemTargetId === characterId) {
+      executeAutoReveal(characterId, [
+        { type: 'item_used', itemIds: [item.id] },
+        { type: 'item_targeted', itemIds: [item.id] },
+      ]).catch((error) => console.error('[item-use] Failed to execute auto-reveal for item_used/item_targeted', error));
+    } else {
+      executeAutoReveal(characterId, { type: 'item_used', itemIds: [item.id] })
+        .catch((error) => console.error('[item-use] Failed to execute auto-reveal for item_used', error));
+      executeAutoReveal(itemTargetId, { type: 'item_targeted', itemIds: [item.id] })
+        .catch((error) => console.error('[item-use] Failed to execute auto-reveal for item_targeted', error));
+    }
 
     // Toast 訊息：保持簡潔，詳細資訊由 WebSocket 通知處理
     let toastMessage = '';
@@ -496,7 +511,7 @@ export async function useItem(
       },
       message: toastMessage,
     };
-  });
+  })));
 }
 
 /**
@@ -508,7 +523,7 @@ export async function transferItem(
   targetCharacterId: string,
   quantity: number
 ): Promise<ApiResponse<{ transferred: boolean; transferredQuantity: number }>> {
-  return withAction(async () => {
+  return runWithGameCache(() => withAction(() => runWithPerf('item-transfer', async () => {
 
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
@@ -670,22 +685,28 @@ export async function transferItem(
 
 
       // 發送 role.updated 給兩個角色，包含最新的物品列表
-      await emitRoleUpdated(characterId, {
-        characterId,
-        updates: {
-          items: sourceCleanItems as unknown as Array<Record<string, unknown>>,
+      // 批 2：兩個收件人互相獨立 → 批次發送（Pusher 平行 + pending 單次 insertMany）
+      await emitRoleUpdatedBatch([
+        {
+          characterId,
+          payload: {
+            characterId,
+            updates: {
+              items: sourceCleanItems as unknown as Array<Record<string, unknown>>,
+            },
+          },
         },
-      }).catch((error: unknown) => {
-        console.error('[transferItem] Failed to emit role.updated (source character items)', error);
-      });
-
-      await emitRoleUpdated(targetCharacterId, {
-        characterId: targetCharacterId,
-        updates: {
-          items: targetCleanItems as unknown as Array<Record<string, unknown>>,
+        {
+          characterId: targetCharacterId,
+          payload: {
+            characterId: targetCharacterId,
+            updates: {
+              items: targetCleanItems as unknown as Array<Record<string, unknown>>,
+            },
+          },
         },
-      }).catch((error: unknown) => {
-        console.error('[transferItem] Failed to emit role.updated (target character items)', error);
+      ]).catch((error: unknown) => {
+        console.error('[transferItem] Failed to emit role.updated (transfer items)', error);
       });
     }
 
@@ -704,5 +725,5 @@ export async function transferItem(
       },
       message: `已將 ${quantity} 個「${sourceItem.name}」轉移給 ${targetCharacter.name}`,
     };
-  });
+  })));
 }
