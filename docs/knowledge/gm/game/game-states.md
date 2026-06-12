@@ -33,7 +33,7 @@ GM 端查詢角色資料時，必須根據 `game.isActive` 決定資料來源：
 
 ### Per-request isActive 快取（2026-06 效能修復批 1）
 
-`getCharacterData` / `updateCharacterData` 透過 `lib/game/game-request-cache.ts`（AsyncLocalStorage）在**單一請求生命週期內**快取 `characterId → gameId` 與 `gameId → isActive` 的路由決策：
+`getCharacterData` / `updateCharacterData` 的路由決策（含快取讀寫）集中於共用的 `lib/game/resolve-is-active.ts`，透過 `lib/game/game-request-cache.ts`（AsyncLocalStorage）在**單一請求生命週期內**快取 `characterId → gameId` 與 `gameId → isActive`：
 
 - 同一請求內首次讀取某角色 = 3 次查詢（Character + Game + Runtime），之後同角色讀取 = 1 次、寫入 = 1 次；同遊戲其他角色首次讀取 = 2 次（免查 Game）。
 - **只快取路由決策，不快取角色文件**——角色資料每次都從 DB 讀最新狀態，無 stale data。
