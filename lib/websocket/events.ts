@@ -27,27 +27,16 @@ import type {
 import { getPusherServer, isPusherEnabled } from './pusher-server';
 // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：累加 Pusher trigger 耗時與次數
 import { timePusher } from '@/lib/perf/perf-context';
+// Phase 11: 統一事件 ID（跨通道去重）
+import { generateEventId } from './event-id';
 // Phase 9: 離線事件佇列寫入
 import {
   writePendingEvent,
   writePendingEvents,
   writePendingGameEvent,
 } from './pending-events';
-type EventName = WebSocketEvent['type'];
 
-/**
- * 生成統一的事件 ID，用於跨通道去重（WebSocket + Pending Events）
- *
- * 同一個邏輯事件會同時透過 WebSocket 即時推送和寫入 Pending Events DB。
- * 客戶端需要透過 _eventId 識別重複事件並跳過。
- *
- * @returns 格式: `evt-{timestamp}-{random}`
- */
-function generateEventId(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
-  return `evt-${timestamp}-${random}`;
-}
+type EventName = WebSocketEvent['type'];
 
 async function trigger(channel: string, eventName: EventName, payload: BaseEvent['payload']) {
   const pusher = getPusherServer();
@@ -67,6 +56,60 @@ async function trigger(channel: string, eventName: EventName, payload: BaseEvent
   }
 }
 
+/**
+ * 單頻道 + 離線補送：注入 _eventId 後同時推送角色頻道與寫入 pending event
+ *（Phase 9 雙通道 + Phase 11 跨通道去重的共用樣板）
+ */
+async function emitWithPending<T extends object>(
+  characterId: string,
+  eventName: EventName,
+  payload: T,
+) {
+  const payloadWithId = { ...payload, _eventId: generateEventId() };
+  await Promise.all([
+    trigger(`private-character-${characterId}`, eventName, payloadWithId),
+    writePendingEvent(characterId, eventName, payloadWithId as Record<string, unknown>),
+  ]);
+}
+
+/**
+ * 雙頻道 + 離線補送：同一 _eventId 推送兩個角色頻道，
+ * pending events 合併為單次批次寫入
+ */
+async function emitToPairWithPending<T extends object>(
+  firstCharacterId: string,
+  secondCharacterId: string,
+  eventName: EventName,
+  payload: T,
+) {
+  const payloadWithId = { ...payload, _eventId: generateEventId() };
+  const eventPayload = payloadWithId as Record<string, unknown>;
+  await Promise.all([
+    trigger(`private-character-${firstCharacterId}`, eventName, payloadWithId),
+    trigger(`private-character-${secondCharacterId}`, eventName, payloadWithId),
+    writePendingEvents([
+      { targetCharacterId: firstCharacterId, eventType: eventName, eventPayload },
+      { targetCharacterId: secondCharacterId, eventType: eventName, eventPayload },
+    ]),
+  ]);
+}
+
+/**
+ * 遊戲頻道 + 離線補送：注入 _eventId 後推送遊戲頻道（全體玩家）
+ * 與寫入 game-level pending event（targetGameId）
+ */
+async function emitGameWithPending<T extends object>(
+  gameId: string,
+  eventName: EventName,
+  payload: T,
+) {
+  const payloadWithId = { ...payload, _eventId: generateEventId() };
+  await Promise.all([
+    trigger(`private-game-${gameId}`, eventName, payloadWithId),
+    writePendingGameEvent(gameId, eventName, payloadWithId as Record<string, unknown>),
+  ]);
+}
+
 /** 推送「技能使用」事件到角色頻道 */
 export async function emitSkillUsed(characterId: string, payload: SkillUsedEvent['payload']) {
   await trigger(`private-character-${characterId}`, 'skill.used', payload);
@@ -79,14 +122,7 @@ export async function emitItemUsed(characterId: string, payload: ItemUsedEvent['
 
 /** 推送「角色資料更新」事件，同時寫入 pending events 供離線補送 */
 export async function emitRoleUpdated(characterId: string, payload: RoleUpdatedEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（離線時可補送數值變更通知）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'role.updated', payloadWithId),
-    writePendingEvent(characterId, 'role.updated', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'role.updated', payload);
 }
 
 /**
@@ -125,58 +161,22 @@ export async function emitSkillCooldown(characterId: string, payload: SkillCoold
 
 /** 推送「技能對抗」事件到攻防雙方頻道，同時寫入 pending events */
 export async function emitSkillContest(attackerId: string, defenderId: string, payload: SkillContestEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（雙頻道：攻擊方 + 防守方）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${attackerId}`, 'skill.contest', payloadWithId),
-    trigger(`private-character-${defenderId}`, 'skill.contest', payloadWithId),
-    writePendingEvents([
-      { targetCharacterId: attackerId, eventType: 'skill.contest', eventPayload: payloadWithId as Record<string, unknown> },
-      { targetCharacterId: defenderId, eventType: 'skill.contest', eventPayload: payloadWithId as Record<string, unknown> },
-    ]),
-  ]);
+  await emitToPairWithPending(attackerId, defenderId, 'skill.contest', payload);
 }
 
 /** 推送「角色受影響」事件（效果命中、數值變更等），同時寫入 pending events */
 export async function emitCharacterAffected(targetCharacterId: string, payload: CharacterAffectedEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${targetCharacterId}`, 'character.affected', payloadWithId),
-    writePendingEvent(targetCharacterId, 'character.affected', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(targetCharacterId, 'character.affected', payload);
 }
 
 /** 推送「道具轉移」事件到轉出方與接收方雙頻道，同時寫入 pending events */
 export async function emitItemTransferred(fromCharacterId: string, toCharacterId: string, payload: ItemTransferredEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（雙頻道：轉出方 + 接收方）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${fromCharacterId}`, 'item.transferred', payloadWithId),
-    trigger(`private-character-${toCharacterId}`, 'item.transferred', payloadWithId),
-    writePendingEvents([
-      { targetCharacterId: fromCharacterId, eventType: 'item.transferred', eventPayload: payloadWithId as Record<string, unknown> },
-      { targetCharacterId: toCharacterId, eventType: 'item.transferred', eventPayload: payloadWithId as Record<string, unknown> },
-    ]),
-  ]);
+  await emitToPairWithPending(fromCharacterId, toCharacterId, 'item.transferred', payload);
 }
 
 /** 推送「GM 廣播」事件到遊戲頻道（全體玩家可見），同時寫入 game-level pending event */
 export async function emitGameBroadcast(gameId: string, payload: GameBroadcastEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（game-level，使用 targetGameId）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-game-${gameId}`, 'game.broadcast', payloadWithId),
-    writePendingGameEvent(gameId, 'game.broadcast', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitGameWithPending(gameId, 'game.broadcast', payload);
 }
 
 /**
@@ -195,122 +195,56 @@ export async function emitNotificationsCleared(
 
 /** 推送「任務狀態更新」事件到角色頻道，同時寫入 pending events */
 export async function emitTaskUpdated(characterId: string, payload: TaskUpdatedEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'role.taskUpdated', payloadWithId),
-    writePendingEvent(characterId, 'role.taskUpdated', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'role.taskUpdated', payload);
 }
 
 /** 推送「道具欄變更」事件到角色頻道（道具新增/移除/數量變動），同時寫入 pending events */
 export async function emitInventoryUpdated(characterId: string, payload: InventoryUpdatedEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'role.inventoryUpdated', payloadWithId),
-    writePendingEvent(characterId, 'role.inventoryUpdated', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'role.inventoryUpdated', payload);
 }
 
 // Phase 7.7: 自動揭露條件 + 道具展示事件
 
 /** 推送「秘密揭露」事件到角色頻道，同時寫入 pending events */
 export async function emitSecretRevealed(characterId: string, payload: SecretRevealedEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'secret.revealed', payloadWithId),
-    writePendingEvent(characterId, 'secret.revealed', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'secret.revealed', payload);
 }
 
 /** 推送「隱藏任務揭露」事件到角色頻道，同時寫入 pending events */
 export async function emitTaskRevealed(characterId: string, payload: TaskRevealedEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'task.revealed', payloadWithId),
-    writePendingEvent(characterId, 'task.revealed', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'task.revealed', payload);
 }
 
 /** 推送「技能揭露」事件到角色頻道，同時寫入 pending events */
 export async function emitSkillRevealed(characterId: string, payload: SkillRevealedEvent['payload']) {
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'skill.revealed', payloadWithId),
-    writePendingEvent(characterId, 'skill.revealed', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'skill.revealed', payload);
 }
 
 /** 推送「技能隱藏」事件到角色頻道，同時寫入 pending events */
 export async function emitSkillHidden(characterId: string, payload: SkillHiddenEvent['payload']) {
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'skill.hidden', payloadWithId),
-    writePendingEvent(characterId, 'skill.hidden', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'skill.hidden', payload);
 }
 
 /** 推送「物品揭露」事件到角色頻道，同時寫入 pending events */
 export async function emitItemRevealed(characterId: string, payload: ItemRevealedEvent['payload']) {
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'item.revealed', payloadWithId),
-    writePendingEvent(characterId, 'item.revealed', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'item.revealed', payload);
 }
 
 /** 推送「物品隱藏」事件到角色頻道，同時寫入 pending events */
 export async function emitItemHidden(characterId: string, payload: ItemHiddenEvent['payload']) {
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'item.hidden', payloadWithId),
-    writePendingEvent(characterId, 'item.hidden', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'item.hidden', payload);
 }
 
 /** 推送「道具展示」事件到展示方與被展示方雙頻道，同時寫入 pending events */
 export async function emitItemShowcased(fromCharacterId: string, toCharacterId: string, payload: ItemShowcasedEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（雙頻道：展示方 + 被展示方）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${fromCharacterId}`, 'item.showcased', payloadWithId),
-    trigger(`private-character-${toCharacterId}`, 'item.showcased', payloadWithId),
-    writePendingEvents([
-      { targetCharacterId: fromCharacterId, eventType: 'item.showcased', eventPayload: payloadWithId as Record<string, unknown> },
-      { targetCharacterId: toCharacterId, eventType: 'item.showcased', eventPayload: payloadWithId as Record<string, unknown> },
-    ]),
-  ]);
+  await emitToPairWithPending(fromCharacterId, toCharacterId, 'item.showcased', payload);
 }
 
 // Phase 8: 時效性效果過期事件
 
 /** 推送「時效性效果過期」事件到角色頻道，同時寫入 pending events */
 export async function emitEffectExpired(characterId: string, payload: EffectExpiredEvent['payload']) {
-  // Phase 9: 推送 WebSocket + 寫入 pending events（單頻道）
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-character-${characterId}`, 'effect.expired', payloadWithId),
-    writePendingEvent(characterId, 'effect.expired', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitWithPending(characterId, 'effect.expired', payload);
 }
 
 // Phase 10.7: 遊戲狀態事件
@@ -321,38 +255,21 @@ export async function emitEquipmentToggled(characterId: string, payload: Equipme
 }
 
 /**
- * 推送「遊戲開始」事件到所有角色
+ * 推送「遊戲開始」事件到遊戲頻道
  *
- * 當 GM 按下「開始遊戲」按鈕時調用，
- * 通知所有玩家遊戲已開始，觸發頁面重新載入。
+ * GM 按下「開始遊戲」時調用，通知所有玩家觸發頁面重新載入。
+ * 玩家端透過 useGameWebSocket 監聽 private-game-${gameId}。
  */
 export async function emitGameStarted(gameId: string, payload: GameStartedEvent['payload']) {
-  // Phase 10.7: 推送到 game 頻道（玩家端透過 useGameWebSocket 監聽 private-game-${gameId}）
-  // 注意：不使用 pushEventToGame（它發送到 character 頻道），因為 game 事件需要發送到 game 頻道
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-game-${gameId}`, 'game.started', payloadWithId),
-    writePendingGameEvent(gameId, 'game.started', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitGameWithPending(gameId, 'game.started', payload);
 }
 
 /**
- * 推送「遊戲結束」事件到所有角色
+ * 推送「遊戲結束」事件到遊戲頻道
  *
- * 當 GM 按下「結束遊戲」按鈕時調用，
- * 通知所有玩家遊戲已結束，觸發頁面重新載入。
+ * GM 按下「結束遊戲」時調用，通知所有玩家觸發頁面重新載入。
+ * 玩家端透過 useGameWebSocket 監聽 private-game-${gameId}。
  */
 export async function emitGameEnded(gameId: string, payload: GameEndedEvent['payload']) {
-  // Phase 10.7: 推送到 game 頻道（玩家端透過 useGameWebSocket 監聽 private-game-${gameId}）
-  // 注意：不使用 pushEventToGame（它發送到 character 頻道），因為 game 事件需要發送到 game 頻道
-  // Phase 11: 注入 _eventId 用於跨通道去重
-  const eventId = generateEventId();
-  const payloadWithId = { ...payload, _eventId: eventId };
-  await Promise.all([
-    trigger(`private-game-${gameId}`, 'game.ended', payloadWithId),
-    writePendingGameEvent(gameId, 'game.ended', payloadWithId as Record<string, unknown>),
-  ]);
+  await emitGameWithPending(gameId, 'game.ended', payload);
 }
-
