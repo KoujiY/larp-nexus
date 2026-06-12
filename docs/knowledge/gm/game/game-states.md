@@ -6,17 +6,25 @@ The system uses a **Baseline / Runtime** separation:
 | Layer | Collection | Purpose |
 |-------|-----------|---------|
 | **Baseline** | `characters`, `games` | Original design data. Editable by GM at any time. |
-| **Runtime** | `character_runtimes`, `game_runtimes` | Live game state. Created when game starts, deleted when game ends. |
+| **Runtime** | `character_runtimes`, `game_runtimes` | Live game state. Created when game starts, **converted in place to snapshot** when game ends. |
 
 ## Game Lifecycle
 
 ```
 Game Created → [Baseline only]
-     ↓ GM starts game (isActive = true)
-Game Active → [Runtime created from Baseline snapshot]
-     ↓ GM ends game (isActive = false)
-Game Ended → [Runtime deleted, Baseline preserved]
+     ↓ GM starts game (isActive = true 先行，再複製 Baseline → Runtime)
+Game Active → [Runtime created from Baseline copy]
+     ↓ GM ends game (isActive = false 先行，再將 Runtime 原地轉型為 snapshot)
+Game Ended → [Runtime → snapshot（同 _id 轉型，非複製刪除）, Baseline preserved]
 ```
+
+### Lifecycle 順序不變量（fix/contest-consistency, 2026-06-13）
+
+兩端皆採 **flag-first**：`isActive` 永遠先切換，資料跟著走。
+
+- **startGame**：`isActive=true` → 讀 Baseline → 複製為 Runtime。flag 後新進的寫入路由 Runtime（複製完成前 loud throw「找不到 Runtime Character」、完成後正常）；複製失敗的回滾會重設 `isActive=false`。殘留視窗：已快取 `isActive=false` 的 in-flight action，其 Baseline 寫入若落在複製讀取之後 → 留在 Baseline、該場遊戲看不到（資料不毀損，賽後可見）
+- **endGame**：`isActive=false` → GameRuntime/CharacterRuntime 以 `updateOne`/`updateMany` **原地轉型**為 `type: 'snapshot'`（沿用原 `_id`）。轉型是 per-doc 原子操作，不存在舊版「快照已複製但 runtime 仍接受寫入」的 silent data loss 視窗——in-flight 寫入要嘛在轉型前落地（保留在快照中）、要嘛 loud throw。轉型失敗時 GM 重按結束即可重試
+- 兩端的失敗模式都收斂到既有的「找不到 Runtime Character」錯誤路徑，無新增錯誤型態
 
 ## GM 端資料讀取策略
 
