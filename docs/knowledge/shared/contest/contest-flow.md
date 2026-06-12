@@ -61,6 +61,7 @@ Either attacker or defender can abort the contest at any time via the "中斷對
 3. When defender wins, only the **first** skill/item in `defenderSources` is used as `actualSource`; all effects within that source still execute (per-effect dispatch)
 4. Two-phase notification: immediate result → final with effectsApplied
 5. **§4 per-effect 分派**：單一 skill/item 的 effects 陣列可以混合 `self` + `other`，executor 各自累積 self / target 的 stat changes 並分別發送通知（見 [check-mechanism.md](./check-mechanism.md) 的「對抗檢定的效果目標限制」段）
+6. **bucket 原子寫入**（2026-06-13 `fix/contest-consistency`）：每個目標角色的數值變更（`$set`）與時效性效果（`$push temporaryEffects $each`）併入**同一次** `updateCharacterData`——MongoDB 單文件原子性保證 client 收到 `character.affected` 後重抓時，數值與倒數條目同時可見（不可能只見其一）。`character.affected` 一律在該角色的 DB 寫入 resolve 後才發出。時效效果記錄由 pure 的 `buildTemporaryEffectRecord()` 建構（`lib/effects/create-temporary-effect.ts`）；非對抗路徑仍走 `createTemporaryEffectRecord()` 舊介面（inline await，本就無此 race）
 
 ## Related
 - [check-mechanism.md](./check-mechanism.md) — random and stat check details

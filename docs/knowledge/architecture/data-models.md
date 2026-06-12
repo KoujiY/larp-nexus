@@ -44,8 +44,13 @@ AI 服務設定，首次設定前不存在。
 
 ## Baseline vs Runtime
 - **Baseline** (`characters`): GM's designed state. Editable anytime.
-- **Runtime** (`character_runtimes`): Created from Baseline snapshot when game starts. Receives all in-game changes. Deleted when game ends.
+- **Runtime** (`character_runtimes`): Created from Baseline copy when game starts. Receives all in-game changes. **Converted in place to snapshot when game ends**（`updateMany` 改 `type: 'runtime'` → `'snapshot'`，沿用原 `_id`，非複製＋刪除——見 `lib/game/end-game.ts`）。
 - Player in Full Access mode reads from Runtime. Player in Preview mode reads from Baseline.
+
+### Snapshot 語意
+- snapshot 是純封存資料：目前 codebase 無任何讀取端（無快照檢視/還原 UI），僅 endGame 寫入。
+- `{refId, type}` 索引非 unique——同一角色可存在多份 snapshot（每次結束遊戲一份）。
+- snapshot 的 `_id` 即原 runtime 的 `_id`（2026-06-13 起，convert-in-place）；CharacterRuntime snapshot 以 `snapshotGameRuntimeId` 關聯所屬的 GameRuntime snapshot。
 
 ### 寫入策略差異
 | 欄位類型 | 遊戲未進行 | 遊戲進行中 | 原因 |
@@ -64,7 +69,7 @@ AI 服務設定，首次設定前不存在。
 | 刪除角色 | `deleteCharacter` 收集頭像 + 物品/技能圖 | `collectCharacterImageUrls` → `deleteImagesFromBlob` |
 | GM 編輯移除物品/技能 | `updateCharacter` 從 diff 收集被刪除項目的 `imageUrl` | fire-and-forget `deleteImagesFromBlob` |
 | 玩家端偷竊/移除物品 | **不清理** — 物品移轉或減少數量，圖片跟隨物品 | N/A |
-| 結束遊戲（刪除 Runtime） | **不清理** — 圖片永遠存於 Baseline | N/A |
+| 結束遊戲（Runtime 轉型為 snapshot） | **不清理** — 圖片永遠存於 Baseline | N/A |
 
 ## Skill / Item 可見性欄位
 
