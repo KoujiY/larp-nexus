@@ -22,7 +22,7 @@ export async function toggleVisibility(
   type: 'skill' | 'item',
   targetId: string,
 ): Promise<ApiResponse<{ isHidden: boolean }>> {
-  return runWithGameCache(() => withAction(async () => {
+  return runWithGameCache(() => withAction('toggle-visibility', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };

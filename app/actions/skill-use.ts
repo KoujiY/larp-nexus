@@ -1,7 +1,6 @@
 'use server';
 
 import { withAction } from '@/lib/actions/action-wrapper';
-import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
 import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { emitSkillUsed } from '@/lib/websocket/events';
@@ -39,7 +38,7 @@ export async function useSkill(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  return runWithGameCache(() => withAction(() => runWithPerf('skill-use', async () => {
+  return runWithGameCache(() => withAction('skill-use', async () => {
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
@@ -466,5 +465,5 @@ export async function useSkill(
       },
       message: toastMessage,
     };
-  })));
+  }));
 }

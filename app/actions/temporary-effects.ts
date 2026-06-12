@@ -12,6 +12,7 @@ import { processExpiredEffects, cleanupOldExpiredEffects } from '@/lib/effects/c
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { getCharacterData } from '@/lib/game/get-character-data';
 import type { TemporaryEffect } from '@/types/character';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -50,6 +51,12 @@ export async function checkExpiredEffects(characterId?: string) {
  * @returns 時效性效果列表（僅未過期的）
  */
 export async function getTemporaryEffects(
+  characterId: string
+): Promise<ApiResponse<{ effects: Array<TemporaryEffect & { remainingSeconds: number }> }>> {
+  return withAction<{ effects: Array<TemporaryEffect & { remainingSeconds: number }> }>('get-temporary-effects', () => getTemporaryEffectsImpl(characterId));
+}
+
+async function getTemporaryEffectsImpl(
   characterId: string
 ): Promise<ApiResponse<{ effects: Array<TemporaryEffect & { remainingSeconds: number }> }>> {
   return runWithGameCache(async () => {

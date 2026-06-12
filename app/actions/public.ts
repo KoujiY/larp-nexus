@@ -4,6 +4,7 @@ import { Character, Game } from '@/lib/db/models';
 import dbConnect from '@/lib/db/mongodb';
 import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { getCharacterData } from '@/lib/game/get-character-data'; // Phase 10.4: 統一讀取
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 import type { CharacterData, CharacterBaselineSnapshot, TemporaryEffect } from '@/types/character';
 import type { GamePublicData } from '@/types/game';
@@ -18,6 +19,12 @@ import { fetchPendingEvents } from './pending-events'; // Phase 9: 離線事件�
  * secretInfo 只回傳已揭露的隱藏資訊（isRevealed === true）
  */
 export async function getPublicCharacter(
+  characterId: string
+): Promise<ApiResponse<CharacterData>> {
+  return withAction<CharacterData>('get-public-character', () => getPublicCharacterImpl(characterId));
+}
+
+async function getPublicCharacterImpl(
   characterId: string
 ): Promise<ApiResponse<CharacterData>> {
   return runWithGameCache(async () => {
@@ -223,6 +230,12 @@ export async function getPublicCharacter(
 export async function getPublicGame(
   gameId: string
 ): Promise<ApiResponse<GamePublicData>> {
+  return withAction<GamePublicData>('get-public-game', () => getPublicGameImpl(gameId));
+}
+
+async function getPublicGameImpl(
+  gameId: string
+): Promise<ApiResponse<GamePublicData>> {
   try {
     await dbConnect();
 
@@ -290,6 +303,13 @@ export async function getTransferTargets(
   gameId: string,
   excludeCharacterId: string
 ): Promise<ApiResponse<TransferTargetCharacter[]>> {
+  return withAction<TransferTargetCharacter[]>('get-transfer-targets', () => getTransferTargetsImpl(gameId, excludeCharacterId));
+}
+
+async function getTransferTargetsImpl(
+  gameId: string,
+  excludeCharacterId: string
+): Promise<ApiResponse<TransferTargetCharacter[]>> {
   try {
     await dbConnect();
 
@@ -340,6 +360,12 @@ export interface TargetItemInfo {
 }
 
 export async function getTargetCharacterItems(
+  targetCharacterId: string
+): Promise<ApiResponse<TargetItemInfo[]>> {
+  return withAction<TargetItemInfo[]>('get-target-character-items', () => getTargetCharacterItemsImpl(targetCharacterId));
+}
+
+async function getTargetCharacterItemsImpl(
   targetCharacterId: string
 ): Promise<ApiResponse<TargetItemInfo[]>> {
   try {

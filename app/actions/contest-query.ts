@@ -1,6 +1,7 @@
 'use server';
 
 import { getContestInfo, isCharacterInContest } from '@/lib/contest-tracker';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -8,6 +9,31 @@ import type { ApiResponse } from '@/types/api';
  * 用於攻擊方重新整理後檢查對抗檢定是否已完成
  */
 export async function queryContestStatus(
+  contestId: string,
+  characterId: string
+): Promise<ApiResponse<{
+  isActive: boolean;
+  contestInfo?: {
+    attackerId: string;
+    defenderId: string;
+    sourceType: 'skill' | 'item';
+    sourceId: string;
+    timestamp: number;
+  };
+}>> {
+  return withAction<{
+    isActive: boolean;
+    contestInfo?: {
+      attackerId: string;
+      defenderId: string;
+      sourceType: 'skill' | 'item';
+      sourceId: string;
+      timestamp: number;
+    };
+  }>('query-contest-status', () => queryContestStatusImpl(contestId, characterId));
+}
+
+async function queryContestStatusImpl(
   contestId: string,
   characterId: string
 ): Promise<ApiResponse<{

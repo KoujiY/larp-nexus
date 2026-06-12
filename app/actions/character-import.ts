@@ -4,6 +4,7 @@ import { getCurrentGMUserId } from '@/lib/auth/session';
 import { callAiForCharacterImport } from '@/lib/ai/provider';
 import { parseDocx } from '@/lib/ai/parsers/docx';
 import type { CharacterImportResult } from '@/lib/ai/schemas/character-import';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 const MAX_TEXT_LENGTH = 50_000;
@@ -31,6 +32,17 @@ function sanitizeCustomPrompt(raw: string): string {
  * @param customPrompt - 使用者自訂提示
  */
 export async function parseCharacterFromText(
+  text: string,
+  includeSecret = false,
+  allowAiFill = false,
+  customPrompt = ''
+): Promise<ApiResponse<CharacterImportResult>> {
+  return withAction<CharacterImportResult>('parse-character-from-text', () =>
+    parseCharacterFromTextImpl(text, includeSecret, allowAiFill, customPrompt)
+  );
+}
+
+async function parseCharacterFromTextImpl(
   text: string,
   includeSecret = false,
   allowAiFill = false,
@@ -80,6 +92,17 @@ export async function parseCharacterFromText(
  * @param customPrompt - 使用者自訂提示
  */
 export async function parseCharacterFromDocx(
+  formData: FormData,
+  includeSecret = false,
+  allowAiFill = false,
+  customPrompt = ''
+): Promise<ApiResponse<CharacterImportResult>> {
+  return withAction<CharacterImportResult>('parse-character-from-docx', () =>
+    parseCharacterFromDocxImpl(formData, includeSecret, allowAiFill, customPrompt)
+  );
+}
+
+async function parseCharacterFromDocxImpl(
   formData: FormData,
   includeSecret = false,
   allowAiFill = false,

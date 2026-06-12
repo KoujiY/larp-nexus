@@ -3,6 +3,7 @@
 import { validatePlayerAccess } from '@/lib/auth/session';
 import { removeActiveContest, removeContestsByCharacterId, getContestInfo, isCharacterInContest } from '@/lib/contest-tracker';
 import { emitContestAbort } from '@/lib/contest/contest-event-emitter';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -12,6 +13,13 @@ import type { ApiResponse } from '@/types/api';
  * 設計為 idempotent：對抗不存在時仍回傳 success。
  */
 export async function abortContest(
+  contestId: string,
+  characterId: string
+): Promise<ApiResponse<{ aborted: boolean }>> {
+  return withAction<{ aborted: boolean }>('abort-contest', () => abortContestImpl(contestId, characterId));
+}
+
+async function abortContestImpl(
   contestId: string,
   characterId: string
 ): Promise<ApiResponse<{ aborted: boolean }>> {

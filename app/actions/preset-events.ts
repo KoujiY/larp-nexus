@@ -68,7 +68,7 @@ export async function createPresetEvent(
   gameId: string,
   data: PresetEventInput,
 ): Promise<ApiResponse<PresetEvent>> {
-  return withAction(async () => {
+  return withAction('create-preset-event', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -106,7 +106,7 @@ export async function updatePresetEvent(
   eventId: string,
   data: PresetEventInput,
 ): Promise<ApiResponse<PresetEvent>> {
-  return withAction(async () => {
+  return withAction('update-preset-event', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -143,7 +143,7 @@ export async function deletePresetEvent(
   gameId: string,
   eventId: string,
 ): Promise<ApiResponse<{ deleted: boolean }>> {
-  return withAction(async () => {
+  return withAction('delete-preset-event', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -172,7 +172,7 @@ export async function createRuntimePresetEvent(
   gameId: string,
   data: PresetEventInput,
 ): Promise<ApiResponse<PresetEventRuntime>> {
-  return withAction(async () => {
+  return withAction('create-runtime-preset-event', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -220,7 +220,7 @@ export async function updateRuntimePresetEvent(
   eventId: string,
   data: PresetEventInput,
 ): Promise<ApiResponse<PresetEventRuntime>> {
-  return withAction(async () => {
+  return withAction('update-runtime-preset-event', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -272,7 +272,7 @@ export async function deleteRuntimePresetEvent(
   gameId: string,
   eventId: string,
 ): Promise<ApiResponse<{ deleted: boolean }>> {
-  return withAction(async () => {
+  return withAction('delete-runtime-preset-event', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -311,7 +311,7 @@ export async function deleteRuntimePresetEvent(
 export async function getRuntimePresetEvents(
   gameId: string,
 ): Promise<ApiResponse<PresetEventRuntime[]>> {
-  return withAction(async () => {
+  return withAction('get-runtime-preset-events', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };
@@ -343,7 +343,7 @@ export async function runPresetEvent(
   gameId: string,
   eventId: string,
 ): Promise<ApiResponse<ExecutionResult>> {
-  return withAction(async () => {
+  return withAction('run-preset-event', async () => {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
       return { success: false, error: 'UNAUTHORIZED', message: '請先登入' };

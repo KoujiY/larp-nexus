@@ -4,6 +4,7 @@ import { getCurrentGMUserId } from '@/lib/auth/session';
 import { uploadImageToBlob } from '@/lib/image/upload';
 import dbConnect from '@/lib/db/mongodb';
 import GMUser from '@/lib/db/models/GMUser';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -13,6 +14,12 @@ import type { ApiResponse } from '@/types/api';
  * Blob 路徑：gm-avatars/{userId}/{ts}-{name}
  */
 export async function uploadGMAvatar(
+  formData: FormData,
+): Promise<ApiResponse<{ avatarUrl: string }>> {
+  return withAction<{ avatarUrl: string }>('upload-gm-avatar', () => uploadGMAvatarImpl(formData));
+}
+
+async function uploadGMAvatarImpl(
   formData: FormData,
 ): Promise<ApiResponse<{ avatarUrl: string }>> {
   try {

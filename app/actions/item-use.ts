@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 import { withAction } from '@/lib/actions/action-wrapper';
-import { runWithPerf } from '@/lib/perf/perf-context'; // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）
 import { runWithGameCache } from '@/lib/game/game-request-cache';
 import { validatePlayerAccess } from '@/lib/auth/session';
 import type { CharacterDocument } from '@/lib/db/models';
@@ -45,7 +44,7 @@ export async function useItem(
   needsTargetItemSelection?: boolean;
   targetCharacterId?: string;
 }>> {
-  return runWithGameCache(() => withAction(() => runWithPerf('item-use', async () => {
+  return runWithGameCache(() => withAction('item-use', async () => {
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
       return { success: false, error: 'UNAUTHORIZED', message: '未授權操作此角色' };
@@ -503,7 +502,7 @@ export async function useItem(
       },
       message: toastMessage,
     };
-  })));
+  }));
 }
 
 /**
@@ -515,7 +514,7 @@ export async function transferItem(
   targetCharacterId: string,
   quantity: number
 ): Promise<ApiResponse<{ transferred: boolean; transferredQuantity: number }>> {
-  return runWithGameCache(() => withAction(() => runWithPerf('item-transfer', async () => {
+  return runWithGameCache(() => withAction('item-transfer', async () => {
 
     // 驗證玩家是否已解鎖此角色（防止未授權操作）
     if (!(await validatePlayerAccess(characterId))) {
@@ -696,5 +695,5 @@ export async function transferItem(
       },
       message: `已將 ${quantity} 個「${sourceItem.name}」轉移給 ${targetCharacter.name}`,
     };
-  })));
+  }));
 }

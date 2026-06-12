@@ -6,6 +6,7 @@ import { Game, Character, CharacterRuntime, GameRuntime, Log, PendingEvent } fro
 import dbConnect from '@/lib/db/mongodb';
 import { getCurrentGMUserId } from '@/lib/auth/session';
 import { uploadImageToBlob, deleteImagesFromBlob, collectCharacterImageUrls } from '@/lib/image/upload';
+import { withAction } from '@/lib/actions/action-wrapper';
 import type { ApiResponse } from '@/types/api';
 import mongoose from 'mongoose';
 import type { GameData } from '@/types/game';
@@ -27,6 +28,10 @@ const gameSchema = z.object({
  * 取得當前 GM 的所有劇本
  */
 export async function getGames(): Promise<ApiResponse<GameData[]>> {
+  return withAction<GameData[]>('get-games', () => getGamesImpl());
+}
+
+async function getGamesImpl(): Promise<ApiResponse<GameData[]>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -86,6 +91,12 @@ export async function getGames(): Promise<ApiResponse<GameData[]>> {
 export async function getGameById(
   gameId: string
 ): Promise<ApiResponse<GameData>> {
+  return withAction<GameData>('get-game-by-id', () => getGameByIdImpl(gameId));
+}
+
+async function getGameByIdImpl(
+  gameId: string
+): Promise<ApiResponse<GameData>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -139,6 +150,15 @@ export async function getGameById(
  * Phase 10: 支援可選的 gameCode 參數（如果提供，會先檢查唯一性）
  */
 export async function createGame(data: {
+  name: string;
+  description?: string;
+  gameCode?: string; // Phase 10: 可選的 Game Code
+  randomContestMaxValue?: number; // Phase D P7: 最大檢定值
+}): Promise<ApiResponse<GameData>> {
+  return withAction<GameData>('create-game', () => createGameImpl(data));
+}
+
+async function createGameImpl(data: {
   name: string;
   description?: string;
   gameCode?: string; // Phase 10: 可選的 Game Code
@@ -263,6 +283,23 @@ export async function updateGame(
     randomContestMaxValue?: number;
   }
 ): Promise<ApiResponse<GameData>> {
+  return withAction<GameData>('update-game', () => updateGameImpl(gameId, data));
+}
+
+async function updateGameImpl(
+  gameId: string,
+  data: {
+    name?: string;
+    description?: string;
+    publicInfo?: {
+      blocks?: Array<{
+        type: 'title' | 'body';
+        content: string;
+      }>;
+    };
+    randomContestMaxValue?: number;
+  }
+): Promise<ApiResponse<GameData>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -363,6 +400,10 @@ export async function updateGame(
  * 刪除劇本
  */
 export async function deleteGame(gameId: string): Promise<ApiResponse<undefined>> {
+  return withAction<undefined>('delete-game', () => deleteGameImpl(gameId));
+}
+
+async function deleteGameImpl(gameId: string): Promise<ApiResponse<undefined>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -448,6 +489,12 @@ export interface GameItemInfo {
 }
 
 export async function getGameItems(
+  gameId: string
+): Promise<ApiResponse<GameItemInfo[]>> {
+  return withAction<GameItemInfo[]>('get-game-items', () => getGameItemsImpl(gameId));
+}
+
+async function getGameItemsImpl(
   gameId: string
 ): Promise<ApiResponse<GameItemInfo[]>> {
   try {
@@ -537,6 +584,12 @@ export interface GameSkillInfo {
 export async function getGameSkills(
   gameId: string
 ): Promise<ApiResponse<GameSkillInfo[]>> {
+  return withAction<GameSkillInfo[]>('get-game-skills', () => getGameSkillsImpl(gameId));
+}
+
+async function getGameSkillsImpl(
+  gameId: string
+): Promise<ApiResponse<GameSkillInfo[]>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -616,6 +669,13 @@ export async function getGameSkills(
  * @returns API 回應（成功或錯誤訊息）
  */
 export async function updateGameCode(
+  gameId: string,
+  newGameCode: string
+): Promise<ApiResponse<GameData>> {
+  return withAction<GameData>('update-game-code', () => updateGameCodeImpl(gameId, newGameCode));
+}
+
+async function updateGameCodeImpl(
   gameId: string,
   newGameCode: string
 ): Promise<ApiResponse<GameData>> {
@@ -706,6 +766,12 @@ export async function updateGameCode(
 export async function checkGameCodeAvailability(
   gameCode: string
 ): Promise<ApiResponse<{ isAvailable: boolean }>> {
+  return withAction<{ isAvailable: boolean }>('check-game-code-availability', () => checkGameCodeAvailabilityImpl(gameCode));
+}
+
+async function checkGameCodeAvailabilityImpl(
+  gameCode: string
+): Promise<ApiResponse<{ isAvailable: boolean }>> {
   try {
     const gmUserId = await getCurrentGMUserId();
     if (!gmUserId) {
@@ -751,6 +817,13 @@ export async function checkGameCodeAvailability(
  * 封面圖僅寫入 Baseline，不同步至 Runtime。
  */
 export async function uploadGameCover(
+  gameId: string,
+  formData: FormData,
+): Promise<ApiResponse<{ coverUrl: string }>> {
+  return withAction<{ coverUrl: string }>('upload-game-cover', () => uploadGameCoverImpl(gameId, formData));
+}
+
+async function uploadGameCoverImpl(
   gameId: string,
   formData: FormData,
 ): Promise<ApiResponse<{ coverUrl: string }>> {
