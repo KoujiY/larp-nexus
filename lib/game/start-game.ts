@@ -10,15 +10,21 @@ import type { CharacterDocument } from '@/lib/db/models/Character';
 import mongoose from 'mongoose';
 
 /**
- * Phase 10.3.1: 開始遊戲邏輯
+ * 開始遊戲邏輯（CONTEST_CONSISTENCY_PLAN D3：flag-first）
  *
- * 功能：
- * 1. 查詢 Baseline Game 和所有 Characters
- * 2. 檢查遊戲狀態（避免重複開始）
- * 3. 複製 Baseline → Runtime（GameRuntime + CharacterRuntime）
- * 4. 設定 Game.isActive = true
- * 5. 記錄操作日誌（game_start）
- * 6. 推送 WebSocket 事件（Phase 10.7 實作）
+ * 順序設計：
+ * 1. 查詢 Baseline Game、驗證權限、檢查遊戲狀態
+ * 2. 設定 Game.isActive = true（提前到複製之前）
+ * 3. 讀取 Baseline Characters 並複製 → Runtime（GameRuntime + CharacterRuntime）
+ * 4. 記錄操作日誌（game_start）
+ * 5. 推送 WebSocket 事件
+ *
+ * flag-first 理由：isActive=true 之後新進的寫入 action 路由 Runtime——
+ * 複製完成前 loud throw「找不到 Runtime Character」（既有路徑）、完成後正常
+ * 進 Runtime；消除舊順序下「Baseline 讀取後、isActive=true 前」落地的寫入
+ * 被 runtime 複本默默跳過的視窗。讀取路徑在複製期間 runtime miss 走既有的
+ * 降級回 Baseline（getCharacterData console.warn），屬可接受的短暫降級。
+ * 複製失敗的回滾必須把 isActive 重設為 false。
  *
  * @param gameId - Baseline Game ID
  * @param gmUserId - GM User ID（用於權限檢查和日誌記錄）
@@ -31,7 +37,7 @@ export async function startGame(
   try {
     await dbConnect();
 
-    // ========== 步驟 1：查詢 Baseline Game 和所有 Characters ==========
+    // ========== 步驟 1：查詢 Baseline Game、驗證權限、檢查遊戲狀態 ==========
     const game = await Game.findById(gameId);
 
     if (!game) {
@@ -51,9 +57,6 @@ export async function startGame(
       };
     }
 
-    const characters = await Character.find({ gameId });
-
-    // ========== 步驟 2：檢查遊戲狀態 ==========
     const existingRuntime = await GameRuntime.findOne({
       refId: game._id,
       type: 'runtime',
@@ -67,7 +70,17 @@ export async function startGame(
       // 前端應在調用此函數前顯示確認對話框，因此這裡繼續執行覆蓋邏輯
     }
 
-    // ========== 步驟 3：複製 Baseline → Runtime ==========
+    // ========== 步驟 2：設定 Game.isActive = true（flag-first） ==========
+    // 使用 updateOne 避免觸發整份文件 validation（老舊文件可能不符新 schema）
+    await Game.updateOne(
+      { _id: game._id },
+      { $set: { isActive: true } },
+    );
+
+    // ========== 步驟 3：讀取 Baseline 並複製 → Runtime ==========
+    // Baseline 讀取必須在 flag 之後：flag 後新進的 Baseline 寫入已被導向
+    // Runtime 路由（loud throw），不會落在「已讀取、未複製」的縫隙中
+    const characters = await Character.find({ gameId });
     let createdGameRuntime: mongoose.Document | null = null;
     const createdCharacterRuntimeIds: mongoose.Types.ObjectId[] = [];
 
@@ -132,7 +145,7 @@ export async function startGame(
         ...createdCharacters.map((c) => c._id as mongoose.Types.ObjectId)
       );
     } catch (error) {
-      // 錯誤處理：手動回滾（刪除已建立的 Runtime）
+      // 錯誤處理：手動回滾（刪除已建立的 Runtime + 重設 isActive）
       console.error('[startGame] Error during runtime creation:', error);
 
       // 回滾：刪除已建立的 GameRuntime
@@ -147,6 +160,12 @@ export async function startGame(
         });
       }
 
+      // 回滾：isActive 已於步驟 2 提前寫入，必須重設
+      await Game.updateOne(
+        { _id: game._id },
+        { $set: { isActive: false } },
+      );
+
       return {
         success: false,
         error: 'RUNTIME_CREATION_FAILED',
@@ -154,11 +173,7 @@ export async function startGame(
       };
     }
 
-    // ========== 步驟 4：設定 Game.isActive = true ==========
-    game.isActive = true;
-    await game.save();
-
-    // ========== 步驟 5：記錄操作日誌 ==========
+    // ========== 步驟 4：記錄操作日誌 ==========
     await writeLog({
       gameId: game._id.toString(),
       actorType: 'gm',
@@ -171,7 +186,7 @@ export async function startGame(
       },
     });
 
-    // ========== 步驟 6：推送 WebSocket 事件（Phase 10.7）==========
+    // ========== 步驟 5：推送 WebSocket 事件 ==========
     await emitGameStarted(game._id.toString(), {
       gameId: game._id.toString(),
       gameCode: game.gameCode,
