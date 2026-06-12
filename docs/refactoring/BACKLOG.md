@@ -16,6 +16,7 @@
 | 項目 | 來源 | 說明 |
 |------|------|------|
 | 瀏覽器歷史導航返回角色頁不觸發 pending 補送 → 對抗孤兒化 | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md) 尾部議題 | 補送只掛在頁面重新載入（`getPublicCharacter` → `fetchPendingEvents`），bfcache / client-side 路由返回不會重拉。候選方向：`pageshow` / `visibilitychange` 觸發補送、或 bfcache 還原時 revalidate。碰核心補送語意，需縱向分析 |
+| 物品轉移/偷取無 GM log | 2026-06-13 `refactor/infra-and-form-guards` C1 驗收時發現 | 玩家間物品流動（轉移 `transferItem`、偷取 `item_steal`）從未寫入 logs collection，GM 歷史紀錄完全看不到（偷取頂多透過 contest log 間接可見）——原始缺口，非 413 修復造成。修法：比照 `item_use` 在轉移/偷取路徑補 `writeLog`（action 如 `item_transfer`），EventLog 的 `getEventCategory` 加對應分類 |
 
 ## Code review 殘留發現（2026-06-12 feat/perf-instrumentation 分支 review）
 
