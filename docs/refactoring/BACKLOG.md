@@ -46,9 +46,9 @@
 | 項目 | 說明 |
 |------|------|
 | ~~冷啟動 index check 與首請求搶 M0 連線池~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：scheduleIndexCheck 延後 10 秒背景執行（timer unref），並擴大為全環境覆蓋（見上方 TTL index 條目） |
-| GM log 增量抓取 | throttle 只限頻不減量，每次 refresh 全量重抓 100 筆。**方案評估（2026-06-12）：採 since-cursor 增量**——`getGameLogs` 加 `since` 參數（`$gt` timestamp + client 以 id 去重，`{gameId, timestamp}` 複合 index 已存在）；EventLog 維護最新游標，WS 觸發的 throttled refresh 只抓新增並 prepend（記憶體內上限輪替）；切換篩選與「重新讀取」按鈕重置游標走全量。**不採**直接套用 WS payload：log 由 server 寫入（結構 ≠ 事件 payload、無共同 id 可去重）、非所有 log 都有對應 WS 事件、掉線會靜默缺漏仍需抓取兜底，把 log 重建邏輯複製到 client 維護成本高於收益。注意：增量化後每次呼叫仍有 auth + Game.findById 固定開銷，省的是 Log scan 與 ~100 筆序列化；上線後以 `[perf] get-game-logs` 驗證成效 |
+| ~~GM log 增量抓取~~ | ✅ 2026-06-12 `refactor/log-cursor-and-leftovers`：依評估採 since-cursor 增量實作完成——`getGameLogs` 加 `since`（`$gte` + client 以 id 去重），EventLog 拆全量/增量雙路徑，回歸測試 +12。固定開銷（auth + Game.findById）仍在，上線後以 `[perf] get-game-logs` 對照成效 |
 | ~~資料層分支邏輯四份複製~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：抽共用 `lib/game/resolve-is-active.ts`，四路徑回歸測試 19 條；update 完整路徑 baseline 落空同步從靜默 no-op 收斂為 throw |
-| 其他小型重複 | ✅ 已清（2026-06-12 `fix/backlog-quick-wins`）：~~batch emitter 樣板~~（generateEventId 共用 + events.ts 樣板收斂為三 helper；兩檔發送機構錯誤語意不同屬設計，刻意不合併）、~~processExpiredEffects try/catch~~（抽 processExpiredEffectsSafe）、~~emitContestResult 已死的雙收件人路徑~~（簡化為單收件人）。**殘留**：ALS globalThis 樣板（perf-context vs game-request-cache）、PS1 env 解析（run-k6 vs smoke） |
+| ~~其他小型重複~~ | ✅ 全數清完：`fix/backlog-quick-wins`（2026-06-12）清 batch emitter 樣板（generateEventId 共用 + events.ts 收斂三 helper；兩檔發送機構錯誤語意不同屬設計，刻意不合併）、processExpiredEffects try/catch（抽 processExpiredEffectsSafe）、emitContestResult 死的雙收件人路徑；`refactor/log-cursor-and-leftovers`（同日）清 ALS globalThis 樣板（抽 getGlobalAls，Symbol.for registry）、PS1 env 解析（抽 env-utils.ps1 Import-LoadtestEnv） |
 
 ## 條件性 / 量測後裁決
 
