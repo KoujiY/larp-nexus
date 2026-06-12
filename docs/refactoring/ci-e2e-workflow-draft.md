@@ -27,13 +27,14 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      # 2026-06：runner Node 20 淘汰（6/16 強制 Node 24），action 一律用 v6+
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
@@ -43,7 +44,7 @@ jobs:
 
       # Playwright browser binary cache
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -53,7 +54,7 @@ jobs:
 
       # mongodb-memory-server binary cache
       - name: Cache mongod binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/mongodb-binaries
           key: mongod-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -66,7 +67,7 @@ jobs:
       # 失敗時上傳 trace + screenshot
       - name: Upload test artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-artifacts
           path: |
