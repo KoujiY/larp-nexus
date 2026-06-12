@@ -42,8 +42,8 @@ describe('emitRoleUpdatedBatch（PERF_INCIDENT_2026-06 批 2）', () => {
 
   it('每個收件人各觸發一次 Pusher、pending events 合併為單次批次寫入', async () => {
     await emitRoleUpdatedBatch([
-      { characterId: 'char-a', payload: { characterId: 'char-a', updates: { items: [] } } },
-      { characterId: 'char-b', payload: { characterId: 'char-b', updates: { items: [] } } },
+      { characterId: 'char-a', payload: { characterId: 'char-a', updates: { itemsChanged: true } } },
+      { characterId: 'char-b', payload: { characterId: 'char-b', updates: { itemsChanged: true } } },
     ])
 
     expect(triggerMock).toHaveBeenCalledTimes(2)
@@ -135,6 +135,30 @@ describe('emit 樣板（單頻道 / 雙頻道 / game 頻道 + pending）', () =>
     const targets = vi.mocked(writePendingEvents).mock.calls[0][0]
     expect(targets.map((t) => t.targetCharacterId)).toEqual(['char-atk', 'char-def'])
     expect(targets.every((t) => t.eventType === 'skill.contest')).toBe(true)
+  })
+
+  it('payload 超過 8KB 警告門檻時輸出 console.warn（413 可觀測 backstop）', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const hugePayload = {
+      characterId: 'char-a',
+      updates: { stats: [{ name: 'x'.repeat(9 * 1024) }] },
+    }
+
+    await emitRoleUpdated('char-a', hugePayload)
+
+    expect(warnSpy).toHaveBeenCalledOnce()
+    expect(warnSpy.mock.calls[0][0]).toContain('10KB')
+    expect(warnSpy.mock.calls[0][0]).toContain('role.updated')
+    warnSpy.mockRestore()
+  })
+
+  it('一般大小 payload 不觸發警告', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await emitRoleUpdated('char-a', { characterId: 'char-a', updates: { itemsChanged: true } })
+
+    expect(warnSpy).not.toHaveBeenCalled()
+    warnSpy.mockRestore()
   })
 
   it('game 頻道：遊戲頻道推送 + game-level pending 寫入', async () => {

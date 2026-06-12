@@ -214,7 +214,7 @@ export function useGameWebSocket(gameId: string, onEvent?: EventHandler) {
  * @example
  * ```tsx
  * useRoleUpdated(characterId, (payload) => {
- *   if (payload.updates.items) router.refresh();
+ *   if (payload.updates.itemsChanged) router.refresh();
  * });
  * ```
  */

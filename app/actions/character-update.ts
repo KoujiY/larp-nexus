@@ -169,7 +169,6 @@ export async function updateCharacter(
       beforeState,
       updatedCharacter,
       cleanStats,
-      cleanItems,
       cleanSkills,
       inventoryDiffs,
       hasManualSecretReveal,

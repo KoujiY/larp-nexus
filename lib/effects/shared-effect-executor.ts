@@ -10,7 +10,6 @@
  */
 
 import { emitInventoryUpdated, emitCharacterAffected, emitRoleUpdated } from '@/lib/websocket/events';
-import { cleanItemData } from '@/lib/character-cleanup';
 import { getCharacterData, getBaselineCharacterId } from '@/lib/game/get-character-data';
 import { updateCharacterData } from '@/lib/game/update-character-data';
 import { createTemporaryEffectRecord } from '@/lib/effects/create-temporary-effect';
@@ -237,23 +236,20 @@ export async function applyItemTransfer(
     },
   }).catch((err) => console.error('[shared-effect-executor] emitCharacterAffected failed', err));
 
-  // 3c. 發送 role.updated 讓 GM 端同步最新道具列表（目標 + 來源）
+  // 3c. 發送 role.updated 作為物品變動的 refresh 訊號（目標 + 來源）。
+  // 只送 itemsChanged 旗標不送內容（無訂閱端讀取、完整陣列有 413 風險），
+  // 不再為組 payload 重讀角色資料
   const charIds = effectType === 'item_steal'
     ? [targetIdStr, sourceIdStr]
     : [targetIdStr];
 
-  const latestChars = await Promise.all(charIds.map((id) => getCharacterData(id)));
-  for (let i = 0; i < charIds.length; i++) {
-    const char = latestChars[i];
-    if (char) {
-      const cleanItems = cleanItemData(char.items);
-      emitRoleUpdated(charIds[i], {
-        characterId: charIds[i],
-        updates: { items: cleanItems as unknown as Array<Record<string, unknown>> },
-      }).catch((err) =>
-        console.error(`[shared-effect-executor] emitRoleUpdated failed for ${charIds[i]}`, err)
-      );
-    }
+  for (const charId of charIds) {
+    emitRoleUpdated(charId, {
+      characterId: charId,
+      updates: { itemsChanged: true },
+    }).catch((err) =>
+      console.error(`[shared-effect-executor] emitRoleUpdated failed for ${charId}`, err)
+    );
   }
 
   const message = effectType === 'item_steal'
