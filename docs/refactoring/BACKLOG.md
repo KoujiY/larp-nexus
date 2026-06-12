@@ -46,6 +46,7 @@
 
 | 項目 | 說明 |
 |------|------|
+| **Client 端重複抓取全面盤點**（GM 端 + 玩家端） | 2026-06-13 發現（`withAction` 統一後 `[perf]` log 全覆蓋，既有冗餘首次可見）：同一份資料被多個同時掛載的元件/hook 各自獨立抓取，屬全站性模式問題。**已確認案例**：① GM 角色編輯頁——`character-edit-tabs` 全分頁 `forceMount`，SecretsTab/TasksEditForm/ItemsEditForm/SkillsEditForm 各自抓 `getGameItems`（4 次）、Items/Skills 各抓 `getGameSkills`（2 次），單次開頁 6 個冗餘 action（dev StrictMode 翻倍為 12）；② 玩家端——`getTransferTargets` 有 4 個獨立呼叫點（`item-list.tsx` + `use-item-transfer` + `use-item-showcase` + `use-target-options`），選取物品的互動流程可重複查同一份目標角色清單。**盤點方法**：逐頁操作對照 `[perf] action=` log，記錄每個進入點/互動觸發的 action 清單與次數，找出「同 action 同參數短時間多發」。**修法方向**：page 層抓一次 props 下傳（與 `initialItems` 既有傳法一致）、或共用層級的去重快取；玩家端 hooks 可抽共用的 targets provider。注意 `forceMount` 是髒資料保護的刻意設計，不可移除 |
 | ~~冷啟動 index check 與首請求搶 M0 連線池~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：scheduleIndexCheck 延後 10 秒背景執行（timer unref），並擴大為全環境覆蓋（見上方 TTL index 條目） |
 | ~~GM log 增量抓取~~ | ✅ 2026-06-12 `refactor/log-cursor-and-leftovers`：依評估採 since-cursor 增量實作完成——`getGameLogs` 加 `since`（`$gte` + client 以 id 去重），EventLog 拆全量/增量雙路徑，回歸測試 +12。固定開銷（auth + Game.findById）仍在，上線後以 `[perf] get-game-logs` 對照成效 |
 | ~~資料層分支邏輯四份複製~~ | ✅ 2026-06-12 `fix/backlog-quick-wins`：抽共用 `lib/game/resolve-is-active.ts`，四路徑回歸測試 19 條；update 完整路徑 baseline 落空同步從靜默 no-op 收斂為 throw |
