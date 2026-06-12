@@ -17,6 +17,7 @@ import {
   getPerfStore,
   formatPerfLine,
   isPerfLogEnabled,
+  timePusher,
   type PerfStore,
 } from '../perf-context';
 
@@ -158,5 +159,48 @@ describe('perf-context', () => {
         '[perf] action=contest-respond reqId=abcd1234 total=1840 db=620 dbOps=24 pusher=981 getChar=5 emits=9 result=ok',
       );
     });
+  });
+});
+
+describe('timePusher', () => {
+  const originalPerfLog = process.env.PERF_LOG;
+
+  beforeEach(() => {
+    process.env.PERF_LOG = '1';
+  });
+
+  afterEach(() => {
+    if (originalPerfLog === undefined) delete process.env.PERF_LOG;
+    else process.env.PERF_LOG = originalPerfLog;
+  });
+
+  it('在 perf context 內累加 pusherMs 與 pusherCalls', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    await runWithPerf('test-action', async () => {
+      await timePusher(Promise.resolve('ok'));
+      await timePusher(Promise.resolve('ok'));
+      const store = getPerfStore();
+      expect(store?.pusherCalls).toBe(2);
+      expect(store?.pusherMs).toBeGreaterThanOrEqual(0);
+    });
+    infoSpy.mockRestore();
+  });
+
+  it('原樣回傳 resolve 值', async () => {
+    await expect(timePusher(Promise.resolve(42))).resolves.toBe(42);
+  });
+
+  it('不吞錯誤：reject 原樣重拋且失敗也計次', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    await runWithPerf('test-action', async () => {
+      await expect(timePusher(Promise.reject(new Error('boom')))).rejects.toThrow('boom');
+      expect(getPerfStore()?.pusherCalls).toBe(1);
+    }).catch(() => {});
+    infoSpy.mockRestore();
+  });
+
+  it('無 perf context 時靜默直通（不可炸掉呼叫端）', async () => {
+    delete process.env.PERF_LOG;
+    await expect(timePusher(Promise.resolve('pass'))).resolves.toBe('pass');
   });
 });

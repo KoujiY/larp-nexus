@@ -17,6 +17,7 @@ vi.mock('@/lib/websocket/pending-events', () => ({
 
 vi.mock('@/lib/perf/perf-context', () => ({
   addPusherTime: vi.fn(),
+  timePusher: vi.fn((promise: Promise<unknown>) => promise),
 }))
 
 import { emitRoleUpdatedBatch } from '../events'

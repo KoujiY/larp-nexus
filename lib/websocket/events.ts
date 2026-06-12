@@ -26,7 +26,7 @@ import type {
 } from '@/types/event';
 import { getPusherServer, isPusherEnabled } from './pusher-server';
 // 效能埋點（PERF_INCIDENT_2026-06 Step 2.1）：累加 Pusher trigger 耗時與次數
-import { addPusherTime } from '@/lib/perf/perf-context';
+import { timePusher } from '@/lib/perf/perf-context';
 // Phase 9: 離線事件佇列寫入
 import {
   writePendingEvent,
@@ -59,14 +59,11 @@ async function trigger(channel: string, eventName: EventName, payload: BaseEvent
     payload,
   };
 
-  const start = performance.now();
   try {
-    await pusher.trigger(channel, eventName, event);
+    // 失敗也計次（timePusher 的 finally）：對延遲分析而言，重點是「花了多少時間在等 Pusher」
+    await timePusher(pusher.trigger(channel, eventName, event));
   } catch (error) {
     console.error('[pusher] trigger error', { channel, eventName, error });
-  } finally {
-    // 失敗也計次：對延遲分析而言，重點是「花了多少時間在等 Pusher」
-    addPusherTime(performance.now() - start);
   }
 }
 

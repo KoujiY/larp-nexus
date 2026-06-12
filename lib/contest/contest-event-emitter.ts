@@ -6,6 +6,8 @@
  */
 
 import { getPusherServer, isPusherEnabled } from '@/lib/websocket/pusher-server';
+// 效能埋點：所有 pusher.trigger 經 timePusher 計時，確保 [perf] pusher= 涵蓋對抗事件
+import { timePusher } from '@/lib/perf/perf-context';
 import type { SkillContestEvent } from '@/types/event';
 // Phase 9: 離線事件佇列寫入
 import { writePendingEvent, writePendingEvents } from '@/lib/websocket/pending-events';
@@ -50,7 +52,7 @@ export async function emitContestRequest(
     // 只發送給防守方（攻擊方不需要收到請求事件）
     const defenderChannelName = `private-character-${defenderId}`;
     await Promise.all([
-      pusher.trigger(defenderChannelName, 'skill.contest', event),
+      timePusher(pusher.trigger(defenderChannelName, 'skill.contest', event)),
       // Phase 9: 寫入 pending events（僅防守方）
       writePendingEvent(defenderId, 'skill.contest', event.payload as Record<string, unknown>),
     ]);
@@ -98,14 +100,14 @@ export async function emitContestResult(
     // 發送給攻擊方（除非需要選擇目標道具）
     if (!options?.skipAttacker) {
       const attackerChannelName = `private-character-${attackerId}`;
-      pushPromises.push(pusher.trigger(attackerChannelName, 'skill.contest', event));
+      pushPromises.push(timePusher(pusher.trigger(attackerChannelName, 'skill.contest', event)));
       pendingTargets.push({ targetCharacterId: attackerId, eventType: 'skill.contest', eventPayload: event.payload as Record<string, unknown> });
     }
 
     // 發送給防守方（除非防守方獲勝但無回應）
     if (!options?.skipDefender) {
       const defenderChannelName = `private-character-${defenderId}`;
-      pushPromises.push(pusher.trigger(defenderChannelName, 'skill.contest', event));
+      pushPromises.push(timePusher(pusher.trigger(defenderChannelName, 'skill.contest', event)));
       pendingTargets.push({ targetCharacterId: defenderId, eventType: 'skill.contest', eventPayload: event.payload as Record<string, unknown> });
     }
 
@@ -160,7 +162,7 @@ export async function emitContestEventsBatch(
   try {
     await Promise.all([
       ...events.map(({ characterId, event }) =>
-        pusher.trigger(`private-character-${characterId}`, 'skill.contest', event)
+        timePusher(pusher.trigger(`private-character-${characterId}`, 'skill.contest', event))
       ),
       writePendingEvents(
         events.map(({ characterId, event }) => ({
@@ -203,7 +205,7 @@ export async function emitContestAbort(
   try {
     const channelName = `private-character-${targetCharacterId}`;
     await Promise.all([
-      pusher.trigger(channelName, 'skill.contest', event),
+      timePusher(pusher.trigger(channelName, 'skill.contest', event)),
       writePendingEvent(targetCharacterId, 'skill.contest', event.payload as Record<string, unknown>),
     ]);
   } catch (error) {
@@ -241,7 +243,7 @@ export async function emitContestEffect(
     // 只發送給攻擊方
     const attackerChannelName = `private-character-${attackerId}`;
     await Promise.all([
-      pusher.trigger(attackerChannelName, 'skill.contest', event),
+      timePusher(pusher.trigger(attackerChannelName, 'skill.contest', event)),
       // Phase 9: 寫入 pending events（僅攻擊方）
       writePendingEvent(attackerId, 'skill.contest', event.payload as Record<string, unknown>),
     ]);

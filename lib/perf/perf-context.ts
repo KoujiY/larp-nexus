@@ -81,6 +81,22 @@ export function addPusherTime(ms: number): void {
 }
 
 /**
+ * 包裝一個 Pusher trigger promise，計時並累加至 perf context。
+ *
+ * 與 events.ts 的 trigger() 不同，本函數**不吞錯誤**——原樣回傳/拋出，
+ * 供 contest-event-emitter 等需要 rethrow 語意的呼叫端使用，
+ * 確保 [perf] 的 pusher= 欄位涵蓋所有發送路徑。
+ */
+export async function timePusher<T>(promise: Promise<T>): Promise<T> {
+  const start = performance.now();
+  try {
+    return await promise;
+  } finally {
+    addPusherTime(performance.now() - start);
+  }
+}
+
+/**
  * 累加一次 getCharacterData 呼叫
  */
 export function incrGetChar(): void {
