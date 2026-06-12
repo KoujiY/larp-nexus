@@ -22,7 +22,7 @@ GM can send messages to players during the game via two channels:
 ### Log 行為
 - **全體廣播**：寫入一筆 game-level log（action: `broadcast`），不會對每個角色各寫一筆
 - **角色訊息**：寫入一筆 character-level log（action: `character_message`）
-- GM 控制台的 EventLog 透過 `refreshKey` 機制在廣播送出後同步刷新
+- GM 控制台的 EventLog 透過 `refreshKey` 機制在廣播送出後同步刷新；外部觸發的刷新走 since-cursor 增量抓取（以最新紀錄時間戳為游標只拉新增，`$gte` + id 去重），進入畫面/切換篩選/手動「重新讀取」才全量載入
 
 ## Event Types
 | Event | Channel | Description |
