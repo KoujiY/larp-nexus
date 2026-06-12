@@ -250,7 +250,9 @@ export async function updateGame(
   data: {
     name?: string;
     description?: string;
-    isActive?: boolean;
+    // 注意：不接受 isActive——遊戲生命週期由 startGameAction / endGameAction
+    // 專屬管理，經此處更新會繞過 Runtime 建立/封存流程（曾為表單舊快照
+    // 回寫的地雷，2026-06 移除）
     publicInfo?: {
       blocks?: Array<{
         type: 'title' | 'body';
@@ -282,7 +284,6 @@ export async function updateGame(
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
     
     // 處理 publicInfo 更新（BackgroundBlock[] 結構）
     if (data.publicInfo !== undefined) {
