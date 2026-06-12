@@ -8,6 +8,8 @@
  * 用法：
  *   pnpm check-indexes              # 僅報告差異（不動 DB）
  *   pnpm check-indexes --sync       # 對有差異的 model 執行 syncIndexes
+ *   pnpm check-indexes --ci         # CI 模式：僅報告，有差異時 exit 1（擋 PR）
+ *                                   # （--ci 優先於 --sync，CI 永不寫 DB）
  *
  * 指定目標 DB（預設讀 .env.local 的 MONGODB_URI）：
  *   $env:MONGODB_URI="<目標 URI>"; pnpm check-indexes
@@ -31,7 +33,9 @@ import '../lib/db/models';
 
 config({ path: resolve(process.cwd(), '.env.local') });
 
-const SYNC = process.argv.includes('--sync');
+const CI = process.argv.includes('--ci');
+// CI 模式永不寫 DB：--ci 存在時忽略 --sync
+const SYNC = !CI && process.argv.includes('--sync');
 
 /** 遮蔽 URI 中的密碼供輸出 */
 function maskUri(uri: string): string {
@@ -137,6 +141,14 @@ async function main() {
 
   if (totalProblems === 0) {
     console.info('\n🎉 全部 collection 的 index 與 schema 一致');
+  } else if (CI) {
+    // CI 治理：schema 的 index 變更必須先在目標 DB 落地（Atlas UI 或
+    // 手動 --sync）再 merge——確保大 collection 的 index 建立不被部署綁架
+    console.error(
+      `\n❌ CI 模式：共 ${totalProblems} 項差異——schema 的 index 宣告與目標 DB 不一致。` +
+      '\n   請先在目標 DB 建立/同步 index（pnpm check-indexes --sync 或 Atlas UI）後重跑此檢查。'
+    );
+    process.exitCode = 1;
   } else if (!SYNC) {
     console.info(
       `\n共 ${totalProblems} 項差異。執行同步：pnpm check-indexes --sync` +
