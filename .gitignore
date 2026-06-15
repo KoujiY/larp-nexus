@@ -46,6 +46,9 @@ yarn-error.log*
 /loadtest/state.json
 /loadtest/results/
 
+# perf 量測產物（scripts/perf-dev.mjs 輸出，機器/操作相關，不入版控）
+perf-metrics.md
+
 # vercel
 .vercel
 

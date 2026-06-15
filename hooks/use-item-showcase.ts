@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import type { Item } from '@/types/character';
-import { getTransferTargets, type TransferTargetCharacter } from '@/app/actions/public';
+import { type TransferTargetCharacter } from '@/app/actions/public';
 import { showcaseItem } from '@/app/actions/item-showcase';
 import { notify } from '@/lib/notify';
 
@@ -13,6 +13,11 @@ interface UseItemShowcaseOptions {
   selectedItem: Item | null;
   /** 共用目標下拉選單已選的目標 ID */
   selectedUseTargetId: string | undefined;
+  /**
+   * 共用目標清單（perf 去重）：item-list 已抓過的 sharedTargets，
+   * fallback 開啟 ItemSelectDialog 時直接使用，不再自行抓取。
+   */
+  sharedTargets: TransferTargetCharacter[];
   /** 展示完成後的清理回調（關閉 detail dialog、清除目標狀態） */
   onShowcaseComplete: () => void;
 }
@@ -29,12 +34,14 @@ export function useItemShowcase({
   gameId,
   selectedItem,
   selectedUseTargetId,
+  sharedTargets,
   onShowcaseComplete,
 }: UseItemShowcaseOptions) {
   const [isOpen, setIsOpen] = useState(false);
   const [targets, setTargets] = useState<TransferTargetCharacter[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState('');
-  const [isLoadingTargets, setIsLoadingTargets] = useState(false);
+  // sharedTargets 已由父層載入，fallback 開啟對話框時無額外載入 → 恆為 false
+  const [isLoadingTargets] = useState(false);
   const [isShowcasing, setIsShowcasing] = useState(false);
   const [itemToShowcase, setItemToShowcase] = useState<Item | null>(null);
 
@@ -62,21 +69,11 @@ export function useItemShowcase({
       return;
     }
 
-    // Fallback：開啟 ItemSelectDialog
+    // Fallback：開啟 ItemSelectDialog（使用共用 sharedTargets，不重抓）
     setItemToShowcase(selectedItem);
-    setIsLoadingTargets(true);
+    setTargets(sharedTargets);
     setIsOpen(true);
-    try {
-      const result = await getTransferTargets(gameId, characterId);
-      if (result.success && result.data) {
-        setTargets(result.data);
-      } else {
-        setTargets([]);
-      }
-    } finally {
-      setIsLoadingTargets(false);
-    }
-  }, [selectedItem, gameId, characterId, selectedUseTargetId, onShowcaseComplete]);
+  }, [selectedItem, gameId, characterId, selectedUseTargetId, sharedTargets, onShowcaseComplete]);
 
   /** 執行展示（ItemSelectDialog 中選定目標後） */
   const handleShowcase = useCallback(async () => {
