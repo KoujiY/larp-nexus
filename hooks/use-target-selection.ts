@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTargetOptions } from './use-target-options';
-import { getTargetCharacterItems, type TargetItemInfo } from '@/app/actions/public';
+import { getTargetCharacterItems, type TargetItemInfo, type TransferTargetCharacter } from '@/app/actions/public';
 import { STORAGE_KEYS } from '@/lib/constants/contest';
 import type { SkillEffect, ItemEffect } from '@/types/character';
 
@@ -22,6 +22,13 @@ export interface UseTargetSelectionOptions {
   effects?: Array<SkillEffect | ItemEffect>;
   // 當前選中的源（用於恢復狀態時檢查）
   selectedSource?: { id: string; effects?: Array<SkillEffect | ItemEffect> } | null;
+  /**
+   * 外部提供的目標清單（perf 去重）：透傳給 useTargetOptions，
+   * 呼叫端（item-list）已抓過 sharedTargets 時避免重複抓取。
+   */
+  externalTargets?: TransferTargetCharacter[];
+  /** 外部清單是否仍在載入 */
+  externalTargetsLoading?: boolean;
 }
 
 export interface UseTargetSelectionReturn {
@@ -62,6 +69,8 @@ export function useTargetSelection(options: UseTargetSelectionOptions): UseTarge
     enabled,
     effects = [],
     selectedSource,
+    externalTargets,
+    externalTargetsLoading,
   } = options;
 
   // 使用 useTargetOptions 獲取目標角色選項
@@ -77,6 +86,8 @@ export function useTargetSelection(options: UseTargetSelectionOptions): UseTarge
     requiresTarget,
     targetType,
     enabled,
+    externalTargets,
+    externalTargetsLoading,
   });
 
   // 本地狀態管理（避免被 hook 重置）

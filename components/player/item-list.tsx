@@ -114,6 +114,9 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     enabled: !!selectedItem,
     effects,
     selectedSource: selectedItem,
+    // perf 去重：共用本元件已抓的 sharedTargets，useTargetOptions 不再重抓
+    externalTargets: sharedTargets,
+    externalTargetsLoading: isLoadingSharedTargets,
   });
 
   // 追蹤是否正在關閉 dialog，避免重複處理導致無限循環
@@ -349,6 +352,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     gameId,
     selectedItem,
     selectedUseTargetId,
+    sharedTargets,
     onTransferItem,
     onTransferComplete: handleTransferComplete,
   });
@@ -359,6 +363,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     gameId,
     selectedItem,
     selectedUseTargetId,
+    sharedTargets,
     onShowcaseComplete: handleTransferComplete, // 清理邏輯與轉移相同
   });
 
