@@ -886,17 +886,38 @@ Phase 9 引入 Server-side 事件佇列，解決玩家離線時漏接 WebSocket 
 
 ### 前端處理流程
 
-1. 頁面載入時，`getPublicCharacter()` 同時呼叫 `fetchPendingEvents()`
+1. 頁面載入時，`getPublicCharacter()` 同時呼叫 `fetchPendingEvents()`（SSR）
 2. 回傳的 `pendingEvents[]` 按 `createdAt` 排序（最舊優先）
 3. 前端逐一將 pending event 轉換為 `BaseEvent` 格式
 4. 復用 `handleWebSocketEvent()` 處理每個事件（通知、Toast、Dialog）
 5. 以 event `id` 去重，避免與即時 WebSocket 事件重複
 
+#### 歷史導航 / 前景恢復重抓（`hooks/use-pending-events-refetch.ts`）
+
+`fetchPendingEvents()` 預設為**破壞性讀取**（一抓即原子標記 `isDelivered`），且僅在 SSR 執行。
+歷史導航返回**不重跑 SSR** → 玩家離開期間累積的 pending 漏接（對抗孤兒化）。
+為此前端在以下時機重抓並餵進同一投遞管線（`fetchPendingEvents` 為 server action，直打 DB，繞過 Router Cache）：
+
+- **mount**：SPA 客戶端導航（`NavLink` 的 `router.push`，如角色頁底部「世界觀」連結）返回時，
+  角色頁 remount 但 server component 不重跑（Router Cache 舊 props），且 `pageshow` /
+  `visibilitychange` 皆不觸發——唯一可靠訊號是 remount 本身。**這是 in-app 返回的主要修復路徑。**
+- `pageshow`（`persisted === true`，即 bfcache 整頁導航還原）
+- `visibilitychange`（→ `visible`，分頁/App 切回前景）
+
+**非破壞性讀取 + 投遞後 ack（關鍵）**：client 重抓以 `fetchPendingEvents(..., { markDelivered: false })`
+讀取但**不消費**，**確實投遞到 UI 後**才呼叫 `acknowledgePendingEvents(ids)` 標記 `isDelivered`。
+理由：破壞性讀取放 client 端會在投遞失敗時消費卻未投遞 → 連刷新都撈不回。最典型是 dev StrictMode
+的 mount→cleanup→mount：mount-1 的 in-flight fetch 被 teardown 跨過、`isActive` 守衛擋下投遞，
+若是破壞性讀取則事件已消費、mount-2 撈空。非破壞性讀取讓被擋下的投遞不消費（DB 仍 undelivered），
+remount / 刷新都能救回。去重在「投遞當下」（非排程當下），重疊的重抓不會雙投或雙 ack；
+跨通道去重仍由 `handleWebSocketEvent` 的 `_eventId` 機制負責。代價：ack 失敗時事件最多重顯示一次
+（重顯示 > 遺失，可接受）。
+
 ### 事件保留與清理
 
 - 事件保留 24 小時（`expiresAt = createdAt + 24h`）
-- 拉取後立即標記 `isDelivered = true`
-- Cron Job 定期清理已送達（>1 小時）和已過期的記錄
+- 破壞性拉取（SSR）後立即標記 `isDelivered = true`；非破壞性重抓（client）於投遞後由 `acknowledgePendingEvents` 標記
+- Cron Job 定期清理已送達（>1 小時）和已過期的記錄；未 ack 的事件由 24h TTL 兜底清理
 
 ---
 
