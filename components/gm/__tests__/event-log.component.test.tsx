@@ -108,3 +108,41 @@ describe('EventLog since-cursor 增量抓取', () => {
     expect(options?.since).toBeUndefined();
   });
 });
+
+describe('EventLog item_transfer 渲染', () => {
+  const transferLog: LogData = {
+    id: 'log-t1',
+    timestamp: new Date('2026-06-14T10:00:00.000Z'),
+    gameId: 'game-1',
+    characterId: 'char-source',
+    actorType: 'character',
+    actorId: 'char-source',
+    action: 'item_transfer',
+    details: {
+      itemId: 'item-1',
+      itemName: '金幣',
+      quantity: 3,
+      targetCharacterId: 'char-target',
+      targetCharacterName: 'Alice',
+    },
+  };
+
+  it('轉移紀錄顯示「物品」類別與轉移描述（物品名、數量、目標角色）', async () => {
+    getGameLogsMock.mockResolvedValue({ success: true, data: [transferLog], message: 'ok' });
+
+    render(
+      <EventLog
+        gameId="game-1"
+        characters={[{ id: 'char-source', name: 'Bob' }]}
+        refreshKey={0}
+      />,
+    );
+
+    const entry = await screen.findByText(/轉移/);
+    expect(entry.textContent).toContain('金幣');
+    expect(entry.textContent).toContain('3');
+    expect(entry.textContent).toContain('Alice');
+    // 類別徽章：物品（非掉到 default 的「事件」）
+    expect(screen.getByText('物品')).toBeInTheDocument();
+  });
+});
