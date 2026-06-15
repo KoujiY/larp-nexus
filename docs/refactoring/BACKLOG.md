@@ -14,6 +14,7 @@
 
 | 項目 | 來源 | 說明 |
 |------|------|------|
+| E2E flaky：`seed + dbQuery round-trip` 並行下首跑失敗 | 2026-06-15 `ci/e2e-github-actions` CI 首次綠燈時暴露 | workers=2 並行下，`e2e/smoke/infrastructure.spec.ts:71` 偶發首跑 `dbQuery('gm_users', { _id })` 回 0（retry 通過、`retries: 2` 吸收，run 仍綠）。已查證**非**清空 race（`resetDb` 為 no-op）、**非** `_id` 轉換問題（db-query 正確轉 ObjectId）→ 根因偏向 seed→query 的 read-after-write 時序（CI 較慢/並行放大）。低優先：retry 目前壓得住，壓不住再查。候選修法：seed 路由寫入後確認可見再回傳、或該測試對首查加短 poll |
 | ~~瀏覽器歷史導航返回角色頁不觸發 pending 補送 → 對抗孤兒化~~ | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md) 尾部議題 | ✅ 2026-06-14 `fix/item-flow-log-and-pending`：新增 `hooks/use-pending-events-refetch.ts`，於 **mount**（SPA 客戶端導航如「世界觀」連結 `router.push` 返回時角色頁 remount，server component 不重跑——驗收揭露這才是 in-app 返回的主要路徑）+ `pageshow`(persisted，bfcache) + `visibilitychange`(→visible) 重抓並餵進既有投遞管線。**關鍵：非破壞性讀取 + 投遞後 ack**——`fetchPendingEvents` 加 `markDelivered` 選項（預設 true，SSR 不變）、新增 `acknowledgePendingEvents`；client 以 `markDelivered:false` 讀取不消費，投遞到 UI 後才 ack 標記 delivered。理由：破壞性讀取放 client 端在 dev StrictMode（mount→cleanup→mount 把 in-flight fetch 跨過、`isActive` 守衛擋投遞）會消費卻未投遞 → 連刷新都撈不回（驗收第二輪揭露此回歸）。串接於 `use-game-event-handler.ts`，+7 hook 測試 + 5 server action 測試。**影響盤點與測試清單見下方** |
 | ~~物品轉移/偷取無 GM log~~ | 2026-06-13 `refactor/infra-and-form-guards` C1 驗收時發現 | ✅ 2026-06-14 `fix/item-flow-log-and-pending`：縱向分析修正原描述——**偷取/移除其實已有 log**（item / skill / contest 三條 executor 路徑皆寫 `item_use` / `skill_use` / `contest_result`，含「偷竊了 X」訊息）；真正缺口僅**轉移（give）**：`transferItem` 補 `writeLog({ action: 'item_transfer' })`（記轉出方），`event-log.tsx` 的 `getEventCategory` + `EventDescription` 加對應分類與渲染。+3 測試（server log + UI 渲染） |
 
@@ -68,8 +69,8 @@
 
 | 項目 | 計畫文件 |
 |------|----------|
-| E2E 平行化（workers > 1） | [E2E_PARALLEL_WORKERS.md](./E2E_PARALLEL_WORKERS.md)（含 `transition-[transform` 全專案掃描待辦） |
-| CI 執行 E2E（GitHub Actions） | [ci-e2e-workflow-draft.md](./ci-e2e-workflow-draft.md)（草稿，尚未實作） |
+| ~~E2E 平行化（workers > 1）~~ ✅ 已實作（盤點 2026-06-15 確認） | `playwright.config.ts` 已 `fullyParallel: true` + `workers: CI ? 2 : 4`，`e2e/fixtures` 以 `parallelIndex` 做 gameCode prefix 隔離、hardcoded code 全數遷移；`transition-[transform` 全專案掃描 source code 零命中。計畫文件封存 [E2E_PARALLEL_WORKERS.md](../archive/E2E_PARALLEL_WORKERS.md) |
+| ~~CI 執行 E2E（GitHub Actions）~~ ✅ 2026-06-15 `ci/e2e-github-actions` | 新增 `.github/workflows/e2e.yml`（PR + main push 觸發，平行 2 worker，browser/mongod 快取，失敗上傳 trace）。webServer timeout 放寬至 300s 容納 CI cold build。計畫文件封存 [ci-e2e-workflow-draft.md](../archive/ci-e2e-workflow-draft.md) |
 
 ## 未排程構想
 

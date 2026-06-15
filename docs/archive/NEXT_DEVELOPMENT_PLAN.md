@@ -879,7 +879,7 @@ LARP Nexus 大量依賴即時事件（`character.affected`、`item.used`、`cont
 6. **Phase 6 — 開發者體驗 / 維運** ✅
    - [x] README 段落：如何跑 E2E、常見失敗排查
    - [x] `docs/knowledge/architecture/e2e-testing.md`：E2E 測試架構知識庫（Pusher stub 原理、SSE IPC 設計、fixture 使用指南、flaky test 防治策略）
-   - [x] CI workflow draft：`docs/refactoring/ci-e2e-workflow-draft.md`（GitHub Actions 草稿，僅參考）
+   - [x] CI workflow draft：`docs/archive/ci-e2e-workflow-draft.md`（GitHub Actions 草稿；2026-06-15 已落地為 `.github/workflows/e2e.yml`，草稿封存）
    - [x] `pnpm test:e2e:headed` script — 瀏覽器可視模式
    - [x] `pnpm test:e2e:debug` script — Playwright Inspector debug 模式（`PWDEBUG=1`）
 
