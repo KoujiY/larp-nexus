@@ -62,6 +62,10 @@ jobs:
         run: pnpm test:e2e
         env:
           MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+          # CI 無 .env.local：webServer（next start）需 SESSION_SECRET 給 iron-session，
+          # 否則 /api/test/login 等路由 throw「Missing password」。global-setup 的 temp-file
+          # workaround 只補 MONGODB_URI，SESSION_SECRET 須由此顯式提供（≥32 字元）。
+          SESSION_SECRET: ci-only-session-secret-do-not-use-32chars
 
       # 失敗時上傳 trace + screenshot + report
       - name: Upload test artifacts
