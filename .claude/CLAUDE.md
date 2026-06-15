@@ -155,6 +155,21 @@ docs/             # 文檔
    - E2E：既有 `e2e/` spec 是否因行為變更需要更新、是否需要新增測試覆蓋
 6. **中文亂碼掃描**：Grep `��` 確認 Write/Edit 後沒有編碼錯誤
 
+## PR 建立規範（MANDATORY）
+
+建立 PR 一律使用標準形式（否則會被 PreToolUse hook 當場擋下）：
+
+```bash
+gh pr create --title "type: description" --body-file PR_BODY.md
+```
+
+- **title**：`type: description`、禁止 scope 括號、限 ASCII（英文）
+- **body（`PR_BODY.md`）**：必含五個章節，有序且非空——`## Summary` / `## Changes` / `## Testing` / `## Risks` / `## Sync`；選用 `## Notes`；其餘未知章節會被擋下
+  - `## Risks`：無風險也要寫 `None — <理由>`
+  - `## Sync`：知識庫 / BACKLOG / E2E 同步狀態，無則 `N/A — <理由>`
+  - 章節標題英文，內文段落繁中
+- **強制機制**：`.claude/hooks/pr-create-guard.mjs`（PreToolUse hook）+ `scripts/pr-lint.mjs`（驗證器，單一真相）。規則調整改這兩個檔，不靠記憶。
+
 ## 知識庫 (Knowledge Base)
 
 原子化知識庫位於 `docs/knowledge/`，依照領域拆分為小單元，每次開發只需載入相關部分：
