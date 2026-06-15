@@ -15,7 +15,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
-import { getGameItems } from '@/app/actions/games';
 import type { GameItemInfo } from '@/app/actions/games';
 import { cleanSecretConditions } from '@/lib/reveal/condition-cleaner';
 import { useFormGuard } from '@/hooks/use-form-guard';
@@ -48,7 +47,8 @@ type SecretStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
 
 interface SecretsTabProps {
   character: CharacterData;
-  gameId: string;
+  /** 劇本內所有道具（自動揭露條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
+  gameItems: GameItemInfo[];
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;
   onRegisterDiscard?: RegisterDiscardHandler;
@@ -57,10 +57,9 @@ interface SecretsTabProps {
 /**
  * Tab 3：隱藏資訊（列表 + 詳情面板）
  */
-export function SecretsTab({ character, gameId, onDirtyChange, onRegisterSave, onRegisterDiscard }: SecretsTabProps) {
+export function SecretsTab({ character, gameItems, onDirtyChange, onRegisterSave, onRegisterDiscard }: SecretsTabProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
 
   // Dialog 狀態
   const [editingSecretIndex, setEditingSecretIndex] = useState<number | null>(null);
@@ -125,21 +124,10 @@ export function SecretsTab({ character, gameId, onDirtyChange, onRegisterSave, o
     }
   }, [selectedIdx, secrets.length]);
 
-  // 載入道具列表（用於自動揭露條件）
+  // 道具列表變動後清理失效的揭露條件引用（gameItems 由 props 下傳）
   useEffect(() => {
-    getGameItems(gameId).then((result) => {
-      if (result.success && result.data) {
-        setAvailableItems(result.data);
-      }
-    }).catch((error) => {
-      console.error('Failed to load game items:', error);
-    });
-  }, [gameId]);
-
-  // 道具載入後清理失效的揭露條件引用
-  useEffect(() => {
-    if (availableItems.length === 0) return;
-    const existingItemIds = availableItems.map((item) => item.itemId);
+    if (gameItems.length === 0) return;
+    const existingItemIds = gameItems.map((item) => item.itemId);
     const { secrets: cleanedSecrets, result } = cleanSecretConditions(
       secrets,
       existingItemIds,
@@ -149,7 +137,7 @@ export function SecretsTab({ character, gameId, onDirtyChange, onRegisterSave, o
       toast.info(`已自動清理 ${result.removedCount} 個失效的揭露條件引用`);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableItems]);
+  }, [gameItems]);
 
   const selectedSecret = selectedIdx !== undefined ? secrets[selectedIdx] : undefined;
 
@@ -267,7 +255,7 @@ export function SecretsTab({ character, gameId, onDirtyChange, onRegisterSave, o
           }}
           secret={editingSecretIndex !== null ? secrets[editingSecretIndex] ?? null : null}
           onSave={handleSaveSecret}
-          availableItems={availableItems}
+          availableItems={gameItems}
           disabled={isLoading}
         />
       </form>
@@ -311,7 +299,7 @@ export function SecretsTab({ character, gameId, onDirtyChange, onRegisterSave, o
             <SecretDetailPanel
               secret={selectedSecret}
               status={getSecretStatus(selectedSecret)}
-              availableItems={availableItems}
+              availableItems={gameItems}
               allSecrets={secrets}
               onEdit={() => {
                 if (selectedIdx === undefined) return;
@@ -343,7 +331,7 @@ export function SecretsTab({ character, gameId, onDirtyChange, onRegisterSave, o
         }}
         secret={editingSecretIndex !== null ? secrets[editingSecretIndex] ?? null : null}
         onSave={handleSaveSecret}
-        availableItems={availableItems}
+        availableItems={gameItems}
         disabled={isLoading}
       />
     </form>

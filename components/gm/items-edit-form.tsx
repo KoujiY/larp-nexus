@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
 import { toggleVisibility } from '@/app/actions/toggle-visibility';
-import { getGameItems, getGameSkills } from '@/app/actions/games';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import { useCharacterWebSocket } from '@/hooks/use-websocket';
 import { AbilityCard } from '@/components/gm/ability-card';
@@ -22,10 +21,13 @@ import { getItemEffects } from '@/lib/item/get-item-effects';
 
 interface ItemsEditFormProps {
   characterId: string;
-  gameId: string;
   initialItems: Item[];
   stats: Stat[];
   secrets?: { id: string; title: string }[];
+  /** 劇本內所有道具（自動揭露/效果條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
+  gameItems: GameItemInfo[];
+  /** 劇本內所有技能（同上） */
+  gameSkills: GameSkillInfo[];
   /** 遊戲進行中時禁止上傳圖片（Runtime 新增的道具在 Baseline 找不到） */
   gameIsActive?: boolean;
   randomContestMaxValue?: number;
@@ -41,11 +43,9 @@ interface ItemsEditFormProps {
  * 新增卡片排在 grid 第一位。
  * 空狀態使用 GmEmptyState 共用元件。
  */
-export function ItemsEditForm({ characterId, gameId, initialItems, stats, secrets, gameIsActive = false, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: ItemsEditFormProps) {
+export function ItemsEditForm({ characterId, initialItems, stats, secrets, gameItems, gameSkills, gameIsActive = false, randomContestMaxValue = 100, onDirtyChange, onRegisterSave, onRegisterDiscard }: ItemsEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
-  const [availableSkills, setAvailableSkills] = useState<GameSkillInfo[]>([]);
   const [items, setItems] = useState<Item[]>(initialItems);
   const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -89,16 +89,6 @@ export function ItemsEditForm({ characterId, gameId, initialItems, stats, secret
   });
 
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
-
-  // 載入劇本中所有道具與技能（用於自動揭露條件設定）
-  useEffect(() => {
-    getGameItems(gameId).then((result) => {
-      if (result.success && result.data) setAvailableItems(result.data);
-    }).catch((error) => { console.error('Failed to load game items:', error); });
-    getGameSkills(gameId).then((result) => {
-      if (result.success && result.data) setAvailableSkills(result.data);
-    }).catch((error) => { console.error('Failed to load game skills:', error); });
-  }, [gameId]);
 
   /** 初始資料查找表 */
   const initialItemsMap = useMemo(() => {
@@ -315,8 +305,8 @@ export function ItemsEditForm({ characterId, gameId, initialItems, stats, secret
           stats={stats}
           randomContestMaxValue={randomContestMaxValue}
           onSave={(data) => handleWizardSave(data as Item)}
-          availableItems={availableItems}
-          availableSkills={availableSkills}
+          availableItems={gameItems}
+          availableSkills={gameSkills}
           availableSecrets={secrets}
           ownerCharacterId={characterId}
         />

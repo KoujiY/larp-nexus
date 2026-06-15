@@ -1,5 +1,5 @@
 import { getCharacterById, getCharactersByGameId } from '@/app/actions/characters';
-import { getGameById } from '@/app/actions/games';
+import { getGameById, getGameItems, getGameSkills } from '@/app/actions/games';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/gm/page-layout';
 import { EnvironmentBanner } from '@/components/gm/environment-banner';
@@ -47,6 +47,16 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
   )
     .filter((c) => c.id !== character.id)
     .map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }));
+
+  // 劇本內所有道具 / 技能（自動揭露與效果條件選擇器用）：在 page 層抓一次後
+  // 下傳給 CharacterEditTabs，避免 secrets/tasks/items/skills 四個 forceMount
+  // 分頁各自於 client useEffect 重複抓取（getGameItems ×4、getGameSkills ×2）。
+  const [gameItemsResult, gameSkillsResult] = await Promise.all([
+    getGameItems(gameId),
+    getGameSkills(gameId),
+  ]);
+  const gameItems = gameItemsResult.success && gameItemsResult.data ? gameItemsResult.data : [];
+  const gameSkills = gameSkillsResult.success && gameSkillsResult.data ? gameSkillsResult.data : [];
 
   /** 角色名稱首字，用於頭像佔位 */
   const avatarInitial = character.name.charAt(0);
@@ -143,6 +153,8 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
       <CharacterEditTabs
         character={character}
         gameId={gameId}
+        gameItems={gameItems}
+        gameSkills={gameSkills}
         gameIsActive={game.isActive}
         randomContestMaxValue={game.randomContestMaxValue}
         gameCharacters={gameCharacters}

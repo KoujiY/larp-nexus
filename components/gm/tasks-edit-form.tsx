@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCharacter } from '@/app/actions/character-update';
-import { getGameItems } from '@/app/actions/games';
 import { useFormGuard } from '@/hooks/use-form-guard';
 import type { GameItemInfo } from '@/app/actions/games';
 import { AutoRevealConditionEditor } from '@/components/gm/auto-reveal-condition-editor';
@@ -44,9 +43,10 @@ type TaskStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
 
 interface TasksEditFormProps {
   characterId: string;
-  gameId: string;
   initialTasks: Task[];
   secrets: SecretOption[];
+  /** 劇本內所有道具（自動揭露條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
+  gameItems: GameItemInfo[];
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;
   onRegisterDiscard?: RegisterDiscardHandler;
@@ -58,14 +58,13 @@ interface TasksEditFormProps {
  * 各欄為獨立卡片容器，header 固定 + body 可捲動。
  * 任務卡片支援點擊展開/收合、軟刪除（可復原）、狀態 badge。
  */
-export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDirtyChange, onRegisterSave, onRegisterDiscard }: TasksEditFormProps) {
+export function TasksEditForm({ characterId, initialTasks, secrets, gameItems, onDirtyChange, onRegisterSave, onRegisterDiscard }: TasksEditFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [prevInitialTasks, setPrevInitialTasks] = useState(initialTasks);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [availableItems, setAvailableItems] = useState<GameItemInfo[]>([]);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
   if (initialTasks !== prevInitialTasks) {
@@ -106,21 +105,10 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
     [initialTasksMap, deletedIds],
   );
 
-  // 載入劇本中所有道具（用於自動揭露條件設定）
+  // 道具列表變動後清理失效條件（gameItems 由 props 下傳）
   useEffect(() => {
-    getGameItems(gameId).then((result) => {
-      if (result.success && result.data) {
-        setAvailableItems(result.data);
-      }
-    }).catch((error) => {
-      console.error('Failed to load game items:', error);
-    });
-  }, [gameId]);
-
-  // 道具載入後清理失效條件
-  useEffect(() => {
-    if (availableItems.length === 0) return;
-    const existingItemIds = availableItems.map((item) => item.itemId);
+    if (gameItems.length === 0) return;
+    const existingItemIds = gameItems.map((item) => item.itemId);
     const existingSecretIds = secrets.map((s) => s.id);
     const { tasks: cleanedTasks, result } = cleanTaskConditions(tasks, existingItemIds, existingSecretIds);
     if (result.cleaned) {
@@ -128,7 +116,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
       toast.info(`已自動清理 ${result.removedCount} 個失效的揭露條件引用`);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableItems]);
+  }, [gameItems]);
 
   const handleAddTask = useCallback((isHidden: boolean) => {
     const newTask: Task = {
@@ -224,7 +212,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
           onRestore={handleRestore}
           getStatus={getTaskStatus}
           addLabel="新增一般任務"
-          availableItems={availableItems}
+          availableItems={gameItems}
           secrets={secrets}
           disabled={isLoading}
         />
@@ -240,7 +228,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
           getStatus={getTaskStatus}
           addLabel="新增隱藏任務"
           variant="muted"
-          availableItems={availableItems}
+          availableItems={gameItems}
           secrets={secrets}
           disabled={isLoading}
         />
@@ -333,7 +321,7 @@ export function TasksEditForm({ characterId, gameId, initialTasks, secrets, onDi
                       ...editingTask,
                       autoRevealCondition: newCondition,
                     })}
-                    availableItems={availableItems}
+                    availableItems={gameItems}
                     availableSecrets={secrets}
                     allowedTypes={['items_viewed', 'items_acquired', 'secrets_revealed']}
                   />

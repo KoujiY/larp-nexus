@@ -18,6 +18,7 @@ import { useCharacterEditState } from '@/hooks/use-character-edit-state';
 import { useCharacterWebSocket, useRoleUpdated } from '@/hooks/use-websocket';
 import { cn } from '@/lib/utils';
 import type { CharacterData } from '@/types/character';
+import type { GameItemInfo, GameSkillInfo } from '@/app/actions/games';
 import type { CharacterTabKey } from '@/types/gm-edit';
 import { toast } from 'sonner';
 import type { BaseEvent, ItemTransferredEvent, SkillContestEvent } from '@/types/event';
@@ -47,6 +48,10 @@ export type GameCharacterSummary = {
 interface CharacterEditTabsProps {
   character: CharacterData;
   gameId: string;
+  /** 劇本內所有道具（自動揭露/效果條件用）；page 層抓一次後下傳，secrets/tasks/items/skills 分頁共用，避免各自重複抓取 */
+  gameItems: GameItemInfo[];
+  /** 劇本內所有技能（同上）；items/skills 分頁共用 */
+  gameSkills: GameSkillInfo[];
   /** 遊戲是否進行中（Runtime 模式） */
   gameIsActive?: boolean;
   randomContestMaxValue?: number;
@@ -67,6 +72,8 @@ interface CharacterEditTabsProps {
 export function CharacterEditTabs({
   character,
   gameId,
+  gameItems,
+  gameSkills,
   gameIsActive = false,
   randomContestMaxValue,
   gameCharacters = [],
@@ -299,7 +306,7 @@ export function CharacterEditTabs({
         <TabsContent value="secrets" forceMount className={cn('data-[state=inactive]:hidden', isFullHeightTab ? 'flex-1 min-h-0 mt-6' : 'space-y-6')}>
           <SecretsTab
             character={character}
-            gameId={gameId}
+            gameItems={gameItems}
             onDirtyChange={(dirty) =>
               registerDirty('secrets', {
                 isDirty: dirty,
@@ -339,8 +346,8 @@ export function CharacterEditTabs({
         <TabsContent value="tasks" forceMount className="data-[state=inactive]:hidden">
           <TasksEditForm
             characterId={character.id}
-            gameId={gameId}
             initialTasks={character.tasks || []}
+            gameItems={gameItems}
             secrets={(character.secretInfo?.secrets || []).map((s) => ({
               id: s.id,
               title: s.title,
@@ -361,10 +368,11 @@ export function CharacterEditTabs({
         <TabsContent value="items" forceMount className="data-[state=inactive]:hidden">
           <ItemsEditForm
             characterId={character.id}
-            gameId={gameId}
             initialItems={character.items || []}
             stats={character.stats || []}
             secrets={(character.secretInfo?.secrets || []).map((s) => ({ id: s.id, title: s.title }))}
+            gameItems={gameItems}
+            gameSkills={gameSkills}
             gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>
@@ -383,10 +391,11 @@ export function CharacterEditTabs({
         <TabsContent value="skills" forceMount className="data-[state=inactive]:hidden">
           <SkillsEditForm
             characterId={character.id}
-            gameId={gameId}
             initialSkills={character.skills || []}
             stats={character.stats || []}
             secrets={(character.secretInfo?.secrets || []).map((s) => ({ id: s.id, title: s.title }))}
+            gameItems={gameItems}
+            gameSkills={gameSkills}
             gameIsActive={gameIsActive}
             randomContestMaxValue={randomContestMaxValue}
             onDirtyChange={(dirty) =>
