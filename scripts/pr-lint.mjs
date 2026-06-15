@@ -138,7 +138,8 @@ export function validatePr({ title, body }) {
 export function isGhPrCreate(command) {
   if (typeof command !== 'string') return false;
   const unquoted = command.replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''");
-  return /\bgh\s+pr\s+create\b/.test(unquoted);
+  // `gh(.exe)?` 涵蓋裸 `gh pr create` 與全路徑/`gh.exe pr create`（避免以絕對路徑繞過閘）
+  return /\bgh(\.exe)?\s+pr\s+create\b/.test(unquoted);
 }
 
 /**

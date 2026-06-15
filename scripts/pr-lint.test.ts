@@ -119,6 +119,17 @@ describe('isGhPrCreate', () => {
     expect(isGhPrCreate("git commit -m 'gh pr create mentioned'")).toBe(false);
   });
 
+  it('gh.exe pr create → true（不可用 .exe 後綴繞過）', () => {
+    expect(isGhPrCreate('gh.exe pr create --title "fix: x" --body-file PR_BODY.md')).toBe(true);
+  });
+
+  it('無空格路徑前綴 gh.exe pr create → true', () => {
+    expect(isGhPrCreate('/usr/bin/gh.exe pr create --title "fix: x" --body-file PR_BODY.md')).toBe(true);
+  });
+
+  // 已知限制：含空格的全路徑（如 "C:\\Program Files\\GitHub CLI\\gh.exe"）因必須加引號、
+  // 而偵測會剝除引號內容，故偵測不到。緩解：一律以裸 `gh`（PATH 解析）呼叫，不走引號全路徑。
+
   it('無關指令 → false', () => {
     expect(isGhPrCreate('ls -la')).toBe(false);
   });
