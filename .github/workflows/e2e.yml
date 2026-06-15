@@ -1,0 +1,75 @@
+name: E2E Tests
+
+# 在 PR 與 main push 上跑 Playwright E2E。
+# E2E 已 per-worker 隔離（gameCode prefix），playwright.config 設 workers: CI ? 2 : 4，
+# 故 CI 以 2 worker 平行執行。webServer 以 `next build --webpack && next start` 提供
+# production-like 環境（pusher stub 依賴 webpack alias）。
+# 不阻擋 merge 與否由 branch protection 決定；本 workflow 只負責執行與回報。
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# 同一 PR 的新 push 取消進行中的 run
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 2026-06：runner 淘汰 Node 20，actions 一律用 v6+
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Playwright browser binary 快取（key 綁 lockfile）
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      # mongodb-memory-server 的 mongod binary 快取
+      # 用 github.workspace 絕對路徑（env 區塊不展開 ~），確保下載目錄與快取 path 一致命中
+      - name: Cache mongod binary
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.cache/mongodb-binaries
+          key: mongod-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # pnpm test:e2e 已透過 cross-env 設 E2E=1 與 CRON_SECRET；
+      # GitHub Actions 自動提供 CI=true（觸發 playwright 的 CI 分支：workers=2、retries=2、不 reuseServer）
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+
+      # 失敗時上傳 trace + screenshot + report
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

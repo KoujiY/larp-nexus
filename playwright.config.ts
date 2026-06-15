@@ -47,7 +47,8 @@ export default defineConfig({
       'pnpm exec next build --webpack && pnpm exec next start -p 3100',
     url: 'http://127.0.0.1:3100',
     reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
+    // CI cold build（next build --webpack）較久，放寬至 5 分鐘避免 webServer 啟動超時
+    timeout: 300_000,
     env: {
       E2E: '1',
       NODE_ENV: 'production',
