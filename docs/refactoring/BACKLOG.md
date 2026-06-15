@@ -68,8 +68,8 @@
 
 | 項目 | 計畫文件 |
 |------|----------|
-| E2E 平行化（workers > 1） | [E2E_PARALLEL_WORKERS.md](./E2E_PARALLEL_WORKERS.md)（含 `transition-[transform` 全專案掃描待辦） |
-| CI 執行 E2E（GitHub Actions） | [ci-e2e-workflow-draft.md](./ci-e2e-workflow-draft.md)（草稿，尚未實作） |
+| ~~E2E 平行化（workers > 1）~~ ✅ 已實作（盤點 2026-06-15 確認） | `playwright.config.ts` 已 `fullyParallel: true` + `workers: CI ? 2 : 4`，`e2e/fixtures` 以 `parallelIndex` 做 gameCode prefix 隔離、hardcoded code 全數遷移；`transition-[transform` 全專案掃描 source code 零命中。計畫文件封存 [E2E_PARALLEL_WORKERS.md](../archive/E2E_PARALLEL_WORKERS.md) |
+| ~~CI 執行 E2E（GitHub Actions）~~ ✅ 2026-06-15 `ci/e2e-github-actions` | 新增 `.github/workflows/e2e.yml`（PR + main push 觸發，平行 2 worker，browser/mongod 快取，失敗上傳 trace）。webServer timeout 放寬至 300s 容納 CI cold build。計畫文件封存 [ci-e2e-workflow-draft.md](../archive/ci-e2e-workflow-draft.md) |
 
 ## 未排程構想
 
