@@ -267,6 +267,7 @@ function getEventCategory(action: string, actorType: string): EventCategory {
   if (action === 'game.broadcast' || action === 'broadcast' || action === 'character_message') return 'gm';
   if (action === 'game_start' || action === 'game_end') return 'system';
   if (action === 'item_use') return 'item';
+  if (action === 'item_transfer') return 'item';
   if (action === 'skill_use') return 'skill';
   if (action === 'contest_result') return 'combat';
   if (action === 'secret_reveal' || action === 'task_reveal') return 'reveal';
@@ -372,6 +373,13 @@ function EventDescription({ log }: { log: LogData }) {
           使用了技能「{str(d?.skillName, '未知技能')}」
           {d?.targetCharacterName ? `，對象：${str(d.targetCharacterName)}` : ''}
           {renderEffects(d?.effectsApplied)}
+        </span>
+      );
+
+    case 'item_transfer':
+      return (
+        <span>
+          轉移了 {str(d?.quantity, '1')} 個「{str(d?.itemName, '未知物品')}」給 {str(d?.targetCharacterName, '未知角色')}
         </span>
       );
 

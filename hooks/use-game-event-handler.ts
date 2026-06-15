@@ -20,6 +20,7 @@ import type { ShowcasedItemInfo } from '@/components/player/item-showcase-dialog
 import { useCharacterWebSocket, useGameWebSocket } from './use-websocket';
 import { useCharacterWebSocketHandler } from './use-character-websocket-handler';
 import { usePendingEvents } from './use-pending-events';
+import { usePendingEventsRefetch } from './use-pending-events-refetch';
 import type { Notification } from '@/lib/utils/event-mappers';
 
 /** useContestDialogManagement 回傳值的操作函數子集（最小化依賴介面） */
@@ -151,6 +152,15 @@ export function useGameEventHandler({
   usePendingEvents({
     pendingEvents: character.pendingEvents,
     handleWebSocketEvent: handlePendingEvent,
+    delayBetweenEvents: 500,
+  });
+
+  // bfcache 還原 / 分頁切回前景時重抓補送：SSR 的 fetchPendingEvents 為
+  // 破壞性讀取且不在歷史導航時重跑，靠此 hook 補回離開期間累積的事件
+  usePendingEventsRefetch({
+    characterId: character.id,
+    gameId: character.gameId,
+    deliver: handlePendingEvent,
     delayBetweenEvents: 500,
   });
 

@@ -16,6 +16,7 @@ import { getItemEffects } from '@/lib/item/get-item-effects';
 import { updateCharacterData } from '@/lib/game/update-character-data'; // Phase 10.4: 統一寫入
 import { buildEquipmentBoostUpdates } from '@/lib/item/apply-equipment-boosts';
 import { checkUsageConditions, buildConsumeUpdate } from '@/lib/character/usage-condition'; // Feature 3
+import { writeLog } from '@/lib/logs/write-log';
 import type { ApiResponse } from '@/types/api';
 import type { Stat, StatBoost } from '@/types/character';
 
@@ -644,6 +645,27 @@ export async function transferItem(
       await updateCharacterData(characterId, {
         $set: mergedSet,
       });
+    }
+
+    // GM 歷史紀錄：玩家間贈與（give）。記在轉出方，與 item_use 一致用 baseline id
+    // （characterId 參數即 baseline id）。寫入失敗不阻斷轉移——資料已落地、通知照發。
+    try {
+      await writeLog({
+        gameId: character.gameId.toString(),
+        characterId,
+        actorType: 'character',
+        actorId: characterId,
+        action: 'item_transfer',
+        details: {
+          itemId: sourceItem.id,
+          itemName: sourceItem.name,
+          quantity,
+          targetCharacterId,
+          targetCharacterName: targetCharacter.name,
+        },
+      });
+    } catch (logError) {
+      console.error('[transferItem] writeLog failed (non-fatal):', logError);
     }
 
     // WebSocket 事件

@@ -14,8 +14,8 @@
 
 | 項目 | 來源 | 說明 |
 |------|------|------|
-| 瀏覽器歷史導航返回角色頁不觸發 pending 補送 → 對抗孤兒化 | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md) 尾部議題 | 補送只掛在頁面重新載入（`getPublicCharacter` → `fetchPendingEvents`），bfcache / client-side 路由返回不會重拉。候選方向：`pageshow` / `visibilitychange` 觸發補送、或 bfcache 還原時 revalidate。碰核心補送語意，需縱向分析 |
-| 物品轉移/偷取無 GM log | 2026-06-13 `refactor/infra-and-form-guards` C1 驗收時發現 | 玩家間物品流動（轉移 `transferItem`、偷取 `item_steal`）從未寫入 logs collection，GM 歷史紀錄完全看不到（偷取頂多透過 contest log 間接可見）——原始缺口，非 413 修復造成。修法：比照 `item_use` 在轉移/偷取路徑補 `writeLog`（action 如 `item_transfer`），EventLog 的 `getEventCategory` 加對應分類 |
+| ~~瀏覽器歷史導航返回角色頁不觸發 pending 補送 → 對抗孤兒化~~ | [PERF_INCIDENT_2026-06_PLAN](../archive/PERF_INCIDENT_2026-06_PLAN.md) 尾部議題 | ✅ 2026-06-14 `fix/item-flow-log-and-pending`：新增 `hooks/use-pending-events-refetch.ts`，於 **mount**（SPA 客戶端導航如「世界觀」連結 `router.push` 返回時角色頁 remount，server component 不重跑——驗收揭露這才是 in-app 返回的主要路徑）+ `pageshow`(persisted，bfcache) + `visibilitychange`(→visible) 重抓並餵進既有投遞管線。**關鍵：非破壞性讀取 + 投遞後 ack**——`fetchPendingEvents` 加 `markDelivered` 選項（預設 true，SSR 不變）、新增 `acknowledgePendingEvents`；client 以 `markDelivered:false` 讀取不消費，投遞到 UI 後才 ack 標記 delivered。理由：破壞性讀取放 client 端在 dev StrictMode（mount→cleanup→mount 把 in-flight fetch 跨過、`isActive` 守衛擋投遞）會消費卻未投遞 → 連刷新都撈不回（驗收第二輪揭露此回歸）。串接於 `use-game-event-handler.ts`，+7 hook 測試 + 5 server action 測試。**影響盤點與測試清單見下方** |
+| ~~物品轉移/偷取無 GM log~~ | 2026-06-13 `refactor/infra-and-form-guards` C1 驗收時發現 | ✅ 2026-06-14 `fix/item-flow-log-and-pending`：縱向分析修正原描述——**偷取/移除其實已有 log**（item / skill / contest 三條 executor 路徑皆寫 `item_use` / `skill_use` / `contest_result`，含「偷竊了 X」訊息）；真正缺口僅**轉移（give）**：`transferItem` 補 `writeLog({ action: 'item_transfer' })`（記轉出方），`event-log.tsx` 的 `getEventCategory` + `EventDescription` 加對應分類與渲染。+3 測試（server log + UI 渲染） |
 
 ## Code review 殘留發現（2026-06-12 feat/perf-instrumentation 分支 review）
 
@@ -79,3 +79,5 @@
 | 多 GM 畫面併行時 stale 開始按鈕的邊緣情境 | 2026-06-13 釐清：正常流程 UI 已杜絕重複啟動（開始後按鈕即換為結束遊戲）。唯一殘餘情境：同一 GM 開兩個畫面（雙分頁/雙裝置），畫面 A 開始遊戲後，未刷新的畫面 B 仍留有開始按鈕，按下會觸發 `startGame` 覆蓋分支（清 runtime 重置數值），且開始確認對話框無覆蓋專屬警告。極邊緣、無實際案例；若日後要處理：覆蓋情境由 server 回傳需確認的錯誤碼讓前端二次確認、或 GM 遊戲頁訂閱 `game.started` 即時同步按鈕狀態 |
 | 玩家端「道具」→「物品」用詞統一 | GM 端已統一為「物品」；玩家端 UI 文字仍用「道具」，需整批替換（保留 `tool` 型別標籤不動） |
 | UI 視覺改版（神祕奇幻方向） | 設計規格見 `.impeccable.md` / `docs/specs/DESIGN.md`，未排實作 |
+| 通知選單優化：點選引導至對應頁面 | 目前通知選單僅顯示內容，點選後無導航行為。需求：點選通知項目後根據通知類型（對抗結果、物品變動、任務揭露等）自動跳轉至對應角色頁面/分頁，減少 GM 手動尋找的操作路徑 |
+| UIUX 重新設計 | 全面性 UI/UX 改版，涵蓋資訊架構、互動流程、視覺設計。規模較大，需先出設計規格再分階段實作 |
