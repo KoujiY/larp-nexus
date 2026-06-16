@@ -56,8 +56,8 @@
 
 | 項目 | 來源 | 說明 |
 |------|------|------|
-| 動態路由 Lighthouse 本機實測 | [FRONTEND_PERFORMANCE_OPTIMIZATION](../archive/FRONTEND_PERFORMANCE_OPTIMIZATION.md) | CI 只測靜態路由；`/c/[characterId]` 等動態路由需 DB + seed，須本機跑（指引見封存文件「Lighthouse 量測指引」）。**此分數是下一項的裁決依據** |
-| Phase 4：Client/Server 邊界清理 | 同上「後續可選 iteration」 | 僅當 Lighthouse mobile < 90 / desktop < 85 才執行；執行時每次僅降級 1–2 個組件 + 跑完 E2E + 個別 commit |
+| ~~動態路由 Lighthouse 本機實測~~ ✅ 2026-06-16 `chore/lighthouse-dynamic-routes` | [FRONTEND_PERFORMANCE_OPTIMIZATION](../archive/FRONTEND_PERFORMANCE_OPTIMIZATION.md) | 以 PageSpeed Insights（Google 伺服器、零本機污染）測 production 世界觀 `/g/[gameId]`：**Performance 99**（FCP 0.9s / LCP 1.7s / TBT 10ms / CLS 0 / SI 2.7s）——乾淨環境近滿分。本機 Lighthouse 數字（67~95）經查證全被 **Kaspersky 系統級 MITM 注入 + 冷快取 + 4G 節流**污染，不可採信。角色卡 `/c/[characterId]` 受 **PIN gate** 擋住外部工具；改以 server-side `PERF_LOG` 對照驗證為 **RTT-bound（非慢查詢）、production 非問題**，依「徹底修或捨棄、不留待查紀錄」原則不另立追蹤項 |
+| ~~Phase 4：Client/Server 邊界清理~~ ✅ 裁定不需做（2026-06-16） | 同上「後續可選 iteration」 | 裁決依據：production 世界觀頁 PSI **99**、且所有量測 **TBT 皆低（10~190ms）**——client JS 從不是瓶頸，Phase 4（降 client JS）打不到任何主要成本。**不執行** |
 
 ## 運維
 
