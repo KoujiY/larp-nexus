@@ -418,7 +418,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     }
   });
 
-  // ─── #6.3 道具防禦 + defender_wins + combat tag + equipment 過濾 ────
+  // ─── #6.3 物品防禦 + defender_wins + combat tag + equipment 過濾 ────
   test('#6.3 item defense + defender_wins + combat/equipment filtering', async ({
     seed,
     dbQuery,
@@ -429,7 +429,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     const game = await seed.game({ gmUserId, isActive: true });
     const gameId = game._id;
 
-    // 攻擊方：str=40，combat tag，允許 1 道具防禦
+    // 攻擊方：str=40，combat tag，允許 1 物品防禦
     const charA = await seed.character({
       gameId,
       name: '道具測試攻擊者',
@@ -437,7 +437,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       skills: [{
         id: 'skill-combat-attack',
         name: '戰鬥攻擊',
-        description: '帶戰鬥標籤的攻擊（允許道具防禦）',
+        description: '帶戰鬥標籤的攻擊（允許物品防禦）',
         checkType: 'contest',
         contestConfig: {
           relatedStat: '力量',
@@ -455,7 +455,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       }],
     });
 
-    // 防守方：str=70, hp=100，3 個道具（1 combat tool / 1 non-combat tool / 1 equipment）
+    // 防守方：str=70, hp=100，3 個物品（1 combat tool / 1 non-combat tool / 1 equipment）
     const charB = await seed.character({
       gameId,
       name: '道具防守者',
@@ -510,7 +510,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       skills: [{
         id: 'skill-combat-attack',
         name: '戰鬥攻擊',
-        description: '帶戰鬥標籤的攻擊（允許道具防禦）',
+        description: '帶戰鬥標籤的攻擊（允許物品防禦）',
         checkType: 'contest',
         contestConfig: {
           relatedStat: '力量',
@@ -803,7 +803,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     }
   });
 
-  // ─── #6.5 單選限制 + 道具/技能互斥切換 ───────────
+  // ─── #6.5 單選限制 + 物品/技能互斥切換 ───────────
   test('#6.5 single-select + item/skill mutual exclusion', async ({
     seed,
     dbQuery,
@@ -814,7 +814,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
     const game = await seed.game({ gmUserId, isActive: true });
     const gameId = game._id;
 
-    // 攻擊方：str=60，允許道具+技能防禦
+    // 攻擊方：str=60，允許物品+技能防禦
     const charA = await seed.character({
       gameId,
       name: '彈性攻擊者',
@@ -840,7 +840,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       }],
     });
 
-    // 防守方：str=50, hp=100，2 道具 + 2 技能（全部 checkType=contest, relatedStat=力量, 無 combat tag）
+    // 防守方：str=50, hp=100，2 物品 + 2 技能（全部 checkType=contest, relatedStat=力量, 無 combat tag）
     const charB = await seed.character({
       gameId,
       name: '多資源防守者',
@@ -928,13 +928,13 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const contestDialog = pageB.getByRole('dialog', { name: '對抗檢定' });
       await expect(contestDialog).toBeVisible({ timeout: 10000 });
 
-      // 斷言：2 道具 + 2 技能全部可見（無 combat tag 限制）
+      // 斷言：2 物品 + 2 技能全部可見（無 combat tag 限制）
       await expect(contestDialog.getByText('防具一')).toBeVisible();
       await expect(contestDialog.getByText('防具二')).toBeVisible();
       await expect(contestDialog.getByText('防禦技一')).toBeVisible();
       await expect(contestDialog.getByText('防禦技二')).toBeVisible();
 
-      // ── Phase D — 單選限制：選一個道具後其餘 disabled ──
+      // ── Phase D — 單選限制：選一個物品後其餘 disabled ──
       await contestDialog.getByText('防具一').click();
       await expect(contestDialog.getByRole('button', { name: '確認回應' })).toBeVisible();
 
@@ -946,7 +946,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const skill1Card = contestDialog.locator('.rounded-xl').filter({ hasText: '防禦技一' });
       await expect(skill1Card).toHaveAttribute('aria-disabled', 'true');
 
-      // ── Phase E — 取消道具 → 切換到技能 ──
+      // ── Phase E — 取消物品 → 切換到技能 ──
       // 再次點擊防具一 → 取消勾選
       await contestDialog.getByText('防具一').click();
       // 按鈕恢復為「使用基礎數值回應」
@@ -960,7 +960,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       const skill2Card = contestDialog.locator('.rounded-xl').filter({ hasText: '防禦技二' });
       await expect(skill2Card).toHaveAttribute('aria-disabled', 'true');
 
-      // 道具也應被 disabled（跨類別互斥）
+      // 物品也應被 disabled（跨類別互斥）
       const item1Card = contestDialog.locator('.rounded-xl').filter({ hasText: '防具一' });
       await expect(item1Card).toHaveAttribute('aria-disabled', 'true');
 
@@ -997,7 +997,7 @@ test.describe('Flow #6 — Contest (對抗檢定)', () => {
       expect(usedSkill).toBeDefined();
       expect(usedSkill!.lastUsedAt).toBeDefined();
 
-      // B 的 items 不應有 lastUsedAt（未使用道具）
+      // B 的 items 不應有 lastUsedAt（未使用物品）
       const bItems = runtimeB[0].items as Array<{ id: string; lastUsedAt?: string }>;
       const item1 = bItems.find(i => i.id === 'item-d1');
       expect(item1?.lastUsedAt).toBeUndefined();

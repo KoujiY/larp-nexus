@@ -388,7 +388,7 @@ test.describe('Flow #12 — Time-Dependent Edge Cases', () => {
     asPlayer,
     dbQuery,
   }) => {
-    // ── Seed：道具 cooldown=300s，lastUsedAt=301 秒前（已過期） ──
+    // ── Seed：物品 cooldown=300s，lastUsedAt=301 秒前（已過期） ──
     // cooldown 設為 300s（遠大於測試執行時間），確保使用後 cooldown 不會在測試中途過期
     const gm = await seed.gmUser();
     const game = await seed.game({
@@ -476,7 +476,7 @@ test.describe('Flow #12 — Time-Dependent Edge Cases', () => {
     await expect(useBtn).toBeVisible({ timeout: 5000 });
     await expect(useBtn).toBeEnabled();
 
-    // ── 使用道具 ──
+    // ── 使用物品 ──
     const wsPromise = waitForWebSocketEvent(page, { event: 'item.used' });
     await useBtn.click();
     await wsPromise;
