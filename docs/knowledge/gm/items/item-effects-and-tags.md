@@ -23,7 +23,7 @@ type ItemEffect = BaseEffect;  // type alias
 type SkillEffect = BaseEffect; // type alias
 ```
 
-> 道具實際只使用 `stat_change | custom | item_take | item_steal` 四種 type。`task_reveal | task_complete` 為技能專屬，但型別層已統一為 `BaseEffect`。
+> 物品實際只使用 `stat_change | custom | item_take | item_steal` 四種 type。`task_reveal | task_complete` 為技能專屬，但型別層已統一為 `BaseEffect`。
 
 ## Target Dispatch (per-effect)
 每個效果獨立指定 `targetType`，執行時會分派到對應角色（與技能系統規則相同，見 [../skills/skill-effects-and-tags.md](../skills/skill-effects-and-tags.md)）：

@@ -33,7 +33,7 @@ The character edit page (`components/gm/character-edit-tabs.tsx`) has **7 tabs**
 
 ### WebSocket 衝突解決策略（character-edit-tabs.tsx）
 
-當 GM 正在編輯角色卡的同時，玩家的動作（穿脫裝備、使用道具/技能、效果過期等）會透過 WebSocket 推送過來。若直接 `router.refresh()` 會覆蓋 GM 未儲存的編輯，因此採用兩層維度的衝突解決策略：
+當 GM 正在編輯角色卡的同時，玩家的動作（穿脫裝備、使用物品/技能、效果過期等）會透過 WebSocket 推送過來。若直接 `router.refresh()` 會覆蓋 GM 未儲存的編輯，因此採用兩層維度的衝突解決策略：
 
 **維度 1 — Affected Tabs**（事件會影響哪些 tab 的資料顯示）：
 | 事件 | 影響的 tab |

@@ -295,7 +295,7 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ### v3.0 (2026-04-11) - 裝備系統、預設事件、E2E 測試
 - **裝備系統**
-  - 道具可設為裝備類型，穿戴後提供常駐數值加成
+  - 物品可設為裝備類型，穿戴後提供常駐數值加成
   - 裝備轉移時自動卸下並還原加成
   - 裝備效果面板（玩家端即時顯示）
 - **預設事件系統**
@@ -310,10 +310,10 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
   - 無 PIN 角色可直接進入預覽/完整模式
   - PIN 驗證常數共用模組化
 - **UI 重構**
-  - 四步驟精靈（道具/技能編輯）
+  - 四步驟精靈（物品/技能編輯）
   - 吸附式儲存列（Sticky Save Bar）
   - 區塊式背景故事編輯器
-  - 玩家端分頁重構（道具/技能/資訊/數值/任務）
+  - 玩家端分頁重構（物品/技能/資訊/數值/任務）
 - **E2E 測試基礎設施**
   - Playwright + mongodb-memory-server（完全離線）
   - 12 個業務流程、70+ test cases
@@ -351,7 +351,7 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
   - Server Actions（`checkExpiredEffects`、`getTemporaryEffects`）
   - Cron Job API（`/api/cron/check-expired-effects`）
   - WebSocket 事件處理（`effect.expired` 完整流程）
-  - 前端觸發整合（頁面載入、技能/道具使用前）
+  - 前端觸發整合（頁面載入、技能/物品使用前）
   - GM 端 UI（時效性效果卡片 + 持續時間設定）
   - 玩家端 UI（活躍效果面板 + 倒數計時）
 - **核心特性**
@@ -373,13 +373,13 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
 
 ### v1.3 (2025-01-XX) - Phase 7 對抗檢定系統完成
 - **Phase 7 對抗檢定系統實作完成**
-  - 技能/道具對抗檢定類型設定
+  - 技能/物品對抗檢定類型設定
   - 對抗檢定配置（相關數值、對手限制、平手裁決）
   - 攻擊方數值計算與等待機制
-  - 防守方回應系統（可選擇道具/技能）
+  - 防守方回應系統（可選擇物品/技能）
   - 對抗結果計算與處理
-  - 道具互動效果（`item_take`, `item_steal`）
-  - 目標道具選擇機制
+  - 物品互動效果（`item_take`, `item_steal`）
+  - 目標物品選擇機制
   - 狀態持久化（localStorage，重新整理後恢復）
   - 跨分頁回應處理（無論在哪個分頁都能接收回應並開啟對應面板）
 - **WebSocket 事件擴展**
@@ -394,7 +394,7 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
   - 通知去重機制
 - **狀態管理優化**
   - 對抗檢定狀態持久化（攻擊方/防守方）
-  - 目標道具選擇狀態持久化
+  - 目標物品選擇狀態持久化
   - 對抗檢定狀態查詢機制（處理重新整理後無法收到 WebSocket 事件的情況）
 
 ### v1.2 (2025-01-XX) - Phase 6.5 方案 A 完成
@@ -405,7 +405,7 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
   - 支援跨角色數值變化效果（目前值與最大值）
   - 目標角色顯示通知與 UI 更新
 - **資料結構擴展**
-  - 技能/道具效果新增 `targetType` 和 `requiresTarget` 欄位
+  - 技能/物品效果新增 `targetType` 和 `requiresTarget` 欄位
   - MongoDB Schema 更新完成
   - TypeScript 型別定義完成
 - **API 規格更新**
@@ -415,12 +415,12 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
   - 更新 `character.affected` 事件格式（方案 A）
   - 目標角色即時通知推送完成
 - **UI/UX 優化**
-  - 技能/道具 Dialog 顯示目標資訊（包含僅限自己的情況）
+  - 技能/物品 Dialog 顯示目標資訊（包含僅限自己的情況）
   - 通知合併顯示（最大值與目前值同時變更時）
   - Toast 訊息在 Dialog 關閉時自動清除
 - **開發階段調整**
   - 明確區分方案 A（簡化版）和方案 B（完整版）
-  - 方案 B（對抗檢定與道具互動）延後至 Phase 7
+  - 方案 B（對抗檢定與物品互動）延後至 Phase 7
 
 ### v1.1 (2025-01-XX) - Phase 6 完成
 - Phase 5 技能系統已完成（影響自己的效果）
