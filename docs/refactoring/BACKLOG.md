@@ -78,7 +78,7 @@
 |------|------|
 | startGame in-flight 殘留視窗徹底閉合 | 來源：[CONTEST_CONSISTENCY_PLAN](../archive/CONTEST_CONSISTENCY_PLAN.md) 結案殘留。flag-first 後僅剩：已快取 `isActive=false` 的 in-flight action，其 Baseline 寫入若落在複製讀取之後 → 留在 Baseline、該場遊戲不可見（資料不毀損，賽後可見）。徹底閉合需 Character collection 加條件欄位 + migration，已評估與症狀嚴重度不成比例 → 接受殘留；語意記載於 `docs/knowledge/gm/game/game-states.md`。除非實際發生案例，否則不排程 |
 | 多 GM 畫面併行時 stale 開始按鈕的邊緣情境 | 2026-06-13 釐清：正常流程 UI 已杜絕重複啟動（開始後按鈕即換為結束遊戲）。唯一殘餘情境：同一 GM 開兩個畫面（雙分頁/雙裝置），畫面 A 開始遊戲後，未刷新的畫面 B 仍留有開始按鈕，按下會觸發 `startGame` 覆蓋分支（清 runtime 重置數值），且開始確認對話框無覆蓋專屬警告。極邊緣、無實際案例；若日後要處理：覆蓋情境由 server 回傳需確認的錯誤碼讓前端二次確認、或 GM 遊戲頁訂閱 `game.started` 即時同步按鈕狀態 |
-| 玩家端「道具」→「物品」用詞統一 | GM 端已統一為「物品」；玩家端 UI 文字仍用「道具」，需整批替換（保留 `tool` 型別標籤不動） |
+| ~~玩家端「道具」→「物品」用詞統一~~ ✅ 2026-06-16 `chore/unify-daoju-terminology` | code/e2e/非-spec 文件的 umbrella「道具」全面改「物品」（含 GM/lib 遺留），保留 tool 子類（badge `tool:'道具'`、ItemTypeCard、type 定義、子類註解/USER_GUIDE 子類段）。判讀以「子類必與 sibling/特徵詞共現」反掃證明 keep 清單封閉；e2e seed 專有名稱保留。`docs/specs` 與 archive 不納入 |
 | UI 視覺改版（神祕奇幻方向） | 設計規格見 `.impeccable.md` / `docs/specs/DESIGN.md`，未排實作 |
 | 通知選單優化：點選引導至對應頁面 | 目前通知選單僅顯示內容，點選後無導航行為。需求：點選通知項目後根據通知類型（對抗結果、物品變動、任務揭露等）自動跳轉至對應角色頁面/分頁，減少 GM 手動尋找的操作路徑 |
 | UIUX 重新設計 | 全面性 UI/UX 改版，涵蓋資訊架構、互動流程、視覺設計。規模較大，需先出設計規格再分階段實作 |
