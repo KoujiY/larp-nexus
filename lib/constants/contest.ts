@@ -27,7 +27,7 @@ export const STORAGE_KEYS = {
   /** 技能目標選擇狀態 */
   SKILL_TARGET: (characterId: string, skillId: string) => `skill-${characterId}-${skillId}-target`,
   
-  /** 道具目標選擇狀態 */
+  /** 物品目標選擇狀態 */
   ITEM_TARGET: (characterId: string, itemId: string) => `item-${characterId}-${itemId}-target`,
 } as const;
 

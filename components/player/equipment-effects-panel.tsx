@@ -3,7 +3,7 @@
 /**
  * 裝備效果面板
  *
- * 顯示所有已裝備道具的數值加成。
+ * 顯示所有已裝備物品的數值加成。
  * 一個 boost = 一張卡片（與時效性效果一致），同一裝備有多個 boost 時拆成多張。
  *
  * 兩種版型：
@@ -38,7 +38,7 @@ interface BoostEntry {
 }
 
 /**
- * 把已裝備道具的所有 boost 攤平成 BoostEntry 陣列。
+ * 把已裝備物品的所有 boost 攤平成 BoostEntry 陣列。
  * 同一裝備有 N 個 boost → 產出 N 個 entry，每個獨立顯示為一張卡。
  */
 function flattenEquippedBoosts(items?: Item[]): BoostEntry[] {

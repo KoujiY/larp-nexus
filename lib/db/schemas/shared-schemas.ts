@@ -105,7 +105,7 @@ function createTasksSchemaField() {
   ];
 }
 
-/** Phase 4.5: 道具欄位定義 */
+/** Phase 4.5: 物品欄位定義 */
 function createItemsSchemaField() {
   return [
     {
@@ -321,10 +321,10 @@ export function createBaseCharacterSchemaFields() {
     },
     secretInfo: createSecretInfoSchemaField(),   // Phase 3.5: 隱藏資訊
     tasks: createTasksSchemaField(),              // Phase 4.5: 任務系統
-    items: createItemsSchemaField(),              // Phase 4.5: 道具系統
+    items: createItemsSchemaField(),              // Phase 4.5: 物品系統
     stats: createStatsSchemaField(),              // Phase 4: 數值系統
     skills: createSkillsSchemaField(),            // Phase 5: 技能系統
-    // Phase 7.7: 角色已檢視的道具記錄
+    // Phase 7.7: 角色已檢視的物品記錄
     viewedItems: [
       {
         _id: false,

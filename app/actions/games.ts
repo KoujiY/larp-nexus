@@ -476,8 +476,8 @@ async function deleteGameImpl(gameId: string): Promise<ApiResponse<undefined>> {
 }
 
 /**
- * Phase 7.7: 取得劇本中所有角色的所有道具列表
- * GM 端使用，用於自動揭露條件的道具選擇器
+ * Phase 7.7: 取得劇本中所有角色的所有物品列表
+ * GM 端使用，用於自動揭露條件的物品選擇器
  */
 export interface GameItemInfo {
   characterId: string;
@@ -519,7 +519,7 @@ async function getGameItemsImpl(
       };
     }
 
-    // 取得該劇本所有角色及其道具（遊戲進行中讀 Runtime）
+    // 取得該劇本所有角色及其物品（遊戲進行中讀 Runtime）
     const baselineCharacters = await Character.find({ gameId })
       .select('_id name items')
       .lean();

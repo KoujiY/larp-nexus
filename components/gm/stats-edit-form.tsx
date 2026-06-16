@@ -18,7 +18,7 @@ import { computeEffectiveStats, type EffectiveStat } from '@/lib/utils/compute-e
 interface StatsEditFormProps {
   characterId: string;
   initialStats: Stat[];
-  /** 角色道具（用於計算裝備加成的檢視模式顯示） */
+  /** 角色物品（用於計算裝備加成的檢視模式顯示） */
   items?: Item[];
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;

@@ -13,18 +13,18 @@ export interface ContestCalculationResult {
 }
 
 /**
- * 計算攻擊方數值（基礎值 + 道具/技能加成）
+ * 計算攻擊方數值（基礎值 + 物品/技能加成）
  */
 export function calculateAttackerValue(
   baseValue: number,
 ): number {
-  // 目前攻擊方不支援額外的道具/技能加成
-  // 未來可以擴展為攻擊方也可以選擇額外的道具/技能
+  // 目前攻擊方不支援額外的物品/技能加成
+  // 未來可以擴展為攻擊方也可以選擇額外的物品/技能
   return baseValue;
 }
 
 /**
- * 計算防守方數值（基礎值 + 道具/技能加成）
+ * 計算防守方數值（基礎值 + 物品/技能加成）
  */
 export function calculateDefenderValue(
   baseValue: number,
@@ -35,7 +35,7 @@ export function calculateDefenderValue(
 ): number {
   let defenderValue = baseValue;
 
-  // 計算道具加成
+  // 計算物品加成
   if (defenderItems && defenderItems.length > 0) {
     const defenderItemsData = defender.items || [];
     for (const itemRef of defenderItems) {
@@ -45,7 +45,7 @@ export function calculateDefenderValue(
       // 統一讀取效果列表（向後兼容已棄用的 effect 欄位）
       const itemEffects = getItemEffects(item);
       
-      // 計算道具加成（如果道具有效果且影響相關數值）
+      // 計算物品加成（如果物品有效果且影響相關數值）
       for (const effect of itemEffects) {
         if (effect.type === 'stat_change' && effect.targetStat === relatedStatName && typeof effect.value === 'number') {
           defenderValue += effect.value;

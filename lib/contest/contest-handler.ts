@@ -1,8 +1,8 @@
 /**
  * 統一對抗檢定處理器
- * 處理技能和道具的對抗檢定邏輯（contest 和 random_contest）
+ * 處理技能和物品的對抗檢定邏輯（contest 和 random_contest）
  * 
- * Phase 3: 統一技能和道具的對抗檢定處理邏輯
+ * Phase 3: 統一技能和物品的對抗檢定處理邏輯
  */
 
 import dbConnect from '@/lib/db/mongodb';
@@ -30,18 +30,18 @@ export interface CheckResult {
 }
 
 /**
- * 對抗檢定來源（技能或道具）
+ * 對抗檢定來源（技能或物品）
  */
 export type ContestSource = SkillType | ItemType;
 
 /**
  * 處理對抗檢定（contest 或 random_contest）
  * 
- * @param source 技能或道具
+ * @param source 技能或物品
  * @param sourceType 來源類型（'skill' 或 'item'）
  * @param character 角色
  * @param targetCharacterId 目標角色 ID
- * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
+ * @param targetItemId 目標物品 ID（用於 item_take 和 item_steal 效果）
  * @returns 檢定結果
  */
 export async function handleContestCheck(
@@ -53,7 +53,7 @@ export async function handleContestCheck(
 ): Promise<CheckResult> {
   await dbConnect();
 
-  // 取得檢定類型（道具的 checkType 可能是 undefined，默認為 'none'）
+  // 取得檢定類型（物品的 checkType 可能是 undefined，默認為 'none'）
   const checkType = sourceType === 'skill' 
     ? (source as SkillType).checkType 
     : ((source as ItemType).checkType || 'none');
@@ -159,7 +159,7 @@ export async function handleContestCheck(
     checkType === 'random_contest' ? 'random_contest' : 'contest' // 儲存檢定類型
   );
 
-  // 檢查是否需要選擇目標道具
+  // 檢查是否需要選擇目標物品
   let needsTargetItemSelection = false;
   if (sourceType === 'item') {
     const effects = getItemEffects(source as ItemType);
@@ -190,9 +190,9 @@ export async function handleContestCheck(
     defenderValue: checkType === 'random_contest' ? 0 : defenderBaseValue, // random_contest 時防守方基礎值為 0（佔位符）
     result: checkType === 'random_contest' ? 'attacker_wins' : preliminaryResult, // random_contest 時使用佔位符，實際結果將在防守方回應時計算
     effectsApplied: undefined, // 效果將在防守方回應後執行
-    opponentMaxItems: contestConfig.opponentMaxItems, // 防守方最多可使用道具數
+    opponentMaxItems: contestConfig.opponentMaxItems, // 防守方最多可使用物品數
     opponentMaxSkills: contestConfig.opponentMaxSkills, // 防守方最多可使用技能數
-    targetItemId: targetItemId, // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+    targetItemId: targetItemId, // Phase 7: 目標物品 ID（用於 item_take 和 item_steal 效果）
     checkType: checkType, // Phase 7.6: 檢定類型
     relatedStat: checkType === 'contest' ? contestConfig.relatedStat : undefined, // Phase 7.6: 數值判定名稱（contest 類型時使用）
     randomContestMaxValue: randomContestMaxValue, // Phase 7.6: 隨機對抗檢定上限值
@@ -214,18 +214,18 @@ export async function handleContestCheck(
   eventPayload.attackerHasCombatTag = attackerTags.includes('combat');
   eventPayload.sourceHasStealthTag = attackerTags.includes('stealth');
 
-  // 設定是否需要選擇目標道具
+  // 設定是否需要選擇目標物品
   eventPayload.needsTargetItemSelection = needsTargetItemSelection;
 
   // Phase 2: 推送對抗檢定請求事件給防守方（使用 Baseline ID 作為頻道名）
-  // 防守方可以選擇使用道具/技能來增強防禦
+  // 防守方可以選擇使用物品/技能來增強防禦
   // Phase 7.6: 對於 random_contest，攻擊方隨機數已在選擇目標後決定，但防守方不應該知道
   // 對於 contest，防守方不應該知道攻擊方的數值，所以發送 0 作為佔位符
   emitContestRequest(attackerBaselineId, defenderBaselineId, eventPayload).catch((error) => {
     console.error('Failed to emit contest request', error);
   });
 
-  // 技能需要發送 skill.used 事件（道具不需要）
+  // 技能需要發送 skill.used 事件（物品不需要）
   if (sourceType === 'skill') {
     emitSkillUsed(attackerBaselineId, {
       characterId: attackerBaselineId,

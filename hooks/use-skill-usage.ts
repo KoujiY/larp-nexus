@@ -2,7 +2,7 @@
  * 技能使用 Hook
  * 統一管理技能使用的核心邏輯
  *
- * Phase 6: 提取技能/道具使用邏輯
+ * Phase 6: 提取技能/物品使用邏輯
  */
 
 'use client';
@@ -37,7 +37,7 @@ export interface UseSkillUsageOptions {
   onRouterRefresh?: () => void;
   /** 使用成功時關閉 dialog（使用者可透過通知面板查看結果） */
   onCloseDialog?: () => void;
-  /** 非對抗偷竊/移除：使用成功後需要選擇目標道具 */
+  /** 非對抗偷竊/移除：使用成功後需要選擇目標物品 */
   onNeedsTargetItemSelection?: (info: {
     sourceId: string;
     effectType: 'item_steal' | 'item_take';
@@ -89,7 +89,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
       return;
     }
 
-    // 偷竊/移除道具：不再需要前置確認目標和選擇目標道具
+    // 偷竊/移除物品：不再需要前置確認目標和選擇目標物品
     // 對抗檢定：targetItemId 在對抗結束後選擇
     // 非對抗檢定：targetItemId 在使用成功後選擇（server 回傳 needsTargetItemSelection）
     const isContest = selectedSkill.checkType === 'contest' || selectedSkill.checkType === 'random_contest';
@@ -133,7 +133,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
           });
         }
 
-        // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+        // 非對抗偷竊/移除：使用成功後需要選擇目標物品
         if (result.data?.needsTargetItemSelection && result.data?.targetCharacterId) {
           if (onClearTargetState) {
             onClearTargetState();
@@ -150,7 +150,7 @@ export function useSkillUsage(options: UseSkillUsageOptions): UseSkillUsageRetur
           if (onSuccess) {
             onSuccess(result);
           }
-          // 不關閉 dialog，不刷新頁面，等待目標道具選擇完成
+          // 不關閉 dialog，不刷新頁面，等待目標物品選擇完成
           return;
         }
 

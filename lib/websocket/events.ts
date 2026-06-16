@@ -128,7 +128,7 @@ export async function emitSkillUsed(characterId: string, payload: SkillUsedEvent
   await trigger(`private-character-${characterId}`, 'skill.used', payload);
 }
 
-/** 推送「道具使用」事件到角色頻道 */
+/** 推送「物品使用」事件到角色頻道 */
 export async function emitItemUsed(characterId: string, payload: ItemUsedEvent['payload']) {
   await trigger(`private-character-${characterId}`, 'item.used', payload);
 }
@@ -182,7 +182,7 @@ export async function emitCharacterAffected(targetCharacterId: string, payload: 
   await emitWithPending(targetCharacterId, 'character.affected', payload);
 }
 
-/** 推送「道具轉移」事件到轉出方與接收方雙頻道，同時寫入 pending events */
+/** 推送「物品轉移」事件到轉出方與接收方雙頻道，同時寫入 pending events */
 export async function emitItemTransferred(fromCharacterId: string, toCharacterId: string, payload: ItemTransferredEvent['payload']) {
   await emitToPairWithPending(fromCharacterId, toCharacterId, 'item.transferred', payload);
 }
@@ -211,12 +211,12 @@ export async function emitTaskUpdated(characterId: string, payload: TaskUpdatedE
   await emitWithPending(characterId, 'role.taskUpdated', payload);
 }
 
-/** 推送「道具欄變更」事件到角色頻道（道具新增/移除/數量變動），同時寫入 pending events */
+/** 推送「物品欄變更」事件到角色頻道（物品新增/移除/數量變動），同時寫入 pending events */
 export async function emitInventoryUpdated(characterId: string, payload: InventoryUpdatedEvent['payload']) {
   await emitWithPending(characterId, 'role.inventoryUpdated', payload);
 }
 
-// Phase 7.7: 自動揭露條件 + 道具展示事件
+// Phase 7.7: 自動揭露條件 + 物品展示事件
 
 /** 推送「秘密揭露」事件到角色頻道，同時寫入 pending events */
 export async function emitSecretRevealed(characterId: string, payload: SecretRevealedEvent['payload']) {
@@ -248,7 +248,7 @@ export async function emitItemHidden(characterId: string, payload: ItemHiddenEve
   await emitWithPending(characterId, 'item.hidden', payload);
 }
 
-/** 推送「道具展示」事件到展示方與被展示方雙頻道，同時寫入 pending events */
+/** 推送「物品展示」事件到展示方與被展示方雙頻道，同時寫入 pending events */
 export async function emitItemShowcased(fromCharacterId: string, toCharacterId: string, payload: ItemShowcasedEvent['payload']) {
   await emitToPairWithPending(fromCharacterId, toCharacterId, 'item.showcased', payload);
 }

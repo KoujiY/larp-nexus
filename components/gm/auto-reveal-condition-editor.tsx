@@ -26,7 +26,7 @@ interface AutoRevealConditionEditorProps {
   condition: AutoRevealCondition | undefined;
   /** 條件變更回呼 */
   onChange: (condition: AutoRevealCondition | undefined) => void;
-  /** 劇本中所有角色的道具列表 */
+  /** 劇本中所有角色的物品列表 */
   availableItems: GameItemInfo[];
   /** 劇本中所有角色的技能列表 */
   availableSkills?: GameSkillInfo[];
@@ -155,7 +155,7 @@ export function AutoRevealConditionEditor({
 
   // ──────────── 物品處理 ────────────
 
-  /** 新增道具到條件 */
+  /** 新增物品到條件 */
   const handleAddItem = () => {
     if (!selectedItemId || currentItemIds.includes(selectedItemId)) return;
     onChange({
@@ -165,7 +165,7 @@ export function AutoRevealConditionEditor({
     setSelectedItemId('');
   };
 
-  /** 移除條件中的道具 */
+  /** 移除條件中的物品 */
   const handleRemoveItem = (itemId: string) => {
     const newItemIds = currentItemIds.filter((id) => id !== itemId);
     if (newItemIds.length === 0) {
@@ -184,7 +184,7 @@ export function AutoRevealConditionEditor({
     return `(已轉移/已刪除) ${itemId}`;
   };
 
-  // 物品：第一層選擇器用的角色清單（有未選中道具的角色）
+  // 物品：第一層選擇器用的角色清單（有未選中物品的角色）
   const itemCharacters = Array.from(
     new Map(
       itemPool
@@ -193,7 +193,7 @@ export function AutoRevealConditionEditor({
     ).entries()
   ).map(([characterId, characterName]) => ({ characterId, characterName }));
 
-  // 物品：第二層選擇器用的道具清單（選定角色且未選中的道具）
+  // 物品：第二層選擇器用的物品清單（選定角色且未選中的物品）
   const itemsForSelectedChar = selectedCharForItem
     ? itemPool.filter(
         (item) =>
@@ -351,7 +351,7 @@ export function AutoRevealConditionEditor({
         </div>
       )}
 
-      {/* 道具選擇器（items_viewed / items_acquired / items_revealed / item_used） */}
+      {/* 物品選擇器（items_viewed / items_acquired / items_revealed / item_used） */}
       {isItemsCondition && (
         <div className="space-y-2">
           {/* 第一層：選擇角色 */}
@@ -359,7 +359,7 @@ export function AutoRevealConditionEditor({
             value={selectedCharForItem}
             onValueChange={(val) => {
               setSelectedCharForItem(val);
-              setSelectedItemId(''); // 切換角色時清空已選道具
+              setSelectedItemId(''); // 切換角色時清空已選物品
             }}
             disabled={disabled || itemCharacters.length === 0}
           >
@@ -379,7 +379,7 @@ export function AutoRevealConditionEditor({
             </SelectContent>
           </Select>
 
-          {/* 第二層：選擇道具 + 添加按鈕 */}
+          {/* 第二層：選擇物品 + 添加按鈕 */}
           <div className="flex gap-2">
             <Select
               value={selectedItemId}
@@ -418,7 +418,7 @@ export function AutoRevealConditionEditor({
             </Button>
           </div>
 
-          {/* 已選道具標籤展示區 */}
+          {/* 已選物品標籤展示區 */}
           <div className="min-h-[48px] rounded-md border-2 border-dashed border-muted-foreground/25 p-2">
             {currentItemIds.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">

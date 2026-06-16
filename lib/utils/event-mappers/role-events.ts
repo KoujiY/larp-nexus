@@ -98,7 +98,7 @@ export function mapCharacterAffected(event: BaseEvent): Notification[] {
   // Phase 7.6: 根據隱匿標籤決定是否顯示攻擊方名稱
   const hasStealthTag = payload.sourceHasStealthTag || false;
   const sourceName = payload.sourceCharacterName || '';
-  const prefix = !hasStealthTag && sourceName ? `${sourceName} 對你使用了技能或道具` : '你受到了影響';
+  const prefix = !hasStealthTag && sourceName ? `${sourceName} 對你使用了技能或物品` : '你受到了影響';
 
   const notifList: Notification[] = [];
 

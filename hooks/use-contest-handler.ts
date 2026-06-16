@@ -96,7 +96,7 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
       // ── 攻擊方 ─────────────────────────────────────────────
       if (attackerIdStr !== characterIdStr) return;
 
-      // 效果事件（選擇目標道具後 server 發送）
+      // 效果事件（選擇目標物品後 server 發送）
       if (isEffectEvent) {
         const effectSourceId = payload.itemId || payload.skillId;
         if (effectSourceId) {
@@ -114,9 +114,9 @@ export function useContestHandler(options: UseContestHandlerOptions): UseContest
         const needsTargetItemSelection = payload.needsTargetItemSelection === true;
 
         if (needsTargetItemSelection && payload.result === 'attacker_wins') {
-          // 需要選擇目標道具：保持 pendingContest，由 use-game-event-handler 設定 target_item_selection dialogState
+          // 需要選擇目標物品：保持 pendingContest，由 use-game-event-handler 設定 target_item_selection dialogState
         } else {
-          // 不需要選擇目標道具：清除狀態
+          // 不需要選擇目標物品：清除狀態
           if (sourceId) {
             removePendingContest(sourceId);
           }

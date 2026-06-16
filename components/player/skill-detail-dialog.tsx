@@ -30,7 +30,7 @@ import { BottomSheet } from './bottom-sheet';
 export interface SkillDetailDialogProps {
   /** 當前選中的技能；null 表示 Bottom Sheet 關閉 */
   selectedSkill: Skill | null;
-  /** Sheet 是否被鎖定（對抗檢定進行中或後續道具選擇中） */
+  /** Sheet 是否被鎖定（對抗檢定進行中或後續物品選擇中） */
   isDialogLocked: boolean;
   onClose: () => void;
 

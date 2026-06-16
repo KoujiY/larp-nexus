@@ -77,7 +77,7 @@ async function getPublicCharacterImpl(
         createdAt: new Date(task.createdAt).toISOString(),
       }));
 
-    // Phase 4.5: 清理道具的 _id
+    // Phase 4.5: 清理物品的 _id
     const cleanItems = cleanItemData(character.items);
 
     // Phase 5: 清理技能的 _id

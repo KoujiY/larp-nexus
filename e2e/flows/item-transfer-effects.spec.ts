@@ -17,7 +17,7 @@ import { setupDualPlayerContext } from '../helpers/setup-dual-player-context';
 
 test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () => {
 
-  // ─── #6b.1 item_take 延遲物品選擇（attacker_wins → 道具銷毀）───
+  // ─── #6b.1 item_take 延遲物品選擇（attacker_wins → 物品銷毀）───
   test('#6b.1 item_take: contest + delayed selection → item destroyed (not transferred)', async ({
     seed,
     dbQuery,
@@ -36,7 +36,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       skills: [{
         id: 'skill-disarm',
         name: '繳械',
-        description: '移除對方道具',
+        description: '移除對方物品',
         checkType: 'contest',
         contestConfig: {
           relatedStat: '力量',
@@ -70,7 +70,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       skills: [{
         id: 'skill-disarm',
         name: '繳械',
-        description: '移除對方道具',
+        description: '移除對方物品',
         checkType: 'contest',
         contestConfig: {
           relatedStat: '力量',
@@ -157,11 +157,11 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       const preItemList = preItems[0].items as Array<{ id: string; quantity: number }>;
       expect(preItemList.length).toBe(2);
 
-      // ── Phase E — 攻擊方選擇目標道具 ──
-      const itemSelectionDialog = pageA.getByRole('dialog', { name: '選擇目標道具' });
+      // ── Phase E — 攻擊方選擇目標物品 ──
+      const itemSelectionDialog = pageA.getByRole('dialog', { name: '選擇目標物品' });
       await expect(itemSelectionDialog).toBeVisible({ timeout: 10000 });
 
-      // 斷言：B 的道具列表可見
+      // 斷言：B 的物品列表可見
       await expect(itemSelectionDialog.getByText('長劍')).toBeVisible();
       await expect(itemSelectionDialog.getByText('藥水')).toBeVisible();
 
@@ -196,7 +196,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
     }
   });
 
-  // ─── #6b.2 item_steal 延遲物品選擇（attacker_wins → 道具轉移）───
+  // ─── #6b.2 item_steal 延遲物品選擇（attacker_wins → 物品轉移）───
   test('#6b.2 item_steal: contest + delayed selection → item transferred to attacker', async ({
     seed,
     dbQuery,
@@ -215,7 +215,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       skills: [{
         id: 'skill-steal',
         name: '偷竊',
-        description: '偷走對方道具',
+        description: '偷走對方物品',
         checkType: 'contest',
         contestConfig: {
           relatedStat: '力量',
@@ -248,7 +248,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       skills: [{
         id: 'skill-steal',
         name: '偷竊',
-        description: '偷走對方道具',
+        description: '偷走對方物品',
         checkType: 'contest',
         contestConfig: {
           relatedStat: '力量',
@@ -324,8 +324,8 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       expect(resultEvent.payload.result).toBe('attacker_wins');
       expect(resultEvent.payload.needsTargetItemSelection).toBe(true);
 
-      // ── Phase E — 攻擊方選擇目標道具 ──
-      const itemSelectionDialog = pageA.getByRole('dialog', { name: '選擇目標道具' });
+      // ── Phase E — 攻擊方選擇目標物品 ──
+      const itemSelectionDialog = pageA.getByRole('dialog', { name: '選擇目標物品' });
       await expect(itemSelectionDialog).toBeVisible({ timeout: 10000 });
 
       // 寶石可見（quantity 顯示 x2）
@@ -365,7 +365,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
     }
   });
 
-  // ─── #6b.3 item_steal 非對抗延遲物品選擇（checkType='none' → 直接成功 → 道具轉移）───
+  // ─── #6b.3 item_steal 非對抗延遲物品選擇（checkType='none' → 直接成功 → 物品轉移）───
   test('#6b.3 item_steal: non-contest + delayed selection → item transferred', async ({
     page,
     seed,
@@ -384,7 +384,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       skills: [{
         id: 'skill-pickpocket',
         name: '竊取術',
-        description: '無聲偷走對方道具',
+        description: '無聲偷走對方物品',
         checkType: 'none',
         effects: [{ type: 'item_steal', targetType: 'other' }],
         tags: [],
@@ -412,7 +412,7 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
       skills: [{
         id: 'skill-pickpocket',
         name: '竊取術',
-        description: '無聲偷走對方道具',
+        description: '無聲偷走對方物品',
         checkType: 'none',
         effects: [{ type: 'item_steal', targetType: 'other' }],
         tags: [],
@@ -462,10 +462,10 @@ test.describe('Flow #6b — Item Transfer Effects (item_take / item_steal)', () 
     await skillDialog.getByRole('button', { name: '使用技能' }).click();
 
     // ── Phase C — TargetItemSelectionDialog 出現（mode='post-use'）──
-    const itemSelectionDialog = page.getByRole('dialog', { name: '選擇目標道具' });
+    const itemSelectionDialog = page.getByRole('dialog', { name: '選擇目標物品' });
     await expect(itemSelectionDialog).toBeVisible({ timeout: 10000 });
 
-    // 防守方道具列表可見
+    // 防守方物品列表可見
     await expect(itemSelectionDialog.getByText('盾牌')).toBeVisible();
     await expect(itemSelectionDialog.getByText('金幣')).toBeVisible();
 

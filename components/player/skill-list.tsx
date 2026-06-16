@@ -108,7 +108,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   // Phase 6.4: 使用 ref 存儲 handleCloseDialog，以便在回調中使用
   const handleCloseDialogRef = useRef<(() => void) | null>(null);
 
-  // 非對抗偷竊/移除：使用成功後的目標道具選擇（由獨立 Dialog 顯示）
+  // 非對抗偷竊/移除：使用成功後的目標物品選擇（由獨立 Dialog 顯示）
   const [postUseSelectionState, setPostUseSelectionState] = useState<{
     sourceId: string;
     sourceType: 'skill' | 'item';
@@ -119,7 +119,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
 
   // 包裝 setSelectedSkill 以符合 hook 的類型要求
   const handleItemSelected = useCallback((item: Skill | Item | null) => {
-    // 如果嘗試關閉 dialog（item 為 null），但正在進行對抗檢定或目標道具選擇，則不關閉
+    // 如果嘗試關閉 dialog（item 為 null），但正在進行對抗檢定或目標物品選擇，則不關閉
     if (!item && selectedSkill) {
       const hasPending = hasPendingContest(selectedSkill.id);
       const isAttackerWaiting = dialogState?.type === 'attacker_waiting' &&
@@ -192,7 +192,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
       handleCloseDialogRef.current?.();
     },
     onNeedsTargetItemSelection: (info) => {
-      // 非對抗偷竊/移除：使用成功後開啟目標道具選擇 Dialog
+      // 非對抗偷竊/移除：使用成功後開啟目標物品選擇 Dialog
       setPostUseSelectionState({
         ...info,
         sourceType: 'skill',
@@ -275,11 +275,11 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     }
   }, [selectedSkill?.id, selectedTargetId, isTargetConfirmed, selectedTargetItemId, selectedSkill, saveTargetState]);
   
-  // Phase 7: 當選擇目標角色時，檢查是否需要載入目標道具清單
+  // Phase 7: 當選擇目標角色時，檢查是否需要載入目標物品清單
   useEffect(() => {
     const effect = selectedSkill?.effects?.find((e: SkillEffect) => e.type === 'item_take' || e.type === 'item_steal');
     
-    // 如果效果需要目標道具，且已選擇目標角色，但尚未確認，則重置確認狀態
+    // 如果效果需要目標物品，且已選擇目標角色，但尚未確認，則重置確認狀態
     if (effect && selectedTargetId && !isTargetConfirmed) {
       setIsTargetConfirmed(false);
       setSelectedTargetItemId('');
@@ -288,7 +288,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
   }, [selectedSkill, selectedTargetId, isTargetConfirmed, setIsTargetConfirmed, setSelectedTargetItemId]);
 
   // 監聽對抗檢定結果事件：清除 skill-list 本地狀態（pendingContest、waitingRef、bottom sheet）
-  // 注意：dialog 開關（等待 dialog、目標道具選擇 dialog）由 use-game-event-handler.ts 統一處理
+  // 注意：dialog 開關（等待 dialog、目標物品選擇 dialog）由 use-game-event-handler.ts 統一處理
   useCharacterWebSocket(characterId, (event: BaseEvent) => {
     if (event.type === 'skill.contest') {
       const payload = event.payload as SkillContestEvent['payload'];
@@ -324,7 +324,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
         waitingContestRef.current.delete(skillId);
         clearTargetState();
 
-        // 需要選擇目標道具的分歧：保持 pendingContest（由 character-card-view 的 TargetItemSelectionDialog 結束後清除）
+        // 需要選擇目標物品的分歧：保持 pendingContest（由 character-card-view 的 TargetItemSelectionDialog 結束後清除）
         if (payload.result === 'attacker_wins' && payload.needsTargetItemSelection) {
           return;
         }
@@ -390,7 +390,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
     setSelectedSkill(null);
     setCheckResult(undefined);
     setSelectedTargetId(undefined);
-    // Phase 7: 清除目標道具選擇狀態
+    // Phase 7: 清除目標物品選擇狀態
     setIsTargetConfirmed(false);
     setSelectedTargetItemId('');
     // Phase 3.2: targetItems 由 hook 管理，不需要手動清除
@@ -499,7 +499,7 @@ export function SkillList({ skills, characterId, gameId, characterName, stats = 
         canUseSkill={checkCanUseSkill}
       />
 
-      {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 Dialog */}
+      {/* 非對抗偷竊/移除：使用成功後的目標物品選擇 Dialog */}
       {postUseSelectionState && (
         <TargetItemSelectionDialog
           mode="post-use"

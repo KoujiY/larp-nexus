@@ -64,10 +64,10 @@ export async function uploadImageToBlob(
 /**
  * 批次刪除多張 Blob 圖片（graceful degradation: 個別刪除失敗不影響其他）
  *
- * 用於刪除實體時清理所有關聯圖片，例如刪除角色時同步清理頭像、道具圖、技能圖。
+ * 用於刪除實體時清理所有關聯圖片，例如刪除角色時同步清理頭像、物品圖、技能圖。
  */
 /**
- * 從角色文件中收集所有圖片 URL（頭像 + 道具圖 + 技能圖）
+ * 從角色文件中收集所有圖片 URL（頭像 + 物品圖 + 技能圖）
  */
 export function collectCharacterImageUrls(character: {
   imageUrl?: string;
@@ -88,7 +88,7 @@ export function collectCharacterImageUrls(character: {
 /**
  * 批次刪除多張 Blob 圖片（graceful degradation: 個別刪除失敗不影響其他）
  *
- * 用於刪除實體時清理所有關聯圖片，例如刪除角色時同步清理頭像、道具圖、技能圖。
+ * 用於刪除實體時清理所有關聯圖片，例如刪除角色時同步清理頭像、物品圖、技能圖。
  */
 export async function deleteImagesFromBlob(imageUrls: string[]): Promise<void> {
   const validUrls = imageUrls.filter(Boolean);

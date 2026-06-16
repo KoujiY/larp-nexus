@@ -42,7 +42,7 @@ const STAT_EVENTS = [
  *
  * 只監聽影響 stats 的三種事件：
  * - role.updated（GM 從編輯頁儲存 stats）
- * - character.affected（技能/道具效果改變 stats）
+ * - character.affected（技能/物品效果改變 stats）
  * - effect.expired（時效性效果過期，stats 恢復）
  *
  * 直接從 event payload 解析 stats 變動，透過 callback 更新 client state。
@@ -142,7 +142,7 @@ export function RuntimeConsoleWsListener({
 
         case 'skill.used':
         case 'item.used': {
-          // 技能/道具使用：僅刷新歷史紀錄（stats 更新由伴隨的 role.updated 事件處理）
+          // 技能/物品使用：僅刷新歷史紀錄（stats 更新由伴隨的 role.updated 事件處理）
           logRefreshRef.current?.();
           break;
         }

@@ -65,7 +65,7 @@ export interface CharacterDocumentBase {
     createdAt: Date;
   }>;
 
-  // Phase 4.5: 道具系統（擴展版）
+  // Phase 4.5: 物品系統（擴展版）
   items?: Array<{
     id: string;
     name: string;
@@ -135,7 +135,7 @@ export interface CharacterDocumentBase {
     hiddenAt?: Date;
   }>;
 
-  // Phase 7.7: 角色已檢視的道具記錄
+  // Phase 7.7: 角色已檢視的物品記錄
   viewedItems?: Array<{
     itemId: string;
     sourceCharacterId: string;

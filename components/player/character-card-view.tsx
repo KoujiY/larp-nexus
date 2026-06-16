@@ -125,7 +125,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
   // Phase 10: 遊戲結束 Dialog 狀態（即時收到 game.ended 時顯示）
   const [gameEndedDialogOpen, setGameEndedDialogOpen] = useState(false);
 
-  // Phase 7.7: 道具展示 Dialog 狀態（被展示方）
+  // Phase 7.7: 物品展示 Dialog 狀態（被展示方）
   const [showcaseDialogOpen, setShowcaseDialogOpen] = useState(false);
   const [showcaseFromName, setShowcaseFromName] = useState('');
   const [showcaseItemInfo, setShowcaseItemInfo] = useState<ShowcasedItemInfo | null>(null);
@@ -270,7 +270,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
     };
   }, [character.temporaryEffects, character.id, router]);
 
-  // 道具使用 callback
+  // 物品使用 callback
   // Phase 8: 添加檢定結果參數，返回結果以便處理對抗檢定
   const handleUseItem = useCallback(async (itemId: string, targetCharacterId?: string, checkResult?: number, targetItemId?: string) => {
     const result = await consumeItemAction(character.id, itemId, targetCharacterId, checkResult, targetItemId);
@@ -282,7 +282,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
     };
   }, [character.id]);
 
-  // 道具轉移 callback
+  // 物品轉移 callback
   const handleTransferItem = useCallback(async (itemId: string, targetCharacterId: string) => {
     const result = await transferItemAction(character.id, itemId, targetCharacterId, 1);
     if (result.success) {
@@ -577,7 +577,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
         onAbort={handleAbortContest}
       />
 
-      {/* 攻擊方目標道具選擇 Dialog（分歧 2：攻擊方獲勝 + 偷竊/移除） */}
+      {/* 攻擊方目標物品選擇 Dialog（分歧 2：攻擊方獲勝 + 偷竊/移除） */}
       {attackerTargetItemData && (
         <TargetItemSelectionDialog
           mode="contest"
@@ -599,7 +599,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
         />
       )}
 
-      {/* 防守方目標道具選擇 Dialog（分歧 5：防守方獲勝 + 偷竊/移除） */}
+      {/* 防守方目標物品選擇 Dialog（分歧 5：防守方獲勝 + 偷竊/移除） */}
       {defenderTargetItemSelectionDialog && (
         <TargetItemSelectionDialog
           mode="contest"
@@ -630,7 +630,7 @@ export function CharacterCardView({ character }: CharacterCardViewProps) {
         }}
       />
 
-      {/* Phase 7.7: 道具展示 Dialog（被展示方） */}
+      {/* Phase 7.7: 物品展示 Dialog（被展示方） */}
       <ItemShowcaseDialog
         open={showcaseDialogOpen}
         onClose={() => {

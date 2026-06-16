@@ -10,7 +10,7 @@ export interface RoleUpdatedEvent extends BaseEvent<{
   /**
    * 內部同步標記：為 true 時表示此事件為「副作用同步」而非「主動編輯」。
    *
-   * 用途：裝備切換、技能/道具效果套用、時效性效果過期等場景，server 端會
+   * 用途：裝備切換、技能/物品效果套用、時效性效果過期等場景，server 端會
    * 在主事件（equipment.toggled / character.affected / effect.expired）之外
    * 額外推送一個 role.updated 來同步 GM Console，但這個 role.updated **不應**：
    *   1. 在玩家端產生通知（已由 mapRoleUpdated 過濾）
@@ -118,7 +118,7 @@ export interface SkillUsedEvent extends BaseEvent<{
 }
 
 /**
- * 道具使用事件（攻擊方通知）
+ * 物品使用事件（攻擊方通知）
  */
 export interface ItemUsedEvent extends BaseEvent<{
   characterId: string;
@@ -146,10 +146,10 @@ export interface SkillContestEvent extends BaseEvent<{
   attackerName: string;
   defenderId: string;
   defenderName: string;
-  skillId?: string; // Phase 8: 改為可選，支援道具檢定
-  skillName?: string; // Phase 8: 改為可選，支援道具檢定
-  itemId?: string; // Phase 8: 道具檢定時使用
-  itemName?: string; // Phase 8: 道具檢定時使用
+  skillId?: string; // Phase 8: 改為可選，支援物品檢定
+  skillName?: string; // Phase 8: 改為可選，支援物品檢定
+  itemId?: string; // Phase 8: 物品檢定時使用
+  itemName?: string; // Phase 8: 物品檢定時使用
   sourceType?: 'skill' | 'item'; // Phase 8: 來源類型
   attackerValue: number;
   defenderValue: number;
@@ -159,12 +159,12 @@ export interface SkillContestEvent extends BaseEvent<{
   defenderSkills?: string[];
   result: 'attacker_wins' | 'defender_wins' | 'both_fail';
   effectsApplied?: string[];
-  // Phase 7: 對抗檢定配置（用於限制防守方可使用的道具/技能數量）
+  // Phase 7: 對抗檢定配置（用於限制防守方可使用的物品/技能數量）
   opponentMaxItems?: number;
   opponentMaxSkills?: number;
-  // Phase 7: 目標道具 ID（用於 item_take 和 item_steal 效果）
+  // Phase 7: 目標物品 ID（用於 item_take 和 item_steal 效果）
   targetItemId?: string;
-  // Phase 8: 是否需要攻擊方選擇目標道具（判定失敗後才選擇）
+  // Phase 8: 是否需要攻擊方選擇目標物品（判定失敗後才選擇）
   needsTargetItemSelection?: boolean;
   // Phase 7.6: 檢定類型（contest 或 random_contest）
   checkType?: 'contest' | 'random_contest';
@@ -193,7 +193,7 @@ export interface CharacterAffectedEvent extends BaseEvent<{
   sourceCharacterId: string;
   sourceCharacterName: string;
   sourceType: 'skill' | 'item';      // 影響來源類型
-  sourceName: string;                 // 技能/道具名稱
+  sourceName: string;                 // 技能/物品名稱
   sourceHasStealthTag?: boolean;      // Phase 7.6: 來源是否具有「隱匿」標籤
   effectType: 'stat_change' | 'item_take' | 'item_steal'; // Phase 7: 擴展支援 item_take 和 item_steal
   changes: {
@@ -204,7 +204,7 @@ export interface CharacterAffectedEvent extends BaseEvent<{
       newValue: number;
       newMax?: number;
     }>;
-    items?: Array<{                  // Phase 7: 道具變化陣列
+    items?: Array<{                  // Phase 7: 物品變化陣列
       id: string;
       name: string;
       action: 'stolen' | 'removed';
@@ -237,7 +237,7 @@ export interface SecretRevealedEvent extends BaseEvent<{
   secretId: string;
   secretTitle: string;
   revealType: 'auto' | 'manual';  // 區分自動揭露與手動揭露
-  triggerReason?: string;           // 觸發原因描述（如「檢視了道具：神秘信件」）
+  triggerReason?: string;           // 觸發原因描述（如「檢視了物品：神秘信件」）
 }> {
   type: 'secret.revealed';
 }
@@ -308,7 +308,7 @@ export interface ItemHiddenEvent extends BaseEvent<{
 }
 
 /**
- * Phase 7.7: 道具展示事件
+ * Phase 7.7: 物品展示事件
  */
 export interface ItemShowcasedEvent extends BaseEvent<{
   /** 展示方角色 ID */
@@ -319,7 +319,7 @@ export interface ItemShowcasedEvent extends BaseEvent<{
   toCharacterId: string;
   /** 被展示方角色名稱 */
   toCharacterName: string;
-  /** 道具資訊（完整，用於被展示方顯示 Dialog） */
+  /** 物品資訊（完整，用於被展示方顯示 Dialog） */
   item: {
     id: string;
     name: string;
@@ -412,7 +412,7 @@ export interface NotificationsClearedEvent extends BaseEvent<{
 /**
  * 裝備切換事件
  *
- * 玩家裝備或卸除 equipment 類型道具時推送，
+ * 玩家裝備或卸除 equipment 類型物品時推送，
  * 通知 GM 端更新角色狀態。
  */
 export interface EquipmentToggledEvent extends BaseEvent<{

@@ -4,10 +4,10 @@
  * 防守方對抗檢定回應 Dialog
  *
  * 居中固定 Dialog（非 Bottom Sheet），不可關閉。
- * 防守方在此查看攻擊方數值、選擇道具或技能回應。
+ * 防守方在此查看攻擊方數值、選擇物品或技能回應。
  *
  * 視覺語言對齊 Ethereal Manuscript 風格。
- * 設計決策：道具與技能為互斥選擇（只能選其中一類回應）。
+ * 設計決策：物品與技能為互斥選擇（只能選其中一類回應）。
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -96,7 +96,7 @@ export function ContestResponseDialog({
   const attackerRelatedStat = contestEvent.relatedStat;
   const attackerHasCombatTag = contestEvent.attackerHasCombatTag ?? false;
 
-  // ── 過濾可用道具 ─────────────────────────────────────────────
+  // ── 過濾可用物品 ─────────────────────────────────────────────
   const availableItems = items.filter((item) => {
     if (item.type === 'equipment') return false;
     if (item.cooldown && item.cooldown > 0 && item.lastUsedAt) {
@@ -134,14 +134,14 @@ export function ContestResponseDialog({
   const maxItems = contestEvent.opponentMaxItems ?? 0;
   const maxSkills = contestEvent.opponentMaxSkills ?? 0;
 
-  // ── 互斥選擇：選了道具就清空技能，反之亦然 ─────────────────
+  // ── 互斥選擇：選了物品就清空技能，反之亦然 ─────────────────
   const handleItemToggle = (itemId: string) => {
     setSelectedItems((prev) => {
       if (prev.includes(itemId)) {
         return prev.filter((id) => id !== itemId);
       }
       if (prev.length < maxItems) {
-        // 選擇道具時清空技能
+        // 選擇物品時清空技能
         setSelectedSkills([]);
         return [...prev, itemId];
       }
@@ -156,7 +156,7 @@ export function ContestResponseDialog({
         return prev.filter((id) => id !== skillId);
       }
       if (prev.length < maxSkills) {
-        // 選擇技能時清空道具
+        // 選擇技能時清空物品
         setSelectedItems([]);
         return [...prev, skillId];
       }
@@ -300,7 +300,7 @@ export function ContestResponseDialog({
               </div>
             </section>
 
-            {/* ── 道具選擇區 ──────────────────────────────────── */}
+            {/* ── 物品選擇區 ──────────────────────────────────── */}
             {showItemSection && (
               <section className="space-y-3">
                 <div className="flex justify-between items-center px-1">
@@ -515,7 +515,7 @@ export function ContestResponseDialog({
               </div>
             )}
 
-            {/* ── 不允許使用道具或技能（限制模式） ──────────────── */}
+            {/* ── 不允許使用物品或技能（限制模式） ──────────────── */}
             {!itemsAllowed && !skillsAllowed && (
               <div className="rounded-xl bg-card/20 border border-white/5 p-6">
                 <div className="flex flex-col items-center justify-center gap-3">

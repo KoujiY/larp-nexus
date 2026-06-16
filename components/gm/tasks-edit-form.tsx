@@ -45,7 +45,7 @@ interface TasksEditFormProps {
   characterId: string;
   initialTasks: Task[];
   secrets: SecretOption[];
-  /** 劇本內所有道具（自動揭露條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
+  /** 劇本內所有物品（自動揭露條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
   gameItems: GameItemInfo[];
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;
@@ -105,7 +105,7 @@ export function TasksEditForm({ characterId, initialTasks, secrets, gameItems, o
     [initialTasksMap, deletedIds],
   );
 
-  // 道具列表變動後清理失效條件（gameItems 由 props 下傳）
+  // 物品列表變動後清理失效條件（gameItems 由 props 下傳）
   useEffect(() => {
     if (gameItems.length === 0) return;
     const existingItemIds = gameItems.map((item) => item.itemId);

@@ -155,7 +155,7 @@ export async function updateCharacter(
     const cleanStats = cleanStatData(updatedCharacter.stats);
     const cleanSkills = cleanSkillData(updatedCharacter.skills);
 
-    // ── 6.5. Blob 圖片清理（被刪除的道具/技能圖片）──
+    // ── 6.5. Blob 圖片清理（被刪除的物品/技能圖片）──
     if (deletedImageUrls.length > 0) {
       // 不 await — fire-and-forget，避免拖慢主流程
       deleteImagesFromBlob(deletedImageUrls).catch(() => {});
@@ -308,7 +308,7 @@ function buildUpdateData(
     updateData.items = result.items;
     inventoryDiffs = result.inventoryDiffs;
 
-    // 收集被刪除道具的圖片 URL
+    // 收集被刪除物品的圖片 URL
     for (const diff of inventoryDiffs) {
       if (diff.action === "deleted" && diff.item.imageUrl) {
         deletedImageUrls.push(diff.item.imageUrl);

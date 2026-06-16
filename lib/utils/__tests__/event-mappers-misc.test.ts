@@ -65,7 +65,7 @@ describe('mapItemShowcased', () => {
     const event = makeEvent('item.showcased', {
       fromCharacterId: 'char-X',
       toCharacterId: 'char-Y',
-      item: { name: '道具' },
+      item: { name: '物品' },
     })
     expect(mapItemShowcased(event)).toEqual([])
   })

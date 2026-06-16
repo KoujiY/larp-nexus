@@ -8,7 +8,7 @@ import mongoose, { Schema, Document } from 'mongoose';
  * - game_start: 遊戲開始
  * - game_end: 遊戲結束
  * - stat_change: 數值變更
- * - item_use: 使用道具
+ * - item_use: 使用物品
  * - skill_use: 使用技能
  * - contest_result: 對抗檢定結果
  * - secret_reveal: 秘密揭露

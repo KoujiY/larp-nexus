@@ -1,7 +1,7 @@
 /**
- * E2E Flow #7 — 道具操作（use / equip / showcase / transfer）
+ * E2E Flow #7 — 物品操作（use / equip / showcase / transfer）
  *
- * 驗證玩家在 active game 中操作道具的完整閉環：
+ * 驗證玩家在 active game 中操作物品的完整閉環：
  * - #7.1 Item Use self-target happy path + quantity 遞減 + baseline/runtime 隔離
  * - #7.2 Item Use cross-target + random check pass/fail 雙分支
  * - #7.3 Equip/Unequip toggle + stat boost apply/revert
@@ -72,7 +72,7 @@ test.describe('Flow #7 — Item Operations', () => {
     });
     await seed.gameRuntime({ refId: gameId, gmUserId });
 
-    // ── Phase A：進入物品 tab + 開啟道具 dialog ──
+    // ── Phase A：進入物品 tab + 開啟物品 dialog ──
     await asPlayer({ characterId });
     await page.goto(`/c/${characterId}`);
 
@@ -84,7 +84,7 @@ test.describe('Flow #7 — Item Operations', () => {
     await expect(potionCard).toBeVisible();
     await potionCard.click();
 
-    // Dialog 以道具名稱為 aria-label
+    // Dialog 以物品名稱為 aria-label
     const itemDialog = page.getByRole('dialog', { name: '治療藥水' });
     await expect(itemDialog).toBeVisible();
 
@@ -163,7 +163,7 @@ test.describe('Flow #7 — Item Operations', () => {
       .find(s => s.name === '生命值');
     expect(hpStat2!.value).toBe(90);
 
-    // 道具仍在列表中（不被刪除），但不可再使用
+    // 物品仍在列表中（不被刪除），但不可再使用
     await navItems.click();
     const potionCard2 = page.getByText('治療藥水');
     await expect(potionCard2).toBeVisible();
@@ -523,7 +523,7 @@ test.describe('Flow #7 — Item Operations', () => {
     const game = await seed.game({ gmUserId, isActive: true });
     const gameId = game._id;
 
-    // 角色 A：持有含敏感欄位的道具（effects, checkType, randomConfig）
+    // 角色 A：持有含敏感欄位的物品（effects, checkType, randomConfig）
     const charA = await seed.character({
       gameId,
       name: 'E2E 展示者',
@@ -607,7 +607,7 @@ test.describe('Flow #7 — Item Operations', () => {
       // ── Phase A：Player B 先載入頁面（建立 SSE 連線） ──
       await pageB.goto(`/c/${charBId}`);
 
-      // ── Phase B：Player A 展示道具 ──
+      // ── Phase B：Player A 展示物品 ──
       await pageA.goto(`/c/${charAId}`);
       const navItems = pageA.getByRole('navigation').getByRole('button', { name: '物品' });
       await navItems.click();
@@ -672,7 +672,7 @@ test.describe('Flow #7 — Item Operations', () => {
       await expect(showcaseDialog).not.toBeVisible();
 
       // ── Phase D：DB 斷言 ──
-      // A 的道具數量不變（showcase 不消耗）
+      // A 的物品數量不變（showcase 不消耗）
       const runtimeA = await dbQuery('character_runtime', { refId: charAId });
       const ringA = (runtimeA[0].items as Array<{ id: string; quantity: number }>)
         .find(i => i.id === 'item-ring');
@@ -709,7 +709,7 @@ test.describe('Flow #7 — Item Operations', () => {
     const game = await seed.game({ gmUserId, isActive: true });
     const gameId = game._id;
 
-    // 角色 A（玩家操控）：3 個道具
+    // 角色 A（玩家操控）：3 個物品
     const charA = await seed.character({
       gameId,
       name: 'E2E 轉移者',
@@ -932,7 +932,7 @@ test.describe('Flow #7 — Item Operations', () => {
     seed,
     asPlayer,
   }) => {
-    // ── Seed：active game + 1 角色（含 exhausted / cooldown 道具） ──
+    // ── Seed：active game + 1 角色（含 exhausted / cooldown 物品） ──
     const { gmUserId } = await seed.gmWithGame();
     const game = await seed.game({ gmUserId, isActive: true });
     const gameId = game._id;

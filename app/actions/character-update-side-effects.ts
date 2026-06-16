@@ -111,7 +111,7 @@ export async function emitUpdateSideEffects({
     }).catch((error) => console.error('Failed to emit role.updated', error));
   }
 
-  // WebSocket：道具事件
+  // WebSocket：物品事件
   if (inventoryDiffs.length > 0) {
     inventoryDiffs.forEach((diff) => {
       emitInventoryUpdated(characterId, {

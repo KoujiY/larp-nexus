@@ -1,6 +1,6 @@
 /**
  * 目標選擇 Hook
- * 統一管理目標角色選擇、目標道具選擇和狀態持久化
+ * 統一管理目標角色選擇、目標物品選擇和狀態持久化
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -18,7 +18,7 @@ export interface UseTargetSelectionOptions {
   requiresTarget: boolean;
   targetType?: 'self' | 'other' | 'any';
   enabled: boolean;
-  // 用於檢查是否需要目標道具的效果
+  // 用於檢查是否需要目標物品的效果
   effects?: Array<SkillEffect | ItemEffect>;
   // 當前選中的源（用於恢復狀態時檢查）
   selectedSource?: { id: string; effects?: Array<SkillEffect | ItemEffect> } | null;
@@ -38,7 +38,7 @@ export interface UseTargetSelectionReturn {
   targetOptions: Array<{ id: string; name: string }>;
   isLoading: boolean;
   
-  // 目標確認和目標道具選擇
+  // 目標確認和目標物品選擇
   isTargetConfirmed: boolean;
   setIsTargetConfirmed: (confirmed: boolean) => void;
   targetItems: TargetItemInfo[];
@@ -94,7 +94,7 @@ export function useTargetSelection(options: UseTargetSelectionOptions): UseTarge
   // 未明確選擇時（undefined）回退到 hook 提供的預設值，不需 useEffect 同步
   const [localSelectedTargetId, setLocalSelectedTargetId] = useState<string | undefined>(undefined);
 
-  // 目標確認和目標道具選擇狀態
+  // 目標確認和目標物品選擇狀態
   const [isTargetConfirmed, setIsTargetConfirmed] = useState(false);
   const [targetItems, setTargetItems] = useState<TargetItemInfo[]>([]);
   const [selectedTargetItemId, setSelectedTargetItemId] = useState<string>('');
@@ -171,11 +171,11 @@ export function useTargetSelection(options: UseTargetSelectionOptions): UseTarge
           setIsTargetConfirmed(state.isTargetConfirmed || false);
           setSelectedTargetItemId(state.selectedTargetItemId || '');
           
-          // 如果已確認目標且需要目標道具，自動載入目標的道具清單
+          // 如果已確認目標且需要目標物品，自動載入目標的物品清單
           if (state.isTargetConfirmed && state.selectedTargetId) {
             const needsTargetItem = effects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
             if (needsTargetItem) {
-              // 檢查是否已經有道具清單，避免重複載入
+              // 檢查是否已經有物品清單，避免重複載入
               if (targetItems.length === 0) {
                 setIsLoadingTargetItems(true);
                 try {
@@ -191,7 +191,7 @@ export function useTargetSelection(options: UseTargetSelectionOptions): UseTarge
                     }
                   }
                 } catch (error) {
-                  console.error('載入目標道具清單失敗:', error);
+                  console.error('載入目標物品清單失敗:', error);
                 } finally {
                   setIsLoadingTargetItems(false);
                 }

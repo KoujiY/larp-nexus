@@ -21,7 +21,7 @@ export interface UseCharacterWebSocketHandlerOptions {
   addNotification: (notifications: Notification[]) => void;
   onContestRequest?: (event: SkillContestEvent['payload']) => void;
   onContestResult?: (event: SkillContestEvent['payload']) => void;
-  /** Phase 7.7: 被展示方收到道具展示事件時的回調（用於開啟唯讀 Dialog） */
+  /** Phase 7.7: 被展示方收到物品展示事件時的回調（用於開啟唯讀 Dialog） */
   onItemShowcased?: (payload: ItemShowcasedEvent['payload']) => void;
   /** Phase 10: 清除 Dialog 狀態的回調（確保對抗結算後 dialogState 不殘留） */
   onClearDialogState?: () => void;
@@ -70,7 +70,7 @@ export function useCharacterWebSocketHandler(
       router.refresh();
       onContestResult?.(payload);
     },
-    // Phase 10: 對抗結算後清除 dialogState，避免重新開啟技能/道具時殘留等待狀態
+    // Phase 10: 對抗結算後清除 dialogState，避免重新開啟技能/物品時殘留等待狀態
     onClearDialogState,
     onContestAborted,
   });
@@ -136,12 +136,12 @@ export function useCharacterWebSocketHandler(
           break;
 
         case 'role.inventoryUpdated':
-          // 道具更新：刷新數據（通知由 addNotification 處理）
+          // 物品更新：刷新數據（通知由 addNotification 處理）
           router.refresh();
           break;
 
         case 'item.transferred': {
-          // 道具轉移：刷新數據（通知由 addNotification 處理）
+          // 物品轉移：刷新數據（通知由 addNotification 處理）
           // H-4: 負責清理 recentTransferredItemsRef 的過期記錄（映射器只負責寫入）
           const transferPayload = event.payload as { itemId?: string };
           if (transferPayload.itemId) {
@@ -184,7 +184,7 @@ export function useCharacterWebSocketHandler(
         }
 
         case 'item.showcased': {
-          // Phase 7.7: 道具展示事件（通知由 addNotification 處理）
+          // Phase 7.7: 物品展示事件（通知由 addNotification 處理）
           const showcasePayload = event.payload as ItemShowcasedEvent['payload'];
           // 被展示方：觸發回調以開啟唯讀 Dialog
           if (showcasePayload.toCharacterId === characterId) {
@@ -194,7 +194,7 @@ export function useCharacterWebSocketHandler(
         }
 
         case 'item.used': {
-          // 道具使用通知 — 僅刷新數據
+          // 物品使用通知 — 僅刷新數據
           router.refresh();
           break;
         }

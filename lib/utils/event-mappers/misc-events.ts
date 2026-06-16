@@ -128,7 +128,7 @@ export function createMiscEventMappers(characterId: string) {
     return [{
       id: `evt-${event.timestamp}`,
       title: '物品揭露',
-      message: `你獲得了新的道具：${payload.itemName}`,
+      message: `你獲得了新的物品：${payload.itemName}`,
       type: event.type,
     }];
   };
@@ -139,7 +139,7 @@ export function createMiscEventMappers(characterId: string) {
     return [{
       id: `evt-${event.timestamp}`,
       title: '物品消失',
-      message: `你的道具已消失：${payload.itemName}`,
+      message: `你的物品已消失：${payload.itemName}`,
       type: event.type,
     }];
   };

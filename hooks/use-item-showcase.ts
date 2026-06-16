@@ -9,7 +9,7 @@ import { notify } from '@/lib/notify';
 interface UseItemShowcaseOptions {
   characterId: string;
   gameId: string;
-  /** 當前選中的道具 */
+  /** 當前選中的物品 */
   selectedItem: Item | null;
   /** 共用目標下拉選單已選的目標 ID */
   selectedUseTargetId: string | undefined;
@@ -23,7 +23,7 @@ interface UseItemShowcaseOptions {
 }
 
 /**
- * 道具展示邏輯 Hook
+ * 物品展示邏輯 Hook
  *
  * 封裝展示對話框狀態與兩種展示路徑：
  * 1. 快捷路徑：detail dialog 目標下拉已選 → 直接展示
@@ -61,7 +61,7 @@ export function useItemShowcase({
         }
         onShowcaseComplete();
       } catch (error) {
-        console.error('展示道具錯誤:', error);
+        console.error('展示物品錯誤:', error);
         notify.error('展示失敗');
       } finally {
         setIsShowcasing(false);
@@ -89,7 +89,7 @@ export function useItemShowcase({
       setItemToShowcase(null);
       setSelectedTargetId('');
     } catch (error) {
-      console.error('展示道具錯誤:', error);
+      console.error('展示物品錯誤:', error);
       notify.error('展示失敗');
     } finally {
       setIsShowcasing(false);

@@ -1,7 +1,7 @@
 /**
  * Phase 7.7: 自動揭露條件健全性清理
  *
- * GM 端切換分頁時呼叫，驗證並移除揭露條件中引用已刪除道具或隱藏資訊的 ID。
+ * GM 端切換分頁時呼叫，驗證並移除揭露條件中引用已刪除物品或隱藏資訊的 ID。
  * 清理後若條件中所有引用項為空，自動將條件重設為 undefined（即 'none'）。
  *
  * 清理操作在前端執行（即時反映），並在下次儲存時持久化到資料庫。
@@ -21,7 +21,7 @@ export interface CleanResult {
  * 清理單一 AutoRevealCondition 中的無效引用
  *
  * @param condition 目前的揭露條件
- * @param existingItemIds 劇本中仍存在的所有道具 ID 集合
+ * @param existingItemIds 劇本中仍存在的所有物品 ID 集合
  * @param existingSecretIds 該角色仍存在的隱藏資訊 ID 集合（僅隱藏目標需要）
  * @returns 清理後的條件（若條件為空則回傳 undefined）與移除數量
  */
@@ -83,11 +83,11 @@ function cleanCondition(
 /**
  * 清理隱藏資訊的自動揭露條件
  *
- * 掃描所有隱藏資訊的 autoRevealCondition，移除引用已刪除道具的 ID。
+ * 掃描所有隱藏資訊的 autoRevealCondition，移除引用已刪除物品的 ID。
  * 用於 GM 切換到「基本資訊」分頁時。
  *
  * @param secrets 角色的隱藏資訊列表
- * @param existingItemIds 劇本中仍存在的所有道具 ID 陣列
+ * @param existingItemIds 劇本中仍存在的所有物品 ID 陣列
  * @returns 清理後的隱藏資訊列表與清理結果
  */
 export function cleanSecretConditions(
@@ -124,11 +124,11 @@ export function cleanSecretConditions(
 /**
  * 清理隱藏目標的自動揭露條件
  *
- * 掃描所有隱藏目標的 autoRevealCondition，移除引用已刪除道具或隱藏資訊的 ID。
+ * 掃描所有隱藏目標的 autoRevealCondition，移除引用已刪除物品或隱藏資訊的 ID。
  * 用於 GM 切換到「任務管理」分頁時。
  *
  * @param tasks 角色的任務列表
- * @param existingItemIds 劇本中仍存在的所有道具 ID 陣列
+ * @param existingItemIds 劇本中仍存在的所有物品 ID 陣列
  * @param existingSecretIds 該角色仍存在的隱藏資訊 ID 陣列
  * @returns 清理後的任務列表與清理結果
  */

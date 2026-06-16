@@ -111,7 +111,7 @@ export function useContestStateRestore(options: UseContestStateRestoreOptions) {
         // 當 hadPending && !hasPending 時，代表 pendingContest 已被 removePendingContest 清除，
         // 即對抗檢定已結束。此時應無條件清除 dialogState 並關閉 dialog。
         // 之前的守衛誤將 dialogState === 'attacker_waiting' 視為「仍在進行中」而跳過清理，
-        // 導致結算後重新開啟技能/道具仍顯示等待狀態。
+        // 導致結算後重新開啟技能/物品仍顯示等待狀態。
 
         // 如果已經在關閉這個 dialog，跳過
         if (isClosingDialogRef.current === selectedItem.id) {

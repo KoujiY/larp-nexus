@@ -29,7 +29,7 @@ export interface EffectiveStat extends Stat {
  * 將 base stats 包裝為 EffectiveStat（passthrough）
  *
  * @param stats - 角色的 base stats（已含所有 materialized 加成）
- * @param _items - 道具列表（保留參數以維持呼叫端相容性，不再使用）
+ * @param _items - 物品列表（保留參數以維持呼叫端相容性，不再使用）
  */
 export function computeEffectiveStats(
   stats: Stat[],
@@ -51,7 +51,7 @@ export function computeEffectiveStats(
  * 取得指定數值名稱的值（含 materialized 加成）
  *
  * @param stats - 角色的 base stats
- * @param _items - 道具列表（保留參數，不再使用）
+ * @param _items - 物品列表（保留參數，不再使用）
  * @param statName - 數值名稱
  */
 export function getEffectiveStatValue(

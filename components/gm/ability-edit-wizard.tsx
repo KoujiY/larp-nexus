@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AbilityEditWizard — 道具/技能編輯 Wizard
+ * AbilityEditWizard — 物品/技能編輯 Wizard
  *
  * 共用元件，透過 mode: 'item' | 'skill' 控制差異。
  * 4 步驟：基本資訊 → 檢定系統 → 使用限制 → 效果設計
@@ -418,7 +418,7 @@ export function AbilityEditWizard({
           儲存後可在{isItemMode ? '物品' : '技能'}卡片上傳圖片
         </p>
 
-        {/* 道具類型選擇 */}
+        {/* 物品類型選擇 */}
         {isItemMode && (
           <div>
             <label className={LABEL_CLASS}>物品類型</label>
@@ -1048,7 +1048,7 @@ export function AbilityEditWizard({
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
 
-/** 道具類型選擇卡片（Step 1 Card Selector 設計） */
+/** 物品類型選擇卡片（Step 1 Card Selector 設計） */
 function ItemTypeCard({
   icon, title, subtitle, selected, onClick,
 }: {

@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * 唯讀道具展示 Bottom Sheet（被展示方）
+ * 唯讀物品展示 Bottom Sheet（被展示方）
  *
- * 當其他角色展示道具時，被展示方看到此 Bottom Sheet。
+ * 當其他角色展示物品時，被展示方看到此 Bottom Sheet。
  * 僅顯示基本資訊（名稱、描述、圖片、類型、數量、標籤），
  * 不包含效果、檢定設定等敏感資訊。
  *
@@ -13,7 +13,7 @@
 import { useEffect } from 'react';
 import Image from 'next/image';
 
-/** 展示道具的基本資訊（僅包含安全可公開的欄位） */
+/** 展示物品的基本資訊（僅包含安全可公開的欄位） */
 export interface ShowcasedItemInfo {
   id: string;
   name: string;
@@ -31,14 +31,14 @@ interface ItemShowcaseDialogProps {
   onClose: () => void;
   /** 展示方角色名稱 */
   fromCharacterName: string;
-  /** 道具資訊 */
+  /** 物品資訊 */
   item: ShowcasedItemInfo | null;
 }
 
 /**
- * Phase 7.7: 唯讀道具展示 Bottom Sheet
+ * Phase 7.7: 唯讀物品展示 Bottom Sheet
  *
- * 當其他角色展示道具時，被展示方看到此 Bottom Sheet。
+ * 當其他角色展示物品時，被展示方看到此 Bottom Sheet。
  * 僅顯示基本資訊（名稱、描述、圖片、類型、數量、標籤），
  * 不包含效果、檢定設定等敏感資訊。
  */
@@ -92,7 +92,7 @@ export function ItemShowcaseDialog({
 
         {/* 可滾動內容區 */}
         <div className="overflow-y-auto px-6 pt-2 pb-8 flex-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-primary/70">
-          {/* 道具圖片 */}
+          {/* 物品圖片 */}
           <div className="relative w-32 h-32 mx-auto mb-4">
             <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-2xl animate-pulse" />
             <div

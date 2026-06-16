@@ -11,7 +11,7 @@ import type { BaseEvent } from '@/types/event';
 import type { CharacterDocument, CharacterRuntimeDocument } from '@/lib/db/models';
 
 /**
- * 取消對抗檢定（當目標角色沒有道具可選擇時）
+ * 取消對抗檢定（當目標角色沒有物品可選擇時）
  * 用於清除服務器端的對抗檢定追蹤狀態，並發送通知給攻擊方
  */
 export async function cancelContestItemSelection(
@@ -73,7 +73,7 @@ async function cancelContestItemSelectionImpl(
       // 防守方不存在，但這不影響取消操作（只是不發送通知）
     }
 
-    // 根據來源類型獲取技能或道具信息
+    // 根據來源類型獲取技能或物品信息
     let sourceName = '';
     let skillId: string | undefined;
     let itemId: string | undefined;
@@ -94,7 +94,7 @@ async function cancelContestItemSelectionImpl(
       }
     }
 
-    // 發送 skill.contest 事件通知攻擊方：技能使用成功但目標沒有道具
+    // 發送 skill.contest 事件通知攻擊方：技能使用成功但目標沒有物品
     const pusher = getPusherServer();
     if (pusher && isPusherEnabled() && defender) {
       const contestPayload: {
@@ -121,7 +121,7 @@ async function cancelContestItemSelectionImpl(
         defenderValue: 0,
         result: 'attacker_wins',
         effectsApplied: ['目標角色沒有物品可互動'], // 顯示提示訊息
-        needsTargetItemSelection: false, // 明確標記不需要選擇目標道具
+        needsTargetItemSelection: false, // 明確標記不需要選擇目標物品
         sourceType: contestInfo.sourceType,
       };
 

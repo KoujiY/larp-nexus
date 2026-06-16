@@ -322,7 +322,7 @@ test.describe('Flow #11 — Hidden Skills / Items', () => {
     });
     const gameId = game._id;
 
-    // 角色 A（探員）：有道具「線索」可供展示
+    // 角色 A（探員）：有物品「線索」可供展示
     const charA = await seed.character({
       gameId,
       name: '探員',
@@ -409,9 +409,9 @@ test.describe('Flow #11 — Hidden Skills / Items', () => {
       const navA = pageA.getByRole('navigation');
       await navA.getByRole('button', { name: '物品' }).click();
 
-      // 打開道具詳情 → 選擇目標 → 展示
+      // 打開物品詳情 → 選擇目標 → 展示
       await pageA.getByText('線索', { exact: true }).click();
-      // 等待道具詳情 dialog 出現
+      // 等待物品詳情 dialog 出現
       await expect(pageA.getByText('一條線索', { exact: true })).toBeVisible();
 
       // 選擇目標角色

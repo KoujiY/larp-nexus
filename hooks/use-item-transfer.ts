@@ -7,7 +7,7 @@ import { type TransferTargetCharacter } from '@/app/actions/public';
 interface UseItemTransferOptions {
   characterId: string;
   gameId: string;
-  /** 當前選中的道具 */
+  /** 當前選中的物品 */
   selectedItem: Item | null;
   /** 共用目標下拉選單已選的目標 ID */
   selectedUseTargetId: string | undefined;
@@ -23,7 +23,7 @@ interface UseItemTransferOptions {
 }
 
 /**
- * 道具轉移邏輯 Hook
+ * 物品轉移邏輯 Hook
  *
  * 封裝轉移對話框狀態（targets 載入、選擇、送出）與兩種轉移路徑：
  * 1. 快捷路徑：detail dialog 目標下拉已選 → 直接轉移
@@ -60,7 +60,7 @@ export function useItemTransfer({
         await onTransferItem(itemRef.id, targetId);
         onTransferComplete();
       } catch (error) {
-        console.error('轉移道具錯誤:', error);
+        console.error('轉移物品錯誤:', error);
       } finally {
         setIsTransferring(false);
       }
@@ -85,7 +85,7 @@ export function useItemTransfer({
       setSelectedTargetId('');
       onTransferComplete();
     } catch (error) {
-      console.error('轉移道具錯誤:', error);
+      console.error('轉移物品錯誤:', error);
       setIsOpen(false);
       setSelectedTargetId('');
     } finally {

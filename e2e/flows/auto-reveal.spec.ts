@@ -2,8 +2,8 @@
  * Flow #10 — 自動揭露（Auto-Reveal）
  *
  * 驗證自動揭露系統的 runtime 行為：
- * - items_viewed 條件：展示道具 → secret 自動揭露（#10.1）
- * - items_acquired 條件：道具轉移 → task 自動揭露（#10.2）
+ * - items_viewed 條件：展示物品 → secret 自動揭露（#10.1）
+ * - items_acquired 條件：物品轉移 → task 自動揭露（#10.2）
  * - secrets_revealed 鏈式揭露：GM 手動揭露 secret → task 自動揭露（#10.3）
  * - AND/OR matchLogic：AND 需全部滿足、OR 任一即觸發（#10.4）
  * - 條件編輯器 UI：GM 設定/修改 auto-reveal 條件（#10.5）
@@ -36,7 +36,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     });
     const gameId = game._id;
 
-    // 角色 A：有道具「藏寶圖」
+    // 角色 A：有物品「藏寶圖」
     const charA = await seed.character({
       gameId,
       name: '探險家',
@@ -116,9 +116,9 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       const navA = pageA.getByRole('navigation');
       await navA.getByRole('button', { name: '物品' }).click();
 
-      // 打開道具詳情 → 選擇目標 → 展示
+      // 打開物品詳情 → 選擇目標 → 展示
       await pageA.getByText('藏寶圖', { exact: true }).click();
-      // 等待道具詳情 dialog 出現
+      // 等待物品詳情 dialog 出現
       await expect(pageA.getByText('一張古老的藏寶圖', { exact: true })).toBeVisible();
 
       // 選擇目標角色
@@ -134,7 +134,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       expect(payload.secretId).toBe('secret-treasure');
       expect(payload.secretTitle).toBe('寶藏位置');
       expect(payload.revealType).toBe('auto');
-      expect(payload.triggerReason).toBe('滿足道具檢視條件');
+      expect(payload.triggerReason).toBe('滿足物品檢視條件');
 
       // ── DB 驗證：B 的 viewedItems 已記錄 ──
       const charRuntimes = await dbQuery('character_runtime', { refId: charB._id });
@@ -305,7 +305,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     expect(task!.isHidden).toBe(true);
   });
 
-  // ─── #10.2 items_acquired → task 自動揭露（道具轉移） ───
+  // ─── #10.2 items_acquired → task 自動揭露（物品轉移） ───
   test('#10.2 items_acquired — transfer triggers task auto-reveal', async ({
     browser,
     seed,
@@ -322,7 +322,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     });
     const gameId = game._id;
 
-    // 角色 A：有可轉移道具「寶劍」
+    // 角色 A：有可轉移物品「寶劍」
     const charA = await seed.character({
       gameId,
       name: '戰士',
@@ -400,7 +400,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       const navA = pageA.getByRole('navigation');
       await navA.getByRole('button', { name: '物品' }).click();
 
-      // 打開道具詳情 → 選擇目標 → 轉移
+      // 打開物品詳情 → 選擇目標 → 轉移
       await pageA.getByText('寶劍', { exact: true }).click();
       await expect(pageA.getByText('一把鋒利的寶劍', { exact: true })).toBeVisible();
 
@@ -417,7 +417,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       expect(taskPayload.taskId).toBe('task-train');
       expect(taskPayload.taskTitle).toBe('開始修煉');
       expect(taskPayload.revealType).toBe('auto');
-      expect(taskPayload.triggerReason).toBe('滿足道具取得條件');
+      expect(taskPayload.triggerReason).toBe('滿足物品取得條件');
 
       // ── DB 驗證：B 的 task 已揭露 ──
       const charRuntimes = await dbQuery('character_runtime', { refId: charB._id });
@@ -457,7 +457,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     });
     const gameId = game._id;
 
-    // 角色 A：有兩個道具
+    // 角色 A：有兩個物品
     const charA = await seed.character({
       gameId,
       name: '商人',
@@ -476,7 +476,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
           {
             id: 'secret-and',
             title: 'AND 秘密',
-            content: '需要看到兩個道具才揭露',
+            content: '需要看到兩個物品才揭露',
             isRevealed: false,
             autoRevealCondition: {
               type: 'items_viewed',
@@ -487,7 +487,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
           {
             id: 'secret-or',
             title: 'OR 秘密',
-            content: '看到任一道具就揭露',
+            content: '看到任一物品就揭露',
             isRevealed: false,
             autoRevealCondition: {
               type: 'items_viewed',
@@ -518,7 +518,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
           {
             id: 'secret-and',
             title: 'AND 秘密',
-            content: '需要看到兩個道具才揭露',
+            content: '需要看到兩個物品才揭露',
             isRevealed: false,
             autoRevealCondition: {
               type: 'items_viewed',
@@ -529,7 +529,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
           {
             id: 'secret-or',
             title: 'OR 秘密',
-            content: '看到任一道具就揭露',
+            content: '看到任一物品就揭露',
             isRevealed: false,
             autoRevealCondition: {
               type: 'items_viewed',
@@ -567,7 +567,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       await navA.getByRole('button', { name: '物品' }).click();
 
       // ══════════════════════════════════════
-      // 展示「鑰匙」（只展示一個道具）
+      // 展示「鑰匙」（只展示一個物品）
       // → OR 條件滿足（任一即可），AND 條件不滿足（需要兩個）
       // ══════════════════════════════════════
       await pageA.getByText('鑰匙', { exact: true }).click();
@@ -590,12 +590,12 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       const secretInfo = runtimeB.secretInfo as Record<string, unknown>;
       const secrets = secretInfo.secrets as Array<Record<string, unknown>>;
 
-      // OR 秘密：已揭露（只看了一個道具就滿足）
+      // OR 秘密：已揭露（只看了一個物品就滿足）
       const orSecret = secrets.find(s => s.id === 'secret-or');
       expect(orSecret!.isRevealed).toBe(true);
       expect(orSecret!.revealedAt).toBeTruthy();
 
-      // AND 秘密：未揭露（還差一個道具未展示）
+      // AND 秘密：未揭露（還差一個物品未展示）
       const andSecret = secrets.find(s => s.id === 'secret-and');
       expect(andSecret!.isRevealed).toBe(false);
 
@@ -623,7 +623,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     });
     const gameId = game._id;
 
-    // 角色：有道具 + secret（無自動揭露條件）
+    // 角色：有物品 + secret（無自動揭露條件）
     const char = await seed.character({
       gameId,
       name: '偵探',
@@ -687,7 +687,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
     // dialog re-render 可能因 condition editor 狀態切換而延遲
     await expect(dialog.getByRole('button', { name: '添加' })).toBeVisible({ timeout: 10000 });
 
-    // Step 2: 從道具選擇器添加道具
+    // Step 2: 從物品選擇器添加物品
     //
     // Dialog 內元素會因 React re-render 而 detach/reattach，Playwright locator
     // 的 actionability check 會因 detach 而反覆 retry 直到 timeout。
@@ -729,7 +729,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       throw new Error('Item picker trigger not found or still disabled after 5s');
     });
 
-    // 2d: 選擇道具「線索」（portal 中，用 Playwright locator 發射 pointer events）
+    // 2d: 選擇物品「線索」（portal 中，用 Playwright locator 發射 pointer events）
     await page.getByRole('option', { name: '線索' }).click({ timeout: 10000 });
 
     // 2e: 點擊「添加」按鈕（dialog 內，用 evaluate 避 detach）
@@ -747,7 +747,7 @@ test.describe('Flow #10 — Auto-Reveal', () => {
       throw new Error('添加 button not found or disabled after 5s');
     });
 
-    // 驗證：道具已添加（badge 出現）
+    // 驗證：物品已添加（badge 出現）
     await expect(dialog.getByText('線索')).toBeVisible({ timeout: 3000 });
 
     // Step 3: 切換匹配邏輯為 OR（dialog 內，用 evaluate 避 detach）

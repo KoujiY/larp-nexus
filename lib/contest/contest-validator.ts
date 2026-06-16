@@ -65,7 +65,7 @@ export async function validateContestRequest(
 }
 
 /**
- * 驗證技能或道具是否存在且為對抗檢定類型
+ * 驗證技能或物品是否存在且為對抗檢定類型
  */
 export function validateContestSource(
   attacker: CharacterDocument,
@@ -104,7 +104,7 @@ export function validateContestSource(
     }
   }
 
-  // 嘗試找道具
+  // 嘗試找物品
   const attackerItems = attacker.items || [];
   const itemIndex = attackerItems.findIndex((i: { id: string }) => i.id === sourceId);
   
@@ -122,7 +122,7 @@ export function validateContestSource(
       return {
         success: false,
         error: 'INVALID_ITEM',
-        message: '此道具不是對抗檢定類型',
+        message: '此物品不是對抗檢定類型',
       };
     }
   }
@@ -130,12 +130,12 @@ export function validateContestSource(
   return {
     success: false,
     error: 'NOT_FOUND',
-    message: '找不到攻擊技能或道具',
+    message: '找不到攻擊技能或物品',
   };
 }
 
 /**
- * 驗證防守方道具
+ * 驗證防守方物品
  */
 export function validateDefenderItems(
   defender: CharacterDocument,
@@ -161,14 +161,14 @@ export function validateDefenderItems(
     return {
       success: false,
       error: 'ITEMS_NOT_ALLOWED',
-      message: '此對抗檢定不允許使用道具',
+      message: '此對抗檢定不允許使用物品',
     };
   }
   if (itemIds.length > maxItems) {
     return {
       success: false,
       error: 'TOO_MANY_ITEMS',
-      message: `最多只能使用 ${maxItems} 個道具`,
+      message: `最多只能使用 ${maxItems} 個物品`,
     };
   }
 
@@ -182,11 +182,11 @@ export function validateDefenderItems(
       return {
         success: false,
         error: 'NOT_FOUND',
-        message: `找不到道具 ${itemId}`,
+        message: `找不到物品 ${itemId}`,
       };
     }
 
-    // 裝備類道具為被動增益，不可用於對抗回應
+    // 裝備類物品為被動增益，不可用於對抗回應
     if (item.type === 'equipment') {
       return {
         success: false,
@@ -195,7 +195,7 @@ export function validateDefenderItems(
       };
     }
 
-    // 檢查道具是否可用（冷卻、次數限制等）
+    // 檢查物品是否可用（冷卻、次數限制等）
     if (item.cooldown && item.cooldown > 0 && item.lastUsedAt) {
       const lastUsed = new Date(item.lastUsedAt).getTime();
       const cooldownMs = item.cooldown * 1000;
@@ -203,7 +203,7 @@ export function validateDefenderItems(
         return {
           success: false,
           error: 'ITEM_ON_COOLDOWN',
-          message: `道具 ${item.name} 仍在冷卻中`,
+          message: `物品 ${item.name} 仍在冷卻中`,
         };
       }
     }
@@ -213,7 +213,7 @@ export function validateDefenderItems(
         return {
           success: false,
           error: 'ITEM_USAGE_LIMIT_REACHED',
-          message: `道具 ${item.name} 已達使用次數上限`,
+          message: `物品 ${item.name} 已達使用次數上限`,
         };
       }
     }
@@ -315,7 +315,7 @@ export function validateDefenderSkills(
 }
 
 /**
- * Phase 7.6: 驗證攻擊方技能/道具是否具有 "戰鬥" 標籤
+ * Phase 7.6: 驗證攻擊方技能/物品是否具有 "戰鬥" 標籤
  */
 export function validateAttackerCombatTag(
   source: { tags?: string[] },
@@ -327,14 +327,14 @@ export function validateAttackerCombatTag(
     return {
       success: false,
       error: 'MISSING_COMBAT_TAG',
-      message: `${sourceType === 'skill' ? '技能' : '道具'}「${sourceName}」必須具有「戰鬥」標籤才能發起對抗檢定`,
+      message: `${sourceType === 'skill' ? '技能' : '物品'}「${sourceName}」必須具有「戰鬥」標籤才能發起對抗檢定`,
     };
   }
   return { success: true };
 }
 
 /**
- * Phase 7.6: 驗證防守方技能/道具是否具有 "戰鬥" 標籤
+ * Phase 7.6: 驗證防守方技能/物品是否具有 "戰鬥" 標籤
  * 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
  * 如果攻擊方沒有戰鬥標籤，防守方也不需要有戰鬥標籤
  */
@@ -350,7 +350,7 @@ export function validateDefenderCombatTag(
   }
 
   // 如果攻擊方有戰鬥標籤，防守方也必須有戰鬥標籤
-  // 驗證道具標籤
+  // 驗證物品標籤
   if (itemIds && itemIds.length > 0) {
     const defenderItemsData = defender.items || [];
     for (const itemId of itemIds) {
@@ -363,7 +363,7 @@ export function validateDefenderCombatTag(
         return {
           success: false,
           error: 'MISSING_COMBAT_TAG',
-          message: `道具「${item.name}」必須具有「戰鬥」標籤才能回應具備戰鬥標籤的對抗檢定`,
+          message: `物品「${item.name}」必須具有「戰鬥」標籤才能回應具備戰鬥標籤的對抗檢定`,
         };
       }
     }
@@ -400,7 +400,7 @@ export function validateDefenderCheckType(
   itemIds: string[],
   skillIds: string[]
 ): ValidationResult {
-  // 驗證道具檢定類型
+  // 驗證物品檢定類型
   if (itemIds && itemIds.length > 0) {
     const defenderItemsData = defender.items || [];
     for (const itemId of itemIds) {
@@ -413,7 +413,7 @@ export function validateDefenderCheckType(
         return {
           success: false,
           error: 'INVALID_CHECK_TYPE',
-          message: `道具「${item.name}」的檢定類型必須與攻擊方相同（${attackerCheckType === 'contest' ? '對抗檢定' : '隨機對抗檢定'}）`,
+          message: `物品「${item.name}」的檢定類型必須與攻擊方相同（${attackerCheckType === 'contest' ? '對抗檢定' : '隨機對抗檢定'}）`,
         };
       }
     }
@@ -450,7 +450,7 @@ export function validateDefenderRelatedStat(
   itemIds: string[],
   skillIds: string[]
 ): ValidationResult {
-  // 驗證道具 relatedStat
+  // 驗證物品 relatedStat
   if (itemIds && itemIds.length > 0) {
     const defenderItemsData = defender.items || [];
     for (const itemId of itemIds) {
@@ -458,13 +458,13 @@ export function validateDefenderRelatedStat(
       if (!item) {
         continue;
       }
-      // 只驗證 contest 類型的道具
+      // 只驗證 contest 類型的物品
       if (item.checkType === 'contest' && item.contestConfig) {
         if (item.contestConfig.relatedStat !== attackerRelatedStat) {
           return {
             success: false,
             error: 'INVALID_RELATED_STAT',
-            message: `道具「${item.name}」使用的數值（${item.contestConfig.relatedStat}）必須與攻擊方相同（${attackerRelatedStat}）`,
+            message: `物品「${item.name}」使用的數值（${item.contestConfig.relatedStat}）必須與攻擊方相同（${attackerRelatedStat}）`,
           };
         }
       }

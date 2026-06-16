@@ -1,6 +1,6 @@
 /**
  * 檢定資訊顯示組件
- * 統一顯示技能/道具的檢定資訊，樣式對齊特殊效果區塊（左側邊線卡片）
+ * 統一顯示技能/物品的檢定資訊，樣式對齊特殊效果區塊（左側邊線卡片）
  */
 
 'use client';
@@ -27,7 +27,7 @@ function InfoLine({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-/** 對方回應描述：以布林方式顯示是否允許使用道具/技能 */
+/** 對方回應描述：以布林方式顯示是否允許使用物品/技能 */
 function opponentResponseText(maxItems: number, maxSkills: number): string {
   if (maxItems === 0 && maxSkills === 0) return '不允許';
   const parts: string[] = [];

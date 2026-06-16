@@ -9,7 +9,7 @@
  * - 空狀態：0 條時顯示引導畫面
  *
  * 支援軟刪除（可復原）與狀態 badge（NEW / MODIFIED），
- * 對齊道具 / 技能 / 任務分頁的操作模式。
+ * 對齊物品 / 技能 / 任務分頁的操作模式。
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -47,7 +47,7 @@ type SecretStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
 
 interface SecretsTabProps {
   character: CharacterData;
-  /** 劇本內所有道具（自動揭露條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
+  /** 劇本內所有物品（自動揭露條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
   gameItems: GameItemInfo[];
   onDirtyChange?: (dirty: boolean) => void;
   onRegisterSave?: RegisterSaveHandler;
@@ -124,7 +124,7 @@ export function SecretsTab({ character, gameItems, onDirtyChange, onRegisterSave
     }
   }, [selectedIdx, secrets.length]);
 
-  // 道具列表變動後清理失效的揭露條件引用（gameItems 由 props 下傳）
+  // 物品列表變動後清理失效的揭露條件引用（gameItems 由 props 下傳）
   useEffect(() => {
     if (gameItems.length === 0) return;
     const existingItemIds = gameItems.map((item) => item.itemId);

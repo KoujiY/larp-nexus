@@ -1,11 +1,11 @@
 /**
- * 道具效果執行器（薄殼）
+ * 物品效果執行器（薄殼）
  *
  * 核心邏輯委派至 shared-effect-executor：
  *   - executeEffectBatch()        → 效果迴圈與累積
  *   - emitAffectedNotifications() → DB 套用與 WebSocket 通知
  *
- * 本檔案僅保留道具專屬邏輯：
+ * 本檔案僅保留物品專屬邏輯：
  *   - getItemEffects() 向後兼容讀取
  *   - 目標角色載入與驗證
  *   - writeLog（action: 'item_use'）
@@ -20,7 +20,7 @@ import type { ItemType } from '@/lib/db/types/character-types';
 import { executeEffectBatch, emitAffectedNotifications } from '@/lib/effects/shared-effect-executor';
 
 /**
- * 執行道具效果的結果
+ * 執行物品效果的結果
  */
 export interface ItemEffectExecutionResult {
   effectsApplied: string[];
@@ -31,12 +31,12 @@ export interface ItemEffectExecutionResult {
 }
 
 /**
- * 執行道具效果
+ * 執行物品效果
  *
- * @param item 道具
+ * @param item 物品
  * @param character 角色
  * @param targetCharacterId 目標角色 ID（跨角色效果用）
- * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
+ * @param targetItemId 目標物品 ID（用於 item_take 和 item_steal 效果）
  * @returns 執行結果
  */
 export async function executeItemEffects(

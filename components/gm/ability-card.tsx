@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * 道具 / 技能共用卡片元件
+ * 物品 / 技能共用卡片元件
  *
  * 收合時（固定高度）：狀態 badge + 類型標籤 + 名稱 + 描述 line-clamp-1 + footer badges
  * 展開時：完整描述 + 效果列表（左側邊線卡片）+ 檢定資訊 + 使用限制格 + 標籤
  *
- * 道具 / 技能共用：右側漸淡圖片背景（有 imageUrl 時）
+ * 物品 / 技能共用：右側漸淡圖片背景（有 imageUrl 時）
  * 狀態系統：new / modified / deleted — 與 StatCard 對齊
  *
  * 展開內容設計參考玩家端 item-detail-dialog / skill-detail-dialog
@@ -41,7 +41,7 @@ interface BadgeInfo {
 type AbilityStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
 
 interface AbilityCardProps {
-  /** 道具或技能資料 */
+  /** 物品或技能資料 */
   ability: Item | Skill;
   /** 類型：item 或 skill */
   mode: 'item' | 'skill';
@@ -64,7 +64,7 @@ interface AbilityCardProps {
 }
 
 /**
- * 道具 / 技能共用卡片
+ * 物品 / 技能共用卡片
  */
 export function AbilityCard({
   ability,
@@ -162,7 +162,7 @@ export function AbilityCard({
       )}
       onClick={isDeleted ? undefined : toggleExpand}
     >
-      {/* 道具圖片背景 */}
+      {/* 物品圖片背景 */}
       {imageUrl && !isDeleted && (
         <div
           className="absolute inset-y-0 right-0 w-1/2 bg-cover bg-center pointer-events-none"
@@ -189,7 +189,7 @@ export function AbilityCard({
                 {status === 'new' ? 'NEW' : 'MODIFIED'}
               </span>
             )}
-            {/* 類型標籤（僅道具顯示消耗品/裝備） */}
+            {/* 類型標籤（僅物品顯示消耗品/裝備） */}
             {isItem && (
               <span className={cn(
                 GM_STATUS_BADGE_BASE,

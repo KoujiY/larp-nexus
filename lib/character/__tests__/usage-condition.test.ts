@@ -71,7 +71,7 @@ describe('checkUsageConditions', () => {
   });
 
   it('未持有的名稱 → 視為 0，不滿足', () => {
-    const conds: UsageCondition[] = [{ type: 'item', itemName: '不存在道具', quantity: 1, consume: false }];
+    const conds: UsageCondition[] = [{ type: 'item', itemName: '不存在物品', quantity: 1, consume: false }];
     expect(checkUsageConditions(conds, ctx).satisfied).toBe(false);
   });
 

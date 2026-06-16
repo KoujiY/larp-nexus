@@ -14,7 +14,7 @@ export interface ParsedContestId {
  * 格式：attackerId::sourceId::timestamp
  * 
  * @param attackerId 攻擊方角色 ID
- * @param sourceId 來源 ID（技能 ID 或道具 ID）
+ * @param sourceId 來源 ID（技能 ID 或物品 ID）
  * @param timestamp 時間戳（可選，預設為當前時間）
  * @returns 對抗檢定 ID
  */
