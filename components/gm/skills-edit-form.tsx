@@ -21,7 +21,7 @@ interface SkillsEditFormProps {
   initialSkills: Skill[];
   stats: Stat[];
   secrets?: { id: string; title: string }[];
-  /** 劇本內所有道具（自動揭露/效果條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
+  /** 劇本內所有物品（自動揭露/效果條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
   gameItems: GameItemInfo[];
   /** 劇本內所有技能（同上） */
   gameSkills: GameSkillInfo[];
@@ -36,7 +36,7 @@ interface SkillsEditFormProps {
 /**
  * 技能管理 — 卡片 grid 佈局
  *
- * 與道具分頁共用 AbilityCard 元件，統一視覺。
+ * 與物品分頁共用 AbilityCard 元件，統一視覺。
  * 新增卡片排在 grid 第一位。
  * 空狀態使用 GmEmptyState 共用元件。
  */

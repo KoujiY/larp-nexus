@@ -16,5 +16,5 @@ import type { CharacterDocument } from '@/lib/db/models/Character';
 /** 角色持有的技能單一項目類型 */
 export type SkillType = NonNullable<CharacterDocument['skills']>[number];
 
-/** 角色持有的道具單一項目類型 */
+/** 角色持有的物品單一項目類型 */
 export type ItemType = NonNullable<CharacterDocument['items']>[number];

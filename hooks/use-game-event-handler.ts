@@ -38,7 +38,7 @@ type Params = {
   character: CharacterData;
   addNotification: (notifications: Notification[]) => void;
   contestDialog: ContestDialogActions;
-  /** 被展示方收到道具展示事件時的回調 */
+  /** 被展示方收到物品展示事件時的回調 */
   onItemShowcased: (fromName: string, item: ShowcasedItemInfo) => void;
   /** 遊戲結束時的回調（顯示 GameEndedDialog） */
   onGameEnded: () => void;
@@ -116,7 +116,7 @@ export function useGameEventHandler({
         clearDialogState();
       }
 
-      // 攻擊方：關閉等待 dialog（除非需要選擇目標道具）
+      // 攻擊方：關閉等待 dialog（除非需要選擇目標物品）
       if (String(payload.attackerId) === characterIdStr) {
         const sourceId = payload.itemId || payload.skillId || '';
         if (payload.needsTargetItemSelection && sourceId && payload.defenderId) {

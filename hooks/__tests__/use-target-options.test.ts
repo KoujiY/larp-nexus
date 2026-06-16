@@ -4,7 +4,7 @@
  * useTargetOptions externalTargets 測試（perf 去重 case B）
  *
  * 契約：提供 externalTargets 時，hook 直接使用該清單、不自行呼叫 getTransferTargets，
- * 讓 item-list 的 sharedTargets 成為唯一抓取來源（避免選取道具時重複查同一份目標清單）。
+ * 讓 item-list 的 sharedTargets 成為唯一抓取來源（避免選取物品時重複查同一份目標清單）。
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { renderHook, waitFor, cleanup } from '@testing-library/react';

@@ -46,7 +46,7 @@ export interface UseTargetOptionsReturn {
 
 /**
  * 共用 hook：處理目標選擇邏輯
- * 用於技能和道具的目標角色載入和選擇
+ * 用於技能和物品的目標角色載入和選擇
  */
 export function useTargetOptions({
   gameId,

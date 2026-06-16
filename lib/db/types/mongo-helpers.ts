@@ -36,7 +36,7 @@ export interface MongoTask {
   _id?: unknown;
 }
 
-/** 道具效果的單一項目（MongoItem.effects / MongoItem.effect 共用） */
+/** 物品效果的單一項目（MongoItem.effects / MongoItem.effect 共用） */
 export interface MongoItemEffect {
   type: 'stat_change' | 'custom' | 'item_take' | 'item_steal';
   targetType?: 'self' | 'other' | 'any';

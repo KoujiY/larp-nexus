@@ -1,6 +1,6 @@
 /**
  * 統一檢定處理器
- * 處理道具與技能的檢定邏輯（none, random, contest）
+ * 處理物品與技能的檢定邏輯（none, random, contest）
  *
  * 由 Phase 3 合併自 lib/item/check-handler.ts 與 lib/skill/check-handler.ts
  */
@@ -12,17 +12,17 @@ import type { ItemType, SkillType } from '@/lib/db/types/character-types';
 
 export type { CheckResult };
 
-const abilityLabel = { item: '道具', skill: '技能' } as const;
+const abilityLabel = { item: '物品', skill: '技能' } as const;
 
 /**
- * 處理道具或技能的檢定
+ * 處理物品或技能的檢定
  *
- * @param ability 道具或技能
+ * @param ability 物品或技能
  * @param abilityType 類型標記
  * @param character 角色
  * @param targetCharacterId 目標角色 ID（contest 類型時需要）
  * @param checkResult 檢定結果（random 類型時由前端傳入）
- * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
+ * @param targetItemId 目標物品 ID（用於 item_take 和 item_steal 效果）
  * @returns 檢定結果
  */
 export async function handleAbilityCheck(params: {

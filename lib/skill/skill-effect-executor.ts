@@ -34,7 +34,7 @@ export interface SkillEffectExecutionResult {
  * @param skill 技能
  * @param character 角色
  * @param targetCharacterId 目標角色 ID（跨角色效果用）
- * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
+ * @param targetItemId 目標物品 ID（用於 item_take 和 item_steal 效果）
  * @returns 執行結果
  */
 export async function executeSkillEffects(

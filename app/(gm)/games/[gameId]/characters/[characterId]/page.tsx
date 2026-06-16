@@ -48,7 +48,7 @@ export default async function CharacterEditPage({ params }: CharacterEditPagePro
     .filter((c) => c.id !== character.id)
     .map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl }));
 
-  // 劇本內所有道具 / 技能（自動揭露與效果條件選擇器用）：在 page 層抓一次後
+  // 劇本內所有物品 / 技能（自動揭露與效果條件選擇器用）：在 page 層抓一次後
   // 下傳給 CharacterEditTabs，避免 secrets/tasks/items/skills 四個 forceMount
   // 分頁各自於 client useEffect 重複抓取（getGameItems ×4、getGameSkills ×2）。
   const [gameItemsResult, gameSkillsResult] = await Promise.all([

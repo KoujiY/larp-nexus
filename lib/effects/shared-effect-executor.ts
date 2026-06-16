@@ -3,7 +3,7 @@
  *
  * 提供 item / skill / contest executor 共用的函數：
  *   - computeStatChange()         — 純函數，計算數值變化
- *   - applyItemTransfer()         — 執行道具移除／偷竊的 DB 操作與 WebSocket 通知
+ *   - applyItemTransfer()         — 執行物品移除／偷竊的 DB 操作與 WebSocket 通知
  *   - resolveEffectTarget()       — 純函數，解析效果作用對象
  *   - executeEffectBatch()        — 遍歷效果陣列、累積 stat 變更、處理 item/task 效果
  *   - emitAffectedNotifications() — 套用累積器至 DB 並發送 WebSocket 通知
@@ -38,7 +38,7 @@ export interface StatChangeResult {
   message: string;
 }
 
-/** applyItemTransfer 最小道具結構 */
+/** applyItemTransfer 最小物品結構 */
 export interface ItemLike {
   id: string;
   name: string;
@@ -51,9 +51,9 @@ export interface ItemLike {
 
 /** applyItemTransfer 呼叫參數 */
 export interface ItemTransferParams {
-  /** 失去道具的角色（效果作用對象） */
+  /** 失去物品的角色（效果作用對象） */
   targetIdStr: string;
-  /** 偷竊時取得道具的角色（item_take 時不使用） */
+  /** 偷竊時取得物品的角色（item_take 時不使用） */
   sourceIdStr: string;
   targetItem: ItemLike;
   effectType: 'item_take' | 'item_steal';
@@ -61,7 +61,7 @@ export interface ItemTransferParams {
     sourceCharacterId: string;
     sourceCharacterName: string;
     sourceType: 'item' | 'skill';
-    /** 可傳 '' 以隱藏技能/道具名稱（contest executor 隱私保護） */
+    /** 可傳 '' 以隱藏技能/物品名稱（contest executor 隱私保護） */
     sourceName: string;
     hasStealthTag: boolean;
   };
@@ -136,11 +136,11 @@ export function computeStatChange(
 // ─── applyItemTransfer — DB + 通知 ───────────────────────────────────────────
 
 /**
- * 執行道具移除（item_take）或偷竊（item_steal）的 DB 操作與 WebSocket 通知
+ * 執行物品移除（item_take）或偷竊（item_steal）的 DB 操作與 WebSocket 通知
  *
  * DB 策略：統一使用 $pull + $push（與 skill / contest executor 一致）
- *   - 移除：從 targetIdStr 的 items 中 $pull 指定道具；數量 > 1 時 $push 減量版本
- *   - 偷竊：額外重新讀取 sourceIdStr 的最新資料，$push 道具給來源角色
+ *   - 移除：從 targetIdStr 的 items 中 $pull 指定物品；數量 > 1 時 $push 減量版本
+ *   - 偷竊：額外重新讀取 sourceIdStr 的最新資料，$push 物品給來源角色
  *
  * 不在此處發送最終 role.updated（各 executor 有不同的時機需求）
  */
@@ -150,7 +150,7 @@ export async function applyItemTransfer(
   const { targetIdStr, sourceIdStr, targetItem, effectType, notification } = params;
   const { quantity } = targetItem;
 
-  // Step 1: 從目標角色移除道具
+  // Step 1: 從目標角色移除物品
   await updateCharacterData(targetIdStr, {
     $pull: { items: { id: targetItem.id } },
   });
@@ -175,7 +175,7 @@ export async function applyItemTransfer(
     const existingIndex = sourceItems.findIndex((i: { id: string }) => i.id === targetItem.id);
 
     if (existingIndex !== -1) {
-      // 已有此道具：增加數量
+      // 已有此物品：增加數量
       const existing = sourceItems[existingIndex];
       const newQuantity = (existing.quantity || 1) + 1;
 
@@ -190,7 +190,7 @@ export async function applyItemTransfer(
         $push: { items: updatedItem },
       });
     } else {
-      // 沒有此道具：新增完整複本（裝備自動卸除）
+      // 沒有此物品：新增完整複本（裝備自動卸除）
       const stolenItem = Object.fromEntries(
         Object.entries({ ...JSON.parse(JSON.stringify(targetItem)) as Record<string, unknown>, quantity: 1, acquiredAt: new Date(), equipped: false })
           .filter(([k]) => k !== '_id' && k !== '__v')
@@ -265,7 +265,7 @@ export async function applyItemTransfer(
  * 解析單一效果的作用對象
  *
  * @param targetType   效果的 targetType 設定（'self' | 'other' | 'any' | undefined）
- * @param character    技能/道具使用者
+ * @param character    技能/物品使用者
  * @param characterId  使用者的 baseline ID
  * @param targetCharacter 已載入的目標角色（可為 null）
  * @param targetCharacterId 目標角色 ID（可為 undefined）
@@ -452,7 +452,7 @@ export async function executeEffectBatch(params: EffectBatchParams): Promise<Eff
     } else if (effect.type === 'item_take' || effect.type === 'item_steal') {
       if (checkType === 'contest' || checkType === 'random_contest') continue;
       if (!targetItemId) {
-        effectMessages.push('目標角色沒有道具可互動');
+        effectMessages.push('目標角色沒有物品可互動');
         continue;
       }
       if (!targetCharacterId) throw new Error('此效果需要選擇目標角色');
@@ -466,7 +466,7 @@ export async function executeEffectBatch(params: EffectBatchParams): Promise<Eff
 
       const targetItems = targetCharacter.items || [];
       const targetItem = targetItems.find((i) => i.id === targetItemId);
-      if (!targetItem) throw new Error('目標角色沒有此道具');
+      if (!targetItem) throw new Error('目標角色沒有此物品');
 
       const hasStealthTag = sourceTags.includes('stealth');
 

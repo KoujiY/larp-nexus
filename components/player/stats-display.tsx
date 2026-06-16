@@ -14,7 +14,7 @@ import { getProgressColor } from '@/lib/styles/health-status';
 
 interface StatsDisplayProps {
   stats?: Stat[];
-  /** 角色道具（用於計算裝備加成） */
+  /** 角色物品（用於計算裝備加成） */
   items?: Item[];
 }
 

@@ -1,15 +1,15 @@
 /**
- * 目標道具選擇 Dialog
+ * 目標物品選擇 Dialog
  *
- * 統一處理「選擇目標道具」的 UI，支援兩種場景：
+ * 統一處理「選擇目標物品」的 UI，支援兩種場景：
  *
  * 1. contest（對抗檢定後）
- *    - 分歧 2：攻擊方獲勝，效果為偷竊/移除道具
- *    - 分歧 5：防守方獲勝，防守方使用的道具/技能效果為偷竊/移除道具
+ *    - 分歧 2：攻擊方獲勝，效果為偷竊/移除物品
+ *    - 分歧 5：防守方獲勝，防守方使用的物品/技能效果為偷竊/移除物品
  *    - 使用 selectTargetItemForContest server action
  *
  * 2. post-use（非對抗使用成功後）
- *    - 道具/技能使用成功，server 回傳 needsTargetItemSelection
+ *    - 物品/技能使用成功，server 回傳 needsTargetItemSelection
  *    - 使用 selectTargetItemAfterUse server action
  *
  * 視覺風格：Ethereal Manuscript Glass Panel
@@ -65,7 +65,7 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
   const [isSelecting, setIsSelecting] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
 
-  // 決定要載入哪個角色的道具
+  // 決定要載入哪個角色的物品
   const targetId = mode === 'contest' ? props.defenderId : props.targetCharacterId;
 
   // 鎖定背景滾動
@@ -80,7 +80,7 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
     };
   }, [open]);
 
-  // 載入目標角色的道具清單
+  // 載入目標角色的物品清單
   useEffect(() => {
     if (open && targetId) {
       setIsLoading(true);
@@ -93,7 +93,7 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
           }
         })
         .catch((error) => {
-          console.error('載入目標道具清單錯誤:', error);
+          console.error('載入目標物品清單錯誤:', error);
           setTargetItems([]);
         })
         .finally(() => {
@@ -128,7 +128,7 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
       props.sourceType,
     );
     if (!result.success) {
-      notify.error(result.message || '選擇目標道具失敗');
+      notify.error(result.message || '選擇目標物品失敗');
       return false;
     }
     return true;
@@ -152,11 +152,11 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
     return true;
   }, [mode, props]);
 
-  /** 確認選擇道具 */
+  /** 確認選擇物品 */
   const handleConfirm = async () => {
     if (isSelecting) return;
 
-    // 有選擇道具 → 執行選擇
+    // 有選擇物品 → 執行選擇
     if (selectedTargetItemId) {
       setIsSelecting(true);
       try {
@@ -165,15 +165,15 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
           : await executePostUseAction(selectedTargetItemId);
         if (success) finalize();
       } catch (error) {
-        console.error('選擇目標道具錯誤:', error);
-        notify.error('選擇目標道具時發生錯誤');
+        console.error('選擇目標物品錯誤:', error);
+        notify.error('選擇目標物品時發生錯誤');
       } finally {
         setIsSelecting(false);
       }
       return;
     }
 
-    // 目標沒有道具 → 執行延遲效果（stat_change 等）
+    // 目標沒有物品 → 執行延遲效果（stat_change 等）
     if (targetItems.length === 0) {
       setIsSelecting(true);
       try {
@@ -190,8 +190,8 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
       return;
     }
 
-    // 有道具但沒選 → 提示
-    notify.warning('請選擇目標道具');
+    // 有物品但沒選 → 提示
+    notify.warning('請選擇目標物品');
   };
 
   /** 放棄獲取 */
@@ -221,7 +221,7 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
         style={{ boxShadow: '0 0 40px rgba(254,197,106,0.1)' }}
         role="dialog"
         aria-modal="true"
-        aria-label="選擇目標道具"
+        aria-label="選擇目標物品"
       >
         {/* ── Header ──────────────────────────────────────────── */}
         <header className="pt-8 pb-4 px-8 text-center flex flex-col items-center shrink-0">
@@ -232,16 +232,16 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
             {mode === 'contest' ? '對抗檢定成功' : '使用成功'}
           </h1>
           <p className="text-muted-foreground text-sm font-medium">
-            請選擇要獲取的目標道具
+            請選擇要獲取的目標物品
           </p>
         </header>
 
-        {/* ── 道具列表（可滾動） ──────────────────────────────── */}
+        {/* ── 物品列表（可滾動） ──────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full">
           {isLoading ? (
             <div className="py-12 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">載入道具清單中...</p>
+              <p className="text-sm text-muted-foreground">載入物品清單中...</p>
             </div>
           ) : targetItems.length > 0 ? (
             <div className="space-y-3 pb-4">
@@ -288,7 +288,7 @@ export function TargetItemSelectionDialog(props: TargetItemSelectionDialogProps)
               })}
             </div>
           ) : (
-            /* ── 空狀態：目標無道具 ──────────────────────────── */
+            /* ── 空狀態：目標無物品 ──────────────────────────── */
             <div className="py-12 flex flex-col items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-card/30 border border-white/5 flex items-center justify-center">
                 <Package className="w-6 h-6 text-muted-foreground" />

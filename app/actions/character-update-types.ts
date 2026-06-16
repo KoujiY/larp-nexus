@@ -35,7 +35,7 @@ type RandomConfig = {
 /** 效果型別（與 BaseEffect 統一） */
 type EffectType = 'stat_change' | 'custom' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete';
 
-/** 道具/技能共用效果 */
+/** 物品/技能共用效果 */
 type Effect = {
   type: EffectType;
   targetType?: EffectTargetType;

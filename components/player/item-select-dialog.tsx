@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * 道具對象選擇 Dialog
+ * 物品對象選擇 Dialog
  *
  * 合併「轉移」與「展示」兩種用途，以 mode prop 區分行為文案。
  * 純展示元件，所有狀態由父元件（ItemList）管理。
@@ -48,7 +48,7 @@ export interface ItemSelectDialogProps {
   mode: 'transfer' | 'showcase';
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** 操作目標道具（null 表示尚未選擇） */
+  /** 操作目標物品（null 表示尚未選擇） */
   item: Item | null;
   isLoadingTargets: boolean;
   targets: TransferTargetCharacter[];

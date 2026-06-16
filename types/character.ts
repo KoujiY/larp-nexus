@@ -20,7 +20,7 @@ export interface CharacterData {
   stats?: Stat[];
   skills?: Skill[];
   randomContestMaxValue?: number; // Phase 7.6: 隨機對抗檢定上限值
-  viewedItems?: ViewedItem[]; // Phase 7.7: 已檢視的道具記錄
+  viewedItems?: ViewedItem[]; // Phase 7.7: 已檢視的物品記錄
   temporaryEffects?: TemporaryEffect[]; // Phase 8: 時效性效果記錄
   pendingEvents?: import('@/types/event').PendingEvent[]; // Phase 9: 離線事件佇列
   /**
@@ -128,9 +128,9 @@ export type AutoRevealConditionType = typeof AUTO_REVEAL_CONDITION_TYPES[number]
 export interface AutoRevealCondition {
   type: AutoRevealConditionType;
   /**
-   * 條件引用的道具 ID 列表
+   * 條件引用的物品 ID 列表
    * items_viewed / items_acquired / items_revealed / item_used 使用
-   * 此處的 ID 直接對應角色背包中的道具 ID，由 GM 在設定時選擇
+   * 此處的 ID 直接對應角色背包中的物品 ID，由 GM 在設定時選擇
    */
   itemIds?: string[];
   /** 條件引用的隱藏資訊 ID 列表（僅 secrets_revealed 使用） */
@@ -149,18 +149,18 @@ export interface AutoRevealCondition {
 
 
 /**
- * Phase 7.7: 角色已檢視的道具記錄
- * 用於追蹤「檢視過某幾樣道具」(items_viewed) 揭露條件
+ * Phase 7.7: 角色已檢視的物品記錄
+ * 用於追蹤「檢視過某幾樣物品」(items_viewed) 揭露條件
  *
  * 「檢視」的觸發場景有兩種：
- * 1. 別人展示道具給你（showcase）→ itemId 為展示方背包中的道具 ID
- * 2. 自己點開道具詳情查看（self-view）→ itemId 為自己背包中的道具 ID
+ * 1. 別人展示物品給你（showcase）→ itemId 為展示方背包中的物品 ID
+ * 2. 自己點開物品詳情查看（self-view）→ itemId 為自己背包中的物品 ID
  *
- * 判定邏輯：直接以道具 ID 匹配。
- * GM 應在設定條件時就把所有可能的道具（包含同名道具）都設定進去。
+ * 判定邏輯：直接以物品 ID 匹配。
+ * GM 應在設定條件時就把所有可能的物品（包含同名物品）都設定進去。
  */
 export interface ViewedItem {
-  /** 被檢視的道具 ID */
+  /** 被檢視的物品 ID */
   itemId: string;
   /** 來源角色 ID（展示方角色 ID；若為自行檢視則為自己的角色 ID） */
   sourceCharacterId: string;
@@ -175,10 +175,10 @@ export interface ViewedItem {
 export interface TemporaryEffect {
   id: string;                           // 效果唯一識別碼（如 'teff-xxx-123'）
   sourceType: 'skill' | 'item' | 'preset_event';  // 來源類型
-  sourceId: string;                     // 技能/道具 ID
+  sourceId: string;                     // 技能/物品 ID
   sourceCharacterId: string;            // 施放者角色 ID
   sourceCharacterName: string;          // 施放者角色名稱
-  sourceName: string;                   // 技能/道具名稱
+  sourceName: string;                   // 技能/物品名稱
   effectType: 'stat_change';            // 效果類型（Phase 8 僅支援 stat_change）
   targetStat: string;                   // 目標數值名稱
   deltaValue?: number;                  // 對 value 的變化量（恢復時反向）
@@ -254,18 +254,18 @@ export interface BaseEffect {
   syncValue?: boolean;
   duration?: number;
   description?: string;
-  targetItemId?: string;  // 目標道具 ID（用於 item_take 和 item_steal，由玩家在執行時選擇）
+  targetItemId?: string;  // 目標物品 ID（用於 item_take 和 item_steal，由玩家在執行時選擇）
   targetTaskId?: string;  // 目標任務 ID（用於 task_reveal 和 task_complete）
 }
 
-/** 道具效果 — BaseEffect 的 type alias，保持下游相容 */
+/** 物品效果 — BaseEffect 的 type alias，保持下游相容 */
 export type ItemEffect = BaseEffect;
 
 /** 技能效果 — BaseEffect 的 type alias，保持下游相容 */
 export type SkillEffect = BaseEffect;
 
 /**
- * Phase 4.5: 道具系統（擴展版）
+ * Phase 4.5: 物品系統（擴展版）
  * Phase 8: 添加檢定系統
  * 重構：支援多個效果（與技能一致）
  */
@@ -274,7 +274,7 @@ export interface Item {
   name: string;
   description: string;
   imageUrl?: string;
-  // 道具類型與數量
+  // 物品類型與數量
   // - consumable: 消耗品（使用後數量減少）
   // - tool: 道具（持久性道具，可重複使用）
   // - equipment: 裝備（玩家可主動裝備/卸除，提供被動數值加成）
@@ -339,7 +339,7 @@ export interface ContestConfig {
   relatedStat: string; // 使用的數值名稱
   // NOTE: 目前 GM UI（ability-edit-wizard）以 checkbox 操作，值為 0（不允許）或 99（允許）。
   // 玩家端 Dialog 為單選設計（同類內只能選 1 個）。保留 number 型別供未來擴充多選。
-  opponentMaxItems?: number; // 對方最多可使用道具數（預設 0）
+  opponentMaxItems?: number; // 對方最多可使用物品數（預設 0）
   opponentMaxSkills?: number; // 對方最多可使用技能數（預設 0）
   tieResolution?: 'attacker_wins' | 'defender_wins' | 'both_fail'; // 平手裁決方式
 }
@@ -433,7 +433,7 @@ export interface CreateTaskInput {
 }
 
 /**
- * Phase 4.5: 道具建立輸入
+ * Phase 4.5: 物品建立輸入
  * Phase 8: 添加檢定系統
  */
 export interface CreateItemInput {

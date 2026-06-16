@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react';
 import { useContestDialogState } from './use-contest-dialog-state';
 import { useDefenderContestState } from './use-contest-state';
 
-/** 防守方獲勝後目標道具選擇 dialog 的狀態 */
+/** 防守方獲勝後目標物品選擇 dialog 的狀態 */
 export type DefenderTargetDialogState = {
   open: boolean;
   contestId: string;
@@ -60,7 +60,7 @@ export function useContestDialogManagement({ characterId }: Params) {
   const attackerWaitingOpen = dialogState?.type === 'attacker_waiting';
   const attackerWaitingDisplayData = dialogState?.waitingDisplayData;
 
-  // 攻擊方目標道具選擇 Dialog 狀態（從統一的 dialogState 衍生）
+  // 攻擊方目標物品選擇 Dialog 狀態（從統一的 dialogState 衍生）
   const attackerTargetItemOpen = dialogState?.type === 'target_item_selection';
   const attackerTargetItemData = attackerTargetItemOpen
     ? {

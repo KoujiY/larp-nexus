@@ -6,7 +6,7 @@
  * 
  * 根據 CONTEST_SYSTEM_REFACTORING_V2.md 的需求：
  * 1. 先發送 skill.contest（subType: 'result'）
- * 2. 如果需要選擇目標道具，等待選擇完成（由調用方處理）
+ * 2. 如果需要選擇目標物品，等待選擇完成（由調用方處理）
  * 3. 執行效果後，根據結果發送對應的通知
  */
 
@@ -27,17 +27,17 @@ export interface ContestNotificationParams {
   attacker: CharacterDocument;
   /** 防守方角色 */
   defender: CharacterDocument;
-  /** 攻擊方使用的技能或道具 */
+  /** 攻擊方使用的技能或物品 */
   attackerSource: SkillType | ItemType;
   /** 攻擊方來源類型 */
   attackerSourceType: 'skill' | 'item';
-  /** 防守方使用的技能或道具（可選） */
+  /** 防守方使用的技能或物品（可選） */
   defenderSource?: SkillType | ItemType;
   /** 防守方來源類型（可選） */
   defenderSourceType?: 'skill' | 'item';
   /** 已應用的效果列表 */
   effectsApplied?: string[];
-  /** 是否需要選擇目標道具 */
+  /** 是否需要選擇目標物品 */
   needsTargetItemSelection?: boolean;
   /** 對抗檢定 ID */
   contestId: string;
@@ -45,11 +45,11 @@ export interface ContestNotificationParams {
   attackerValue: number;
   /** 防守方數值 */
   defenderValue: number;
-  /** 攻擊方使用的道具 ID 陣列 */
+  /** 攻擊方使用的物品 ID 陣列 */
   attackerItems?: string[];
   /** 攻擊方使用的技能 ID 陣列 */
   attackerSkills?: string[];
-  /** 防守方使用的道具 ID 陣列 */
+  /** 防守方使用的物品 ID 陣列 */
   defenderItems?: string[];
   /** 防守方使用的技能 ID 陣列 */
   defenderSkills?: string[];
@@ -74,12 +74,12 @@ export class ContestNotificationManager {
    * 
    * 統一管理通知發送順序：
    * 1. 先發送 skill.contest（subType: 'result'）
-   * 2. 如果需要選擇目標道具，等待選擇完成（由調用方處理）
+   * 2. 如果需要選擇目標物品，等待選擇完成（由調用方處理）
    * 3. 執行效果後，根據結果發送對應的通知
    * 
    * @param params 通知參數
    * @param options 選項
-   * @param options.skipInitialResult 是否跳過初始結果發送（當需要選擇目標道具時使用）
+   * @param options.skipInitialResult 是否跳過初始結果發送（當需要選擇目標物品時使用）
    * @param options.skipDefender 是否跳過發送給防守方（當防守方獲勝但無回應時使用）
    */
   static async sendContestResultNotifications(
@@ -139,7 +139,7 @@ export class ContestNotificationManager {
       needsTargetItemSelection,
     };
 
-    // 設置攻擊方的技能/道具 ID 和名稱
+    // 設置攻擊方的技能/物品 ID 和名稱
     if (attackerSourceType === 'skill') {
       contestPayload.skillId = attackerSource.id;
       contestPayload.skillName = attackerSource.name;
@@ -154,7 +154,7 @@ export class ContestNotificationManager {
     contestPayload.sourceHasStealthTag = attackerTags.includes('stealth');
 
     // 步驟 1: 發送 skill.contest（subType: 'result'）
-    // 注意：攻擊方獲勝且需要選擇目標道具時，仍然要發送通知給攻擊方，讓前端能夠開啟選擇道具 dialog
+    // 注意：攻擊方獲勝且需要選擇目標物品時，仍然要發送通知給攻擊方，讓前端能夠開啟選擇物品 dialog
     // 防守方獲勝但無回應時，不發送事件給防守方
     if (!options?.skipInitialResult) {
       const isAttackerWins = result === 'attacker_wins';
@@ -170,33 +170,33 @@ export class ContestNotificationManager {
 
       // Phase 4: 修復邏輯錯誤
       // 發送給攻擊方
-      // Phase 10: 攻擊方獲勝且需要選擇目標道具時，才發送初始結果給攻擊方（讓前端能夠開啟選擇道具 dialog）
-      // 如果不需要選擇目標道具，跳過初始結果（最終結果含效果會緊隨其後發送，初始結果是多餘的）
+      // Phase 10: 攻擊方獲勝且需要選擇目標物品時，才發送初始結果給攻擊方（讓前端能夠開啟選擇物品 dialog）
+      // 如果不需要選擇目標物品，跳過初始結果（最終結果含效果會緊隨其後發送，初始結果是多餘的）
       // 避免攻擊方收到兩次 skill.contest result 事件，導致重複通知
       if (isAttackerWins) {
         if (needsTargetItemSelection) {
-          // 攻擊方獲勝且需要選擇目標道具：發送無效果的結果給攻擊方（包含 needsTargetItemSelection 標記）
+          // 攻擊方獲勝且需要選擇目標物品：發送無效果的結果給攻擊方（包含 needsTargetItemSelection 標記）
           initialTargets.push({
             characterId: attackerIdStr,
             payload: { ...contestPayload, effectsApplied: undefined },
           });
         }
-        // 不需要選擇目標道具：跳過初始結果，最終結果會在 isSendingFinal 路徑發送
+        // 不需要選擇目標物品：跳過初始結果，最終結果會在 isSendingFinal 路徑發送
       } else if (isDefenderWins) {
-        // 防守方獲勝：如果防守方需要選擇目標道具，不發送給攻擊方（避免提前顯示失敗通知）
-        // 攻擊方的失敗通知將在防守方選擇道具後通過 sendContestEffectNotification 發送
+        // 防守方獲勝：如果防守方需要選擇目標物品，不發送給攻擊方（避免提前顯示失敗通知）
+        // 攻擊方的失敗通知將在防守方選擇物品後通過 sendContestEffectNotification 發送
         if (!needsTargetItemSelection) {
-          // 防守方不需要選擇目標道具：發送無效果的結果給攻擊方
+          // 防守方不需要選擇目標物品：發送無效果的結果給攻擊方
           // 修復：確保防守方沒有回應時，清除 defenderSkills 和 defenderItems，避免前一個對抗的值被繼承
           const attackerPayload = { ...contestPayload, effectsApplied: undefined };
           if (!hasDefenderResponse) {
-            // 防守方沒有回應時，明確清除防守方的技能/道具相關欄位
+            // 防守方沒有回應時，明確清除防守方的技能/物品相關欄位
             attackerPayload.defenderSkills = undefined;
             attackerPayload.defenderItems = undefined;
           }
           initialTargets.push({ characterId: attackerIdStr, payload: attackerPayload });
         }
-        // 如果防守方需要選擇目標道具，不發送給攻擊方（將在選擇道具後發送）
+        // 如果防守方需要選擇目標物品，不發送給攻擊方（將在選擇物品後發送）
       }
 
       // 發送給防守方（除非防守方獲勝但無回應）
@@ -211,14 +211,14 @@ export class ContestNotificationManager {
           });
         } else if (isDefenderWins && hasDefenderResponse) {
           // 防守方獲勝且有回應：發送無效果的結果給防守方
-          // 如果防守方需要選擇目標道具，需要設置防守方的技能/道具 ID
+          // 如果防守方需要選擇目標物品，需要設置防守方的技能/物品 ID
           const defenderPayload = { ...contestPayload, effectsApplied: undefined };
           if (needsTargetItemSelection && defenderSource && defenderSourceType) {
-            // 設置防守方使用的技能/道具 ID 和名稱
+            // 設置防守方使用的技能/物品 ID 和名稱
             if (defenderSourceType === 'skill') {
               defenderPayload.skillId = defenderSource.id;
               defenderPayload.skillName = defenderSource.name;
-              // 清除攻擊方的道具 ID（如果有的話）
+              // 清除攻擊方的物品 ID（如果有的話）
               defenderPayload.itemId = undefined;
               defenderPayload.itemName = undefined;
             } else {
@@ -230,11 +230,11 @@ export class ContestNotificationManager {
             }
             // 更新 sourceType 為防守方的來源類型
             defenderPayload.sourceType = defenderSourceType;
-            // 確保 needsTargetItemSelection 設置為 true（防守方需要選擇目標道具）
+            // 確保 needsTargetItemSelection 設置為 true（防守方需要選擇目標物品）
             defenderPayload.needsTargetItemSelection = true;
           } else {
-            // 即使不需要選擇目標道具，也應該設置防守方的技能/道具 ID（如果有的話）
-            // 這樣前端可以正確顯示防守方使用的技能/道具
+            // 即使不需要選擇目標物品，也應該設置防守方的技能/物品 ID（如果有的話）
+            // 這樣前端可以正確顯示防守方使用的技能/物品
             if (defenderSource && defenderSourceType) {
               if (defenderSourceType === 'skill') {
                 defenderPayload.skillId = defenderSource.id;
@@ -260,7 +260,7 @@ export class ContestNotificationManager {
       }
     }
 
-    // 步驟 2: 如果需要選擇目標道具，等待選擇完成（由調用方處理）
+    // 步驟 2: 如果需要選擇目標物品，等待選擇完成（由調用方處理）
     // 這裡不處理，由調用方在選擇完成後調用 sendContestEffectNotification
 
     // 步驟 3: 執行效果後，根據結果發送對應的通知
@@ -279,7 +279,7 @@ export class ContestNotificationManager {
     if (isSendingFinal) {
       if (isAttackerWins) {
         // 攻擊方獲勝
-        // Step 9: 此路徑只在不需要選擇目標道具時才會被呼叫（contest-respond 已守衛）
+        // Step 9: 此路徑只在不需要選擇目標物品時才會被呼叫（contest-respond 已守衛）
         // 或在 contest-select-item 效果執行完成後呼叫（needsTargetItemSelection=false）
         {
           const finalPayload = { ...contestPayload, effectsApplied: effectsApplied.length > 0 ? effectsApplied : undefined };
@@ -305,7 +305,7 @@ export class ContestNotificationManager {
         const defenderChain = async () => {
           // 發送包含效果的完整事件給防守方（如果有回應）
           if (hasDefenderResponse) {
-            // 設置防守方使用的技能/道具名稱
+            // 設置防守方使用的技能/物品名稱
             const updatedPayload = { ...contestPayload };
             if (defenderSource && defenderSourceType === 'skill') {
               updatedPayload.skillName = defenderSource.name;
@@ -341,7 +341,7 @@ export class ContestNotificationManager {
 
         const attackerChain = async () => {
           // 發送 skill.used（失敗）給攻擊方
-          // 注意：如果防守方需要選擇目標道具，不應該在這裡發送（將在選擇道具後發送）
+          // 注意：如果防守方需要選擇目標物品，不應該在這裡發送（將在選擇物品後發送）
           if (!needsTargetItemSelection) {
             await emitSkillUsed(attackerIdStr, {
               characterId: attackerIdStr,
@@ -360,9 +360,9 @@ export class ContestNotificationManager {
   }
 
   /**
-   * 發送對抗檢定效果通知（選擇目標道具後）
+   * 發送對抗檢定效果通知（選擇目標物品後）
    * 
-   * 當攻擊方選擇完目標道具後，發送包含效果的完整事件
+   * 當攻擊方選擇完目標物品後，發送包含效果的完整事件
    * 
    * @param params 通知參數
    */
@@ -420,9 +420,9 @@ export class ContestNotificationManager {
       needsTargetItemSelection: false, // 已經選擇完成
     };
 
-    // Phase 9: 根據結果設置對應的技能/道具 ID
+    // Phase 9: 根據結果設置對應的技能/物品 ID
     if (isDefenderWins && defenderSource && defenderSourceType) {
-      // 防守方獲勝：設置防守方的技能/道具 ID
+      // 防守方獲勝：設置防守方的技能/物品 ID
       if (defenderSourceType === 'skill') {
         contestPayload.skillId = defenderSource.id;
         contestPayload.skillName = defenderSource.name;
@@ -435,7 +435,7 @@ export class ContestNotificationManager {
         contestPayload.skillName = undefined;
       }
     } else {
-      // 攻擊方獲勝：設置攻擊方的技能/道具 ID
+      // 攻擊方獲勝：設置攻擊方的技能/物品 ID
       if (attackerSourceType === 'skill') {
         contestPayload.skillId = attackerSource.id;
         contestPayload.skillName = attackerSource.name;
@@ -452,10 +452,10 @@ export class ContestNotificationManager {
 
     if (isDefenderWins && hasDefenderResponse && defenderSource) {
       // 防守方獲勝：發送包含效果的完整事件給防守方和攻擊方
-      // Phase 9: 防守方選擇道具後，需要同時通知攻擊方和防守方
-      // 發送給攻擊方的 payload 需要包含攻擊方的技能/道具 ID，以便攻擊方能正確清除 pendingContest
+      // Phase 9: 防守方選擇物品後，需要同時通知攻擊方和防守方
+      // 發送給攻擊方的 payload 需要包含攻擊方的技能/物品 ID，以便攻擊方能正確清除 pendingContest
       const attackerPayload = { ...contestPayload };
-      // 恢復攻擊方的技能/道具 ID（攻擊方的 pendingContest 是基於攻擊方的技能/道具 ID 存儲的）
+      // 恢復攻擊方的技能/物品 ID（攻擊方的 pendingContest 是基於攻擊方的技能/物品 ID 存儲的）
       if (attackerSourceType === 'skill') {
         attackerPayload.skillId = attackerSource.id;
         attackerPayload.skillName = attackerSource.name;
@@ -528,7 +528,7 @@ export class ContestNotificationManager {
       };
 
       const defenderChain = async () => {
-        // 問題1修復：發送 skill.used（失敗）給防守方（如果防守方有使用技能/道具回應）
+        // 問題1修復：發送 skill.used（失敗）給防守方（如果防守方有使用技能/物品回應）
         if (hasDefenderResponse && defenderSource && defenderSourceType === 'skill') {
           await emitSkillUsed(defenderIdStr, {
             characterId: defenderIdStr,

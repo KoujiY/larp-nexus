@@ -48,7 +48,7 @@ export type GameCharacterSummary = {
 interface CharacterEditTabsProps {
   character: CharacterData;
   gameId: string;
-  /** 劇本內所有道具（自動揭露/效果條件用）；page 層抓一次後下傳，secrets/tasks/items/skills 分頁共用，避免各自重複抓取 */
+  /** 劇本內所有物品（自動揭露/效果條件用）；page 層抓一次後下傳，secrets/tasks/items/skills 分頁共用，避免各自重複抓取 */
   gameItems: GameItemInfo[];
   /** 劇本內所有技能（同上）；items/skills 分頁共用 */
   gameSkills: GameSkillInfo[];

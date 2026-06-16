@@ -33,7 +33,7 @@ const CHARACTER_EVENT_TYPES = [
   'skill.contest',
   'character.affected',
   'item.transferred',
-  // Phase 7.7: 自動揭露 + 道具展示事件
+  // Phase 7.7: 自動揭露 + 物品展示事件
   'secret.revealed',
   'task.revealed',
   'item.showcased',
@@ -44,7 +44,7 @@ const CHARACTER_EVENT_TYPES = [
   'skill.hidden',
   'item.revealed',
   'item.hidden',
-  // 裝備切換（玩家端裝備/卸除 → GM 端需同步數值與道具卡）
+  // 裝備切換（玩家端裝備/卸除 → GM 端需同步數值與物品卡）
   'equipment.toggled',
 ] as const;
 

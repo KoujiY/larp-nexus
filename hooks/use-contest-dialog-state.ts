@@ -18,7 +18,7 @@ export interface AttackerWaitingDisplayData {
   attackerValue: number;
   /** 防守方名稱 */
   defenderName: string;
-  /** 技能或道具名稱 */
+  /** 技能或物品名稱 */
   sourceName: string;
   /** 檢定類型 */
   checkType: 'contest' | 'random_contest';
@@ -33,11 +33,11 @@ export interface ContestDialogState {
   type: 'attacker_waiting' | 'defender_response' | 'target_item_selection';
   /** 對抗檢定 ID */
   contestId: string;
-  /** 來源類型（技能或道具） */
+  /** 來源類型（技能或物品） */
   sourceType: 'skill' | 'item';
-  /** 來源 ID（技能或道具 ID） */
+  /** 來源 ID（技能或物品 ID） */
   sourceId: string;
-  /** 防守方 ID（用於選擇目標道具） */
+  /** 防守方 ID（用於選擇目標物品） */
   targetCharacterId?: string;
   /** 攻擊方等待 Dialog 顯示資料 */
   waitingDisplayData?: AttackerWaitingDisplayData;
@@ -154,7 +154,7 @@ export function useContestDialogState(characterId: string) {
 
   /**
    * 設置攻擊方等待 Dialog 狀態
-   * 注意：不再有全局等待 dialog，只會顯示技能或道具 dialog
+   * 注意：不再有全局等待 dialog，只會顯示技能或物品 dialog
    */
   const setAttackerWaitingDialog = useCallback((
     contestId: string,
@@ -190,7 +190,7 @@ export function useContestDialogState(characterId: string) {
   }, []);
 
   /**
-   * 設置選擇目標道具 Dialog 狀態
+   * 設置選擇目標物品 Dialog 狀態
    */
   const setTargetItemSelectionDialog = useCallback((
     contestId: string,
@@ -250,7 +250,7 @@ export function useContestDialogState(characterId: string) {
     setAttackerWaitingDialog,
     /** 設置防守方回應 Dialog */
     setDefenderResponseDialog,
-    /** 設置選擇目標道具 Dialog */
+    /** 設置選擇目標物品 Dialog */
     setTargetItemSelectionDialog,
     /** 清除 Dialog 狀態 */
     clearDialogState,

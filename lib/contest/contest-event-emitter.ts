@@ -186,7 +186,7 @@ export async function emitContestAbort(
 }
 
 /**
- * 發送對抗檢定效果事件（攻擊方選擇目標道具後）
+ * 發送對抗檢定效果事件（攻擊方選擇目標物品後）
  * 
  * @param attackerId 攻擊方角色 ID
  * @param payload 事件 payload（不包含 subType，會自動添加）

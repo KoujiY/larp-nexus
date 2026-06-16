@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * 道具詳情 Bottom Sheet
+ * 物品詳情 Bottom Sheet
  *
- * 從底部滑出的彈出式卡片，展示道具完整資訊，
+ * 從底部滑出的彈出式卡片，展示物品完整資訊，
  * 並提供使用、展示、轉移操作按鈕。
  * 目標選擇為單一下拉選單，供三個操作共用。
  *
@@ -30,9 +30,9 @@ import { CheckInfoDisplay } from './check-info-display';
 import { UsageConditionsDisplay } from './usage-conditions-display';
 
 export interface ItemDetailDialogProps {
-  /** 當前選中的道具；null 表示 Bottom Sheet 關閉 */
+  /** 當前選中的物品；null 表示 Bottom Sheet 關閉 */
   selectedItem: Item | null;
-  /** Sheet 是否被鎖定（對抗檢定進行中或後續道具選擇中） */
+  /** Sheet 是否被鎖定（對抗檢定進行中或後續物品選擇中） */
   isDialogLocked: boolean;
   onClose: () => void;
 
@@ -65,7 +65,7 @@ export interface ItemDetailDialogProps {
 
   /** 是否為唯讀模式（隱藏所有互動按鈕） */
   isReadOnly: boolean;
-  /** 確認道具是否可使用 */
+  /** 確認物品是否可使用 */
   canUseItem: (item: Item) => { canUse: boolean; reason?: string };
   /** 是否顯示使用按鈕 */
   showUseButton: boolean;
@@ -193,7 +193,7 @@ export function ItemDetailDialog({
 
         {/* 可滾動內容區 */}
         <div className="overflow-y-auto px-6 pt-2 pb-64 flex-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-primary/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-primary/70">
-          {/* 道具圖片 */}
+          {/* 物品圖片 */}
           <div className="relative w-32 h-32 mx-auto mb-4">
             <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-2xl animate-pulse" />
             <div

@@ -29,7 +29,7 @@ interface SecretEditDialogProps {
   secret: Secret | null;
   /** 儲存回呼：回傳編輯後的隱藏資訊 */
   onSave: (secret: Secret) => void;
-  /** 劇本中所有角色的道具列表（用於自動揭露條件） */
+  /** 劇本中所有角色的物品列表（用於自動揭露條件） */
   availableItems: GameItemInfo[];
   /** 是否停用（儲存中） */
   disabled?: boolean;

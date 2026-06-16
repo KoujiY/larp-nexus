@@ -96,7 +96,7 @@ function ensureRandomConfig(
 }
 
 /**
- * 正規化檢定設定，回傳應合併至道具/技能資料的設定欄位
+ * 正規化檢定設定，回傳應合併至物品/技能資料的設定欄位
  * 供 Skills / Items 共用。
  *
  * - contest         : 只需要 contestConfig

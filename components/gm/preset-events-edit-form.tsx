@@ -6,7 +6,7 @@
  * Baseline 模式：CRUD 事件定義，無執行功能
  * Runtime 模式：CRUD + 執行功能 + runtimeOnly 標記 + 執行結果顯示
  *
- * 與技能/道具分頁結構對齊：grid 卡片 + 新增按鈕在第一位 + EmptyState
+ * 與技能/物品分頁結構對齊：grid 卡片 + 新增按鈕在第一位 + EmptyState
  */
 
 import { useState, useEffect, useCallback } from 'react';

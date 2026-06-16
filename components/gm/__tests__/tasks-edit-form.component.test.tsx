@@ -4,7 +4,7 @@
  * TasksEditForm 資料來源測試（perf 去重：getGameItems 改由 page 層 props 下傳）
  *
  * 契約：TasksEditForm 不再自行呼叫 getGameItems，改接受 gameItems prop，
- * 並用於隱藏任務自動揭露條件的道具名稱顯示。
+ * 並用於隱藏任務自動揭露條件的物品名稱顯示。
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
@@ -58,7 +58,7 @@ afterEach(() => {
 });
 
 describe('TasksEditForm gameItems 來源', () => {
-  it('以 gameItems prop 顯示隱藏任務揭露條件的道具名稱，且不呼叫 getGameItems', async () => {
+  it('以 gameItems prop 顯示隱藏任務揭露條件的物品名稱，且不呼叫 getGameItems', async () => {
     const user = userEvent.setup();
     render(<TasksEditForm characterId="char-1" initialTasks={[hiddenTaskWithCondition]} secrets={[]} gameItems={gameItems} />);
 

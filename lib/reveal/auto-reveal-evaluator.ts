@@ -293,23 +293,23 @@ function evaluateSkillItemConditions(
 function buildTriggerReason(condition: AutoRevealCondition): string {
   switch (condition.type) {
     case 'items_viewed':
-      return '滿足道具檢視條件';
+      return '滿足物品檢視條件';
     case 'items_acquired':
-      return '滿足道具取得條件';
+      return '滿足物品取得條件';
     case 'secrets_revealed':
       return '滿足隱藏資訊揭露條件';
     case 'skill_used':
       return '滿足技能使用條件';
     case 'item_used':
-      return '滿足道具使用條件';
+      return '滿足物品使用條件';
     case 'skill_targeted':
       return '滿足技能被使用條件';
     case 'item_targeted':
-      return '滿足道具被使用條件';
+      return '滿足物品被使用條件';
     case 'skills_revealed':
       return '滿足技能揭露條件';
     case 'items_revealed':
-      return '滿足道具揭露條件';
+      return '滿足物品揭露條件';
     default:
       return '自動揭露';
   }

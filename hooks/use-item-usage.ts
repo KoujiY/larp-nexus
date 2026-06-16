@@ -1,8 +1,8 @@
 /**
- * 道具使用 Hook
- * 統一管理道具使用的核心邏輯
+ * 物品使用 Hook
+ * 統一管理物品使用的核心邏輯
  *
- * Phase 6: 提取技能/道具使用邏輯
+ * Phase 6: 提取技能/物品使用邏輯
  */
 
 'use client';
@@ -45,7 +45,7 @@ export interface UseItemUsageOptions {
   onClearTargetState?: () => void;
   onRouterRefresh?: () => void;
   onCloseDialog?: () => void;
-  /** 非對抗偷竊/移除：使用成功後需要選擇目標道具 */
+  /** 非對抗偷竊/移除：使用成功後需要選擇目標物品 */
   onNeedsTargetItemSelection?: (info: {
     sourceId: string;
     effectType: 'item_steal' | 'item_take';
@@ -61,7 +61,7 @@ export interface UseItemUsageReturn {
 }
 
 /**
- * 道具使用 Hook
+ * 物品使用 Hook
  */
 export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
   const {
@@ -95,7 +95,7 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
       return;
     }
 
-    // 偷竊/移除道具：不再需要前置確認目標和選擇目標道具
+    // 偷竊/移除物品：不再需要前置確認目標和選擇目標物品
     // 對抗檢定：targetItemId 在對抗結束後選擇
     // 非對抗檢定：targetItemId 在使用成功後選擇（server 回傳 needsTargetItemSelection）
     const isContest = selectedItem.checkType === 'contest' || selectedItem.checkType === 'random_contest';
@@ -119,19 +119,19 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
     setIsUsing(true);
     try {
       // 對抗檢定和偷竊/移除不傳遞 targetItemId（延遲選擇）
-      // 只有非偷竊效果且已選擇目標道具時才傳遞
+      // 只有非偷竊效果且已選擇目標物品時才傳遞
       const targetItemIdForUse = isContest ? undefined : selectedTargetItemId || undefined;
       const result = await onUseItem(selectedItem.id, selectedTargetId, finalCheckResult, targetItemIdForUse);
 
       // 處理結果
       if (result.success) {
-        // 非對抗偷竊/移除：使用成功後需要選擇目標道具
+        // 非對抗偷竊/移除：使用成功後需要選擇目標物品
         if (result.data?.needsTargetItemSelection && result.data?.targetCharacterId) {
           // 清除目標選擇狀態（target character 已確定，不需要保留）
           if (onClearTargetState) {
             onClearTargetState();
           }
-          // 觸發目標道具選擇流程
+          // 觸發目標物品選擇流程
           if (onNeedsTargetItemSelection) {
             const effects = selectedItem.effects || [];
             const effectType = effects.some((e) => e.type === 'item_steal') ? 'item_steal' : 'item_take';
@@ -141,7 +141,7 @@ export function useItemUsage(options: UseItemUsageOptions): UseItemUsageReturn {
               targetCharacterId: result.data.targetCharacterId,
             });
           }
-          // 不關閉 dialog，等待目標道具選擇完成
+          // 不關閉 dialog，等待目標物品選擇完成
           if (onSuccess) {
             onSuccess(result);
           }

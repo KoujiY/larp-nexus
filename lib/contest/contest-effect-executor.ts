@@ -21,7 +21,7 @@ import { computeStatChange, applyItemTransfer } from '@/lib/effects/shared-effec
 import { executeAutoReveal } from '@/lib/reveal/auto-reveal-evaluator';
 
 /**
- * 技能或道具的效果類型
+ * 技能或物品的效果類型
  */
 type Effect = {
   type: 'stat_change' | 'item_take' | 'item_steal' | 'task_reveal' | 'task_complete' | 'custom';
@@ -52,10 +52,10 @@ export interface ContestEffectExecutionResult {
  *
  * @param attacker 攻擊方角色
  * @param defender 防守方角色
- * @param source 技能或道具（攻擊方或防守方）
- * @param targetItemId 目標道具 ID（用於 item_take 和 item_steal 效果）
+ * @param source 技能或物品（攻擊方或防守方）
+ * @param targetItemId 目標物品 ID（用於 item_take 和 item_steal 效果）
  * @param contestResult 對抗檢定結果（Phase 7.6: 決定執行攻擊方還是防守方的效果）
- * @param defenderSources 防守方使用的技能/道具列表（Phase 7.6: 防守方獲勝時使用）
+ * @param defenderSources 防守方使用的技能/物品列表（Phase 7.6: 防守方獲勝時使用）
  * @param options.skipFinalReload 跳過結尾的角色重讀（省 2 次 DB 查詢）。
  *   ⚠️ 設為 true 時回傳的 updatedAttacker/updatedDefender 是「效果套用前」的傳入 doc，
  *   不可用於讀取最新狀態——僅供不使用這兩個欄位的呼叫端（contest-respond）使用
@@ -231,14 +231,14 @@ export async function executeContestEffects(
       // §4: item_take/item_steal 的語意固定是「從對手拿 → 給自己」，
       // Wizard 已擋 targetType: 'self'，這裡忽略 targetType 直接走 opponent → sourceOwner
       if (!targetItemId) {
-        effectsApplied.push('放棄道具獲取');
+        effectsApplied.push('放棄物品獲取');
         continue;
       }
 
       const opponentItems = opponent.items || [];
       const targetItem = opponentItems.find((i) => i.id === targetItemId);
       if (!targetItem) {
-        console.error('[contest-effect-executor] 目標角色沒有此道具:', targetItemId);
+        console.error('[contest-effect-executor] 目標角色沒有此物品:', targetItemId);
         continue;
       }
 
@@ -254,7 +254,7 @@ export async function executeContestEffects(
           sourceCharacterId: sourceOwnerIdStr,
           sourceCharacterName: sourceOwner.name,
           sourceType: actualSourceType,
-          sourceName: '', // contest executor 不顯示技能/道具名稱（隱私保護）
+          sourceName: '', // contest executor 不顯示技能/物品名稱（隱私保護）
           hasStealthTag,
         },
       });
@@ -300,7 +300,7 @@ export async function executeContestEffects(
           sourceCharacterId: sourceOwnerIdStr,
           sourceCharacterName: hasStealthTag ? '' : sourceOwner.name,
           sourceType: actualSourceType,
-          sourceName: '', // 不顯示技能/道具名稱
+          sourceName: '', // 不顯示技能/物品名稱
           sourceHasStealthTag: hasStealthTag,
           effectType: 'stat_change',
           changes: {

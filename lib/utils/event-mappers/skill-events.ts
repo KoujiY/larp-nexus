@@ -63,7 +63,7 @@ function mapDefenderResult(
   const hasDefenderItems = payload.defenderItems && payload.defenderItems.length > 0;
   const hasDefenderResponse = hasDefenderSkills || hasDefenderItems;
 
-  // 防守方沒有使用技能/道具，不顯示通知
+  // 防守方沒有使用技能/物品，不顯示通知
   if (!hasDefenderResponse) {
     return [];
   }
@@ -78,7 +78,7 @@ function mapDefenderResult(
     return [];
   }
 
-  // 決定防守方使用的技能/道具名稱
+  // 決定防守方使用的技能/物品名稱
   const defenderSourceType = hasDefenderSkills ? 'skill' : 'item';
   const payloadSourceType = payload.sourceType || (payload.skillName ? 'skill' : 'item');
 

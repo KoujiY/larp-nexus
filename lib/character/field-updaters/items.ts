@@ -1,12 +1,12 @@
 /**
- * 角色道具（Items）欄位更新器
+ * 角色物品（Items）欄位更新器
  */
 
 import { normalizeTags } from '@/lib/utils/tags';
 import type { MongoItem } from '@/lib/db/types/mongo-helpers';
 import { normalizeEffectData, normalizeCheckConfig, normalizeUsageConditions } from './shared';
 
-/** 道具庫存差異項目型別 */
+/** 物品庫存差異項目型別 */
 export type InventoryDiff = {
   action: 'added' | 'updated' | 'deleted';
   item: {
@@ -19,7 +19,7 @@ export type InventoryDiff = {
 };
 
 /**
- * 計算道具新增 / 更新 / 刪除的差異列表
+ * 計算物品新增 / 更新 / 刪除的差異列表
  */
 function calculateInventoryDiffs(
   newItems: Array<Record<string, unknown>>,
@@ -75,7 +75,7 @@ function calculateInventoryDiffs(
  * 更新角色 Items
  *
  * @param items Items 陣列
- * @param currentItems 當前 Items 陣列（用於判斷是否為新道具）
+ * @param currentItems 當前 Items 陣列（用於判斷是否為新物品）
  * @returns 更新後的 Items 資料和差異列表
  */
 export function updateCharacterItems(
@@ -113,7 +113,7 @@ export function updateCharacterItems(
       itemData.statBoosts = item.statBoosts;
     }
 
-    // Phase 6.5 / Phase 7: 處理道具效果（優先 effects 陣列，向後兼容 effect）
+    // Phase 6.5 / Phase 7: 處理物品效果（優先 effects 陣列，向後兼容 effect）
     if (item.effects != null) {
       itemData.effects = (item.effects as unknown as Array<Record<string, unknown>>)
         .filter((e) => e && e.type)

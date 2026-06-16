@@ -45,7 +45,7 @@ export function cleanSkillData(skills: MongoSkill[] | undefined): MongoSkill[] {
 }
 
 /**
- * 清理道具資料 - 移除無效的道具
+ * 清理物品資料 - 移除無效的物品
  */
 export function cleanItemData(items: MongoItem[] | undefined): MongoItem[] {
   return (items || [])

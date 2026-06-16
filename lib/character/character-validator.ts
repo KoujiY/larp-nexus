@@ -293,14 +293,14 @@ export function validateItems(items: Array<{
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: `道具 ${item.name} 的 quantity 不能為負數`,
+        message: `物品 ${item.name} 的 quantity 不能為負數`,
       };
     }
     if ((item.checkType === 'contest' || item.checkType === 'random_contest') && !item.contestConfig) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: `道具 ${item.name} 設定為對抗檢定但沒有 contestConfig`,
+        message: `物品 ${item.name} 設定為對抗檢定但沒有 contestConfig`,
       };
     }
     if ((item.checkType === 'random' || item.checkType === 'random_contest') && (
@@ -309,14 +309,14 @@ export function validateItems(items: Array<{
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: `道具 ${item.name} 設定為隨機檢定但 randomConfig 不完整`,
+        message: `物品 ${item.name} 設定為隨機檢定但 randomConfig 不完整`,
       };
     }
     if (item.randomConfig && item.randomConfig.threshold > item.randomConfig.maxValue) {
       return {
         success: false,
         error: 'VALIDATION_ERROR',
-        message: `道具 ${item.name} 的 threshold 不能超過 maxValue`,
+        message: `物品 ${item.name} 的 threshold 不能超過 maxValue`,
       };
     }
   }

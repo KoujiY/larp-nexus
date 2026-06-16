@@ -24,11 +24,11 @@ interface ItemsEditFormProps {
   initialItems: Item[];
   stats: Stat[];
   secrets?: { id: string; title: string }[];
-  /** 劇本內所有道具（自動揭露/效果條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
+  /** 劇本內所有物品（自動揭露/效果條件選擇器用）；由 page 層抓一次後下傳，避免各分頁重複抓取 */
   gameItems: GameItemInfo[];
   /** 劇本內所有技能（同上） */
   gameSkills: GameSkillInfo[];
-  /** 遊戲進行中時禁止上傳圖片（Runtime 新增的道具在 Baseline 找不到） */
+  /** 遊戲進行中時禁止上傳圖片（Runtime 新增的物品在 Baseline 找不到） */
   gameIsActive?: boolean;
   randomContestMaxValue?: number;
   onDirtyChange?: (dirty: boolean) => void;
@@ -37,7 +37,7 @@ interface ItemsEditFormProps {
 }
 
 /**
- * 道具管理 — 卡片 grid 佈局
+ * 物品管理 — 卡片 grid 佈局
  *
  * 不分消耗品 / 裝備，全部混排 grid。
  * 新增卡片排在 grid 第一位。
@@ -115,7 +115,7 @@ export function ItemsEditForm({ characterId, initialItems, stats, secrets, gameI
   //
   // 過去這裡曾經 setItems(payload.updates.items)，但 WS payload 與 RSC payload
   // 序列化差異會讓 useFormGuard 把它判成 dirty → sticky bar 假冒未儲存變更
-  // （例：玩家轉移道具會觸發此 bug）。改用單一 prop refresh 路徑後，items state
+  // （例：玩家轉移物品會觸發此 bug）。改用單一 prop refresh 路徑後，items state
   // 永遠與 RSC 回來的版本一致，不會出現偽 dirty。
   //
   // ── 例外：equipment.toggled 直接訂閱（live overlay 路徑） ──

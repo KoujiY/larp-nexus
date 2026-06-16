@@ -1,13 +1,13 @@
 /**
- * 道具驗證工具函數
+ * 物品驗證工具函數
  */
 
 import type { Item } from '@/types/character';
 import { checkUsageConditions, type UsageConditionContext } from '@/lib/character/usage-condition';
 
 /**
- * 檢查道具是否可以使用（不包含對抗檢定檢查）
- * @param item 道具對象
+ * 檢查物品是否可以使用（不包含對抗檢定檢查）
+ * @param item 物品對象
  * @param ctx Feature 3: 角色上下文（stats / items），用於檢查使用條件。
  *   未提供時略過條件檢查（向後相容既有呼叫端）。
  * @returns 返回是否可以使用及原因
@@ -56,8 +56,8 @@ export function canUseItem(
 }
 
 /**
- * 計算道具冷卻剩餘時間（秒）
- * @param item 道具對象
+ * 計算物品冷卻剩餘時間（秒）
+ * @param item 物品對象
  * @returns 返回剩餘秒數，如果沒有冷卻或已過期則返回 null
  */
 export function getCooldownRemaining(item: Item): number | null {

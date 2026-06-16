@@ -7,7 +7,7 @@
 import type { Item } from './character';
 
 /**
- * 道具使用結果
+ * 物品使用結果
  */
 export interface ItemUseResult {
   success: boolean;

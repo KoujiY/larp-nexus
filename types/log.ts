@@ -66,13 +66,13 @@ export interface StatChangeDetails {
 }
 
 /**
- * 使用道具
+ * 使用物品
  */
 export interface ItemUseDetails {
   itemId: string;
   itemName: string;
   targetCharacterId?: string; // 目標角色（如適用）
-  effects: unknown[]; // 道具效果列表
+  effects: unknown[]; // 物品效果列表
 }
 
 /**

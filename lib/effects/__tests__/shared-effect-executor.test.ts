@@ -189,7 +189,7 @@ describe('applyItemTransfer', () => {
 
     expect(result.message).toBe('偷竊了 回復藥')
     expect(result.pendingRevealReceiverId).toBe('char-source')
-    // 應該呼叫 updateCharacterData 把道具加給 source
+    // 應該呼叫 updateCharacterData 把物品加給 source
     const calls = vi.mocked(updateCharacterData).mock.calls
     const pushCall = calls.find(
       (c) => c[0] === 'char-source' && (c[1] as { $push?: unknown }).$push != null
@@ -197,7 +197,7 @@ describe('applyItemTransfer', () => {
     expect(pushCall).toBeDefined()
   })
 
-  it('item_steal: 來源已有相同道具時增加數量', async () => {
+  it('item_steal: 來源已有相同物品時增加數量', async () => {
     vi.mocked(getCharacterData).mockResolvedValue({
       items: [{ id: 'item-1', name: '回復藥', quantity: 2 }],
     } as never)

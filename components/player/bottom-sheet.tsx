@@ -4,7 +4,7 @@
  * 共用 Bottom Sheet 元件
  *
  * 從底部滑入的對話框，包含遮罩、拖曳把手、可捲動內容區和固定底部區域。
- * 供道具詳情、隱藏資訊等 dialog 共用。
+ * 供物品詳情、隱藏資訊等 dialog 共用。
  */
 
 import { useEffect, type ReactNode } from 'react';

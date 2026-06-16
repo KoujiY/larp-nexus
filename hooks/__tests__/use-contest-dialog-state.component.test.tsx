@@ -91,7 +91,7 @@ describe('useContestDialogState', () => {
     expect(result.current.dialogState?.sourceId).toBe('item-1');
   });
 
-  it('setTargetItemSelectionDialog 設置目標道具選擇狀態', () => {
+  it('setTargetItemSelectionDialog 設置目標物品選擇狀態', () => {
     const { result } = renderHook(() => useContestDialogState(CHARACTER_ID));
 
     act(() => {

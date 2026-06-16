@@ -511,7 +511,7 @@ async function uploadCharacterImageImpl(
 }
 
 /**
- * 上傳道具或技能圖片
+ * 上傳物品或技能圖片
  *
  * 與角色圖片相同的寫入策略：永遠寫入 Baseline，遊戲進行中額外同步到 Runtime。
  */
@@ -548,7 +548,7 @@ async function uploadAbilityImageImpl(
       return { success: false, error: 'UNAUTHORIZED', message: '無權編輯此角色' };
     }
 
-    // 找到目標道具/技能的現有圖片 URL（用於舊圖清理）
+    // 找到目標物品/技能的現有圖片 URL（用於舊圖清理）
     const arrayField = mode === 'item' ? 'items' : 'skills';
     const abilities = (character[arrayField] as Array<{ id: string; imageUrl?: string }>) || [];
     const target = abilities.find((a) => a.id === abilityId);

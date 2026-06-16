@@ -146,7 +146,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     clearTargetState();
   }, [setSelectedUseTargetId, setIsTargetConfirmed, setSelectedTargetItemId, clearTargetState]);
 
-  // 非對抗偷竊/移除：使用成功後的目標道具選擇（由獨立 Dialog 顯示）
+  // 非對抗偷竊/移除：使用成功後的目標物品選擇（由獨立 Dialog 顯示）
   const [postUseSelectionState, setPostUseSelectionState] = useState<{
     sourceId: string;
     sourceType: 'skill' | 'item';
@@ -175,7 +175,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
   // Phase 8.3: 使用 ref 存儲 handleContestStarted，以便在 onSuccess 回調中使用
   const handleContestStartedRef = useRef<((contestId: string, displayData?: import('@/hooks/use-contest-dialog-state').AttackerWaitingDisplayData) => void) | null>(null);
 
-  // 檢查是否有任何道具在冷卻中
+  // 檢查是否有任何物品在冷卻中
   const hasAnyCooldown = items?.some((item) => {
     if (!item.cooldown || item.cooldown <= 0 || !item.lastUsedAt) return false;
     const lastUsed = new Date(item.lastUsedAt).getTime();
@@ -183,7 +183,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     return Date.now() - lastUsed < cooldownMs;
   });
 
-  // 每秒更新一次（僅當有道具在冷卻中時）
+  // 每秒更新一次（僅當有物品在冷卻中時）
   useEffect(() => {
     if (!hasAnyCooldown) return;
     
@@ -194,7 +194,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     return () => clearInterval(interval);
   }, [hasAnyCooldown]);
 
-  // 檢查道具是否可使用（包含對抗檢定檢查）
+  // 檢查物品是否可使用（包含對抗檢定檢查）
   const canUseItem = (item: Item): { canUse: boolean; reason?: string } => {
     // Phase 8: 檢查是否有正在進行的對抗檢定
     // 修復：直接檢查 pendingContests 對象，而不是依賴 hasPendingContest（可能存在閉包問題）
@@ -210,7 +210,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
 
   // Phase 4.3: 狀態恢復邏輯已由 useContestStateRestore Hook 處理
 
-  // Phase 6.4: 使用 useItemUsage Hook 管理道具使用
+  // Phase 6.4: 使用 useItemUsage Hook 管理物品使用
   const {
     isUsing,
     checkResult,
@@ -249,7 +249,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
       }
     },
     onNeedsTargetItemSelection: (info) => {
-      // 非對抗偷竊/移除：使用成功後開啟目標道具選擇 Dialog
+      // 非對抗偷竊/移除：使用成功後開啟目標物品選擇 Dialog
       setPostUseSelectionState({
         ...info,
         sourceType: 'item',
@@ -278,7 +278,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
 
   // Phase 6.4: 創建 handleCloseDialog（需要在 useItemUsage 之後，因為需要 setCheckResult 和 setUseResult）
   /**
-   * 關閉道具 Dialog
+   * 關閉物品 Dialog
    * @param options.force 強制關閉，跳過對抗檢定進行中的檢查。
    *   用於 WebSocket handler 已確認對抗檢定結束後呼叫，因為 React 批次更新導致
    *   dialogState / pendingContests 尚未同步到當前 render，guard 會誤判為仍在進行中。
@@ -308,11 +308,11 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     setSelectedItem(null);
     setCheckResult(undefined);
     setSelectedUseTargetId(undefined);
-    // Phase 7: 清除目標道具選擇狀態
+    // Phase 7: 清除目標物品選擇狀態
     setIsTargetConfirmed(false);
     setSelectedTargetItemId('');
     // Phase 3.3: targetItems 由 hook 管理，不需要手動清除
-    // Phase 5.3: 目標道具選擇狀態由 hook 管理，不需要手動清除
+    // Phase 5.3: 目標物品選擇狀態由 hook 管理，不需要手動清除
   }, [selectedItem, hasPendingContest, updateContestDialog, setSelectedUseTargetId, setIsTargetConfirmed, setSelectedTargetItemId, isDialogForSource, clearDialogState, setCheckResult, dialogState]);
 
   // Phase 6.4: 更新 handleCloseDialogRef
@@ -367,14 +367,14 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     onShowcaseComplete: handleTransferComplete, // 清理邏輯與轉移相同
   });
 
-  // Phase 8: 當選擇目標角色時，檢查是否需要載入目標道具清單
-  // 注意：對抗檢定時，不需要載入目標道具清單
+  // Phase 8: 當選擇目標角色時，檢查是否需要載入目標物品清單
+  // 注意：對抗檢定時，不需要載入目標物品清單
   useEffect(() => {
     const itemEffects = selectedItem ? getItemEffects(selectedItem) : [];
     const needsTargetItem = itemEffects.some((effect) => effect.type === 'item_take' || effect.type === 'item_steal');
     const isContest = selectedItem?.checkType === 'contest' || selectedItem?.checkType === 'random_contest';
 
-    // 如果效果需要目標道具，且已選擇目標角色，但尚未確認，則重置確認狀態
+    // 如果效果需要目標物品，且已選擇目標角色，但尚未確認，則重置確認狀態
     // 對抗檢定時跳過此邏輯
     if (needsTargetItem && !isContest && selectedUseTargetId && !isTargetConfirmed) {
       setIsTargetConfirmed(false);
@@ -383,7 +383,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     }
   }, [selectedItem, selectedUseTargetId, isTargetConfirmed, setIsTargetConfirmed, setSelectedTargetItemId]);
 
-  // Phase 3.3: 當選擇道具時，恢復目標選擇狀態
+  // Phase 3.3: 當選擇物品時，恢復目標選擇狀態
   // useTargetSelection hook 內部會處理恢復邏輯，這裡只需要在適當的時機調用
   useEffect(() => {
     if (selectedItem && !isLoadingUseTargets && useTargets.length > 0) {
@@ -402,7 +402,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     }
   }, [selectedItem?.id, selectedUseTargetId, isTargetConfirmed, selectedTargetItemId, selectedItem, saveTargetState]);
 
-  // 載入共用目標列表（道具選中時自動載入，供使用/展示/轉移共用）
+  // 載入共用目標列表（物品選中時自動載入，供使用/展示/轉移共用）
   useEffect(() => {
     if (!selectedItem?.id || !gameId || !characterId) {
       setSharedTargets([]);
@@ -419,7 +419,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
 
 
   // 監聽對抗檢定結果事件：清除 item-list 本地狀態（pendingContest、waitingRef）
-  // 注意：dialog 開關（等待 dialog、目標道具選擇 dialog）由 use-game-event-handler.ts 統一處理
+  // 注意：dialog 開關（等待 dialog、目標物品選擇 dialog）由 use-game-event-handler.ts 統一處理
   useCharacterWebSocket(characterId, (event: BaseEvent) => {
     if (event.type === 'skill.contest') {
       const payload = event.payload as SkillContestEvent['payload'];
@@ -438,7 +438,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
         return;
       }
 
-      // 只處理攻擊方收到的對抗終結事件（結果 / 效果）（道具類型）
+      // 只處理攻擊方收到的對抗終結事件（結果 / 效果）（物品類型）
       // 用 subType 判別，而非 `attackerValue !== 0`：對抗請求送防守方時 attackerValue
       // 固定為 0（佔位），但若攻擊方對抗數值本身為 0，結果/效果事件也帶 0，舊判別式
       // 會崩潰、永遠清不掉攻擊方本地對抗狀態，導致攻防 UI 失步。
@@ -455,7 +455,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
         waitingContestRef.current.delete(itemId);
         clearTargetState();
 
-        // 需要選擇目標道具的分歧：保持 pendingContest（由 character-card-view 的 TargetItemSelectionDialog 結束後清除）
+        // 需要選擇目標物品的分歧：保持 pendingContest（由 character-card-view 的 TargetItemSelectionDialog 結束後清除）
         if (payload.result === 'attacker_wins' && payload.needsTargetItemSelection) {
           return;
         }
@@ -468,7 +468,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
     }
   });
 
-  // 衍生狀態：當前選中道具的對抗檢定與操作鎖定狀態
+  // 衍生狀態：當前選中物品的對抗檢定與操作鎖定狀態
   // 集中計算一次，取代 JSX 中 9+ 處重複的 inline IIFE
   // waitingContestRef 需要配合 dialogState 判斷：若 dialogState 已被清除（如 abort），ref 殘留不應阻擋操作
   const isContestInProgress = Boolean(
@@ -527,7 +527,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
           )}
         </div>
 
-        {/* 道具格子（flat grid，不分類） */}
+        {/* 物品格子（flat grid，不分類） */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {items.map((item) => {
             const isPendingContest = hasPendingContest(item.id);
@@ -551,7 +551,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
         </div>
       </div>
 
-      {/* 道具詳情 Dialog */}
+      {/* 物品詳情 Dialog */}
       <ItemDetailDialog
         selectedItem={selectedItem}
         isDialogLocked={isDialogLocked}
@@ -584,7 +584,7 @@ export function ItemList({ items, characterId, gameId, characterName, stats = []
         isTogglingEquipment={isTogglingEquipment}
       />
 
-      {/* 非對抗偷竊/移除：使用成功後的目標道具選擇 Dialog */}
+      {/* 非對抗偷竊/移除：使用成功後的目標物品選擇 Dialog */}
       {postUseSelectionState && (
         <TargetItemSelectionDialog
           mode="post-use"
